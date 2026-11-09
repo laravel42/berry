@@ -60,7 +60,7 @@ export function BrandThemeLayout({
       <BrandThemeCanvas className={className}>
          <div className="relative flex min-h-svh flex-1 flex-col px-8 py-7">
             <header className="flex items-center gap-2.5">
-               <BerryWordmark size="lg" />
+               <BerryWordmark size="md" />
                {topAction ? (
                   <div
                      data-auth-top

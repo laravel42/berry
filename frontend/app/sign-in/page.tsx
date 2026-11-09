@@ -143,6 +143,7 @@ function PasswordlessSignIn() {
                {pending ? 'Signing in…' : 'Continue'}
             </AuthPrimaryButton>
             <AuthSecondaryButton
+               inverted
                disabled={pending}
                onClick={() => {
                   setPending(true);

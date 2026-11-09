@@ -15,15 +15,26 @@ import { GitLabIntegrationSettings } from '@/components/common/settings/gitlab-i
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import { Button, buttonVariants } from '@/components/ui/button';
 import {
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogFooter,
+   DialogHeader,
+   DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { updateGitHubSettings } from '@/lib/github';
+import {
    BUILT_IN_PROVIDER,
    describeConnectionResult,
    describeIntegrationFailure,
    describeProviderState,
    describeToolEffect,
    disconnectProvider,
+   forgetGitHubInstall,
    listConnections,
    listProviders,
-   startAuthorize,
+   saveProviderToken,
    toolOperation,
    type Provider,
    type ProviderConnection,
@@ -32,7 +43,7 @@ import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, parseISO } from 'date-fns';
-import { ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -98,19 +109,39 @@ function visibleProviderDescription(provider: {
    id?: string;
    description?: string | null;
 }): string {
-   const text = (provider.description ?? '').trim();
-   if (!text) return '';
-   if (provider.id !== 'github') return text;
-   const sentence = text.match(/^[^.!?]+[.!?]/);
-   return (sentence?.[0] ?? text).trim();
+   return (provider.description ?? '').trim();
 }
 
-/** Bitbucket sits last until Connect ships; filename order would put it first. */
+/**
+ * GitHub and GitLab first (Connect or a settings drawer already ships), then
+ * the rest of the source-control catalogue in the order a person expects to
+ * scan it. Filename order would put AWS and Azure first.
+ */
+const DIRECTORY_ORDER = [
+   'github',
+   'gitlab',
+   'bitbucket',
+   'azure-devops',
+   'gitea',
+   'forgejo',
+   'codeberg',
+   'aws-codecommit',
+   'gerrit',
+   'sourcehut',
+   'gogs',
+   'perforce',
+] as const;
+
 function directoryOrder(providers: Provider[]): Provider[] {
    return [...providers].sort((left, right) => {
-      if (left.id === 'bitbucket') return 1;
-      if (right.id === 'bitbucket') return -1;
-      return 0;
+      const leftRank = DIRECTORY_ORDER.indexOf(left.id as (typeof DIRECTORY_ORDER)[number]);
+      const rightRank = DIRECTORY_ORDER.indexOf(right.id as (typeof DIRECTORY_ORDER)[number]);
+      if (leftRank === -1 && rightRank === -1) {
+         return left.name.localeCompare(right.name);
+      }
+      if (leftRank === -1) return 1;
+      if (rightRank === -1) return -1;
+      return leftRank - rightRank;
    });
 }
 
@@ -169,23 +200,22 @@ function ToolsTable({ provider }: { provider: Provider }) {
    );
 }
 
+/** Whether Connect is offered for this catalogue entry (card modal / drawer). */
+function canConnectProvider(provider: Provider): boolean {
+   return provider.configured;
+}
+
 function ProviderCard({
    provider,
    connection,
    highlighted,
-   busy,
-   onConnect,
-   onDisconnect,
    onOpen,
 }: {
    provider: Provider;
    connection: ProviderConnection | undefined;
    highlighted: boolean;
-   busy: boolean;
-   onConnect: () => void;
-   onDisconnect: () => void;
-   /** Opens this provider's settings. The tools row and connect actions stay their own controls. */
-   onOpen?: () => void;
+   /** Opens the connect dialog, or the settings drawer when already connected. */
+   onOpen: () => void;
 }) {
    const [toolsOpen, setToolsOpen] = useState(false);
    const state = describeProviderState(provider);
@@ -193,12 +223,7 @@ function ProviderCard({
    const destructive = provider.tools.filter((tool) => tool.effect === 'destructive').length;
    const allowedCount = provider.tools.filter((tool) => tool.allowed === true).length;
    const scopes = connection?.scopes?.length ? connection.scopes : (provider.scopes ?? []);
-   // GitHub and GitLab disconnect from their drawers. The row has no
-   // second column once that account is connected.
    const inDrawer = drawerProviderId(provider.id) !== null;
-   const showDisconnect = !inDrawer && provider.connected;
-   const showConnect =
-      !provider.connected && provider.id !== 'gitlab' && provider.id !== 'bitbucket';
    const accountName = connection?.accountName ?? provider.accountName;
    // The badge already says connected. This line is only the account and the
    // dates, so a provider with neither does not repeat the word.
@@ -214,110 +239,76 @@ function ProviderCard({
    ]
       .filter(Boolean)
       .join(' · ');
-   const actions =
-      showDisconnect || showConnect ? (
-         <div className="flex shrink-0 items-center gap-2">
-            {showDisconnect ? (
-               <Button variant="soft" disabled={busy} onClick={onDisconnect}>
-                  {busy ? 'Working…' : 'Disconnect'}
-               </Button>
-            ) : null}
-            {showConnect ? (
-               <Button
-                  disabled={busy || !provider.configured}
-                  title={
-                     provider.configured
-                        ? `Sign in to ${visibleProviderName(provider)}`
-                        : `${visibleProviderName(provider)} is not configured on this deployment`
-                  }
-                  onClick={onConnect}
-               >
-                  {busy ? 'Opening…' : 'Connect'}
-               </Button>
-            ) : null}
-         </div>
-      ) : null;
-
-   const identity = (
-      <>
-         <ProviderIcon provider={provider} />
-         <div className="min-w-0 flex-1">
-            <div className="flex items-start justify-between gap-3">
-               <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                  <h3 className="m-0">{visibleProviderName(provider)}</h3>
-                  <StatusIndicator status={provider.connected ? 'connected' : 'off'}>
-                     {state.label}
-                  </StatusIndicator>
-               </div>
-               {actions}
-            </div>
-            {visibleProviderDescription(provider) && (
-               <p
-                  data-settings-type="caption"
-                  title={visibleProviderDescription(provider)}
-                  className="mt-1 line-clamp-2 leading-[1.55] text-muted-foreground"
-               >
-                  {visibleProviderDescription(provider)}
-               </p>
-            )}
-            {provider.connected && connectionLine ? (
-               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
-                  {connectionLine}
-               </p>
-            ) : null}
-            {/* A connection that lapsed is not a connection that was never
-                   made, and the reason is the whole difference between "press
-                   Connect" and "this was never set up". */}
-            {!inDrawer && !provider.connected && publicDetail(connection?.statusDetail) && (
-               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
-                  {publicDetail(connection?.statusDetail)}
-                  {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
-               </p>
-            )}
-            {inDrawer && provider.status === 'reconnect' && (
-               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
-                  The {visibleProviderName(provider)} connection needs to be renewed before agents
-                  can use a repository.
-               </p>
-            )}
-            {inDrawer && provider.status === 'expired' && publicDetail(provider.statusDetail) && (
-               <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
-                  {publicDetail(provider.statusDetail)}
-               </p>
-            )}
-            {scopes.length > 0 && (
-               <ul className="mt-2 flex flex-wrap gap-1.5">
-                  {scopes.map((scope) => (
-                     <li key={scope}>
-                        <SettingsChip>{scope}</SettingsChip>
-                     </li>
-                  ))}
-               </ul>
-            )}
-         </div>
-      </>
-   );
 
    return (
       <section
          id={`provider-${provider.id}`}
          className={cn(
-            'flex min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group transition-shadow',
+            'flex h-full min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group transition-shadow',
             highlighted && 'ring-2 ring-ring/50'
          )}
          aria-label={visibleProviderName(provider)}
       >
-         {onOpen ? (
-            <button
-               type="button"
-               onClick={onOpen}
-               className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
-            >
-               {identity}
-            </button>
-         ) : (
-            <div className="flex min-w-0 items-start gap-3 p-4">{identity}</div>
-         )}
+         <button
+            type="button"
+            onClick={onOpen}
+            className="flex min-h-0 min-w-0 flex-1 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+         >
+            <ProviderIcon provider={provider} />
+            <div className="min-w-0 flex-1">
+               <div className="flex min-w-0 items-start justify-between gap-3">
+                  <h3 className="m-0 min-w-0 truncate">{visibleProviderName(provider)}</h3>
+                  <StatusIndicator status={provider.connected ? 'connected' : 'off'}>
+                     {state.label}
+                  </StatusIndicator>
+               </div>
+               {visibleProviderDescription(provider) && (
+                  <p
+                     data-settings-type="caption"
+                     title={visibleProviderDescription(provider)}
+                     className="mt-1 line-clamp-2 leading-[1.55] text-muted-foreground"
+                  >
+                     {visibleProviderDescription(provider)}
+                  </p>
+               )}
+               {provider.connected && connectionLine ? (
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                     {connectionLine}
+                  </p>
+               ) : null}
+               {/* A connection that lapsed is not a connection that was never
+                   made, and the reason is the whole difference between "press
+                   Connect" and "this was never set up". */}
+               {!inDrawer && !provider.connected && publicDetail(connection?.statusDetail) && (
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                     {publicDetail(connection?.statusDetail)}
+                     {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
+                  </p>
+               )}
+               {inDrawer && provider.status === 'reconnect' && (
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                     The {visibleProviderName(provider)} connection needs to be renewed before
+                     agents can use a repository.
+                  </p>
+               )}
+               {inDrawer &&
+                  provider.status === 'expired' &&
+                  publicDetail(provider.statusDetail) && (
+                     <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                        {publicDetail(provider.statusDetail)}
+                     </p>
+                  )}
+               {scopes.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                     {scopes.map((scope) => (
+                        <li key={scope}>
+                           <SettingsChip>{scope}</SettingsChip>
+                        </li>
+                     ))}
+                  </ul>
+               )}
+            </div>
+         </button>
          <button
             type="button"
             data-settings-type="caption"
@@ -430,6 +421,8 @@ function IntegrationsDirectory() {
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
+   const [connecting, setConnecting] = useState<Provider | null>(null);
+   const [accessToken, setAccessToken] = useState('');
    const [drawer, setDrawer] = useState<DrawerProviderId | null>(null);
 
    const load = useCallback(async (): Promise<Provider[]> => {
@@ -498,13 +491,51 @@ function IntegrationsDirectory() {
       document.getElementById(`provider-${highlighted}`)?.scrollIntoView({ block: 'center' });
    }, [highlighted, loaded]);
 
-   const connect = async (provider: Provider) => {
+   const connectWithToken = async (provider: Provider, token: string) => {
+      const trimmed = token.trim();
+      if (trimmed === '') {
+         toast.error('Paste an access token to connect.');
+         return;
+      }
       setBusy(provider.id);
       try {
-         const url = await startAuthorize(provider.id);
-         window.location.assign(url);
+         // GitHub may already be reachable through sign-in; turning the
+         // workspace switch back on is enough when Disconnect only flipped it.
+         if (provider.id === 'github' && workspace?.id) {
+            await updateGitHubSettings(workspace.id, { enabled: true });
+         }
+         await saveProviderToken(provider.id, trimmed);
+         toast.success(`${visibleProviderName(provider)} connected`);
+         setConnecting(null);
+         setAccessToken('');
+         await load();
       } catch (failure) {
          toast.error(visibleFailure(failure));
+      } finally {
+         setBusy(null);
+      }
+   };
+
+   /** Re-enable GitHub when sign-in still connects it; otherwise open paste. */
+   const resumeGitHubOrPaste = async (provider: Provider) => {
+      if (provider.id !== 'github' || !workspace?.id) {
+         setConnecting(provider);
+         setAccessToken('');
+         return;
+      }
+      setBusy(provider.id);
+      try {
+         await updateGitHubSettings(workspace.id, { enabled: true });
+         const refreshed = await load();
+         if (refreshed.some((entry) => entry.id === 'github' && entry.connected)) {
+            toast.success(`${visibleProviderName(provider)} connected`);
+            return;
+         }
+         setConnecting(provider);
+         setAccessToken('');
+      } catch (failure) {
+         toast.error(visibleFailure(failure));
+      } finally {
          setBusy(null);
       }
    };
@@ -512,8 +543,15 @@ function IntegrationsDirectory() {
    const disconnect = async (provider: Provider) => {
       setBusy(provider.id);
       try {
+         // GitHub's DELETE clears the connection, App installs and the
+         // workspace switch. forgetGitHubInstall is a second pass for a
+         // deployment whose DELETE predates that; a missing install is fine.
+         if (provider.id === 'github') {
+            await forgetGitHubInstall().catch(() => undefined);
+         }
          await disconnectProvider(provider.id);
          toast.success(`${visibleProviderName(provider)} disconnected`);
+         setDrawer(null);
          await load();
       } catch (failure) {
          toast.error(visibleFailure(failure));
@@ -539,27 +577,101 @@ function IntegrationsDirectory() {
             </SettingsCard>
          ) : null}
 
-         <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
+         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-stretch">
             {providers.map((provider) => (
                <ProviderCard
                   key={provider.id}
                   provider={provider}
                   connection={connections.find((entry) => entry.provider === provider.id)}
                   highlighted={highlighted === provider.id}
-                  busy={busy === provider.id}
-                  onConnect={() => void connect(provider)}
-                  onDisconnect={() => setDisconnecting(provider)}
-                  onOpen={
-                     provider.connected && drawerProviderId(provider.id)
-                        ? () => {
-                             const id = drawerProviderId(provider.id);
-                             if (id) setDrawer(id);
-                          }
-                        : undefined
-                  }
+                  onOpen={() => {
+                     if (busy) return;
+                     if (provider.connected) {
+                        const drawerId = drawerProviderId(provider.id);
+                        if (drawerId) {
+                           setDrawer(drawerId);
+                           return;
+                        }
+                     }
+                     setConnecting(provider);
+                     setAccessToken('');
+                  }}
                />
             ))}
          </div>
+
+         <Dialog
+            open={connecting !== null}
+            onOpenChange={(open) => {
+               if (!open && !busy) {
+                  setConnecting(null);
+                  setAccessToken('');
+               }
+            }}
+         >
+            {connecting ? (
+               <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+                  <form
+                     className="flex flex-col gap-4"
+                     onSubmit={(event) => {
+                        event.preventDefault();
+                        void connectWithToken(connecting, accessToken);
+                     }}
+                  >
+                     <DialogHeader>
+                        <DialogTitle>{visibleProviderName(connecting)}</DialogTitle>
+                        <DialogDescription>
+                           {visibleProviderDescription(connecting) ||
+                              `Connect ${visibleProviderName(connecting)} so agents can reach it.`}
+                        </DialogDescription>
+                     </DialogHeader>
+                     {canConnectProvider(connecting) ? (
+                        <>
+                           <p data-settings-type="caption" className="text-subtle-foreground">
+                              Paste a personal access token from {visibleProviderName(connecting)}.
+                              Berry seals it and never shows it again.
+                           </p>
+                           <label className="flex flex-col gap-1" htmlFor="scm-access-token">
+                              <span>Access token</span>
+                              <Input
+                                 variant="settings"
+                                 id="scm-access-token"
+                                 type="password"
+                                 autoComplete="off"
+                                 autoFocus
+                                 spellCheck={false}
+                                 value={accessToken}
+                                 disabled={busy === connecting.id}
+                                 placeholder="Paste token"
+                                 onChange={(event) => setAccessToken(event.target.value)}
+                              />
+                           </label>
+                           <DialogFooter>
+                              <Button
+                                 type="submit"
+                                 disabled={busy === connecting.id || accessToken.trim() === ''}
+                              >
+                                 {busy === connecting.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                 ) : connecting.status === 'reconnect' ||
+                                   connecting.status === 'expired' ? (
+                                    'Reconnect'
+                                 ) : (
+                                    'Install and connect'
+                                 )}
+                              </Button>
+                           </DialogFooter>
+                        </>
+                     ) : (
+                        <p data-settings-type="caption" className="text-subtle-foreground">
+                           Connect is unavailable until this deployment can seal a credential (set
+                           INTEGRATION_ENCRYPTION_KEY).
+                        </p>
+                     )}
+                  </form>
+               </DialogContent>
+            ) : null}
+         </Dialog>
 
          <AlertDialog
             open={disconnecting !== null}
@@ -618,7 +730,7 @@ function IntegrationsDirectory() {
                      busy={busy === drawer}
                      onConnect={() => {
                         const provider = providers.find((entry) => entry.id === drawer);
-                        if (provider) void connect(provider);
+                        if (provider) void resumeGitHubOrPaste(provider);
                      }}
                      onDisconnect={() => {
                         const provider = providers.find((entry) => entry.id === drawer);

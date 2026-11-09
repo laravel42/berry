@@ -121,6 +121,34 @@ export async function startAuthorize(provider: string): Promise<string> {
    return parsed.data.authorizeUrl;
 }
 
+/**
+ * Seals a pasted host access token as this workspace's connection.
+ * Throws `VALIDATION_ERROR`, `TOKEN_REFUSED`, `INTEGRATIONS_NOT_CONFIGURED`, `FORBIDDEN`.
+ */
+export async function saveProviderToken(
+   provider: string,
+   accessToken: string,
+   accountName?: string
+): Promise<ProviderConnection> {
+   const json: unknown = await apiFetch(
+      `/api/v1/integrations/connections/${encodeURIComponent(provider)}/token`,
+      {
+         method: 'POST',
+         body: JSON.stringify({
+            accessToken,
+            ...(accountName && accountName.trim() !== ''
+               ? { accountName: accountName.trim() }
+               : {}),
+         }),
+      }
+   );
+   const parsed = z.object({ connection: providerConnectionSchema }).safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Connection response was not recognized');
+   }
+   return parsed.data.connection;
+}
+
 /** Removes the connection and every grant that rode on it. Throws `NOT_FOUND`, `FORBIDDEN`. */
 export async function disconnectProvider(provider: string): Promise<void> {
    await apiFetch(`/api/v1/integrations/connections/${encodeURIComponent(provider)}`, {
@@ -265,9 +293,11 @@ export function describeIntegrationFailure(error: unknown): string {
    if (error instanceof BerryApiError) {
       switch (error.code) {
          case 'PROVIDER_NOT_CONFIGURED':
-            return 'This deployment has no OAuth credentials for that provider.';
+            return 'This deployment cannot connect that provider yet.';
          case 'INTEGRATIONS_NOT_CONFIGURED':
-            return 'Integration callback URLs are not configured on this deployment.';
+            return 'This deployment has no encryption key, so it cannot hold a credential.';
+         case 'TOKEN_REFUSED':
+            return error.message;
          case 'FORBIDDEN':
             return 'Only an admin can connect or disconnect a provider.';
          case 'NOT_FOUND':

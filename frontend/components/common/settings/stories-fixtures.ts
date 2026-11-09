@@ -355,9 +355,10 @@ export const integrationProviders = [
    },
    {
       id: 'github',
-      include: 'oauth',
+      include: 'access_token',
       name: 'GitHub',
-      description: 'The repositories your agents check out, branch and open pull requests.',
+      description:
+         'Cloud. Pull requests, Actions and the GitHub ecosystem. Agents will check repositories out, branch and open pull requests there.',
       configured: true,
       connected: true,
       status: 'connected',
@@ -370,7 +371,7 @@ export const integrationProviders = [
    },
    {
       id: 'gitlab',
-      include: 'oauth',
+      include: 'access_token',
       name: 'GitLab',
       description:
          'The projects a GitLab account can reach. Sign in so agents can work in those repositories.',
@@ -394,7 +395,7 @@ export const integrationProviders = [
    },
    {
       id: 'bitbucket',
-      include: 'oauth',
+      include: 'access_token',
       name: 'Bitbucket',
       description:
          'The repositories a Bitbucket account can reach. Agents will check them out, branch and open pull requests there.',

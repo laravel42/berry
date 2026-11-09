@@ -198,6 +198,7 @@
    --settings-accent-hover: var(--berry-hover);
    --settings-danger-hover: color-mix(in oklab, var(--brand-danger) 18%, var(--card));
    --settings-badge-warning: color-mix(in oklab, var(--status-warning) 14%, transparent);
+   --settings-badge-success: color-mix(in oklab, var(--status-success) 14%, transparent);
    --settings-tier-violet: var(--brand-iris);
 }
 
@@ -272,6 +273,7 @@
    --settings-accent-hover: #d55a6e;
    --settings-danger-hover: #3a2226;
    --settings-badge-warning: rgba(217, 165, 74, 0.14);
+   --settings-badge-success: rgba(95, 176, 138, 0.14);
    --settings-tier-violet: #a48ad8;
 }
 
@@ -366,6 +368,7 @@
    --color-settings-accent-hover: var(--settings-accent-hover);
    --color-settings-danger-hover: var(--settings-danger-hover);
    --color-settings-badge-warning: var(--settings-badge-warning);
+   --color-settings-badge-success: var(--settings-badge-success);
    --color-container: var(--container);
    --color-board-column-body: var(--board-column-body);
    --color-column-tint-neutral: var(--column-tint-neutral);
@@ -942,6 +945,13 @@ input[type='search'] {
    background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #34d399, #fbbf24, #f472b6);
    background-size: 300% 100%;
    animation: ai-border-flow 4s linear infinite;
+}
+
+.ai-animated-border[aria-disabled='true'] {
+   animation: none;
+   background-position: 50% 50%;
+   opacity: 0.5;
+   pointer-events: none;
 }
 
 /* Auth shell: the top-right sign-in/sign-up switch sits one step above the

@@ -75,14 +75,20 @@ export function AuthSecondaryButton({
    children,
    className,
    type = 'button',
+   inverted = false,
    ...props
-}: ComponentProps<'button'>) {
+}: ComponentProps<'button'> & {
+   /** Chalk fill / void text — use for Continue with GitHub, not for quieter actions. */
+   inverted?: boolean;
+}) {
    return (
       <button
          type={type}
          className={cn(
-            'flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border border-[#242428]',
-            'font-medium text-[#d6d4d1] transition-colors hover:border-[#3a3a40] hover:bg-[#19191c] hover:text-[var(--brand-chalk)]',
+            'flex h-11 w-full items-center justify-center gap-2 rounded-[10px] border font-medium transition-colors',
+            inverted
+               ? 'border-[var(--brand-chalk)] bg-[var(--brand-chalk)] text-[var(--brand-void)] hover:border-[#e8e6e3] hover:bg-[#e8e6e3]'
+               : 'border-[#242428] text-[#d6d4d1] hover:border-[#3a3a40] hover:bg-[#19191c] hover:text-[var(--brand-chalk)]',
             className
          )}
          {...props}

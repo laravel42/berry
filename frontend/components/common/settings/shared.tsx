@@ -335,7 +335,7 @@ export function KeyCap({ children }: { children: React.ReactNode }) {
 
 export type SettingsStatus = 'connected' | 'available' | 'off';
 
-/** 6px dot plus a 12px label: Connected (green), Available (grey), Not installed / not connected (dim). */
+/** 22px badge: Connected (green), Available (grey), Not installed / not connected (dim). */
 export function StatusIndicator({
    status,
    children,
@@ -345,23 +345,16 @@ export function StatusIndicator({
 }) {
    return (
       <span
-         data-settings-type="caption"
+         data-settings-type="small"
          className={cn(
-            'inline-flex items-center gap-1.5',
-            status === 'connected' ? 'text-muted-foreground' : 'text-subtle-foreground'
+            'inline-flex h-[22px] shrink-0 items-center rounded-[6px] px-2 font-medium whitespace-nowrap',
+            status === 'connected'
+               ? 'bg-settings-badge-success text-status-success'
+               : status === 'available'
+                 ? 'bg-settings-chip text-muted-foreground'
+                 : 'bg-settings-chip text-subtle-foreground'
          )}
       >
-         <span
-            aria-hidden
-            className={cn(
-               'size-1.5 shrink-0 rounded-full',
-               status === 'connected'
-                  ? 'bg-status-success'
-                  : status === 'available'
-                    ? 'bg-status-neutral'
-                    : 'bg-settings-field-focus'
-            )}
-         />
          {children}
       </span>
    );
@@ -599,7 +592,7 @@ export function SelectMenu({
    );
 }
 
-/** "● Enabled ..." green-dot status text. */
+/** Connected-status badge (e.g. "This device"). */
 export function EnabledDot({ children }: { children: React.ReactNode }) {
    return <StatusIndicator status="connected">{children}</StatusIndicator>;
 }

@@ -44,7 +44,7 @@ export function AuthCard({
       <BrandThemeCanvas className={className}>
          <div className="flex min-h-full flex-1 flex-col px-8 py-7">
             <header className="flex items-center gap-2.5">
-               <BerryWordmark size="lg" />
+               <BerryWordmark size="md" />
                {topAction ? (
                   <div
                      data-auth-top
@@ -62,7 +62,7 @@ export function AuthCard({
                      'bg-[color-mix(in_oklab,var(--brand-void)_85%,transparent)] p-8 backdrop-blur-[2px]'
                   )}
                >
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 text-center">
                      {onBack ? (
                         <button
                            type="button"

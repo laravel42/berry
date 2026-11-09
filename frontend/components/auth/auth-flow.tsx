@@ -521,6 +521,7 @@ export function AuthFlow({
             ) : null}
             {options.github ? (
                <AuthSecondaryButton
+                  inverted
                   disabled={pending}
                   onClick={() => {
                      setPending(true);
