@@ -10,6 +10,7 @@ import type { BoardRepository } from '../core/boards.ts';
 import { ConnectionUnavailable, type ConnectionRepository } from '../integrations/connections.ts';
 import { GitHubClient, GitHubError, type RepositoryChoice } from '../integrations/github.ts';
 import { listRepositoriesAcrossAccounts } from '../integrations/github-repositories.ts';
+import { GitLabClient, GitLabError } from '../integrations/gitlab.ts';
 import {
    AuthorizationNotPending,
    ExchangeFailed,
@@ -34,6 +35,11 @@ import {
    type GitHubAppRepository,
    type StoredApp,
 } from '../integrations/github-app.ts';
+import type { Sql } from '../db/pool.ts';
+import {
+   DEFAULT_GITHUB_SETTINGS,
+   type GitHubSettingsRepository,
+} from '../scm/github-settings.ts';
 /**
  * `/api/v1/integrations`.
  *
@@ -308,6 +314,16 @@ export interface IntegrationsOptions {
     * Refresh button. Null on a deployment that cannot open a stored token.
     */
    userAccess?: GitHubUserAccess | null;
+   /**
+    * Workspace GitHub switches. Disconnect turns the master switch off when
+    * GitHub is only reachable through a member's sign-in — that token is the
+    * person's login credential and cannot be wiped from a workspace setting,
+    * so "disconnected" here means agents stop using it until Connect (or the
+    * switch) turns it back on.
+    */
+   githubSettings?: GitHubSettingsRepository | null;
+   /** Needed to write github settings inside Disconnect's transaction. */
+   sql?: Sql;
    /** This deployment's own origin, which the provider redirects back to. */
    publicUrl: string | null;
    /** Where to send the browser after the callback. Defaults to the API's own origin. */
@@ -448,22 +464,31 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
       const grants = options.connections ? await listGrants(options, workspaceId) : [];
       const attention = options.agentCoreAttention?.() ?? null;
       const githubSignIn = await githubSignInState(workspaceId, options);
+      const githubEnabled = options.githubSettings
+         ? (await options.githubSettings.get(workspaceId)).enabled
+         : DEFAULT_GITHUB_SETTINGS.enabled;
 
       return json({
          providers: PROVIDERS.map((provider) => {
             const connection = byProvider.get(provider.id);
             const renew = provider.id === 'github' ? attention : null;
-            const viaSignIn = provider.id === 'github' && githubSignIn.connected;
-            const connected =
+            // A member's sign-in only counts while the workspace still uses GitHub.
+            // Disconnect turns that switch off without clearing the login token.
+            const viaSignIn =
+               provider.id === 'github' && githubSignIn.connected && githubEnabled;
+            const linked =
                !needsConnection(provider.id) ||
                connection?.status === 'connected' ||
                viaSignIn;
+            const connected = provider.id === 'github' ? linked && githubEnabled : linked;
             const githubStatus = provider.id === 'github' ? githubSignIn : null;
             const status = renew
                ? 'expired'
-               : viaSignIn && connection?.status !== 'connected'
-                 ? githubStatus?.status ?? null
-                 : (connection?.status ?? githubStatus?.status ?? null);
+               : provider.id === 'github' && !githubEnabled
+                 ? null
+                 : viaSignIn && connection?.status !== 'connected'
+                   ? githubStatus?.status ?? null
+                   : (connection?.status ?? githubStatus?.status ?? null);
             return {
                id: provider.id,
                include: provider.include,
@@ -476,7 +501,7 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
                statusDetail:
                   renew?.message ??
                   connection?.statusDetail ??
-                  (provider.id === 'github' ? githubSignIn.statusDetail : null),
+                  (provider.id === 'github' && githubEnabled ? githubSignIn.statusDetail : null),
                renewalUrl: renew?.url ?? null,
                source: viaSignIn && connection?.status !== 'connected' ? 'sign-in' : null,
                accountName: connection?.externalAccountName ?? null,
@@ -738,11 +763,156 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
       return json({ authorizeUrl: githubAuthorizeUrl(credentials, pending) });
    });
 
+   /**
+    * Saves a host access token the person pasted.
+    *
+    * No OAuth App is required: the token is sealed on the connection row and
+    * opened only when a run needs it. The body never comes back in the
+    * response, and a refused token is not stored.
+    */
+   route.post('/connections/:provider/token', async (context) => {
+      const workspaceId = await requireWorkspace(context, options, 'settings.write');
+      const provider = requireProvider(context.req.param('provider'));
+      if (!needsConnection(provider.id)) {
+         throw new ApiError(409, 'CONFLICT', 'Berry needs no connection to itself.');
+      }
+      if (!options.connections) {
+         throw new ApiError(
+            503,
+            'INTEGRATIONS_NOT_CONFIGURED',
+            'This deployment has no encryption key, so it cannot hold a credential.'
+         );
+      }
+      if (provider.include !== 'access_token' && provider.include !== 'oauth') {
+         throw new ApiError(
+            409,
+            'PROVIDER_NOT_CONFIGURED',
+            `${provider.name} does not accept a pasted access token.`
+         );
+      }
+
+      const body = (await context.req.json().catch(() => null)) as Record<string, unknown> | null;
+      if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+         throw new ApiError(400, 'INVALID_BODY', 'Request body is not valid JSON.');
+      }
+      const accessToken =
+         typeof body.accessToken === 'string' ? body.accessToken.trim() : '';
+      if (accessToken === '') {
+         throw new ApiError(400, 'VALIDATION_ERROR', 'Paste an access token to connect.', [
+            { field: 'accessToken', message: 'required' },
+         ]);
+      }
+      const accountNameRaw =
+         typeof body.accountName === 'string' ? body.accountName.trim() : '';
+      const accountName = accountNameRaw === '' ? null : accountNameRaw.slice(0, 200);
+
+      let externalAccountId: string | null = null;
+      let externalAccountName: string | null = accountName;
+      if (provider.id === 'github') {
+         const identity = await githubAccessTokenIdentity(accessToken);
+         if (!identity) {
+            throw new ApiError(
+               401,
+               'TOKEN_REFUSED',
+               'GitHub refused that access token. Check it and try again.'
+            );
+         }
+         externalAccountId = identity.accountId;
+         externalAccountName = accountName ?? identity.accountName;
+      }
+      if (provider.id === 'gitlab') {
+         try {
+            const identity = await new GitLabClient({ token: accessToken }).currentUser();
+            externalAccountId = identity.accountId;
+            externalAccountName = accountName ?? identity.accountName;
+         } catch {
+            throw new ApiError(
+               401,
+               'TOKEN_REFUSED',
+               'GitLab refused that access token. Check it and try again.'
+            );
+         }
+      }
+
+      const connection = await options.connections.save({
+         workspaceId,
+         provider: provider.id,
+         connectedByUserId: context.get('user').id,
+         accessToken,
+         refreshToken: null,
+         expiresAt: null,
+         scopes: provider.scopes,
+         externalAccountId,
+         externalAccountName,
+         connectionType: 'access_token',
+      });
+      // GitHub's catalogue also gates on the workspace switch. Pasting a token
+      // is Connect, so turn the switch on in the same request.
+      if (provider.id === 'github' && options.githubSettings && options.sql) {
+         await options.sql.begin(async (tx) => {
+            await options.githubSettings!.update(
+               workspaceId,
+               { enabled: true },
+               context.get('user').id,
+               tx
+            );
+         });
+      }
+      return json({
+         connection: {
+            id: connection.id,
+            provider: connection.provider,
+            status: connection.status,
+            statusDetail: connection.statusDetail,
+            accountId: connection.externalAccountId,
+            accountName: connection.externalAccountName,
+            scopes: connection.scopes,
+            expiresAt: connection.expiresAt,
+            createdAt: connection.createdAt,
+            updatedAt: connection.updatedAt,
+         },
+      });
+   });
+
    route.delete('/connections/:provider', async (context) => {
       const workspaceId = await requireWorkspace(context, options, 'settings.write');
       const provider = requireProvider(context.req.param('provider'));
-      if (!options.connections) throw ApiError.notFound('Connection');
+      const userId = context.get('user').id;
 
+      // GitHub can be connected through an OAuth connection row, an App
+      // installation, or a member's sign-in. The catalogue reports any of those
+      // as Connected, so Disconnect has to clear each one that applies —
+      // especially sign-in, which has no connection row and would otherwise
+      // 404 while the drawer still said Connected.
+      if (provider.id === 'github') {
+         const removedConnection = options.connections
+            ? await options.connections.disconnect(workspaceId, provider.id)
+            : false;
+         const removedInstalls = options.githubApp
+            ? await options.githubApp.removeInstallation(workspaceId)
+            : 0;
+         let disabledSignIn = false;
+         if (options.githubSettings && options.sql) {
+            const settings = await options.githubSettings.get(workspaceId);
+            if (settings.enabled) {
+               await options.sql.begin(async (tx) => {
+                  await options.githubSettings!.update(
+                     workspaceId,
+                     { enabled: false },
+                     userId,
+                     tx
+                  );
+               });
+               disabledSignIn = true;
+            }
+         }
+         if (!removedConnection && removedInstalls === 0 && !disabledSignIn) {
+            throw ApiError.notFound('Connection');
+         }
+         return new Response(null, { status: 204 });
+      }
+
+      if (!options.connections) throw ApiError.notFound('Connection');
       const removed = await options.connections.disconnect(workspaceId, provider.id);
       if (!removed) throw ApiError.notFound('Connection');
       return new Response(null, { status: 204 });
@@ -893,6 +1063,218 @@ export function integrationMounts(options: IntegrationsOptions): Mount[] {
       });
    });
 
+   /** Namespaces the workspace GitLab token may create a project under. */
+   route.get('/gitlab/repository-owners', async (context) => {
+      const workspaceId = await requireWorkspace(context, options, 'product.read');
+      if (!options.connections) {
+         throw new ApiError(
+            503,
+            'INTEGRATIONS_NOT_CONFIGURED',
+            'This deployment cannot list GitLab namespaces.'
+         );
+      }
+      let token: string;
+      try {
+         token = await options.connections.token(workspaceId, 'gitlab');
+      } catch (error) {
+         if (error instanceof ConnectionUnavailable) {
+            throw new ApiError(
+               409,
+               error.reason === 'missing' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
+               error.reason === 'missing'
+                  ? 'GitLab is not connected to this workspace.'
+                  : `The GitLab connection needs attention: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+      try {
+         const owners = await new GitLabClient({ token }).listOwners();
+         return json({
+            owners: owners.map((owner) => ({ login: owner.login, type: owner.type, id: owner.id })),
+         });
+      } catch (error) {
+         if (error instanceof GitLabError) {
+            if (error.remedy === 'reconnect') {
+               throw new ApiError(
+                  409,
+                  'CONNECTION_UNUSABLE',
+                  `The GitLab connection needs attention: ${error.message}.`
+               );
+            }
+            throw new ApiError(502, 'PROVIDER_ERROR', `GitLab refused the request: ${error.message}`);
+         }
+         throw error;
+      }
+   });
+
+   /**
+    * A new GitLab project, made with the workspace access token.
+    *
+    * Created under the person's user namespace or a group they may maintain.
+    * The project dialog links it afterwards, the same as for GitHub.
+    */
+   route.post('/gitlab/repositories', async (context) => {
+      const workspaceId = await requireWorkspace(context, options, 'product.read');
+      if (!options.connections) {
+         throw new ApiError(
+            503,
+            'INTEGRATIONS_NOT_CONFIGURED',
+            'This deployment cannot create GitLab repositories.'
+         );
+      }
+      const body = (await context.req.json().catch(() => ({}))) as Record<string, unknown>;
+      const name = typeof body.name === 'string' ? body.name.trim() : '';
+      if (!/^[A-Za-z0-9._-]{1,100}$/.test(name) || name === '.' || name === '..') {
+         throw new ApiError(
+            400,
+            'VALIDATION_ERROR',
+            'A repository name is letters, digits, dots, dashes and underscores, up to 100 characters.',
+            [{ field: 'name', message: 'Invalid repository name' }]
+         );
+      }
+      const namespaceIdRaw = body.namespaceId;
+      const namespaceId =
+         typeof namespaceIdRaw === 'number' && Number.isFinite(namespaceIdRaw)
+            ? namespaceIdRaw
+            : typeof namespaceIdRaw === 'string' && /^\d+$/.test(namespaceIdRaw)
+              ? Number(namespaceIdRaw)
+              : null;
+
+      let token: string;
+      try {
+         token = await options.connections.token(workspaceId, 'gitlab');
+      } catch (error) {
+         if (error instanceof ConnectionUnavailable) {
+            throw new ApiError(
+               409,
+               error.reason === 'missing' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
+               error.reason === 'missing'
+                  ? 'GitLab is not connected to this workspace.'
+                  : `The GitLab connection needs attention: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+
+      try {
+         const client = new GitLabClient({ token });
+         // When the caller named a namespace by login, resolve it against the
+         // owners list rather than trusting a free-form id from the browser.
+         let resolvedNamespaceId = namespaceId;
+         const ownerLogin =
+            typeof body.owner === 'string' && body.owner.trim() !== '' ? body.owner.trim() : null;
+         if (ownerLogin !== null && resolvedNamespaceId === null) {
+            const owners = await client.listOwners();
+            const match = owners.find((owner) => owner.login === ownerLogin);
+            if (!match) {
+               throw new ApiError(
+                  403,
+                  'FORBIDDEN',
+                  `GitLab does not let you create a project under ${ownerLogin}.`
+               );
+            }
+            resolvedNamespaceId = match.id;
+         }
+         const repository = await client.createRepository({
+            name,
+            namespaceId: resolvedNamespaceId,
+            private: body.private !== false,
+         });
+         return json({ repository }, 201);
+      } catch (error) {
+         if (error instanceof ApiError) throw error;
+         if (error instanceof GitLabError) {
+            if (error.status === 400 && /has already been taken|already been taken/i.test(error.message)) {
+               throw new ApiError(
+                  409,
+                  'REPOSITORY_EXISTS',
+                  `${name} already exists on GitLab. Choose another name, or link the existing repository instead.`,
+                  { field: 'name', name }
+               );
+            }
+            if (error.remedy === 'reconnect') {
+               throw new ApiError(
+                  409,
+                  'CONNECTION_UNUSABLE',
+                  `The GitLab connection needs attention: ${error.message}.`
+               );
+            }
+            if (error.status === 403 || error.status === 404) {
+               throw new ApiError(
+                  403,
+                  'FORBIDDEN',
+                  'GitLab does not let you create a project under that namespace.'
+               );
+            }
+            throw new ApiError(502, 'PROVIDER_ERROR', `GitLab refused the request: ${error.message}`);
+         }
+         throw error;
+      }
+   });
+
+   /**
+    * Projects the workspace's GitLab access token can see.
+    *
+    * Listed for the project Repository picker the same way GitHub repositories
+    * are: open the sealed token, page the membership projects, never return
+    * the credential.
+    */
+   route.get('/gitlab/repositories', async (context) => {
+      const workspaceId = await requireWorkspace(context, options, 'product.read');
+      if (!options.connections) {
+         throw new ApiError(
+            503,
+            'INTEGRATIONS_NOT_CONFIGURED',
+            'This deployment cannot list GitLab repositories.'
+         );
+      }
+
+      let token: string;
+      try {
+         token = await options.connections.token(workspaceId, 'gitlab');
+      } catch (error) {
+         if (error instanceof ConnectionUnavailable) {
+            throw new ApiError(
+               409,
+               error.reason === 'missing' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
+               error.reason === 'missing'
+                  ? 'GitLab is not connected to this workspace.'
+                  : `The GitLab connection needs attention: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+
+      let repositories;
+      try {
+         repositories = await new GitLabClient({ token }).listRepositories();
+      } catch (error) {
+         if (error instanceof GitLabError) {
+            if (error.remedy === 'reconnect') {
+               throw new ApiError(
+                  409,
+                  'CONNECTION_UNUSABLE',
+                  `The GitLab connection needs attention: ${error.message}.`
+               );
+            }
+            throw new ApiError(502, 'PROVIDER_ERROR', `GitLab refused the request: ${error.message}`);
+         }
+         throw error;
+      }
+
+      return json({
+         repositories,
+         access: repositoryAccess({
+            viaApp: false,
+            canPush: true,
+            accounts: [],
+            slug: null,
+            source: 'connection',
+         }),
+      });
+   });
+
    return [{ prefix: '/api/v1/integrations', handler: route }];
 }
 
@@ -994,8 +1376,50 @@ async function handleCallback(
 // ------------------------------------------------------------------- helpers
 
 function configuredFor(providerId: string, options: IntegrationsOptions): boolean {
+   // A sealed connection store is enough for a pasted host token. GitHub can
+   // also show as configured from a member's sign-in alone.
    if (providerId === 'github' && options.userAccess) return true;
-   return credentialsFor(providerId, options) !== null && options.connections !== null;
+   if (!options.connections) return false;
+   const provider = findProvider(providerId);
+   if (provider?.include === 'access_token') return true;
+   return credentialsFor(providerId, options) !== null;
+}
+
+/**
+ * Asks GitHub who the pasted token belongs to.
+ *
+ * A 401 means the token is wrong or revoked — Connect must not seal it. Any
+ * other failure (network, 5xx) is treated as "cannot validate" and refused
+ * the same way so a bad token never lands quietly.
+ */
+async function githubAccessTokenIdentity(
+   accessToken: string,
+   fetchImpl: typeof fetch = fetch
+): Promise<{ accountId: string; accountName: string } | null> {
+   let response: Response;
+   try {
+      response = await fetchImpl('https://api.github.com/user', {
+         headers: {
+            accept: 'application/vnd.github+json',
+            authorization: `Bearer ${accessToken}`,
+            'user-agent': 'Berry',
+            'x-github-api-version': '2022-11-28',
+         },
+      });
+   } catch {
+      return null;
+   }
+   if (!response.ok) return null;
+   const body = (await response.json().catch(() => null)) as {
+      id?: unknown;
+      login?: unknown;
+   } | null;
+   if (!body || (typeof body.id !== 'number' && typeof body.id !== 'string')) return null;
+   const login = typeof body.login === 'string' ? body.login.trim() : '';
+   return {
+      accountId: String(body.id),
+      accountName: login || String(body.id),
+   };
 }
 
 /**
