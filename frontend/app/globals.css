@@ -625,16 +625,11 @@
       it has to scale with the mark and not with the surrounding UI. Kept here
       rather than inline in the component so the exception stays visible next
       to the rule it departs from. */
-   [data-wordmark='sm'] {
-      font-size: var(--text-base);
-   }
-
-   [data-wordmark='md'] {
-      font-size: var(--text-2xl);
-   }
-
-   [data-wordmark='lg'] {
-      font-size: var(--text-4xl);
+   /* Wordmark type size is set on the element to match berry.pm (23px at md).
+      The attributes stay so stories and tests can still target the lockup. */
+   [data-wordmark] {
+      font-family: var(--font-dm-serif-display), 'DM Serif Display', serif;
+      font-weight: 400;
    }
 
    /* The second exception: a headline figure. A page opens with the one number
