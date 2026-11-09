@@ -41,7 +41,7 @@ export const WaitingPullRequest: Story = {
       );
       await expect(canvas.getByRole('tab', { name: /Verdicts/ })).toBeVisible();
       await expect(canvas.getByRole('tab', { name: 'Diff' })).toBeVisible();
-      await expect(canvas.getByRole('button', { name: 'Approve' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Accept' })).toBeVisible();
    },
 };
 
@@ -80,7 +80,7 @@ export const Decided: Story = {
    args: { reviewId: 'issue-090', listTab: 'created' },
    play: async ({ canvas }) => {
       await expect(await canvas.findByRole('link', { name: 'PR #412' })).toBeVisible();
-      await expect(canvas.queryByRole('button', { name: 'Approve' })).toBeNull();
+      await expect(canvas.queryByRole('button', { name: 'Accept' })).toBeNull();
    },
 };
 
