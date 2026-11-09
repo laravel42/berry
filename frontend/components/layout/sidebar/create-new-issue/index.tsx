@@ -306,6 +306,8 @@ export function CreateNewIssue() {
             : [...draft.labelIds, labelId],
       });
 
+   const improveDisabled = pending || improving || draft.description.trim() === '';
+
    return (
       <Dialog open={isOpen} onOpenChange={(value) => (value ? openModal() : closeModal())}>
          <DialogTrigger asChild>
@@ -339,16 +341,39 @@ export function CreateNewIssue() {
                         </span>
                      ) : null}
                   </div>
-                  <Button
-                     type="button"
-                     variant="ghost"
-                     size="icon"
-                     className="size-8 shrink-0"
-                     aria-label="Close"
-                     onClick={closeModal}
-                  >
-                     <X className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                     <span
+                        className="ai-animated-border h-7"
+                        aria-disabled={improveDisabled || undefined}
+                     >
+                        <Button
+                           type="button"
+                           variant="outline"
+                           size="xxs"
+                           className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground disabled:opacity-100 disabled:bg-background disabled:text-muted-foreground"
+                           disabled={improveDisabled}
+                           aria-busy={improving || undefined}
+                           onClick={() => void improveDescription()}
+                        >
+                           {improving ? (
+                              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                           ) : (
+                              <Sparkles className="size-3.5" aria-hidden />
+                           )}
+                           {improving ? t('improving') : t('improve')}
+                        </Button>
+                     </span>
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Close"
+                        onClick={closeModal}
+                     >
+                        <X className="size-4" />
+                     </Button>
+                  </div>
                </div>
             </DialogHeader>
 
@@ -534,21 +559,6 @@ export function CreateNewIssue() {
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
                <div className="flex min-w-0 items-center gap-3">
-                  <Button
-                     type="button"
-                     variant="secondary"
-                     className="!bg-white !text-black shadow-xs hover:!bg-white/90 hover:!text-black"
-                     disabled={pending || improving || draft.description.trim() === ''}
-                     aria-busy={improving || undefined}
-                     onClick={() => void improveDescription()}
-                  >
-                     {improving ? (
-                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                     ) : (
-                        <Sparkles className="size-3.5" aria-hidden />
-                     )}
-                     {improving ? t('improving') : t('improve')}
-                  </Button>
                   {draft.assignee?.type === 'agent' ? (
                      <CreatePluginSelect
                         workspaceId={workspaceId}
@@ -557,7 +567,12 @@ export function CreateNewIssue() {
                      />
                   ) : null}
                </div>
-               <Button disabled={pending || improving} onClick={() => void create()}>
+               <Button
+                  className="shrink-0"
+                  disabled={pending || improving}
+                  onClick={() => void create()}
+               >
+                  <CheckIcon className="size-4" aria-hidden />
                   {pending ? t('creating') : t('create')}
                </Button>
             </div>
