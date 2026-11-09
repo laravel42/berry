@@ -140,6 +140,10 @@ export async function ensureDiscovery(
                issueId: issue.id,
                quotaPeriod: 'week',
                quotaMax: 1,
+               // Discovery predates Loop policy and inspects the repository
+               // the way its role may; it keeps that reach.
+               accessMode: 'act',
+               concurrencyPolicy: 'allow',
             },
             owner
          );

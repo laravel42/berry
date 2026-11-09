@@ -170,6 +170,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    // Autopilot runs and their deliveries; the autopilots themselves stay.
    'sys_cron_executions',
    'webhook_deliveries',
+   'autopilot_event_receipts',
+   'autopilot_event_cursor',
    'autopilot_runs',
    // Integrations, GitHub and plugins.
    'integration_audit_events',

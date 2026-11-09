@@ -5,7 +5,7 @@ import { IssueRepository } from '../core/issues.ts';
 import { ProjectRepository } from '../core/projects.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { fireAutopilot, type AutopilotTaskInput, type FireDeps } from './fire.ts';
-import { AutopilotRepository, type AutopilotDraft } from './repository.ts';
+import { AutopilotRepository, type AutopilotDraft, type AutopilotDraftInput } from './repository.ts';
 import { cleanupWorkspace, seedWorkspace, testSealer, type Fixture } from './test-fixture.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
@@ -42,7 +42,7 @@ describe('firing an autopilot', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
       };
    });
 
-   function draft(overrides: Partial<AutopilotDraft> = {}): AutopilotDraft {
+   function draft(overrides: Partial<AutopilotDraft> = {}): AutopilotDraftInput {
       return {
          name: 'Morning report',
          description: null,

@@ -3,6 +3,17 @@ import { NotFound } from '../identity/errors.ts';
 import type { Sealer } from '../integrations/sealing.ts';
 import { assertSchedule, nextFireAfter } from './cron.ts';
 import { writeAutopilotEvent } from './events.ts';
+import {
+   EMPTY_CONDITIONS,
+   InvalidConditions,
+   isLoopEventKey,
+   parseConditions,
+   type Conditions,
+   type LoopEventKey,
+} from './event-triggers.ts';
+import { MAX_CHAIN_DEPTH, type AccessMode, type ConcurrencyPolicy } from './policy.ts';
+import { loopRunState, type LoopRunState } from './run-state.ts';
+import type { TimeCursor } from '../http/cursor.ts';
 import { hashToken, newSigningSecret, newWebhookToken, tokenHint } from './signing.ts';
 
 /**
@@ -25,7 +36,8 @@ export type AssigneeType = (typeof ASSIGNEE_TYPES)[number];
 export type ExecutionMode = (typeof EXECUTION_MODES)[number];
 export type QuotaPeriod = (typeof QUOTA_PERIODS)[number];
 export type AutopilotStatus = 'active' | 'paused' | 'archived';
-export type RunSource = 'cron' | 'webhook' | 'manual' | 'replay';
+export type RunSource = 'cron' | 'webhook' | 'manual' | 'replay' | 'event' | 'retry';
+export type TriggerKind = 'cron' | 'webhook' | 'event';
 export type RunStatus = 'pending' | 'enqueued' | 'skipped' | 'failed';
 export type DeliveryStatus = 'accepted' | 'filtered' | 'rejected' | 'failed';
 export type MemberRole = 'collaborator' | 'subscriber';
@@ -43,6 +55,53 @@ export interface AutopilotDraft {
    issueId: string | null;
    quotaPeriod: QuotaPeriod;
    quotaMax: number | null;
+   /** recommend: report and propose; act: the agent's own reach. Never more. */
+   accessMode: AccessMode;
+   concurrencyPolicy: ConcurrencyPolicy;
+   maxTurns: number | null;
+   maxDurationMinutes: number | null;
+   maxChainDepth: number;
+   allowAgentEvents: boolean;
+   templateKey: string | null;
+}
+
+type PolicyKey =
+   | 'accessMode'
+   | 'concurrencyPolicy'
+   | 'maxTurns'
+   | 'maxDurationMinutes'
+   | 'maxChainDepth'
+   | 'allowAgentEvents'
+   | 'templateKey';
+
+/** A draft as a caller may give it: the Loop policy fields default to the safe ones. */
+export type AutopilotDraftInput = Omit<AutopilotDraft, PolicyKey> & Partial<Pick<AutopilotDraft, PolicyKey>>;
+
+/**
+ * The defaults a new Loop gets: recommend, one run at a time, no chains, no
+ * agent-caused events, no extra limits. Existing autopilots kept what they
+ * had when migration 257 added these (act, allow).
+ */
+export function withLoopDefaults(input: AutopilotDraftInput): AutopilotDraft {
+   return {
+      ...input,
+      accessMode: input.accessMode ?? 'recommend',
+      concurrencyPolicy: input.concurrencyPolicy ?? 'skip_if_running',
+      maxTurns: input.maxTurns ?? null,
+      maxDurationMinutes: input.maxDurationMinutes ?? null,
+      maxChainDepth: input.maxChainDepth ?? 0,
+      allowAgentEvents: input.allowAgentEvents ?? false,
+      templateKey: input.templateKey ?? null,
+   };
+}
+
+/** What the list shows about a Loop's activity, read with the Loop in one query. */
+export interface AutopilotActivity {
+   lastRun: { id: string; state: LoopRunState; createdAt: string } | null;
+   nextFireAt: string | null;
+   runsLast7Days: number;
+   failedLast7Days: number;
+   eventTypes: string[];
 }
 
 export interface Autopilot extends AutopilotDraft {
@@ -55,7 +114,8 @@ export interface Autopilot extends AutopilotDraft {
     * What makes it run, so a list can be filtered by it without asking after
     * each autopilot's triggers in turn. Empty when only a person can fire it.
     */
-   triggerKinds: Array<'cron' | 'webhook'>;
+   triggerKinds: TriggerKind[];
+   activity: AutopilotActivity;
    createdAt: string;
    updatedAt: string;
    archivedAt: string | null;
@@ -77,6 +137,13 @@ export interface AutopilotPatch {
    issueId?: string | null | undefined;
    quotaPeriod?: QuotaPeriod | undefined;
    quotaMax?: number | null | undefined;
+   accessMode?: AccessMode | undefined;
+   concurrencyPolicy?: ConcurrencyPolicy | undefined;
+   maxTurns?: number | null | undefined;
+   maxDurationMinutes?: number | null | undefined;
+   maxChainDepth?: number | undefined;
+   allowAgentEvents?: boolean | undefined;
+   templateKey?: string | null | undefined;
    status?: 'active' | 'paused' | undefined;
 }
 
@@ -96,7 +163,10 @@ export interface AutopilotMember {
 export interface AutopilotTrigger {
    id: string;
    autopilotId: string;
-   kind: 'cron' | 'webhook';
+   kind: TriggerKind;
+   /** Event triggers: the Loop event type, and the filters on it. */
+   eventType: LoopEventKey | null;
+   conditions: Conditions;
    enabled: boolean;
    cronExpression: string | null;
    timezone: string | null;
@@ -113,6 +183,8 @@ export interface TriggerPatch {
    expression?: string | undefined;
    timezone?: string | undefined;
    eventFilters?: string[] | undefined;
+   eventType?: string | undefined;
+   conditions?: unknown;
 }
 
 export interface WebhookSecrets {
@@ -132,9 +204,57 @@ export interface AutopilotRunRecord {
    issueId: string | null;
    runId: string | null;
    taskStatus: string | null;
+   /** Derived from this record and the agent run (run-state.ts). */
+   state: LoopRunState;
+   triggerEventId: string | null;
+   parentAutopilotRunId: string | null;
+   depth: number;
+   retryOf: string | null;
+   retriedBy: string | null;
+   timedOutAt: string | null;
+   issueIdentifier: string | null;
+   agentId: string | null;
+   startedAt: string | null;
+   completedAt: string | null;
+   summary: string | null;
    slot: string | null;
    requestedBy: string | null;
    createdAt: string;
+}
+
+/** One run with what its inspection page shows beside the transcript. */
+export interface AutopilotRunDetail extends AutopilotRunRecord {
+   autopilotName: string;
+   triggerKind: TriggerKind | null;
+   triggerPayload: unknown;
+   failureCode: string | null;
+   failureMessage: string | null;
+   usage: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      costMicros: number | null;
+      currency: string | null;
+   } | null;
+   model: { runtime: string | null; model: string | null } | null;
+   children: Array<{ id: string; autopilotId: string; autopilotName: string; state: LoopRunState; createdAt: string }>;
+}
+
+/** A run across every Loop of a workspace, for the overview's activity and attention lists. */
+export interface WorkspaceRunRecord extends AutopilotRunRecord {
+   autopilotName: string;
+}
+
+export interface EventReceiptRecord {
+   id: string;
+   triggerId: string;
+   eventId: string;
+   topic: string;
+   status: 'pending' | 'processing' | 'fired' | 'filtered' | 'skipped' | 'failed';
+   reasonCode: string | null;
+   autopilotRunId: string | null;
+   occurredAt: string;
+   receivedAt: string;
 }
 
 export interface WebhookDeliveryRecord {
@@ -182,11 +302,12 @@ export class AutopilotRepository {
       return row.workspace_id as string;
    }
 
-   async list(workspaceId: string, filter: { archived?: boolean } = {}): Promise<Autopilot[]> {
+   async list(workspaceId: string, filter: { archived?: boolean; projectId?: string | null } = {}): Promise<Autopilot[]> {
       const rows = await this.#sql`
-         SELECT a.*, ${this.#sql.unsafe(TRIGGER_KINDS)} FROM autopilots AS a
+         SELECT a.*, ${this.#sql.unsafe(TRIGGER_KINDS)}, ${this.#sql.unsafe(ACTIVITY)} FROM autopilots AS a
           WHERE a.workspace_id = ${workspaceId}
             AND (${filter.archived ?? false}::boolean = (a.archived_at IS NOT NULL))
+            AND (${filter.projectId ?? null}::uuid IS NULL OR a.project_id = ${filter.projectId ?? null}::uuid)
           ORDER BY a.updated_at DESC, a.id DESC
           LIMIT 500`;
       return rows.map(toAutopilot);
@@ -194,13 +315,19 @@ export class AutopilotRepository {
 
    async get(workspaceId: string, autopilotId: string): Promise<Autopilot> {
       const [row] = await this.#sql`
-         SELECT a.*, ${this.#sql.unsafe(TRIGGER_KINDS)} FROM autopilots AS a
+         SELECT a.*, ${this.#sql.unsafe(TRIGGER_KINDS)}, ${this.#sql.unsafe(ACTIVITY)} FROM autopilots AS a
           WHERE a.workspace_id = ${workspaceId} AND a.id = ${autopilotId}`;
       if (!row) throw new NotFound();
       return toAutopilot(row);
    }
 
-   async create(workspaceId: string, draft: AutopilotDraft, actorId: string): Promise<Autopilot> {
+   async create(
+      workspaceId: string,
+      input: AutopilotDraftInput,
+      actorId: string,
+      options: { status?: 'active' | 'paused' } = {}
+   ): Promise<Autopilot> {
+      const draft = withLoopDefaults(input);
       const now = this.#clock().toISOString();
       return this.#sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
@@ -209,12 +336,15 @@ export class AutopilotRepository {
             INSERT INTO autopilots (
                workspace_id, name, description, assignee_type, assignee_id, prompt_template,
                execution_mode, board_id, project_id, issue_id, quota_period, quota_max, created_by,
-               created_at, updated_at
+               created_at, updated_at, access_mode, concurrency_policy, max_turns, max_duration_minutes,
+               max_chain_depth, allow_agent_events, template_key, status
             ) VALUES (
                ${workspaceId}, ${draft.name}, ${draft.description}, ${draft.assigneeType},
                ${draft.assigneeId}, ${draft.promptTemplate}, ${draft.executionMode},
                ${draft.boardId}, ${draft.projectId}, ${draft.issueId}, ${draft.quotaPeriod}, ${draft.quotaMax},
-               ${actorId}, ${now}, ${now}
+               ${actorId}, ${now}, ${now}, ${draft.accessMode}, ${draft.concurrencyPolicy}, ${draft.maxTurns},
+               ${draft.maxDurationMinutes}, ${draft.maxChainDepth}, ${draft.allowAgentEvents}, ${draft.templateKey},
+               ${options.status ?? 'active'}
             ) RETURNING *`;
          if (!row) throw new Error('autopilot insert returned no row');
          const autopilot = toAutopilot(row);
@@ -265,6 +395,13 @@ export class AutopilotRepository {
             issueId: patch.issueId === undefined ? before.issueId : patch.issueId,
             quotaPeriod: patch.quotaPeriod ?? before.quotaPeriod,
             quotaMax: patch.quotaMax === undefined ? before.quotaMax : patch.quotaMax,
+            accessMode: patch.accessMode ?? before.accessMode,
+            concurrencyPolicy: patch.concurrencyPolicy ?? before.concurrencyPolicy,
+            maxTurns: patch.maxTurns === undefined ? before.maxTurns : patch.maxTurns,
+            maxDurationMinutes: patch.maxDurationMinutes === undefined ? before.maxDurationMinutes : patch.maxDurationMinutes,
+            maxChainDepth: patch.maxChainDepth ?? before.maxChainDepth,
+            allowAgentEvents: patch.allowAgentEvents ?? before.allowAgentEvents,
+            templateKey: patch.templateKey === undefined ? before.templateKey : patch.templateKey,
          };
          const changed = JSON.stringify(next) !== JSON.stringify(before);
          if (changed) await validateDraft(tx, workspaceId, next);
@@ -278,6 +415,10 @@ export class AutopilotRepository {
                    prompt_template = ${next.promptTemplate}, execution_mode = ${next.executionMode},
                    board_id = ${next.boardId}, project_id = ${next.projectId}, issue_id = ${next.issueId},
                    quota_period = ${next.quotaPeriod}, quota_max = ${next.quotaMax},
+                   access_mode = ${next.accessMode}, concurrency_policy = ${next.concurrencyPolicy},
+                   max_turns = ${next.maxTurns}, max_duration_minutes = ${next.maxDurationMinutes},
+                   max_chain_depth = ${next.maxChainDepth}, allow_agent_events = ${next.allowAgentEvents},
+                   template_key = ${next.templateKey},
                    status = ${status}, version = ${version}, updated_at = ${now}
              WHERE id = ${autopilotId}
              RETURNING *`;
@@ -472,6 +613,9 @@ export class AutopilotRepository {
          const enabled = patch.enabled ?? current.enabled;
 
          if (current.kind === 'cron') {
+            if (patch.eventType !== undefined || patch.conditions !== undefined) {
+               throw new InvalidAutopilot('/eventType', 'A schedule has no event.');
+            }
             if (patch.eventFilters !== undefined) {
                throw new InvalidAutopilot('/eventFilters', 'A schedule has no event filters.');
             }
@@ -488,6 +632,26 @@ export class AutopilotRepository {
             return toTrigger(row);
          }
 
+         if (current.kind === 'event') {
+            if (patch.expression !== undefined || patch.timezone !== undefined || patch.eventFilters !== undefined) {
+               throw new InvalidAutopilot('/expression', 'An event trigger has no schedule and no webhook filters.');
+            }
+            const eventType = patch.eventType ?? current.eventType ?? '';
+            if (!isLoopEventKey(eventType)) {
+               throw new InvalidAutopilot('/eventType', 'That is not an event a loop can listen for.');
+            }
+            const conditions = conditionsOrInvalid(eventType, patch.conditions === undefined ? current.conditions : patch.conditions);
+            const [row] = await tx`
+               UPDATE autopilot_triggers
+                  SET enabled = ${enabled}, event_type = ${eventType}, conditions = ${tx.json(conditions as never)}
+                WHERE id = ${triggerId} RETURNING *`;
+            if (!row) throw new NotFound();
+            return toTrigger(row);
+         }
+
+         if (patch.eventType !== undefined || patch.conditions !== undefined) {
+            throw new InvalidAutopilot('/eventType', 'Only an event trigger has an event type.');
+         }
          if (patch.expression !== undefined || patch.timezone !== undefined) {
             throw new InvalidAutopilot('/expression', 'A webhook has no schedule.');
          }
@@ -529,15 +693,187 @@ export class AutopilotRepository {
       if (rows.length === 0) throw new NotFound();
    }
 
-   async runs(workspaceId: string, autopilotId: string): Promise<AutopilotRunRecord[]> {
+   /**
+    * A Loop's runs, newest first, a page at a time. `limit` defaults to the
+    * history the detail page has always shown.
+    */
+   async runs(
+      workspaceId: string,
+      autopilotId: string,
+      page: { after?: TimeCursor | null; limit?: number } = {}
+   ): Promise<AutopilotRunRecord[]> {
+      const after = page.after ?? null;
       const rows = await this.#sql`
-         SELECT ar.*, r.status AS task_status
-           FROM autopilot_runs AS ar
-           LEFT JOIN runs AS r ON r.id = ar.run_id
+         SELECT ${this.#sql.unsafe(RUN_COLUMNS)}
+           ${this.#sql.unsafe(RUN_SOURCE)}
           WHERE ar.workspace_id = ${workspaceId} AND ar.autopilot_id = ${autopilotId}
+            AND (${after === null} OR (ar.created_at, ar.id) < (${after?.createdAt ?? null}::timestamptz, ${after?.id ?? null}::uuid))
           ORDER BY ar.created_at DESC, ar.id DESC
-          LIMIT ${HISTORY_LIMIT}`;
+          LIMIT ${page.limit ?? HISTORY_LIMIT}`;
       return rows.map(toRun);
+   }
+
+   /**
+    * Recent runs across every Loop in the workspace — the overview's
+    * activity list, or, with `needsAttention`, the failures nobody has
+    * retried yet.
+    */
+   async workspaceRuns(
+      workspaceId: string,
+      options: { needsAttention?: boolean; limit?: number } = {}
+   ): Promise<WorkspaceRunRecord[]> {
+      const attention = options.needsAttention === true;
+      const rows = await this.#sql`
+         SELECT ${this.#sql.unsafe(RUN_COLUMNS)}, a.name AS autopilot_name
+           ${this.#sql.unsafe(RUN_SOURCE)}
+           JOIN autopilots AS a ON a.id = ar.autopilot_id
+          WHERE ar.workspace_id = ${workspaceId} AND a.archived_at IS NULL
+            AND (${!attention} OR (
+                 (ar.status = 'failed' OR r.status IN ('failed', 'cancelled'))
+                 AND NOT EXISTS (SELECT 1 FROM autopilot_runs AS retry WHERE retry.retry_of = ar.id)
+                 AND ar.created_at >= now() - interval '7 days'))
+          ORDER BY ar.created_at DESC, ar.id DESC
+          LIMIT ${Math.min(Math.max(options.limit ?? 20, 1), 100)}`;
+      return rows
+         .map((row) => ({ ...toRun(row), autopilotName: row.autopilot_name as string }))
+         // A cancel a person pressed is not a failure that needs anyone.
+         .filter((run) => !attention || run.state === 'failed' || run.state === 'timed_out');
+   }
+
+   async runDetail(workspaceId: string, autopilotId: string, autopilotRunId: string): Promise<AutopilotRunDetail> {
+      const [row] = await this.#sql`
+         SELECT ${this.#sql.unsafe(RUN_COLUMNS)}, a.name AS autopilot_name, t.kind AS trigger_kind,
+                ar.trigger_payload, r.failure_code, r.failure_message,
+                r.input_tokens, r.output_tokens, r.total_tokens, r.cost_micros, r.currency,
+                r.ai_runtime_key, r.ai_model_id
+           ${this.#sql.unsafe(RUN_SOURCE)}
+           JOIN autopilots AS a ON a.id = ar.autopilot_id
+           LEFT JOIN autopilot_triggers AS t ON t.id = ar.trigger_id
+          WHERE ar.workspace_id = ${workspaceId} AND ar.autopilot_id = ${autopilotId} AND ar.id = ${autopilotRunId}`;
+      if (!row) throw new NotFound();
+      const children = await this.#sql`
+         SELECT ${this.#sql.unsafe(RUN_COLUMNS)}, a.name AS autopilot_name
+           ${this.#sql.unsafe(RUN_SOURCE)}
+           JOIN autopilots AS a ON a.id = ar.autopilot_id
+          WHERE ar.workspace_id = ${workspaceId} AND ar.parent_autopilot_run_id = ${autopilotRunId}
+          ORDER BY ar.created_at, ar.id LIMIT 50`;
+      const record = toRun(row);
+      return {
+         ...record,
+         autopilotName: row.autopilot_name as string,
+         triggerKind: (row.trigger_kind as TriggerKind | null) ?? null,
+         triggerPayload: row.trigger_payload ?? null,
+         failureCode: (row.failure_code as string | null) ?? null,
+         failureMessage: (row.failure_message as string | null) ?? null,
+         usage: record.runId
+            ? {
+                 inputTokens: Number(row.input_tokens ?? 0),
+                 outputTokens: Number(row.output_tokens ?? 0),
+                 totalTokens: Number(row.total_tokens ?? 0),
+                 costMicros: row.cost_micros === null || row.cost_micros === undefined ? null : Number(row.cost_micros),
+                 currency: (row.currency as string | null) ?? null,
+              }
+            : null,
+         model: record.runId
+            ? { runtime: (row.ai_runtime_key as string | null) ?? null, model: (row.ai_model_id as string | null) ?? null }
+            : null,
+         children: children.map((child) => {
+            const run = toRun(child);
+            return { id: run.id, autopilotId: run.autopilotId, autopilotName: child.autopilot_name as string, state: run.state, createdAt: run.createdAt };
+         }),
+      };
+   }
+
+   /**
+    * The first live agent of this workspace holding one of `roles`, in that
+    * order of preference. Null when none does — then the person chooses.
+    */
+   async suggestAgent(workspaceId: string, roles: readonly string[]): Promise<{ id: string; name: string; roleKey: string } | null> {
+      if (roles.length === 0) return null;
+      const rows = await this.#sql`
+         SELECT id, name, role_key FROM agents
+          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL AND role_key = ANY(${[...roles]}::text[])`;
+      for (const role of roles) {
+         const found = rows.find((row) => row.role_key === role);
+         if (found) return { id: found.id as string, name: found.name as string, roleKey: role };
+      }
+      return null;
+   }
+
+   /** What the event triggers saw: fired, filtered out, or skipped and why. */
+   async receipts(workspaceId: string, autopilotId: string): Promise<EventReceiptRecord[]> {
+      const rows = await this.#sql`
+         SELECT id, trigger_id, event_id, topic, status, reason_code, autopilot_run_id, occurred_at, received_at
+           FROM autopilot_event_receipts
+          WHERE workspace_id = ${workspaceId} AND autopilot_id = ${autopilotId}
+          ORDER BY received_at DESC, id DESC
+          LIMIT ${HISTORY_LIMIT}`;
+      return rows.map((row) => ({
+         id: row.id as string,
+         triggerId: row.trigger_id as string,
+         eventId: row.event_id as string,
+         topic: row.topic as string,
+         status: row.status as EventReceiptRecord['status'],
+         reasonCode: (row.reason_code as string | null) ?? null,
+         autopilotRunId: (row.autopilot_run_id as string | null) ?? null,
+         occurredAt: toRFC3339(row.occurred_at as string) ?? '',
+         receivedAt: toRFC3339(row.received_at as string) ?? '',
+      }));
+   }
+
+   /**
+    * A copy to adjust: the definition and its schedule and event triggers,
+    * paused so it does not start running beside the original. Webhook
+    * triggers are not copied — a new one needs its own URL and secret,
+    * which only the call that makes it can show.
+    */
+   async duplicate(workspaceId: string, autopilotId: string, actorId: string): Promise<Autopilot> {
+      const source = await this.get(workspaceId, autopilotId);
+      const triggers = await this.triggers(workspaceId, autopilotId);
+      const copy = await this.create(
+         workspaceId,
+         { ...draftOf(source), name: `${source.name} (copy)`.slice(0, 200) },
+         actorId,
+         { status: 'paused' }
+      );
+      for (const trigger of triggers) {
+         if (trigger.kind === 'cron' && trigger.cronExpression && trigger.timezone) {
+            await this.addCronTrigger(workspaceId, copy.id, {
+               expression: trigger.cronExpression,
+               timezone: trigger.timezone,
+               enabled: trigger.enabled,
+            });
+         } else if (trigger.kind === 'event' && trigger.eventType) {
+            await this.addEventTrigger(workspaceId, copy.id, {
+               eventType: trigger.eventType,
+               conditions: trigger.conditions,
+               enabled: trigger.enabled,
+            });
+         }
+      }
+      return this.get(workspaceId, copy.id);
+   }
+
+   async addEventTrigger(
+      workspaceId: string,
+      autopilotId: string,
+      input: { eventType: string; conditions: unknown; enabled: boolean }
+   ): Promise<AutopilotTrigger> {
+      if (!isLoopEventKey(input.eventType)) {
+         throw new InvalidAutopilot('/eventType', 'That is not an event a loop can listen for.');
+      }
+      const conditions = conditionsOrInvalid(input.eventType, input.conditions);
+      return this.#sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         await lockOwned(tx, workspaceId, autopilotId);
+         const [row] = await tx`
+            INSERT INTO autopilot_triggers (workspace_id, autopilot_id, kind, enabled, event_type, conditions)
+            VALUES (${workspaceId}, ${autopilotId}, 'event', ${input.enabled}, ${input.eventType},
+                    ${tx.json(conditions as never)})
+            RETURNING *`;
+         if (!row) throw new Error('trigger insert returned no row');
+         return toTrigger(row);
+      }) as Promise<AutopilotTrigger>;
    }
 
    async deliveries(workspaceId: string, autopilotId: string): Promise<WebhookDeliveryRecord[]> {
@@ -694,6 +1030,9 @@ async function validateDraft(tx: Sql, workspaceId: string, draft: AutopilotDraft
    if ((draft.quotaPeriod === 'none') !== (draft.quotaMax === null)) {
       throw new InvalidAutopilot('/quotaMax', 'A quota needs both a period and a limit.');
    }
+   if (draft.maxChainDepth < 0 || draft.maxChainDepth > MAX_CHAIN_DEPTH) {
+      throw new InvalidAutopilot('/maxChainDepth', `A loop answers chains of at most ${MAX_CHAIN_DEPTH}.`);
+   }
 }
 
 async function writeVersion(tx: Sql, autopilot: Autopilot, actorId: string, now: string): Promise<void> {
@@ -728,6 +1067,13 @@ function draftOf(autopilot: Autopilot): AutopilotDraft {
       issueId: autopilot.issueId,
       quotaPeriod: autopilot.quotaPeriod,
       quotaMax: autopilot.quotaMax,
+      accessMode: autopilot.accessMode,
+      concurrencyPolicy: autopilot.concurrencyPolicy,
+      maxTurns: autopilot.maxTurns,
+      maxDurationMinutes: autopilot.maxDurationMinutes,
+      maxChainDepth: autopilot.maxChainDepth,
+      allowAgentEvents: autopilot.allowAgentEvents,
+      templateKey: autopilot.templateKey,
    };
 }
 
@@ -740,9 +1086,92 @@ function draftOf(autopilot: Autopilot): AutopilotDraft {
 const TRIGGER_KINDS = `COALESCE((SELECT array_agg(DISTINCT t.kind)
      FROM autopilot_triggers t WHERE t.autopilot_id = a.id), '{}') AS trigger_kinds`;
 
+/**
+ * What the list shows about each Loop's activity, as columns. Interpolated
+ * like TRIGGER_KINDS: it names only the row's own id.
+ */
+const ACTIVITY = `
+   (SELECT row_to_json(last) FROM (
+       SELECT ar.id, ar.status, ar.created_at, r.status AS task_status, i.status::text AS issue_status, ar.timed_out_at
+         FROM autopilot_runs ar
+         LEFT JOIN runs r ON r.id = ar.run_id
+         LEFT JOIN issues i ON i.id = ar.issue_id
+        WHERE ar.autopilot_id = a.id
+        ORDER BY ar.created_at DESC, ar.id DESC LIMIT 1) AS last) AS last_run,
+   (SELECT min(t.next_fire_at) FROM autopilot_triggers t
+     WHERE t.autopilot_id = a.id AND t.kind = 'cron' AND t.enabled) AS next_fire_at,
+   (SELECT count(*)::int FROM autopilot_runs ar
+     WHERE ar.autopilot_id = a.id AND ar.status <> 'skipped' AND ar.created_at >= now() - interval '7 days') AS runs_7d,
+   (SELECT count(*)::int FROM autopilot_runs ar LEFT JOIN runs r ON r.id = ar.run_id
+     WHERE ar.autopilot_id = a.id AND ar.created_at >= now() - interval '7 days'
+       AND (ar.status = 'failed' OR r.status = 'failed')) AS failed_7d,
+   COALESCE((SELECT array_agg(DISTINCT t.event_type) FROM autopilot_triggers t
+     WHERE t.autopilot_id = a.id AND t.kind = 'event'), '{}') AS event_types`;
+
+/** A run record joined to its agent run and task. */
+const RUN_COLUMNS = `ar.*, r.status AS task_status, r.agent_id, r.started_at AS task_started_at,
+   r.completed_at AS task_completed_at, r.summary AS task_summary, i.status::text AS issue_status,
+   berry_issue_identifier(b.workspace_id, i.number) AS issue_identifier,
+   (SELECT retry.id FROM autopilot_runs AS retry WHERE retry.retry_of = ar.id) AS retried_by`;
+const RUN_SOURCE = `FROM autopilot_runs AS ar
+   LEFT JOIN runs AS r ON r.id = ar.run_id
+   LEFT JOIN issues AS i ON i.id = ar.issue_id
+   LEFT JOIN boards AS b ON b.id = i.board_id`;
+
+function toActivity(row: Row): AutopilotActivity {
+   const last = row.last_run as Row | null | undefined;
+   return {
+      lastRun: last
+         ? {
+              id: last.id as string,
+              state: loopRunState({
+                 firing: last.status as RunStatus,
+                 task: (last.task_status as string | null) ?? null,
+                 issueStatus: (last.issue_status as string | null) ?? null,
+                 timedOut: last.timed_out_at !== null && last.timed_out_at !== undefined,
+              }),
+              createdAt: toRFC3339(last.created_at as string) ?? '',
+           }
+         : null,
+      nextFireAt: toRFC3339((row.next_fire_at as string | null | undefined) ?? null),
+      runsLast7Days: (row.runs_7d as number | null | undefined) ?? 0,
+      failedLast7Days: (row.failed_7d as number | null | undefined) ?? 0,
+      eventTypes: (row.event_types as string[] | null | undefined) ?? [],
+   };
+}
+
+function storedConditions(row: Row): Conditions {
+   const eventType = row.event_type;
+   if (typeof eventType !== 'string' || !isLoopEventKey(eventType)) return EMPTY_CONDITIONS;
+   try {
+      return parseConditions(eventType, row.conditions);
+   } catch {
+      // Stored before a rule changed. Shown as no filters rather than failing
+      // the read; the worker refuses to fire it (worker.ts).
+      return EMPTY_CONDITIONS;
+   }
+}
+
+function conditionsOrInvalid(eventType: LoopEventKey, raw: unknown): Conditions {
+   try {
+      return parseConditions(eventType, raw);
+   } catch (error) {
+      if (error instanceof InvalidConditions) throw new InvalidAutopilot(error.field, error.message);
+      throw error;
+   }
+}
+
 function toAutopilot(row: Row): Autopilot {
    return {
-      triggerKinds: ((row.trigger_kinds as string[] | null) ?? []) as Array<'cron' | 'webhook'>,
+      triggerKinds: ((row.trigger_kinds as string[] | null) ?? []) as TriggerKind[],
+      activity: toActivity(row),
+      accessMode: row.access_mode === 'act' ? 'act' : 'recommend',
+      concurrencyPolicy: row.concurrency_policy === 'allow' ? 'allow' : 'skip_if_running',
+      maxTurns: (row.max_turns as number | null) ?? null,
+      maxDurationMinutes: (row.max_duration_minutes as number | null) ?? null,
+      maxChainDepth: (row.max_chain_depth as number | null) ?? 0,
+      allowAgentEvents: row.allow_agent_events === true,
+      templateKey: (row.template_key as string | null) ?? null,
       id: row.id as string,
       workspaceId: row.workspace_id as string,
       name: row.name as string,
@@ -769,7 +1198,9 @@ function toTrigger(row: Row): AutopilotTrigger {
    return {
       id: row.id as string,
       autopilotId: row.autopilot_id as string,
-      kind: row.kind as 'cron' | 'webhook',
+      kind: row.kind as TriggerKind,
+      eventType: typeof row.event_type === 'string' && isLoopEventKey(row.event_type) ? row.event_type : null,
+      conditions: storedConditions(row),
       enabled: row.enabled as boolean,
       cronExpression: (row.cron_expression as string | null) ?? null,
       timezone: (row.timezone as string | null) ?? null,
@@ -803,6 +1234,23 @@ function toRun(row: Row): AutopilotRunRecord {
       issueId: (row.issue_id as string | null) ?? null,
       runId: (row.run_id as string | null) ?? null,
       taskStatus: (row.task_status as string | null) ?? null,
+      state: loopRunState({
+         firing: row.status as RunStatus,
+         task: (row.task_status as string | null) ?? null,
+         issueStatus: (row.issue_status as string | null) ?? null,
+         timedOut: row.timed_out_at !== null && row.timed_out_at !== undefined,
+      }),
+      triggerEventId: (row.trigger_event_id as string | null) ?? null,
+      parentAutopilotRunId: (row.parent_autopilot_run_id as string | null) ?? null,
+      depth: (row.depth as number | null) ?? 0,
+      retryOf: (row.retry_of as string | null) ?? null,
+      retriedBy: (row.retried_by as string | null) ?? null,
+      timedOutAt: toRFC3339(row.timed_out_at as string | null),
+      issueIdentifier: (row.issue_identifier as string | null) ?? null,
+      agentId: (row.agent_id as string | null) ?? null,
+      startedAt: toRFC3339(row.task_started_at as string | null),
+      completedAt: toRFC3339(row.task_completed_at as string | null),
+      summary: (row.task_summary as string | null) ?? null,
       slot: toRFC3339(row.slot as string | null),
       requestedBy: (row.requested_by as string | null) ?? null,
       createdAt: toRFC3339(row.created_at as string) ?? '',
