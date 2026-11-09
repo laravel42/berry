@@ -56,6 +56,8 @@ export interface LoopWorkerOptions {
    pollMs?: number;
    receiveBatch?: number;
    processBatch?: number;
+   /** How far behind now the cursor reads, for commits that land late. Tests set 0. */
+   lagMs?: number;
 }
 
 export interface TickResult {
@@ -115,7 +117,8 @@ export class LoopWorker {
          const [cursor] = await tx`
             SELECT occurred_at, event_id FROM autopilot_event_cursor WHERE id = 1 FOR UPDATE SKIP LOCKED`;
          if (!cursor) return 0;
-         const [clock] = await tx`SELECT now() - interval '2 seconds' AS horizon`;
+         const lagMs = this.#options.lagMs ?? 2_000;
+         const [clock] = await tx`SELECT now() - make_interval(secs => ${lagMs / 1000}) AS horizon`;
          const horizon = clock?.horizon as string;
 
          // Only topics an enabled event trigger of an active Loop listens for:

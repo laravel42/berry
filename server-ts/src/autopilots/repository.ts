@@ -790,9 +790,12 @@ export class AutopilotRepository {
     */
    async suggestAgent(workspaceId: string, roles: readonly string[]): Promise<{ id: string; name: string; roleKey: string } | null> {
       if (roles.length === 0) return null;
+      // The Orchestrator is the protected agent. The workspace trigger makes
+      // it before provisioning gives it a role key, so it is found by that.
       const rows = await this.#sql`
-         SELECT id, name, role_key FROM agents
-          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL AND role_key = ANY(${[...roles]}::text[])`;
+         SELECT id, name, CASE WHEN protected THEN 'orchestrator' ELSE role_key END AS role_key FROM agents
+          WHERE workspace_id = ${workspaceId} AND archived_at IS NULL
+            AND (role_key = ANY(${[...roles]}::text[]) OR protected)`;
       for (const role of roles) {
          const found = rows.find((row) => row.role_key === role);
          if (found) return { id: found.id as string, name: found.name as string, roleKey: role };

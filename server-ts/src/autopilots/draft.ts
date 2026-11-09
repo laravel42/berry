@@ -125,6 +125,8 @@ interface EventGuess {
    conditions: Conditions;
    description: string;
    agentCaused: boolean;
+   /** What a Loop answering this usually does, when the event says it plainly. */
+   name?: string;
 }
 
 /** The Berry event a "when …" sentence describes, or null. */
@@ -144,16 +146,19 @@ export function parseEvent(sentence: string): EventGuess | null {
          conditions: { match: 'all', rules: [{ field: 'pullRequestState', op: 'in', values: [merged ? 'merged' : 'open'] }] },
          description: merged ? 'When a linked pull request is merged' : 'When an open linked pull request changes',
          agentCaused: false,
+         name: merged ? 'Follow up merged pull requests' : 'Review pull requests',
       };
    }
    if (/\b(run|execution)s?\b.*\b(fail|fails|failed|error)/.test(text) || /\bagent\b.*\bfail/.test(text)) {
-      return { eventType: 'run.failed', conditions: EMPTY_CONDITIONS, description: 'When an agent run fails', agentCaused: true };
+      return { eventType: 'run.failed', conditions: EMPTY_CONDITIONS, description: 'When an agent run fails', agentCaused: true, name: 'Analyze failed agent runs' };
    }
    if (/\b(run|execution)s?\b.*\b(complete|completes|completed|finish|finishes|finished|succeed)/.test(text)) {
       return { eventType: 'run.completed', conditions: EMPTY_CONDITIONS, description: 'When an agent run completes', agentCaused: true };
    }
-   if (/\bblocked\b/.test(text)) return status('blocked', 'When a task’s status changes to Blocked');
-   if (/\bin review\b|\bready for review\b|\bmoves? to review\b/.test(text)) return status('inReview', 'When a task’s status changes to In review');
+   if (/\bblocked\b/.test(text)) return { ...status('blocked', 'When a task’s status changes to Blocked'), name: 'Unblock blocked work' };
+   if (/\bin review\b|\bready for review\b|\bmoves? to review\b/.test(text)) {
+      return { ...status('inReview', 'When a task’s status changes to In review'), name: 'Prepare review' };
+   }
    if (/\bcomment/.test(text)) {
       return { eventType: 'comment.created', conditions: EMPTY_CONDITIONS, description: 'When a comment is added', agentCaused: false };
    }
@@ -175,6 +180,7 @@ export function parseEvent(sentence: string): EventGuess | null {
          conditions: { match: 'all', rules: [{ field: 'label', op: 'in', values: ['bug'] }] },
          description: 'When a task labelled “bug” is created',
          agentCaused: false,
+         name: 'Triage new bugs',
       };
    }
    if (/\b(task|issue|ticket|request)s?\b/.test(text) && /\b(new|created|filed|opened|reported|added)\b/.test(text)) {
@@ -218,7 +224,7 @@ export function draftFromRules(sentence: string): LoopDraft {
       );
    }
    return {
-      name: nameFrom(text),
+      name: event?.name ?? nameFrom(text),
       instructions: text,
       trigger,
       roles: suggestRoles(text),

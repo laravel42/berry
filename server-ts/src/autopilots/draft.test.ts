@@ -66,6 +66,12 @@ describe('a rule-based draft', () => {
       assert.equal(draft.roles.at(-1), 'orchestrator');
    });
 
+   test('a recognised event names the Loop after what it does', () => {
+      assert.equal(draftFromRules('When a new bug is reported, analyze its severity').name, 'Triage new bugs');
+      assert.equal(draftFromRules('Whenever a task gets blocked, find out why').name, 'Unblock blocked work');
+      assert.equal(draftFromRules('Every Friday at 4pm summarize the week').name, 'Summarize the week');
+   });
+
    test('without a trigger it asks for one', () => {
       const draft = draftFromRules('Look at our docs');
       assert.equal(draft.trigger, null);
