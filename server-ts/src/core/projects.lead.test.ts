@@ -23,6 +23,7 @@ const leadPatch = (lead: ProjectLead | null): ProjectPatch => ({
    startDateSet: false,
    targetDateSet: false,
    githubRepoSet: false,
+   gitlabRepoSet: false,
    leadSet: true,
    lead,
 });
@@ -151,6 +152,7 @@ describe('project lead', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not s
          startDateSet: false,
          targetDateSet: false,
          githubRepoSet: false,
+         gitlabRepoSet: false,
          leadSet: false,
       });
       assert.equal(renamed.name, 'Renamed twice');

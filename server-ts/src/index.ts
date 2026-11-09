@@ -470,6 +470,9 @@ const githubToken =
               userAccess: githubUserAccess,
            })
       : null;
+const gitlabToken = connections
+   ? (workspaceId: string) => connections.token(workspaceId, 'gitlab')
+   : null;
 const scm = await createScm({ sql, config, logger, githubToken });
 const scmWorkspaces = scm.workspaces;
 const scmSync = scm.sync;
@@ -1130,6 +1133,7 @@ registry.registerAll(
       scmWorkspaces,
       connections,
       githubToken,
+      gitlabToken,
       logger,
       sql,
       milestones,
@@ -1202,6 +1206,9 @@ registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
                  githubRepoSet: true,
                  githubRepoId: repository.githubRepoId,
                  githubRepoFullName: repository.githubRepoFullName,
+                 gitlabRepoSet: true,
+                 gitlabProjectId: null,
+                 gitlabProjectPath: null,
               });
            },
         }
@@ -1415,6 +1422,10 @@ registry.registerAll(
       // create. A stored App's slug wins.
       appSlug: config.auth.githubAppSlug,
       userAccess: githubUserAccess,
+      // Disconnect for a sign-in-only GitHub link turns this off rather than
+      // wiping the person's login token, which other workspaces still need.
+      githubSettings,
+      sql,
       completeAgentCoreAuthorization: scm.completeAgentCoreAuthorization,
       agentCoreAttention: scm.agentCoreAttention,
       publicUrl: config.integrations.publicUrl,

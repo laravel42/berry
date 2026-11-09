@@ -203,7 +203,7 @@ export class RunLedger {
             SELECT r.id, r.issue_id, r.board_id, r.agent_id,
                    i.title, i.description, r.instructions, r.request_id, r.traceparent,
                    b.workspace_id,
-                   COALESCE(project.github_repo_full_name, '') AS repository,
+                   COALESCE(project.gitlab_project_path, project.github_repo_full_name, '') AS repository,
                    berry_issue_identifier(b.workspace_id, i.number) AS identifier
               FROM runs AS r
               JOIN issues AS i ON i.id = r.issue_id

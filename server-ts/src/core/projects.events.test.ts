@@ -83,6 +83,7 @@ describe('project events', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
          startDateSet: false,
          targetDateSet: false,
          githubRepoSet: false,
+         gitlabRepoSet: false,
          leadSet: false,
       });
       const [row] = await sql`

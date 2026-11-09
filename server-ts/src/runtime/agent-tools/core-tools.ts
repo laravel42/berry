@@ -341,7 +341,8 @@ export function registerCoreAgentTools(): void {
                    berry_issue_identifier(b.workspace_id, i.number) AS identifier,
                    i.assignee_type::text AS assignee_type,
                    COALESCE(a.name, u.name) AS assignee_name,
-                   p.name AS project, p.github_repo_full_name AS repository
+                   p.name AS project,
+                   COALESCE(p.gitlab_project_path, p.github_repo_full_name) AS repository
               FROM issues AS i JOIN boards AS b ON b.id = i.board_id
               LEFT JOIN agents AS a ON i.assignee_type = 'agent' AND a.id = i.assignee_id
               LEFT JOIN users AS u ON i.assignee_type = 'user' AND u.id = i.assignee_id
@@ -622,7 +623,8 @@ export function registerCoreAgentTools(): void {
       inputSchema: z.object({}),
       handler: async (context) => {
          const rows = await context.sql`
-            SELECT p.name, p.description, p.status, p.github_repo_full_name AS repository
+            SELECT p.name, p.description, p.status,
+                   COALESCE(p.gitlab_project_path, p.github_repo_full_name) AS repository
               FROM issue_project_links AS link
               JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
              WHERE link.issue_id = ${issueOf(context)} AND p.workspace_id = ${context.task.workspaceId}`;
@@ -928,7 +930,8 @@ export function registerCoreAgentTools(): void {
       inputSchema: z.object({}),
       handler: async (context) => {
          const rows = await context.sql`
-            SELECT id::text AS id, name, status, priority, github_repo_full_name AS repository
+            SELECT id::text AS id, name, status, priority,
+                   COALESCE(gitlab_project_path, github_repo_full_name) AS repository
               FROM projects
              WHERE workspace_id = ${context.task.workspaceId} AND deleted_at IS NULL
              ORDER BY updated_at DESC, id DESC

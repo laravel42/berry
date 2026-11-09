@@ -101,6 +101,7 @@ describe('repository for an issue', { skip: url ? false : 'BERRY_TEST_DATABASE_U
 
       const found = await repositoryForIssue(sql, issueId);
       assert.equal(found?.fullName, 'berry/frontend');
+      assert.equal(found?.provider, 'github');
       assert.match(found!.projectName, /^Project /);
    });
 

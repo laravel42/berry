@@ -256,7 +256,11 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       kind: row.kind as TaskRow['kind'],
       source: row.source as string,
       prompt: (row.prompt as string | null) ?? null,
-      repository: typeof namedRepository === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(namedRepository) ? namedRepository : null,
+      repository:
+         typeof namedRepository === 'string' &&
+         /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)+$/.test(namedRepository)
+            ? namedRepository
+            : null,
       fresh: typeof origin === 'object' && origin !== null && (origin as { fresh?: unknown }).fresh === true,
       completionSpec: (row.completion_spec as CompletionSpec | null) ?? null,
       runtimeId: (row.runtime_id as string | null) ?? null,
@@ -539,7 +543,7 @@ export class EnvelopeBuilder {
          SELECT r.id, r.issue_id, r.board_id, r.agent_id,
                 i.title, i.description, r.instructions, r.request_id, r.traceparent,
                 b.workspace_id,
-                COALESCE(project.github_repo_full_name, '') AS repository,
+                COALESCE(project.gitlab_project_path, project.github_repo_full_name, '') AS repository,
                 berry_issue_identifier(b.workspace_id, i.number) AS identifier
            FROM runs AS r
            JOIN issues AS i ON i.id = r.issue_id
@@ -932,15 +936,22 @@ export class EnvelopeBuilder {
    /** Spec 2.2: the envelope carries the project resources (same rows as `read_project_resources`). */
    async #projectResources(issueId: string, workspaceId: string): Promise<TaskEnvelope['task']['projectResources']> {
       const rows = await this.#deps.sql`
-         SELECT p.name, p.description, p.github_repo_full_name AS repository
+         SELECT p.name, p.description,
+                p.github_repo_full_name, p.gitlab_project_path
            FROM issue_project_links AS link
            JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
           WHERE link.issue_id = ${issueId} AND p.workspace_id = ${workspaceId}`;
-      return rows.map((row) => ({
-         title: row.name as string,
-         url: row.repository ? `https://github.com/${row.repository as string}` : null,
-         content: (row.description as string | null) ?? null,
-      }));
+      return rows.map((row) => {
+         const gitlab = row.gitlab_project_path as string | null;
+         const github = row.github_repo_full_name as string | null;
+         const repository = gitlab || github;
+         const host = gitlab ? 'https://gitlab.com' : 'https://github.com';
+         return {
+            title: row.name as string,
+            url: repository ? `${host}/${repository}` : null,
+            content: (row.description as string | null) ?? null,
+         };
+      });
    }
 
    /**

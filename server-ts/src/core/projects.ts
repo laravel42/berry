@@ -15,7 +15,9 @@ import type { Scope } from './boards.ts';
 
 const PROJECT_COLUMNS = `project.id, project.workspace_id, project.name, project.description,
    project.status, project.priority, project.health, project.start_date, project.target_date,
-   project.github_repo_id, project.github_repo_full_name, project.git_repo, project.created_by,
+   project.github_repo_id, project.github_repo_full_name,
+   project.gitlab_project_id, project.gitlab_project_path,
+   project.git_repo, project.created_by,
    project.lead_type, project.lead_user_id, project.created_at, project.updated_at`;
 
 const RESOURCE_COLUMNS = `resource.id, resource.workspace_id, resource.project_id,
@@ -48,6 +50,8 @@ export interface Project {
    startDate: string | null;
    targetDate: string | null;
    githubRepo: string | null;
+   /** GitLab `path_with_namespace`, or null when unlinked / linked to GitHub. */
+   gitlabRepo: string | null;
    /** Berry's own bare repository for this project, relative to the repos root. */
    gitRepo: string | null;
    lead: ProjectLead | null;
@@ -94,6 +98,9 @@ export interface ProjectPatch {
    githubRepoSet: boolean;
    githubRepoId?: string | null;
    githubRepoFullName?: string | null;
+   gitlabRepoSet: boolean;
+   gitlabProjectId?: string | null;
+   gitlabProjectPath?: string | null;
    /** The bare repository on Berry's own git server, once it exists. */
    gitRepo?: string | null;
    leadSet: boolean;
@@ -208,6 +215,8 @@ export class ProjectRepository {
       targetDate: string | null;
       githubRepoId: string | null;
       githubRepoFullName: string | null;
+      gitlabProjectId?: string | null;
+      gitlabProjectPath?: string | null;
       /** A users.id, or nobody — see IssueRepository.create. */
       createdBy: string | null;
       /** Who runs this project, when the caller said. */
@@ -221,12 +230,15 @@ export class ProjectRepository {
             INSERT INTO projects AS project (
                id, workspace_id, name, description, status, priority, health,
                start_date, target_date, github_repo_id, github_repo_full_name,
+               gitlab_project_id, gitlab_project_path,
                created_by, lead_type, lead_user_id, created_at, updated_at
             ) VALUES (
                ${this.newId()}, ${params.workspaceId}, ${params.name}, ${params.description},
                ${params.status}, ${params.priority}, ${params.health ?? 'no_update'},
                ${params.startDate}, ${params.targetDate},
-               ${params.githubRepoId}, ${params.githubRepoFullName}, ${params.createdBy},
+               ${params.githubRepoId}, ${params.githubRepoFullName},
+               ${params.gitlabProjectId ?? null}, ${params.gitlabProjectPath ?? null},
+               ${params.createdBy},
                ${lead.type}, ${lead.userId}, ${now}, ${now}
             )
             RETURNING ${tx.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
@@ -254,6 +266,8 @@ export class ProjectRepository {
                    -- looks linked and cannot be used.
                    github_repo_id = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoId ?? null}::bigint ELSE project.github_repo_id END,
                    github_repo_full_name = CASE WHEN ${patch.githubRepoSet} THEN ${patch.githubRepoFullName ?? null}::text ELSE project.github_repo_full_name END,
+                   gitlab_project_id = CASE WHEN ${patch.gitlabRepoSet} THEN ${patch.gitlabProjectId ?? null}::bigint ELSE project.gitlab_project_id END,
+                   gitlab_project_path = CASE WHEN ${patch.gitlabRepoSet} THEN ${patch.gitlabProjectPath ?? null}::text ELSE project.gitlab_project_path END,
                    -- The lead pair moves together for the same reason the
                    -- repository pair does: projects_lead_ck refuses a half, be it
                    -- a type with no user or a user with no type.
@@ -563,6 +577,7 @@ function patchChanges(patch: ProjectPatch): string[] {
    if (patch.startDateSet) changed.push('startDate');
    if (patch.targetDateSet) changed.push('targetDate');
    if (patch.githubRepoSet) changed.push('githubRepo');
+   if (patch.gitlabRepoSet) changed.push('gitlabRepo');
    if (patch.gitRepo !== undefined) changed.push('gitRepo');
    if (patch.leadSet) changed.push('lead');
    return changed;
@@ -597,6 +612,7 @@ function toProject(row: Record<string, unknown>): Project {
       startDate: formatDate(row.start_date),
       targetDate: formatDate(row.target_date),
       githubRepo: (row.github_repo_full_name as string | null) ?? null,
+      gitlabRepo: (row.gitlab_project_path as string | null) ?? null,
       gitRepo: (row.git_repo as string | null) ?? null,
       lead: toLead(row.lead_type, row.lead_user_id),
       createdBy: (row.created_by as string | null) ?? null,
