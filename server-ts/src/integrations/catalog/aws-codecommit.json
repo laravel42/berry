@@ -1,0 +1,40 @@
+{
+   "id": "aws-codecommit",
+   "name": "AWS CodeCommit",
+   "description": "Cloud. AWS IAM and AWS ecosystem integration. Agents will check repositories out, branch and open pull requests there.",
+   "include": "access_token",
+   "scopes": [
+      "codecommit:GitPull",
+      "codecommit:GitPush"
+   ],
+   "tools": [
+      {
+         "name": "aws-codecommit.read_repository",
+         "description": "Permission to read repository contents, if this connection grants it later.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "aws-codecommit.create_branch",
+         "description": "Permission to create a branch, if this connection grants it later.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "aws-codecommit.open_pull_request",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "aws-codecommit.merge_pull_request",
+         "description": "Permission to integrate proposed changes without a review, if this connection grants it later.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}

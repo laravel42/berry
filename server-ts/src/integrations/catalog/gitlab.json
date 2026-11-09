@@ -2,8 +2,11 @@
    "id": "gitlab",
    "name": "GitLab",
    "description": "The projects a GitLab account can reach. Sign in so agents can work in those repositories.",
-   "include": "oauth",
-   "scopes": ["read_repository", "write_repository"],
+   "include": "access_token",
+   "scopes": [
+      "read_repository",
+      "write_repository"
+   ],
    "tools": [
       {
          "name": "gitlab.read_repository",

@@ -1,0 +1,40 @@
+{
+   "id": "perforce",
+   "name": "Perforce Helix Core",
+   "description": "Cloud or self-hosted. Large repositories, gaming and binary assets. Agents will sync depots, branch and open reviews there.",
+   "include": "access_token",
+   "scopes": [
+      "depot:read",
+      "depot:write"
+   ],
+   "tools": [
+      {
+         "name": "perforce.read_depot",
+         "description": "Permission to read depot contents, if this connection grants it later.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "perforce.create_branch",
+         "description": "Permission to create a branch, if this connection grants it later.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "perforce.open_review",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "perforce.submit_change",
+         "description": "Permission to submit a change without a review, if this connection grants it later.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}

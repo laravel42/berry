@@ -1,9 +1,12 @@
 {
    "id": "bitbucket",
    "name": "Bitbucket",
-   "description": "The repositories a Bitbucket account can reach. Agents will check them out, branch and open pull requests there.",
-   "include": "oauth",
-   "scopes": ["repository", "pullrequest"],
+   "description": "Cloud or Data Center. Jira integration and the Atlassian ecosystem. Agents will check repositories out, branch and open pull requests there.",
+   "include": "access_token",
+   "scopes": [
+      "repository",
+      "pullrequest"
+   ],
    "tools": [
       {
          "name": "bitbucket.read_repository",
