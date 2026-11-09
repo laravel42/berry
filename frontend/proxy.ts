@@ -11,10 +11,21 @@ import { NextResponse, type NextRequest } from 'next/server';
  * the preview. Berry is never framed itself, so a page request marked
  * `Sec-Fetch-Dest: iframe` is always this: it gets a page that tells the
  * preview where it was, and the preview reopens the site there.
+ *
+ * Anonymous `/` is the marketing site (berry.pm), published into
+ * `public/__marketing` by `scripts/prepare-marketing.mjs` and served from the
+ * same port as the product app. A session cookie keeps `/` on the product
+ * shell (onboarding / workspace).
  */
 export function proxy(request: NextRequest) {
+   const { pathname } = request.nextUrl;
+
+   if (pathname === '/' && !request.cookies.has('berry.session_token')) {
+      return NextResponse.rewrite(new URL('/__marketing/index.html', request.url));
+   }
+
    if (request.headers.get('sec-fetch-dest') !== 'iframe') return NextResponse.next();
-   const path = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+   const path = `${pathname}${request.nextUrl.search}`;
    const html = `<!doctype html><meta charset="utf-8"><script>try{parent.postMessage({type:"berry-preview:lost",path:${JSON.stringify(path)}+location.hash},"*")}catch(e){}</script>`;
    return new NextResponse(html, {
       status: 200,
@@ -29,5 +40,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
    // Pages only: the API, the public API, health and Next's own assets pass by.
-   matcher: ['/((?!api/|v1/|health|_next/|favicon.ico).*)'],
+   // Marketing static files under /assets and /_astro are served from public/.
+   matcher: ['/((?!api/|v1/|health|_next/|favicon.ico|assets/|_astro/|__marketing/).*)'],
 };
