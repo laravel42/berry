@@ -56,7 +56,7 @@ export const WORKSPACE_TOPICS = [
    'conversation.message.created',
    'conversation.read',
    'autopilot.created', 'autopilot.updated', 'autopilot.archived',
-   'autopilot.run.created', 'autopilot.delivery.received',
+   'autopilot.run.created', 'autopilot.run.updated', 'autopilot.delivery.received',
 ] as const;
 
 /** `(occurred_at, id)` — the pair that orders both replays. */

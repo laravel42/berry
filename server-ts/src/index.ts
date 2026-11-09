@@ -115,6 +115,7 @@ import { AutopilotRepository } from './autopilots/repository.ts';
 import { fireAutopilot, retryAutopilotRun, retryPendingAutopilot, type FireInput } from './autopilots/fire.ts';
 import { LoopDrafter } from './autopilots/draft.ts';
 import { LoopWorker } from './autopilots/worker.ts';
+import { registerLoopRunUpdates } from './autopilots/events.ts';
 import { autopilotMounts } from './mounts/autopilots.ts';
 import { autopilotWebhookMounts } from './mounts/autopilot-webhooks.ts';
 import { AutopilotScheduler } from './runs/scheduler.ts';
@@ -1344,6 +1345,8 @@ const conversationRepository = new ConversationRepository(sql);
 // Once per process: a finished chat task posts its reply into the session.
 // It hooks the ledger's terminal notification.
 registerChatReplies({ sql, conversations: conversationRepository });
+// A Loop's history and the Loops list follow its runs ending (ADR-0020).
+registerLoopRunUpdates({ sql });
 registerOrganizationToolsFor({ sql, issues, gate: reviewGate, limits: config.organization });
 registry.registerAll(
    voiceMounts({
