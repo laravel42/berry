@@ -13,6 +13,7 @@ import {
    type ToolSpec,
 } from '@strands-agents/sdk';
 import { LMSTUDIO_NO_TOKEN, type TaskEnvelope } from '../../runtime/envelope.ts';
+import { ensureLmStudioContext } from './lmstudio-load.ts';
 import type { ModelFactory } from './model.ts';
 
 /**
@@ -139,6 +140,15 @@ async function invokeProvider(
    messages: Message[],
    stream?: StreamOptions
 ): Promise<ProviderReply> {
+   if (options.runtimeId === 'lmstudio' && options.baseUrl) {
+      // Context length is a load-time setting on LM Studio. Chat cannot raise it.
+      await ensureLmStudioContext({
+         baseUrl: options.baseUrl,
+         model: options.model,
+         token: options.token,
+         fetchImpl: options.fetchImpl,
+      });
+   }
    const request = buildRequest(options, messages, stream);
    const timeout = AbortSignal.timeout(options.runtimeId === 'lmstudio' ? LOCAL_TIMEOUT_MS : TIMEOUT_MS);
    const signal = stream?.cancelSignal ? AbortSignal.any([stream.cancelSignal, timeout]) : timeout;

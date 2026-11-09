@@ -32,7 +32,21 @@ allowed='^(BERRY_AGENTCORE_REGION|BERRY_AGENTCORE_ACCESS_KEY_ID|BERRY_AGENTCORE_
 
 [ -f "$env_file" ] || { echo "no env file at $env_file" >&2; exit 1; }
 
-docker build -f "$root/server-ts/sandbox/agentcore/Dockerfile" -t berry-agent-runtime "$root/server-ts"
+# AgentCore needs arm64 (`deploy.sh`). Local sessions on an x86 host must not
+# build that platform under qemu: pnpm's arm64 binary has panicked there with
+# "Bad file descriptor" during install. Default to the host arch instead.
+case "$(uname -m)" in
+   aarch64|arm64) default_platform=linux/arm64 ;;
+   *) default_platform=linux/amd64 ;;
+esac
+platform="${BERRY_RUNTIME_PLATFORM:-$default_platform}"
+echo "runtime image platform: $platform" >&2
+
+docker build \
+   --build-arg "BERRY_RUNTIME_PLATFORM=$platform" \
+   -f "$root/server-ts/sandbox/agentcore/Dockerfile" \
+   -t berry-agent-runtime \
+   "$root/server-ts"
 
 filtered="$(mktemp)"
 trap 'rm -f "$filtered"' EXIT

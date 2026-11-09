@@ -55,7 +55,7 @@ RUN set -eu; \
 # corepack still gives a repository the version its `packageManager` names.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable \
-   && corepack prepare pnpm@10.12.1 --activate \
+   && corepack prepare pnpm@12.5.1 --activate \
    && corepack prepare yarn@stable --activate
 
 # Playwright's headless shell only. Screenshots and Lighthouse both run
