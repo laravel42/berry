@@ -12,6 +12,14 @@ const jetBrainsMono = localFont({
    display: 'swap',
 });
 
+/** Wordmark lockup only — same face as berry.pm (`apps/web`). */
+const dmSerifDisplay = localFont({
+   src: './fonts/dm-serif-display-400-latin.woff2',
+   variable: '--font-dm-serif-display',
+   weight: '400',
+   display: 'swap',
+});
+
 export const metadata: Metadata = {
    title: {
       template: '%s | Berry',
@@ -36,7 +44,10 @@ export default async function RootLayout({
       // Berry is dark only, so the theme is a static class rather than a
       // provider: next-themes injected an inline script React 19 refuses to run.
       <html lang={locale} className="dark" suppressHydrationWarning>
-         <body className={`${jetBrainsMono.variable} antialiased`} suppressHydrationWarning>
+         <body
+            className={`${jetBrainsMono.variable} ${dmSerifDisplay.variable} antialiased`}
+            suppressHydrationWarning
+         >
             <NextIntlClientProvider>
                <NuqsAdapter>
                   <SessionGate>

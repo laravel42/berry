@@ -12,6 +12,7 @@
    "scripts": {
       "prepare": "husky",
       "dev:frontend": "pnpm --filter berry-frontend dev",
+      "prepare:marketing": "pnpm --filter berry-frontend prepare:marketing",
       "dev:mobile": "pnpm --filter @berry/mobile start",
       "dev:desktop": "pnpm --filter @berry/desktop dev",
       "package:desktop": "pnpm --filter @berry/desktop package",

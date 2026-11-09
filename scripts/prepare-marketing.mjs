@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+/**
+ * Build the berry.pm Astro site and publish it into the Next `public/` tree so
+ * both the marketing pages and the product app are served from one origin
+ * (localhost:3000). Anonymous `/` is rewritten to the copied index; `/assets`
+ * and `/_astro` are the built site's static files.
+ */
+import { spawnSync } from 'node:child_process';
+import {
+   cpSync,
+   existsSync,
+   lstatSync,
+   mkdirSync,
+   rmSync,
+   symlinkSync,
+} from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const webDir = path.join(root, 'apps', 'web');
+const distDir = path.join(webDir, 'dist');
+const publicDir = path.join(root, 'frontend', 'public');
+const marketingDir = path.join(publicDir, '__marketing');
+
+function linkOrCopy(from, to) {
+   rmSync(to, { recursive: true, force: true });
+   try {
+      symlinkSync(from, to, 'dir');
+   } catch {
+      cpSync(from, to, { recursive: true });
+   }
+}
+
+if (!existsSync(path.join(webDir, 'package.json'))) {
+   console.error('prepare-marketing: apps/web is missing');
+   process.exit(1);
+}
+
+const build = spawnSync('pnpm', ['exec', 'astro', 'build'], {
+   cwd: webDir,
+   stdio: 'inherit',
+   shell: process.platform === 'win32',
+});
+if (build.status !== 0) {
+   process.exit(build.status ?? 1);
+}
+
+if (!existsSync(path.join(distDir, 'index.html'))) {
+   console.error('prepare-marketing: apps/web/dist/index.html was not built');
+   process.exit(1);
+}
+
+mkdirSync(marketingDir, { recursive: true });
+cpSync(path.join(distDir, 'index.html'), path.join(marketingDir, 'index.html'));
+
+for (const name of ['assets', '_astro']) {
+   const from = path.join(distDir, name);
+   if (!existsSync(from)) continue;
+   linkOrCopy(path.resolve(from), path.join(publicDir, name));
+}
+
+for (const name of ['favicon.ico', 'robots.txt', 'sitemap.xml', 'llms.txt']) {
+   const from = path.join(distDir, name);
+   if (!existsSync(from)) continue;
+   cpSync(from, path.join(publicDir, name));
+}
+
+const kind = (p) => (existsSync(p) && lstatSync(p).isSymbolicLink() ? 'link' : 'copy');
+console.log(
+   `prepare-marketing: published to frontend/public (__marketing index, assets=${kind(path.join(publicDir, 'assets'))})`
+);

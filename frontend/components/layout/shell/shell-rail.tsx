@@ -22,7 +22,8 @@ import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
-import { ShellIcon, BerryMark, shellNavRow } from './shell-icon';
+import { BerryWordmark } from '@/components/brand/berry-mark';
+import { ShellIcon, shellNavRow } from './shell-icon';
 import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
 import { ShellPins } from './shell-pins';
@@ -177,13 +178,7 @@ export function ShellRail({
                            aria-label={t('rail.workspaceMenu')}
                            className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
                         >
-                           <BerryMark size={24} />
-                           <span
-                              data-wordmark="md"
-                              className="font-display leading-none tracking-[-0.025em] text-[var(--shell-text)]"
-                           >
-                              Berry<span className="text-primary">.</span>
-                           </span>
+                           <BerryWordmark size="md" href={null} />
                            <svg
                               width="18"
                               height="18"
