@@ -33,14 +33,18 @@ const target: RuntimeTarget = {
 };
 
 /** AWS as the tests see it: VMs by id with a state, and every call recorded. */
-function fakeApi(options: { state?: (id: string) => string | null } = {}) {
+function fakeApi(options: { state?: (id: string) => string | null; version?: string; activeVersion?: string | null } = {}) {
    const calls: string[] = [];
    let next = 0;
    const api: MicrovmApi = {
       async run() {
          next += 1;
          calls.push(`run vm-${next}`);
-         return { microvmId: `vm-${next}`, endpoint: `vm-${next}.lambda-microvm.us-east-1.on.aws` };
+         return {
+            microvmId: `vm-${next}`,
+            endpoint: `vm-${next}.lambda-microvm.us-east-1.on.aws`,
+            imageVersion: options.version ?? '1.0',
+         };
       },
       async state(id) {
          calls.push(`state ${id}`);
@@ -54,7 +58,8 @@ function fakeApi(options: { state?: (id: string) => string | null } = {}) {
          calls.push(`terminate ${id}`);
       },
       async image() {
-         return { state: 'CREATED', activeVersion: '1.0' };
+         calls.push('image');
+         return { state: 'CREATED', activeVersion: options.activeVersion === undefined ? '1.0' : options.activeVersion };
       },
    };
    return { api, calls };
@@ -111,6 +116,7 @@ test('a first invoke starts a VM, waits for it, and posts the envelope through t
    assert.deepEqual(sessions.rows.get(envelope.runtimeSessionId), {
       microvmId: 'vm-1',
       endpoint: 'vm-1.lambda-microvm.us-east-1.on.aws',
+      imageVersion: '1.0',
    });
    assert.equal(runtime.seen[0]!.url, 'https://vm-1.lambda-microvm.us-east-1.on.aws/ping');
    const invoke = runtime.seen[1]!;
@@ -138,7 +144,7 @@ test('a VM that AWS ended is forgotten and replaced', async () => {
    const { api, calls } = fakeApi({ state: (id) => (id === 'vm-old' ? 'TERMINATED' : 'RUNNING') });
    const envelope = sampleEnvelope();
    const sessions = memorySessions({
-      [envelope.runtimeSessionId]: { microvmId: 'vm-old', endpoint: 'vm-old.lambda-microvm.us-east-1.on.aws' },
+      [envelope.runtimeSessionId]: { microvmId: 'vm-old', endpoint: 'vm-old.lambda-microvm.us-east-1.on.aws', imageVersion: '1.0' },
    });
    const runtime = fakeRuntime();
    const transport = microvmTransport({ settings, api, sessions, fetch: runtime.doFetch, sleep: noSleep });
@@ -155,7 +161,7 @@ test('when another server claimed the session first, the VM started here is term
    const sessions = memorySessions();
    const claim = sessions.claim.bind(sessions);
    sessions.claim = async (id, region) => {
-      await claim(id, region, { microvmId: 'vm-theirs', endpoint: 'vm-theirs.lambda-microvm.us-east-1.on.aws' });
+      await claim(id, region, { microvmId: 'vm-theirs', endpoint: 'vm-theirs.lambda-microvm.us-east-1.on.aws', imageVersion: '1.0' });
       return sessions.rows.get(id)!;
    };
    const runtime = fakeRuntime();
@@ -214,7 +220,7 @@ test('stop terminates the session VM and forgets it', async () => {
    const { api, calls } = fakeApi();
    const envelope = sampleEnvelope();
    const sessions = memorySessions({
-      [envelope.runtimeSessionId]: { microvmId: 'vm-7', endpoint: 'vm-7.lambda-microvm.us-east-1.on.aws' },
+      [envelope.runtimeSessionId]: { microvmId: 'vm-7', endpoint: 'vm-7.lambda-microvm.us-east-1.on.aws', imageVersion: '1.0' },
    });
    const transport = microvmTransport({ settings, api, sessions, fetch: fakeRuntime().doFetch, sleep: noSleep });
 
@@ -264,7 +270,7 @@ test('RunMicrovm sends no run hook payload, which an image without hooks refuses
    const client = {
       send: async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
          sent.push({ name: command.constructor.name, input: command.input });
-         return { microvmId: 'vm-1', endpoint: 'vm-1.lambda-microvm.us-east-1.on.aws' };
+         return { microvmId: 'vm-1', endpoint: 'vm-1.lambda-microvm.us-east-1.on.aws', imageVersion: '1.0' };
       },
    };
    const api = awsMicrovmApi({ region: 'us-east-1', client: client as never });
@@ -275,4 +281,69 @@ test('RunMicrovm sends no run hook payload, which an image without hooks refuses
    assert.equal('runHookPayload' in sent[0]!.input, false);
    assert.equal(sent[0]!.input.imageIdentifier, settings.imageArn);
    assert.equal(sent[0]!.input.imageVersion, '1.0');
+});
+
+test('after the image is rebuilt, a session moves off its old VM', async () => {
+   const { api, calls } = fakeApi({ version: '1.1' });
+   const envelope = sampleEnvelope();
+   const sessions = memorySessions({
+      [envelope.runtimeSessionId]: { microvmId: 'vm-old', endpoint: 'vm-old.lambda-microvm.us-east-1.on.aws', imageVersion: '1.0' },
+   });
+   const transport = microvmTransport({
+      settings: { ...settings, imageVersion: '1.1' },
+      api,
+      sessions,
+      fetch: fakeRuntime().doFetch,
+      sleep: noSleep,
+   });
+
+   await drain(transport.invoke({ target, envelope, signal: new AbortController().signal }));
+
+   assert.deepEqual(calls.slice(0, 2), ['terminate vm-old', 'run vm-1']);
+   assert.deepEqual(sessions.rows.get(envelope.runtimeSessionId), {
+      microvmId: 'vm-1',
+      endpoint: 'vm-1.lambda-microvm.us-east-1.on.aws',
+      imageVersion: '1.1',
+   });
+});
+
+test('with no version configured, the image active version decides, asked at most once a minute', async () => {
+   const { api, calls } = fakeApi({ version: '1.2', activeVersion: '1.2' });
+   const envelope = sampleEnvelope();
+   const sessions = memorySessions({
+      [envelope.runtimeSessionId]: { microvmId: 'vm-old', endpoint: 'vm-old.lambda-microvm.us-east-1.on.aws', imageVersion: null },
+   });
+   const transport = microvmTransport({
+      settings: { ...settings, imageVersion: null },
+      api,
+      sessions,
+      fetch: fakeRuntime().doFetch,
+      sleep: noSleep,
+   });
+
+   await drain(transport.invoke({ target, envelope, signal: new AbortController().signal }));
+   await drain(transport.invoke({ target, envelope, signal: new AbortController().signal }));
+
+   assert.ok(calls.includes('terminate vm-old'));
+   assert.equal(calls.filter((call) => call === 'image').length, 1);
+   assert.equal(calls.filter((call) => call.startsWith('run')).length, 1);
+});
+
+test('when AWS cannot say which version is active, a running VM is kept', async () => {
+   const { api, calls } = fakeApi({ activeVersion: null });
+   const envelope = sampleEnvelope();
+   const sessions = memorySessions({
+      [envelope.runtimeSessionId]: { microvmId: 'vm-7', endpoint: 'vm-7.lambda-microvm.us-east-1.on.aws', imageVersion: '1.0' },
+   });
+   const transport = microvmTransport({
+      settings: { ...settings, imageVersion: null },
+      api,
+      sessions,
+      fetch: fakeRuntime().doFetch,
+      sleep: noSleep,
+   });
+
+   await drain(transport.invoke({ target, envelope, signal: new AbortController().signal }));
+
+   assert.equal(calls.some((call) => call.startsWith('terminate') || call.startsWith('run')), false);
 });
