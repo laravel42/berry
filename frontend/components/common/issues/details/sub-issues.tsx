@@ -233,7 +233,12 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
             <Button
                size="xs"
                variant="secondary"
-               className="h-12"
+               /* `has-[>svg]:px-4` as well as `px-4`: `size="xs"` narrows a
+                  button that carries an icon to 8px, and that rule out-ranks
+                  a plain `px-*` because `:has()` adds specificity. Without
+                  the pair the label sits 8px from the edge of a 48px
+                  control. */
+               className="h-12 px-4 has-[>svg]:px-4"
                aria-label={t('attachTitle')}
                title={t('attachTitle')}
             >
@@ -412,7 +417,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   <Button
                      size="xs"
                      variant="secondary"
-                     className="h-12"
+                     className="h-12 px-4 has-[>svg]:px-4"
                      disabled={!title.trim() || adding}
                      onClick={add}
                   >
