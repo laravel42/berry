@@ -5,7 +5,7 @@ import { IssueRepository } from '../core/issues.ts';
 import { ProjectRepository } from '../core/projects.ts';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { InvalidSchedule } from './cron.ts';
-import { AutopilotRepository, InvalidAutopilot, type AutopilotDraft } from './repository.ts';
+import { AutopilotRepository, InvalidAutopilot, type AutopilotDraft, type AutopilotDraftInput } from './repository.ts';
 import { cleanupWorkspace, seedWorkspace, testSealer, type Fixture } from './test-fixture.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
@@ -29,7 +29,7 @@ describe('autopilot repository', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       await closeDatabase(sql);
    });
 
-   function draft(overrides: Partial<AutopilotDraft> = {}): AutopilotDraft {
+   function draft(overrides: Partial<AutopilotDraft> = {}): AutopilotDraftInput {
       return {
          name: 'Nightly triage',
          description: null,

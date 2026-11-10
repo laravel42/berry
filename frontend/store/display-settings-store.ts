@@ -7,7 +7,7 @@ export type GroupingKey =
    'status' | 'assignee' | 'priority' | 'project' | 'parent' | 'none' | `property:${string}`;
 
 export type OrderingKey =
-   'manual' | 'status' | 'priority' | 'dueDate' | 'created' | 'updated' | 'title';
+   'manual' | 'status' | 'priority' | 'startDate' | 'dueDate' | 'created' | 'updated' | 'title';
 
 export type SortDirection = 'asc' | 'desc';
 export type CompletedIssuesFilter = 'all' | 'none';

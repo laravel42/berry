@@ -4,7 +4,7 @@ import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import type { Scope } from './boards.ts';
 import { dbStatusToApi, escapeSearchLiteral } from './issues.ts';
-import type { ActorRef } from './comments.ts';
+import { actorRef, type ActorRef } from './comments.ts';
 import { progressPercent } from './milestones.ts';
 
 /**
@@ -62,6 +62,13 @@ export interface CycleLinkedIssue {
    identifier: string;
    title: string;
    status: string;
+   assignee: ActorRef | null;
+   /**
+    * When a done task last moved to done: its latest `issue.completed` event,
+    * or its last write when it reached done without one. Null unless done.
+    * The burn-up chart counts done tasks by this day.
+    */
+   completedAt: string | null;
 }
 
 export interface CyclePatch {
@@ -279,20 +286,51 @@ export class CycleRepository {
    }
 
    async listIssues(cycleId: string, limit = 500): Promise<CycleLinkedIssue[]> {
+      // `outbox_events_issue_timeline_idx` (workspace, payload issueId, occurred_at) serves
+      // the completion lookup, so it is one index probe per done task.
       const rows = await this.sql`
          SELECT issue.id, berry_issue_identifier(board.workspace_id, issue.number) AS identifier,
-                issue.title, issue.status::text AS status
+                issue.title, issue.status::text AS status,
+                issue.assignee_type::text AS assignee_type, issue.assignee_id,
+                COALESCE(assignee_user.name, assignee_agent.name) AS assignee_name,
+                COALESCE(assignee_user.avatar_url, assignee_agent.avatar_url) AS assignee_avatar_url,
+                CASE WHEN issue.status = 'done' THEN COALESCE(
+                   (SELECT max(event.occurred_at)
+                      FROM outbox_events AS event
+                     WHERE event.workspace_id = board.workspace_id
+                       AND event.payload ->> 'issueId' = issue.id::text
+                       AND event.topic = 'issue.completed'),
+                   issue.updated_at
+                ) END AS completed_at
            FROM issues AS issue
            JOIN boards AS board ON board.id = issue.board_id
+           LEFT JOIN users AS assignee_user
+             ON issue.assignee_type = 'user' AND assignee_user.id = issue.assignee_id
+           LEFT JOIN agents AS assignee_agent
+             ON issue.assignee_type = 'agent' AND assignee_agent.id = issue.assignee_id
           WHERE issue.cycle_id = ${cycleId} AND issue.deleted_at IS NULL
           ORDER BY issue.number ASC, issue.id ASC
           LIMIT ${limit}`;
-      return rows.map((row) => ({
-         id: row.id as string,
-         identifier: row.identifier as string,
-         title: row.title as string,
-         status: dbStatusToApi(row.status as string),
-      }));
+      return rows.map((row) => {
+         const assigneeType = (row.assignee_type as string | null) ?? null;
+         const assigneeId = (row.assignee_id as string | null) ?? null;
+         return {
+            id: row.id as string,
+            identifier: row.identifier as string,
+            title: row.title as string,
+            status: dbStatusToApi(row.status as string),
+            assignee:
+               assigneeType && assigneeId
+                  ? actorRef(
+                       assigneeType,
+                       assigneeId,
+                       (row.assignee_name as string | null) ?? null,
+                       (row.assignee_avatar_url as string | null) ?? null
+                    )
+                  : null,
+            completedAt: row.completed_at ? (toRFC3339(row.completed_at as string) ?? null) : null,
+         };
+      });
    }
 
    async progress(cycleId: string): Promise<CycleProgress> {

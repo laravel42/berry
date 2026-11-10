@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Starts one of the local services inside its container: `start.sh api|sessions|web`.
+# Starts one of the development services inside its container:
+# `dev-start.sh api|sessions|web`, for the `dev` profile of the root compose.yaml.
 #
 # The repository's .env is written for processes running on the Mac itself.
 # Two things differ in a container, and both are put right here rather than by
 # asking anyone to keep a second .env:
 #
-#   * DATABASE_URL is set by compose to the postgres service. A leftover
+#   * DATABASE_URL is set by compose to the dev-postgres service. A leftover
 #     localhost in S3_ENDPOINT still means the Mac, reached at
 #     host.docker.internal.
 #   * The containers the API and the router start are published on the Mac's
@@ -36,8 +37,8 @@ case "${1:-}" in
          socket.on("connect", () => process.exit(0));
          for (const event of ["error", "timeout"]) socket.on(event, () => process.exit(1));
       '; then
-         echo "PostgreSQL is not answering (the compose postgres service)." >&2
-         echo "Check: docker compose -f deploy/local/docker-compose.yml logs postgres" >&2
+         echo "PostgreSQL is not answering (the compose dev-postgres service)." >&2
+         echo "Check: docker compose -p berry-dev logs dev-postgres" >&2
          exit 1
       fi
       # Forward-only and checksummed: a pull that brought a migration does not
@@ -64,7 +65,7 @@ case "${1:-}" in
       exec pnpm --filter berry-frontend dev --hostname 0.0.0.0
       ;;
    *)
-      echo "usage: start.sh api|sessions|web" >&2
+      echo "usage: dev-start.sh api|sessions|web" >&2
       exit 1
       ;;
 esac

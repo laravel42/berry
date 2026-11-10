@@ -16,7 +16,7 @@ import type { Scope } from './boards.ts';
 
 const ISSUE_COLUMNS = `i.id, i.board_id, w.id AS workspace_id, b.slug AS board_slug,
    w.settings->>'issuePrefix' AS issue_prefix, i.number, i.title, i.description,
-   i.status::text AS status, i.priority::text AS priority, i.sort_order, i.due_date,
+   i.status::text AS status, i.priority::text AS priority, i.sort_order, i.start_date, i.due_date,
    i.assignee_type::text AS assignee_type, i.assignee_id,
    COALESCE(assignee_user.name, assignee_agent.name) AS assignee_name,
    COALESCE(assignee_user.avatar_url, assignee_agent.avatar_url) AS assignee_avatar_url,
@@ -79,6 +79,8 @@ export interface Issue {
    status: string;
    priority: string;
    sortOrder: number;
+   /** When work is planned to start; never after `dueDate`. */
+   startDate: string | null;
    dueDate: string | null;
    assignee: ActorRef | null;
    activeRunId: string | null;
@@ -150,6 +152,9 @@ export interface IssuePatch {
    statusId?: string | null;
    priority?: string;
    sortOrder?: number;
+   /** Set or clear the start; absent leaves it alone. */
+   startDateSet?: boolean;
+   startDate?: string | null;
    dueDateSet: boolean;
    dueDate?: string | null;
    assigneeSet: boolean;
@@ -180,6 +185,14 @@ export class ApprovalRequired extends Error {
    constructor() {
       super('approval required');
       this.name = 'ApprovalRequired';
+   }
+}
+
+/** A start after the due date: the row's check refused it. */
+export class StartAfterDue extends Error {
+   constructor() {
+      super('start date after due date');
+      this.name = 'StartAfterDue';
    }
 }
 
@@ -399,6 +412,7 @@ export class IssueRepository {
       status: string;
       priority: string;
       sortOrder: number;
+      startDate?: string | null;
       dueDate: string | null;
       assignee: AssigneeInput | null;
       project: string | null;
@@ -434,12 +448,12 @@ export class IssueRepository {
          await tx`
             INSERT INTO issues (
                id, board_id, number, title, description, status, priority,
-               sort_order, due_date, assignee_type, assignee_id, created_by,
+               sort_order, start_date, due_date, assignee_type, assignee_id, created_by,
                auto_gate, created_at, updated_at
             ) VALUES (
                ${id}, ${params.boardId}, ${number}, ${params.title}, ${params.description},
                ${params.status}::issue_status, ${params.priority}::issue_priority,
-               ${params.sortOrder}, ${params.dueDate},
+               ${params.sortOrder}, ${params.startDate ?? null}, ${params.dueDate},
                ${params.assignee?.type ?? null}::assignee_type, ${params.assignee?.id ?? null},
                ${params.createdBy}, ${params.autoGate ?? false}, ${now}, ${now}
             )`.catch(classifyWrite);
@@ -544,6 +558,7 @@ export class IssueRepository {
                priority = CASE WHEN ${patch.priority !== undefined} THEN ${patch.priority ?? null}::issue_priority ELSE priority END,
                sort_order = CASE WHEN ${patch.sortOrder !== undefined} THEN ${patch.sortOrder ?? null}::integer ELSE sort_order END,
                auto_gate = CASE WHEN ${patch.autoGate !== undefined} THEN ${patch.autoGate ?? false}::boolean ELSE auto_gate END,
+               start_date = CASE WHEN ${patch.startDateSet === true} THEN ${patch.startDate ?? null}::timestamptz ELSE start_date END,
                due_date = CASE WHEN ${patch.dueDateSet} THEN ${patch.dueDate ?? null}::timestamptz ELSE due_date END,
                assignee_type = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.type ?? null}::assignee_type ELSE assignee_type END,
                assignee_id = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.id ?? null}::uuid ELSE assignee_id END,
@@ -891,6 +906,7 @@ function toIssue(row: Record<string, unknown>): Issue {
       status: dbStatusToApi(row.status as string),
       priority: row.priority as string,
       sortOrder: row.sort_order as number,
+      startDate: row.start_date ? toRFC3339(row.start_date as string) : null,
       dueDate: row.due_date ? toRFC3339(row.due_date as string) : null,
       assignee:
          assigneeType && row.assignee_id
@@ -1025,6 +1041,7 @@ function patchChanges(
    }
    if (patch.priority !== undefined) changed.push('priority');
    if (patch.sortOrder !== undefined) changed.push('sortOrder');
+   if (patch.startDateSet) changed.push('startDate');
    if (patch.dueDateSet) changed.push('dueDate');
    if (patch.assigneeSet) changed.push('assignee');
    if (patch.projectSet) changed.push('project');
@@ -1045,6 +1062,7 @@ function serializeIssueEvent(issue: Issue): Record<string, unknown> {
       status: issue.status,
       priority: issue.priority,
       sortOrder: issue.sortOrder,
+      startDate: issue.startDate,
       dueDate: issue.dueDate,
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
@@ -1070,6 +1088,8 @@ function classifyWrite(error: unknown): never {
    if (code === '23503') throw new NotFound();
    if (code === '23505' || code === '23P01') throw new Conflict();
    if (code === '23001') throw new ApprovalRequired();
+   const constraint = (error as { constraint_name?: string })?.constraint_name;
+   if (code === '23514' && constraint === 'issues_start_before_due_ck') throw new StartAfterDue();
    throw error;
 }
 

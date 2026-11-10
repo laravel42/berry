@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BerryApiError, apiFetch } from './api';
 import { actorRefSchema, connectionSchema, newIdempotencyKey } from './api-schemas';
+import { formatRange } from './cycle-math';
 
 /** Workspace cycles: timeboxed iterations. Progress is derived from linked issues. */
 
@@ -34,7 +35,11 @@ export const cycleIssueRefSchema = z.object({
    id: z.string(),
    identifier: z.string(),
    title: z.string(),
+   /** API `IssueStatus`. */
    status: z.string(),
+   assignee: actorRefSchema.nullish(),
+   /** When a done task was completed; null otherwise. */
+   completedAt: z.string().nullish(),
 });
 
 export type CycleStatus = z.infer<typeof cycleStatusSchema>;
@@ -142,8 +147,15 @@ export async function archiveCycle(cycleId: string): Promise<void> {
    await apiFetch(`/api/v1/cycles/${encodeURIComponent(cycleId)}`, { method: 'DELETE' });
 }
 
-export async function listCycleIssues(cycleId: string): Promise<CycleIssueRef[]> {
-   const json: unknown = await apiFetch(`/api/v1/cycles/${encodeURIComponent(cycleId)}/issues`);
+export async function listCycleIssues(
+   cycleId: string,
+   signal?: AbortSignal
+): Promise<CycleIssueRef[]> {
+   const json: unknown = await apiFetch(
+      `/api/v1/cycles/${encodeURIComponent(cycleId)}/issues`,
+      undefined,
+      { signal }
+   );
    const parsed = z.object({ nodes: z.array(cycleIssueRefSchema) }).safeParse(json);
    if (!parsed.success) throw new Error('Cycle issues were not recognized');
    return parsed.data.nodes;
@@ -163,8 +175,18 @@ export async function clearIssueCycle(cycleId: string, issueRef: string): Promis
    );
 }
 
+/** "Nov 2 → Nov 15, 2026". */
 export function formatCycleRange(cycle: Pick<Cycle, 'startsOn' | 'endsOn'>): string {
-   return `${cycle.startsOn} → ${cycle.endsOn}`;
+   return formatRange(cycle);
+}
+
+/**
+ * What the server said, for the second line of a failure toast: the generic
+ * "could not be saved" alone hides a refused origin or a validation error.
+ */
+export function cycleFailureDetail(error: unknown): { description: string } | undefined {
+   if (error instanceof BerryApiError && error.message) return { description: error.message };
+   return undefined;
 }
 
 export function isCyclesUnavailable(error: unknown): boolean {

@@ -112,7 +112,10 @@ import {
    registerOrganizationToolsFor,
 } from './runtime/wiring.ts';
 import { AutopilotRepository } from './autopilots/repository.ts';
-import { fireAutopilot, retryPendingAutopilot, type FireInput } from './autopilots/fire.ts';
+import { fireAutopilot, retryAutopilotRun, retryPendingAutopilot, type FireInput } from './autopilots/fire.ts';
+import { LoopDrafter } from './autopilots/draft.ts';
+import { LoopWorker } from './autopilots/worker.ts';
+import { registerLoopRunUpdates } from './autopilots/events.ts';
 import { autopilotMounts } from './mounts/autopilots.ts';
 import { autopilotWebhookMounts } from './mounts/autopilot-webhooks.ts';
 import { AutopilotScheduler } from './runs/scheduler.ts';
@@ -1102,7 +1105,25 @@ const autopilots = new AutopilotRepository({
 const fireAutopilotNow = (input: FireInput) =>
    fireAutopilot({ sql, issues, enqueue: autopilotEnqueue }, input);
 
-registry.registerAll(autopilotMounts({ sessions, sql, autopilots, fire: fireAutopilotNow, idempotency }));
+// Loops are autopilots (ADR-0020): the same mount, with the run controls,
+// templates and drafting a Loop adds. Cancel goes through the ledger, the
+// way the runs mount's does; a draft uses a model only where the workspace
+// can run one.
+const loopLedger = new RunLedger({ sql });
+const fireDeps = { sql, issues, enqueue: autopilotEnqueue };
+registry.registerAll(
+   autopilotMounts({
+      sessions,
+      sql,
+      autopilots,
+      fire: fireAutopilotNow,
+      idempotency,
+      retry: (input) => retryAutopilotRun(fireDeps, input),
+      cancelRun: (runId) => loopLedger.markCancelled(runId),
+      drafter: new LoopDrafter({ completion, defaultModel: config.runtime.defaultModel }),
+      canUseModel: hasAgentExecution,
+   })
+);
 registry.registerAll(autopilotWebhookMounts({ autopilots, fire: fireAutopilotNow, logger }));
 registry.registerAll(
    webhookMounts({
@@ -1324,6 +1345,8 @@ const conversationRepository = new ConversationRepository(sql);
 // Once per process: a finished chat task posts its reply into the session.
 // It hooks the ledger's terminal notification.
 registerChatReplies({ sql, conversations: conversationRepository });
+// A Loop's history and the Loops list follow its runs ending (ADR-0020).
+registerLoopRunUpdates({ sql });
 registerOrganizationToolsFor({ sql, issues, gate: reviewGate, limits: config.organization });
 registry.registerAll(
    voiceMounts({
@@ -1623,6 +1646,17 @@ const autopilotScheduler = new AutopilotScheduler({
 });
 autopilotScheduler?.start();
 
+// Event triggers and run time limits. Safe with any number of servers: one
+// cursor row read under SKIP LOCKED, and a unique key per (trigger, event).
+const loopWorker = new LoopWorker({
+   sql,
+   fire: fireAutopilotNow,
+   retryPending: (input) => retryPendingAutopilot(fireDeps, input.autopilotRunId),
+   cancelRun: (runId) => loopLedger.markCancelled(runId),
+   logger,
+});
+loopWorker.start();
+
 const app = createApp(registry);
 
 // A request addressed to a preview's host name is that preview's; every other
@@ -1649,6 +1683,7 @@ logger.info('Berry server listening', {
    runDispatch: dispatcher ? `${config.runtime.concurrency} at a time` : 'off',
    // Schedules fire beside the dispatcher and nowhere else.
    autopilotSchedules: autopilotScheduler ? 'on' : 'off',
+   loopEvents: 'on',
    // Named at boot because recall is invisible from outside: an agent with no
    // memory and an agent whose store is misconfigured both just start fresh.
    runMemory: runMemory ? 'agentcore' : 'off',
@@ -1701,6 +1736,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
             dispatcher ? dispatcher.stop() : Promise.resolve(),
             followupWorker ? followupWorker.stop() : Promise.resolve(),
             autopilotScheduler ? autopilotScheduler.stop() : Promise.resolve(),
+            loopWorker.stop(),
             pluginHooks ? pluginHooks.stop() : Promise.resolve(),
             previewEnvironments ? previewEnvironments.stopAll() : Promise.resolve(),
          ])

@@ -1,4 +1,5 @@
 import type { Sql } from '../db/pool.ts';
+import { ceilTools, loopPolicyForRun } from '../autopilots/policy.ts';
 import { effectiveTools, INVALID_CONTRACT_TOOLS } from './autonomy.ts';
 import { parseContract } from './contract.ts';
 
@@ -31,7 +32,15 @@ export async function agentToolAllowlist(
    const [row] = await sql<Array<{ role_key: string | null; role_contract: unknown }>>`
       SELECT role_key, role_contract FROM agents WHERE id = ${agentId}`;
    if (!row) return new Set();
+   // A run a Loop started is held to the Loop's mode as well as the agent's
+   // contract. Looked up first: recommend mode closes even an agent whose
+   // own permissions would leave it open (tools === null).
+   const loop = runId ? await loopPolicyForRun(sql, runId) : null;
    const tools = toolsForAgentRow(row);
+   if (loop) {
+      const ceiled = ceilTools(tools, loop.accessMode);
+      return ceiled === null ? null : new Set(ceiled);
+   }
    if (tools === null) return null;
    const allowed = new Set(tools);
    if (runId && parseContract(row.role_contract)) {

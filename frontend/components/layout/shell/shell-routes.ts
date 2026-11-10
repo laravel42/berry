@@ -101,8 +101,8 @@ const WORK: ShellRouteDef[] = [
       href: '/cycles',
       match: ['/cycle/'],
       prefsKey: 'cycles',
-      // Lucide RotateCw.
-      icon: '<path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" />',
+      // A calendar page with one week marked: a cycle is a stretch of days.
+      icon: '<path d="M4 6h16v14H4zM4 10h16M9 3v5M15 3v5M8 15h8" />',
    },
    {
       // The workspace's tasks, every one. Personal's "My tasks" opens the

@@ -10,6 +10,7 @@ import { buildMessage, lastRejection } from '../agents/prompt.ts';
 import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
+import { ceilPermissions, ceilTools, ceilTurns, loopPolicyForRun } from '../autopilots/policy.ts';
 import type { Dispatch } from '../runs/ledger.ts';
 import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
@@ -303,7 +304,7 @@ export class EnvelopeBuilder {
       tier: Tier | null;
    }> {
       const { task } = input;
-      const agent = await this.#agent(task.agentId);
+      const agent = await this.#underLoopPolicy(task.runId, await this.#agent(task.agentId));
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
       const runtime = await this.#runtime(task);
       const baseSessionKey = sessionKeyFor({
@@ -728,6 +729,27 @@ export class EnvelopeBuilder {
       });
       const prompt = required.length === 0 ? body : `${body}${requiredSkillsContract(required)}`;
       return { skills, prompt };
+   }
+
+   /**
+    * The agent as a Loop's run may use it. Tools and turns come down to the
+    * Loop's mode and budget; permissions too, because they decide whether
+    * the checkout is writable and whether a branch or pull request is
+    * delivered — a recommend-mode run keeps only `read_repository`. The
+    * agent-tools mount enforces the same ceiling on every call; this keeps
+    * the agent from being told about tools it would be refused.
+    */
+   async #underLoopPolicy(runId: string, agent: AgentConfig): Promise<AgentConfig> {
+      const loop = await loopPolicyForRun(this.#deps.sql, runId);
+      if (!loop) return agent;
+      const maxTurns = ceilTurns(agent.maxTurns, loop.maxTurns);
+      const { maxTurns: _agentTurns, ...rest } = agent;
+      return {
+         ...rest,
+         ...(maxTurns !== undefined ? { maxTurns } : {}),
+         tools: ceilTools(agent.tools, loop.accessMode),
+         permissions: ceilPermissions(agent.permissions, loop.accessMode),
+      };
    }
 
    async #agent(agentId: string): Promise<AgentConfig> {

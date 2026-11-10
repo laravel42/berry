@@ -26,6 +26,7 @@ import {
    InvalidTransition,
    OpenPullRequest,
    ProjectNotFound,
+   StartAfterDue,
    dbStatusToApi,
    escapeSearchLiteral,
    issueCursorScope,
@@ -208,6 +209,7 @@ export function issueMounts(options: IssueOptions): Mount[] {
             status: input.status,
             priority: input.priority,
             sortOrder: input.sortOrder,
+            startDate: input.startDate,
             dueDate: input.dueDate,
             assignee: input.assignee,
             project: input.project,
@@ -491,6 +493,7 @@ export function serializeIssue(issue: Issue, relations: IssueRelations | undefin
       status: issue.status,
       priority: issue.priority,
       sortOrder: issue.sortOrder,
+      startDate: issue.startDate,
       dueDate: issue.dueDate,
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
@@ -590,6 +593,7 @@ export function touchesIssueRow(patch: IssuePatch): boolean {
       patch.status !== undefined ||
       patch.priority !== undefined ||
       patch.sortOrder !== undefined ||
+      patch.startDateSet === true ||
       patch.dueDateSet ||
       patch.assigneeSet ||
       patch.projectSet ||
@@ -605,6 +609,7 @@ interface CreateInput {
    status: string;
    priority: string;
    sortOrder: number;
+   startDate: string | null;
    dueDate: string | null;
    assignee: AssigneeInput | null;
    project: string | null;
@@ -659,7 +664,11 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       }
    }
 
+   const startDate = optionalDate(body, 'startDate', fields);
    const dueDate = optionalDate(body, 'dueDate', fields);
+   if (startDate !== null && dueDate !== null && startDate > dueDate) {
+      fields.push(startAfterDueField());
+   }
    const assignee = optionalAssignee(body, fields);
    const project = optionalUUID(body, 'projectId', 'projectId must be a UUID.', fields);
    const goal = goalChange(body, fields);
@@ -673,6 +682,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       status,
       priority,
       sortOrder,
+      startDate,
       dueDate,
       assignee,
       project: project.value,
@@ -773,10 +783,18 @@ export function parsePatch(body: Record<string, unknown>): {
          patch.sortOrder = Number(body.sortOrder);
       }
    }
+   if ('startDate' in body) {
+      provided += 1;
+      patch.startDateSet = true;
+      patch.startDate = optionalDate(body, 'startDate', fields);
+   }
    if ('dueDate' in body) {
       provided += 1;
       patch.dueDateSet = true;
       patch.dueDate = optionalDate(body, 'dueDate', fields);
+   }
+   if (patch.startDate && patch.dueDate && patch.startDate > patch.dueDate) {
+      fields.push(startAfterDueField());
    }
    if ('assignee' in body) {
       provided += 1;
@@ -845,6 +863,10 @@ function optionalDate(
       return null;
    }
    return parsed.toISOString();
+}
+
+function startAfterDueField(): FieldError {
+   return field('/startDate', 'invalid_date_range', 'Start date must not be after the due date.');
 }
 
 function optionalAssignee(
@@ -963,6 +985,9 @@ function rethrowWrite(verb: 'created' | 'updated'): (error: unknown) => never {
             { approvalId: null }
          );
       }
+      if (error instanceof StartAfterDue) {
+         assertValid([startAfterDueField()]);
+      }
       if (error instanceof ProjectNotFound) {
          throw new ApiError(
             422,
@@ -1007,6 +1032,7 @@ const ISSUE_BODY_FIELDS = new Set([
    'status',
    'priority',
    'sortOrder',
+   'startDate',
    'dueDate',
    'assignee',
    'projectId',

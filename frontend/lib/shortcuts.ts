@@ -74,6 +74,8 @@ export const SEQUENCE_WINDOW_MS = 1000;
  */
 export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'issue.create', group: 'general', labelKey: 'createIssue', defaultCombo: 'c' },
+   // Fires only where a page registers it: the Loops list.
+   { id: 'loops.new', group: 'general', labelKey: 'newLoop', defaultCombo: 'n' },
    {
       id: 'issue.assignMilestone',
       group: 'general',
@@ -146,7 +148,7 @@ export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'goto.agents', group: 'navigation', labelKey: 'goToAgents', defaultCombo: 'g e' },
    { id: 'goto.projects', group: 'navigation', labelKey: 'goToProjects', defaultCombo: 'g p' },
    { id: 'goto.cycles', group: 'navigation', labelKey: 'goToCycles', defaultCombo: null },
-   { id: 'goto.loops', group: 'navigation', labelKey: 'goToLoops', defaultCombo: null },
+   { id: 'goto.loops', group: 'navigation', labelKey: 'goToLoops', defaultCombo: 'g l' },
    { id: 'goto.chat', group: 'navigation', labelKey: 'goToChat', defaultCombo: 'g c' },
    { id: 'goto.views', group: 'navigation', labelKey: 'goToViews', defaultCombo: 'g v' },
    { id: 'goto.settings', group: 'navigation', labelKey: 'goToSettings', defaultCombo: 'g s' },

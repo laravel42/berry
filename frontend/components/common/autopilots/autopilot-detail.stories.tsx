@@ -15,7 +15,7 @@ import AutopilotDetail from './autopilot-detail';
 const navigation = (query: Record<string, string> = {}) => ({
    nextjs: {
       navigation: {
-         pathname: '/berry/autopilot/ap-triage',
+         pathname: '/berry/loop/ap-triage',
          segments: [['orgId', 'berry']],
          query,
       },

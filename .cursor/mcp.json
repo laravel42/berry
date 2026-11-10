@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "dom-inspector": {
+      "command": "node",
+      "args": [
+        "/home/secret/.cursor/extensions/l42.dom-inspector-0.7.0/mcp-server/index.js"
+      ],
+      "env": {
+        "DOM_INSPECTOR_PORT": "3100"
+      }
+    }
+  }
+}

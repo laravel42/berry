@@ -102,7 +102,11 @@
    --popover-foreground: var(--brand-void);
    --primary: var(--brand-berry);
    --primary-hover: var(--brand-berry-hover);
-   /* Berry as text. The same red as `.btn-primary` (`bg-berry`). */
+   /* `.btn-primary`: a light neutral fill with dark ink, in both themes. */
+   --button-primary: #cdcdcd;
+   --button-primary-hover: #c2c2c2;
+   --button-primary-foreground: #222226;
+   /* Berry as text. */
    --primary-text: var(--berry);
    --primary-foreground: #ffffff;
    --secondary: #e9e6de;
@@ -315,6 +319,9 @@
    --color-ash: var(--brand-ash);
    --color-slate: var(--brand-slate);
    --color-hairline: var(--brand-hairline);
+   --color-button-primary: var(--button-primary);
+   --color-button-primary-hover: var(--button-primary-hover);
+   --color-button-primary-foreground: var(--button-primary-foreground);
    --color-berry: var(--berry);
    --color-berry-hover: var(--berry-hover);
    --color-amber: var(--brand-amber);
@@ -394,7 +401,12 @@
       else from the recipe; a non-default size may add a size utility, which
       wins because utilities sit above this layer. */
    .btn-primary {
-      @apply inline-flex cursor-pointer items-center justify-center gap-2 font-medium whitespace-nowrap bg-berry text-primary-foreground shadow-xs outline-none transition-[color,box-shadow] hover:bg-berry-hover focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 h-[30px] rounded-[7px] px-3;
+      @apply inline-flex cursor-pointer items-center justify-center gap-2 font-medium whitespace-nowrap bg-button-primary text-button-primary-foreground shadow-xs outline-none transition-[color,box-shadow] hover:bg-button-primary-hover focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 h-[30px] rounded-[7px] px-3;
+   }
+
+   /* Primary actions read a step larger than the 13 px interface text. */
+   .btn-primary {
+      font-size: 0.875rem;
    }
 
    .btn-primary svg {
@@ -413,8 +425,8 @@
 }
 
 @layer utilities {
-   /* The button's red as text. Utilities layer so this replaces the generated
-      `text-primary` colour utility and stays on `--berry`, the fill `.btn-primary` uses. */
+   /* Berry red as text. Utilities layer so this replaces the generated
+      `text-primary` colour utility and stays on `--berry`. */
    .text-primary {
       color: var(--berry);
    }
@@ -1006,6 +1018,18 @@ input[type='search'] {
       and JetBrains Mono at that spacing stacks wrapped lines on top of
       each other. */
    line-height: 1.6;
+}
+
+/* A create dialog's description (task, project) is the body of what is being
+   written, so it reads one step up from the 13 px interface text around it. */
+[data-create-description] .tiptap-ai-editor .ProseMirror {
+   font-size: var(--text-base);
+}
+
+/* A create dialog's title sits a step above the h1 scale, so it leads. */
+[data-heading][data-create-title] {
+   font-size: var(--text-xl);
+   line-height: var(--text-xl--line-height);
 }
 
 .tiptap-ai-editor .ProseMirror p + p {

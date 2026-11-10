@@ -1,77 +1,135 @@
 'use client';
 
-import { CapacityRing } from '@/components/common/cycles/capacity-ring';
+import { ActiveCycleCard } from '@/components/common/cycles/active-cycle-card';
 import { CreateCycleDialog } from '@/components/common/cycles/create-cycle-dialog';
+import { CycleGroup } from '@/components/common/cycles/cycle-group';
+import { CycleTimeline } from '@/components/common/cycles/cycle-timeline';
 import { EmptyCycles } from '@/components/common/cycles/empty-cycles';
+import { EmptyStateLoading } from '@/components/common/empty-state';
+import { PageKpiHeader } from '@/components/common/page/page-parts';
+import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { formatCycleRange, type Cycle } from '@/lib/cycles';
+import { Input, searchFieldClass } from '@/components/ui/input';
+import { useCycleIssues } from '@/hooks/use-cycle-issues';
+import { WORKSPACE_SLUG } from '@/lib/config';
+import { formatRange } from '@/lib/cycle-math';
+import type { Cycle } from '@/lib/cycles';
+import { canEditProduct } from '@/lib/workspace-role';
 import { useCyclesStore } from '@/store/cycles-store';
-import { CalendarRange, Plus } from 'lucide-react';
-import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useSessionStore } from '@/store/session-store';
+import { Plus } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { useLocale, useTranslations } from 'next-intl';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
-function statusLabel(
-   status: Cycle['status'],
-   t: ReturnType<typeof useTranslations<'cycles.status'>>
-): string {
-   return t(status);
-}
+/** Groups below the active card, in reading order: what is next, then what is done. */
+const GROUPS: Cycle['status'][] = ['upcoming', 'completed'];
 
+/**
+ * The workspace's cycles: a timeline of all of them, the active one with its
+ * burn-up, and the upcoming and completed ones as tables. A cycle opens in
+ * the drawer (`@drawer/(.)cycle/[cycleId]`), or full page from a direct link.
+ */
 export default function Cycles() {
    const t = useTranslations('cycles');
-   const tStatus = useTranslations('cycles.status');
-   const orgId = useParams<{ orgId: string }>().orgId;
+   const locale = useLocale();
+   const router = useRouter();
+   const params = useParams<{ orgId?: string }>();
+   const orgId = params?.orgId || WORKSPACE_SLUG;
+   const canEdit = canEditProduct(useSessionStore((state) => state.workspace?.role));
    const cycles = useCyclesStore((state) => state.cycles);
    const loaded = useCyclesStore((state) => state.loaded);
    const [createOpen, setCreateOpen] = useState(false);
+   const [query, setQuery] = useState('');
 
+   const hrefFor = useCallback((cycle: Cycle) => `/${orgId}/cycle/${cycle.id}`, [orgId]);
+   const cycleIds = useMemo(() => cycles.map((cycle) => cycle.id), [cycles]);
+   const { issuesByCycle, loaded: issuesLoaded } = useCycleIssues(cycleIds);
+
+   const shown = useMemo(() => {
+      const term = query.trim().toLowerCase();
+      if (!term) return cycles;
+      return cycles.filter(
+         (cycle) =>
+            cycle.name.toLowerCase().includes(term) ||
+            formatRange(cycle, locale).toLowerCase().includes(term)
+      );
+   }, [cycles, query, locale]);
+
+   const active = shown.find((cycle) => cycle.status === 'active');
+   const groups = GROUPS.map((status) => ({
+      status,
+      cycles: shown.filter((cycle) => cycle.status === status),
+   })).filter((group) => group.cycles.length > 0);
+
+   const openCreate = canEdit ? () => setCreateOpen(true) : undefined;
+
+   const header = (
+      <PageKpiHeader label={t('list.title')}>
+         {cycles.length > 0 ? (
+            <Input
+               className={`${searchFieldClass} w-[clamp(160px,22vw,280px)]`}
+               value={query}
+               onChange={(event) => setQuery(event.target.value)}
+               placeholder={t('list.search')}
+               aria-label={t('list.search')}
+               type="search"
+            />
+         ) : null}
+         {canEdit ? (
+            <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
+               <Plus className="size-4" aria-hidden />
+               {t('list.new')}
+            </Button>
+         ) : null}
+      </PageKpiHeader>
+   );
+
+   let body: ReactNode;
    if (!loaded) {
-      return <div className="p-6 text-muted-foreground">{t('list.loading')}</div>;
+      body = <EmptyStateLoading label={t('list.loading')} />;
+   } else if (cycles.length === 0) {
+      body = <EmptyCycles onCreate={openCreate} />;
+   } else {
+      body = (
+         <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto p-5">
+            <div className="flex w-full min-w-0 flex-col gap-5">
+               {/* The calendar shows every cycle; the search narrows the lists below it. */}
+               <CycleTimeline cycles={cycles} hrefFor={hrefFor} />
+               {active ? (
+                  <ActiveCycleCard
+                     cycle={active}
+                     issues={issuesLoaded ? issuesByCycle[active.id] : undefined}
+                     href={hrefFor(active)}
+                  />
+               ) : null}
+               {groups.map((group) => (
+                  <CycleGroup
+                     key={group.status}
+                     status={group.status}
+                     cycles={group.cycles}
+                     issuesByCycle={issuesByCycle}
+                     hrefFor={hrefFor}
+                  />
+               ))}
+               {shown.length === 0 ? (
+                  <p className="rounded-[10px] bg-accent px-4 py-7 text-center text-subtle-foreground">
+                     {t('list.noneMatch')}
+                  </p>
+               ) : null}
+            </div>
+         </div>
+      );
    }
 
    return (
-      <div className="flex h-full min-h-0 flex-col">
-         {cycles.length === 0 ? (
-            <EmptyCycles />
-         ) : (
-            <ul className="flex flex-col gap-0 overflow-auto px-2 py-2">
-               {cycles.map((cycle) => {
-                  const percent = cycle.progress?.percent ?? 0;
-                  return (
-                     <li key={cycle.id}>
-                        <Link
-                           href={`/${orgId}/cycle/${cycle.id}`}
-                           className="flex items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-muted/60"
-                        >
-                           <CalendarRange
-                              className="size-4 shrink-0 text-muted-foreground"
-                              aria-hidden
-                           />
-                           <div className="min-w-0 flex-1">
-                              <div className="truncate font-medium">{cycle.name}</div>
-                              <div className="truncate text-muted-foreground">
-                                 {formatCycleRange(cycle)} · {statusLabel(cycle.status, tStatus)}
-                              </div>
-                           </div>
-                           <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                              <CapacityRing value={percent} size={14} />
-                              {percent}%
-                           </span>
-                        </Link>
-                     </li>
-                  );
-               })}
-               <li className="px-3 py-2">
-                  <Button size="sm" variant="ghost" onClick={() => setCreateOpen(true)}>
-                     <Plus className="size-3.5" aria-hidden />
-                     {t('create.title')}
-                  </Button>
-               </li>
-            </ul>
-         )}
-         <CreateCycleDialog open={createOpen} onOpenChange={setCreateOpen} />
-      </div>
+      <MainLayout header={header}>
+         {body}
+         <CreateCycleDialog
+            open={createOpen}
+            onOpenChange={setCreateOpen}
+            onCreated={(cycle) => router.push(hrefFor(cycle))}
+         />
+      </MainLayout>
    );
 }

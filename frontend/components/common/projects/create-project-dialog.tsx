@@ -246,18 +246,6 @@ export function CreateProjectDialog() {
                       so the header does not show a second close. */}
                      {assistant ? null : (
                         <div className="flex shrink-0 items-center gap-1">
-                           <span className="ai-animated-border h-7">
-                              <Button
-                                 type="button"
-                                 variant="outline"
-                                 size="xxs"
-                                 className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
-                                 onClick={() => setAssistant(true)}
-                              >
-                                 <Sparkles className="size-3.5" aria-hidden="true" />
-                                 Create with agent
-                              </Button>
-                           </span>
                            <Button
                               type="button"
                               variant="ghost"
@@ -287,6 +275,7 @@ export function CreateProjectDialog() {
                      <Input
                         id="create-project-name"
                         data-heading="h1"
+                        data-create-title
                         autoFocus
                         plain
                         className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-placeholder"
@@ -375,7 +364,10 @@ export function CreateProjectDialog() {
                      <label htmlFor="create-project-description" className="sr-only">
                         Description
                      </label>
-                     <div className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4">
+                     <div
+                        className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4"
+                        data-create-description
+                     >
                         <TiptapAiEditor
                            value={form.description}
                            onChange={(description) => setForm({ ...form, description })}
@@ -388,6 +380,21 @@ export function CreateProjectDialog() {
                   </div>
 
                   <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
+                     {/* Open, the assistant panel is the agent; the button would only repeat it. */}
+                     {assistant ? null : (
+                        <span className="ai-animated-border mr-auto h-7">
+                           <Button
+                              type="button"
+                              variant="outline"
+                              size="xxs"
+                              className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
+                              onClick={() => setAssistant(true)}
+                           >
+                              <Sparkles className="size-3.5" aria-hidden="true" />
+                              Create with agent
+                           </Button>
+                        </span>
+                     )}
                      <Button
                         type="submit"
                         className="shrink-0"

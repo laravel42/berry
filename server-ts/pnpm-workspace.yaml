@@ -1,4 +1,4 @@
-# Standalone install for deploy/local/start.sh. Isolates this folder from the
+# Standalone install for deploy/docker/dev-start.sh. Isolates this folder from the
 # repo-root workspace so the API container does not install the frontend.
 packages:
    - .

@@ -43,6 +43,8 @@ export interface Issue {
    rank: string;
    /** Board column order from API (`sortOrder`). */
    sortOrder: number;
+   /** When work is planned to start; never after `dueDate`. */
+   startDate?: string;
    dueDate?: string;
    activeRunId?: string | null;
    /** The milestone the task serves; null when it serves none. */

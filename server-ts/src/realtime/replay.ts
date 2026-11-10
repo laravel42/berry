@@ -39,6 +39,8 @@ export const WORKSPACE_TOPICS = [
    // Historical outbox rows from before the Goals → Milestones rename.
    'goal.created', 'goal.updated', 'goal.started', 'goal.completed', 'goal.cancelled', 'goal.archived',
    'project.created', 'project.updated', 'project.archived',
+   // Cycles are workspace-scoped (boardId null), like milestones.
+   'cycle.created', 'cycle.updated', 'cycle.archived',
    'approval.requested', 'approval.approved', 'approval.rejected', 'approval.expired',
    'plan.generated', 'plan.updated', 'plan.blocked', 'plan.patched',
    'plan.approved', 'plan.compiled', 'plan.compile_failed',
@@ -56,7 +58,7 @@ export const WORKSPACE_TOPICS = [
    'conversation.message.created',
    'conversation.read',
    'autopilot.created', 'autopilot.updated', 'autopilot.archived',
-   'autopilot.run.created', 'autopilot.delivery.received',
+   'autopilot.run.created', 'autopilot.run.updated', 'autopilot.delivery.received',
 ] as const;
 
 /** `(occurred_at, id)` — the pair that orders both replays. */

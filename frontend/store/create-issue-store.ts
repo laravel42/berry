@@ -29,6 +29,10 @@ export interface CreateIssueDraft {
    priorityId: string | null;
    assignee: { type: 'user' | 'agent'; id: string; name: string } | null;
    projectId: string | null;
+   /** Set on the task once it exists; the create call does not take a cycle. */
+   cycleId: string | null;
+   /** Sent as the issue start date. */
+   startDate: string;
    /** Sent as the issue due date. */
    targetDate: string;
    labelIds: string[];
@@ -45,6 +49,8 @@ export const EMPTY_DRAFT: CreateIssueDraft = {
    priorityId: null,
    assignee: null,
    projectId: null,
+   cycleId: null,
+   startDate: '',
    targetDate: '',
    labelIds: [],
    pluginIds: [],

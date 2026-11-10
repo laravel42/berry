@@ -118,6 +118,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       manual: t('manual'),
       status: t('status'),
       priority: t('priority'),
+      startDate: t('startDate'),
       dueDate: t('dueDate'),
       created: t('created'),
       updated: t('updated'),

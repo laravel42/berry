@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Fragment, useState } from 'react';
 import { toast } from 'sonner';
 
+import LoopRunStateBadge from '@/components/common/loops/run-state-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -50,8 +51,22 @@ export function foldSkipped(runs: AutopilotRun[]): Entry[] {
    return entries;
 }
 
+function duration(run: AutopilotRun): string {
+   if (!run.startedAt || !run.completedAt) return '—';
+   const seconds = Math.max(
+      0,
+      Math.round((Date.parse(run.completedAt) - Date.parse(run.startedAt)) / 1000)
+   );
+   if (seconds < 60) return `${seconds}s`;
+   const minutes = Math.floor(seconds / 60);
+   return minutes < 60
+      ? `${minutes}m ${seconds % 60}s`
+      : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
 export function RunsTable({ runs, orgId }: { runs: AutopilotRun[]; orgId: string }) {
-   const t = useTranslations('areas.autopilots.history');
+   const t = useTranslations('loops.history');
+   const tSource = useTranslations('loops.run.source');
    const [expanded, setExpanded] = useState<string[]>([]);
 
    if (runs.length === 0) {
@@ -60,34 +75,42 @@ export function RunsTable({ runs, orgId }: { runs: AutopilotRun[]; orgId: string
    const entries = foldSkipped(runs);
 
    const row = (run: AutopilotRun) => (
-      <tr key={run.id} className="border-b">
-         <td className="px-6 py-2">{new Date(run.createdAt).toLocaleString()}</td>
-         <td className="px-2 py-2">{run.source}</td>
+      <tr key={run.id} className="border-b hover:bg-settings-row-hover">
+         <td className="px-6 py-2">
+            <Link
+               className="underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-none"
+               href={`/${orgId}/loop/${run.autopilotId}/runs/${run.id}`}
+            >
+               {new Date(run.createdAt).toLocaleString()}
+            </Link>
+         </td>
+         <td className="px-2 py-2">{tSource(run.source)}</td>
          <td className="px-2 py-2">
-            <Badge variant={statusVariant(run.status)}>{run.status}</Badge>{' '}
-            <span className="text-muted-foreground" title={run.reasonMessage ?? undefined}>
-               {describeReason(run.reasonCode)}
-               {run.taskStatus ? ` · ${run.taskStatus}` : ''}
+            <span className="flex flex-wrap items-center gap-2">
+               <LoopRunStateBadge state={run.state} />
+               {run.reasonCode ? (
+                  <span className="text-muted-foreground" title={run.reasonMessage ?? undefined}>
+                     {describeReason(run.reasonCode)}
+                  </span>
+               ) : null}
+               {run.retriedBy ? (
+                  <span className="text-muted-foreground">{t('retried')}</span>
+               ) : null}
             </span>
          </td>
          <td className="px-2 py-2">
-            {run.issueId ? (
-               <Link className="underline" href={`/${orgId}/issue/${run.issueId}`}>
-                  {t('openTask')}
+            {run.issueIdentifier ? (
+               <Link
+                  className="underline-offset-2 hover:underline"
+                  href={`/${orgId}/issue/${run.issueIdentifier}`}
+               >
+                  {run.issueIdentifier}
                </Link>
             ) : (
                <span className="text-muted-foreground">—</span>
             )}
          </td>
-         <td className="px-2 py-2">
-            {run.runId ? (
-               <Link className="underline" href={`/${orgId}/runs?run=${run.runId}`}>
-                  {t('transcript')}
-               </Link>
-            ) : (
-               <span className="text-muted-foreground">—</span>
-            )}
-         </td>
+         <td className="px-2 py-2 text-muted-foreground">{duration(run)}</td>
          <td className="px-2 py-2 text-muted-foreground">v{run.autopilotVersion}</td>
       </tr>
    );
@@ -101,7 +124,7 @@ export function RunsTable({ runs, orgId }: { runs: AutopilotRun[]; orgId: string
                   <th className="px-2 py-2 font-normal">{t('source')}</th>
                   <th className="px-2 py-2 font-normal">{t('outcome')}</th>
                   <th className="px-2 py-2 font-normal">{t('task')}</th>
-                  <th className="px-2 py-2 font-normal">{t('transcript')}</th>
+                  <th className="px-2 py-2 font-normal">{t('duration')}</th>
                   <th className="px-2 py-2 font-normal">{t('version')}</th>
                </tr>
             </thead>
@@ -179,7 +202,7 @@ export function DeliveriesTable({
    canReplay: boolean;
    onReplayed: () => void;
 }) {
-   const t = useTranslations('areas.autopilots.history');
+   const t = useTranslations('loops.history');
    const [open, setOpen] = useState<{ delivery: WebhookDelivery; payload: string } | null>(null);
 
    /** How many times this delivery has been through Berry, replays included. */
