@@ -18,9 +18,59 @@
 # ARM64 is required by AgentCore Runtime. Local x86 hosts can build with
 # --build-arg BERRY_RUNTIME_PLATFORM=linux/amd64.
 ARG BERRY_RUNTIME_PLATFORM=linux/arm64
-# Bun installs Berry's own dependencies below. Its own stage, on the same
-# platform as the image, so the binary copied out matches the image's processor.
-FROM --platform=${BERRY_RUNTIME_PLATFORM} oven/bun:1.4.4-slim AS bun
+
+# Berry's own dependencies, installed on the build host's platform, not the
+# image's. Bun crashes in its allocator under QEMU user-mode emulation (a
+# segfault in mimalloc's free during `bun install`), which is how an x86 host
+# such as Colima or Docker Desktop builds an arm64 image. Installing natively
+# is safe because nothing is compiled: no lifecycle scripts run (the manifest
+# below drops trustedDependencies), and --os/--cpu pick the image's optional
+# packages instead of the host's.
+FROM --platform=${BUILDPLATFORM} oven/bun:1.4.4-slim AS deps
+ARG BERRY_RUNTIME_PLATFORM
+WORKDIR /opt/berry
+COPY package.json bun.lock ./
+# The loop loads the Strands SDK, zod, and S3 for artifacts. The rest of this
+# manifest is the API (database, auth, control-plane clients), so it is cut
+# down to those three before installing. bun.lock (the server's own, from
+# `bun run lock:server`) still decides every version; Bun leaves out the SDK's
+# optional peers, a local model runtime and its parsers, which this process
+# never imports.
+COPY <<'EOF' /tmp/runtime-manifest.cjs
+const fs = require('node:fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const keep = [
+   '@aws-sdk/client-s3',
+   '@strands-agents/sdk',
+   'zod',
+];
+const dependencies = {};
+for (const name of keep) {
+   const version = pkg.dependencies?.[name];
+   if (typeof version !== 'string') {
+      console.error('runtime image is missing dependency ' + name);
+      process.exit(1);
+   }
+   dependencies[name] = version;
+}
+pkg.dependencies = dependencies;
+delete pkg.devDependencies;
+// The patch is for the API's PGlite socket, which is not installed here.
+delete pkg.patchedDependencies;
+delete pkg.trustedDependencies;
+fs.writeFileSync('package.json', JSON.stringify(pkg));
+EOF
+# Not --production, which freezes the lockfile: the cut-down manifest has to
+# be allowed to drop the API's packages from it. Versions still come from it.
+RUN set -eu; \
+   bun /tmp/runtime-manifest.cjs; \
+   case "${BERRY_RUNTIME_PLATFORM}" in \
+      linux/arm64*) cpu=arm64 ;; \
+      linux/amd64) cpu=x64 ;; \
+      *) echo "unsupported BERRY_RUNTIME_PLATFORM ${BERRY_RUNTIME_PLATFORM}" >&2; exit 1 ;; \
+   esac; \
+   bun install --omit dev --os=linux --cpu="$cpu"
+
 FROM --platform=${BERRY_RUNTIME_PLATFORM} node:22-slim
 
 # The toolchain an agent's commands reach for: git to clone and push, ffmpeg for
@@ -131,42 +181,8 @@ RUN npm install -g expo@57.0.27 \
 ENV PIP_BREAK_SYSTEM_PACKAGES=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /opt/berry
-COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
-COPY package.json bun.lock ./
-# The loop loads the Strands SDK, zod, and S3 for artifacts. The rest of this
-# manifest is the API (database, auth, control-plane clients), so it is cut
-# down to those three before installing. bun.lock (the server's own, from
-# `bun run lock:server`) still decides every version; Bun leaves out the SDK's
-# optional peers, a local model runtime and its parsers, which this process
-# never imports.
-RUN node <<'EOF'
-const fs = require('node:fs');
-const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-const keep = [
-   '@aws-sdk/client-s3',
-   '@strands-agents/sdk',
-   'zod',
-];
-const dependencies = {};
-for (const name of keep) {
-   const version = pkg.dependencies?.[name];
-   if (typeof version !== 'string') {
-      console.error('runtime image is missing dependency ' + name);
-      process.exit(1);
-   }
-   dependencies[name] = version;
-}
-pkg.dependencies = dependencies;
-delete pkg.devDependencies;
-// The patch is for the API's PGlite socket, which is not installed here.
-delete pkg.patchedDependencies;
-delete pkg.trustedDependencies;
-fs.writeFileSync('package.json', JSON.stringify(pkg));
-EOF
-# Not --production, which freezes the lockfile: the cut-down manifest has to
-# be allowed to drop the API's packages from it. Versions still come from it.
-RUN bun install --omit dev \
-   && rm -rf /usr/local/bin/bun /root/.bun /root/.cache
+COPY --from=deps /opt/berry/package.json /opt/berry/bun.lock ./
+COPY --from=deps /opt/berry/node_modules ./node_modules
 COPY tsconfig.json ./
 COPY src/agents ./src/agents
 COPY src/execution ./src/execution
