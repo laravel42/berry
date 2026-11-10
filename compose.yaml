@@ -128,6 +128,8 @@ services:
          INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
          BERRY_AUTH_GITHUB_CLIENT_ID: ${BERRY_AUTH_GITHUB_CLIENT_ID:-}
          BERRY_AUTH_GITHUB_CLIENT_SECRET: ${BERRY_AUTH_GITHUB_CLIENT_SECRET:-}
+         # false turns GitHub sign-in off even with the credentials above set.
+         BERRY_AUTH_GITHUB_ENABLED: ${BERRY_AUTH_GITHUB_ENABLED:-}
          BERRY_GITHUB_WEBHOOK_SECRET: ${BERRY_GITHUB_WEBHOOK_SECRET:-}
          SESSION_TTL: ${SESSION_TTL:-}
          # Outbound mail: magic links, password resets, two-factor codes.

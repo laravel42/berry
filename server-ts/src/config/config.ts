@@ -865,7 +865,11 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
    if (clientSecret && !clientId) {
       problems.push('BERRY_AUTH_GITHUB_CLIENT_ID is required with BERRY_AUTH_GITHUB_CLIENT_SECRET');
    }
-   const github = clientId && clientSecret ? { clientId, clientSecret } : null;
+   // `BERRY_AUTH_GITHUB_ENABLED=false` turns GitHub sign-in off with its
+   // credentials still set: the provider is not registered, the config says
+   // so, and the sign-in screens offer email only.
+   const githubEnabled = boolean(env.BERRY_AUTH_GITHUB_ENABLED, true);
+   const github = githubEnabled && clientId && clientSecret ? { clientId, clientSecret } : null;
 
    if (github && !explicit && !development) {
       problems.push('BERRY_AUTH_SECRET is required when GitHub sign-in is configured');

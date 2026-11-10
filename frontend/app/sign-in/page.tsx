@@ -95,7 +95,8 @@ function GitHubOnly({ returnedError }: { returnedError: string | null }) {
    );
 }
 
-function PasswordlessSignIn() {
+/** `github`: whether the server offers GitHub sign-in (`BERRY_AUTH_GITHUB_ENABLED`). */
+function PasswordlessSignIn({ github }: { github: boolean }) {
    const router = useRouter();
    const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
    const [email, setEmail] = useState('');
@@ -142,17 +143,19 @@ function PasswordlessSignIn() {
             <AuthPrimaryButton type="submit" ready={emailOk && !pending}>
                {pending ? 'Signing in…' : 'Continue'}
             </AuthPrimaryButton>
-            <AuthSecondaryButton
-               inverted
-               disabled={pending}
-               onClick={() => {
-                  setPending(true);
-                  void signInWithGitHub().catch(() => setPending(false));
-               }}
-            >
-               <RiGithubFill aria-hidden className="size-4" />
-               Continue with GitHub
-            </AuthSecondaryButton>
+            {github ? (
+               <AuthSecondaryButton
+                  inverted
+                  disabled={pending}
+                  onClick={() => {
+                     setPending(true);
+                     void signInWithGitHub().catch(() => setPending(false));
+                  }}
+               >
+                  <RiGithubFill aria-hidden className="size-4" />
+                  Continue with GitHub
+               </AuthSecondaryButton>
+            ) : null}
          </form>
       </AuthCard>
    );
@@ -216,7 +219,7 @@ function SignInContent() {
    ) {
       return <AuthFlow options={options} initialStep={initialStep} returnedError={returnedError} />;
    }
-   if (options.passwordless) return <PasswordlessSignIn />;
+   if (options.passwordless) return <PasswordlessSignIn github={options.github} />;
    return <GitHubOnly returnedError={returnedError} />;
 }
 

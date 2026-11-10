@@ -194,6 +194,19 @@ test('sign-in credentials are separate from the integrations GitHub credential',
    assert.equal(config.integrations.googleOAuth, null);
 });
 
+test('BERRY_AUTH_GITHUB_ENABLED=false turns GitHub sign-in off with its credentials set', () => {
+   const env = {
+      ...BASE_ENV,
+      BERRY_AUTH_SECRET: 'x'.repeat(32),
+      BERRY_AUTH_GITHUB_CLIENT_ID: 'signin-id',
+      BERRY_AUTH_GITHUB_CLIENT_SECRET: 'signin-secret',
+   };
+   assert.equal(loadConfig({ ...env, BERRY_AUTH_GITHUB_ENABLED: 'false' }).auth.github, null);
+   // Unset or empty (Compose passes an unset variable as '') keeps it on.
+   assert.notEqual(loadConfig({ ...env, BERRY_AUTH_GITHUB_ENABLED: '' }).auth.github, null);
+   assert.notEqual(loadConfig(env).auth.github, null);
+});
+
 test('half a Google OAuth client is refused at boot', () => {
    assert.throws(
       () =>
