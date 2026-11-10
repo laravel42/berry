@@ -1071,22 +1071,6 @@ input[type='search'] {
    }
 }
 
-.ai-animated-border {
-   display: inline-flex;
-   padding: 1px;
-   border-radius: calc(var(--radius-md) + 1px);
-   background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #34d399, #fbbf24, #f472b6);
-   background-size: 300% 100%;
-   animation: ai-border-flow 4s linear infinite;
-}
-
-.ai-animated-border[aria-disabled='true'] {
-   animation: none;
-   background-position: 50% 50%;
-   opacity: 0.5;
-   pointer-events: none;
-}
-
 /* Auth shell: the top-right sign-in/sign-up switch sits one step above the
    body size so it reads with the wordmark, not as a caption. */
 [data-auth-top] {
@@ -1097,14 +1081,6 @@ input[type='search'] {
 /* Auth 2FA code cells: digit-sized without a text-* utility on the span. */
 [data-auth-code-cell] {
    font-size: 1.25rem;
-   line-height: 1;
-}
-
-/* The Agents launcher is drawn 30% larger than the xxs chip. That scale
-   would enlarge the label with the chrome; dividing it back out keeps the
-   word at the body size. */
-.ai-animated-border.shell-agents-launcher {
-   font-size: calc(var(--text-xs) / 1.3);
    line-height: 1;
 }
 
@@ -1123,7 +1099,6 @@ input[type='search'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-   .ai-animated-border,
    .ai-prompt-pill {
       animation: none;
       background-position: 50% 50%;
@@ -1134,7 +1109,7 @@ input[type='search'] {
    Ledger redesign recipe (berry-redesign/ledger/components.css) ported to
    this theme's own tokens instead of the kit's --accent/--raised/--line-2.
    A light travels the border in the brand berry (--pri-a → --pri-b) rather
-   than the old rainbow sweep of `.ai-animated-border`, and the label takes
+   than the rainbow sweep this replaced, and the label takes
    --primary-text. This is for a SECONDARY control that invites an AI
    action — "Create with agent", "AI Workflow", "Fix with AI" — never the
    primary action on a screen, which already carries the gradient fill
