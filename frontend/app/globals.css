@@ -9,9 +9,12 @@
    - The shell is chrome, not content, and stays dark in both themes, so
      `--shell-*` has no `.dark` counterpart on purpose. Same for
      `--board-column-body`. Giving either one would be the bug.
-   - `--ctl-h` (the 44px target floor) is declared but is NOT yet the default
-     control height: that density change is still open, so only `--ctl-h-lg`
-     is wired, on the sign-in primary action.
+   - `--ctl-h` (44px) is the target floor for a BUTTON. A field does not use
+     it: `--field-h` is 32px, below the floor on purpose, because a form of
+     44px fields reads as a settings page rather than a tracker. The pointer
+     target a field actually needs is its text, which is as wide as the field.
+     Input and the select trigger take `--field-h`; `--ctl-h-lg` is the
+     sign-in primary action.
    - State is monochromatic deliberately. The accent is spent on the primary
      action and on the one state that needs a person; a green "done" or a blue
      "running" must not come back, because the old six-hue set collapsed to a
@@ -89,6 +92,8 @@
    --ctl-h: 44px;
    --ctl-h-lg: 48px;
    --ctl-px: 14px;
+   /* Fields: 32px, and a pill. See the note at the top of this file. */
+   --field-h: 2rem;
    /* Chips sit well under the control floor on purpose — a board row can carry
       twenty of them, and `.pill` in the kit is 26px with 10px of side padding.
       Stated once because three components draw a chip today (`ui/badge`,

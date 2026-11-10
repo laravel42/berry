@@ -333,7 +333,7 @@ export default function Projects() {
                <div
                   role="group"
                   aria-label={lists('projects.layout.label')}
-                  className="flex items-center rounded-md border p-0.5"
+                  className="flex items-center rounded-full border p-0.5"
                >
                   {LAYOUTS.map((layout) => {
                      const on = viewType === layout.value;
@@ -346,7 +346,7 @@ export default function Projects() {
                            title={lists(`projects.layout.${layout.value}`)}
                            onClick={() => setViewType(layout.value)}
                            className={cn(
-                              'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                              'flex w-10 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
                               on
                                  ? 'bg-secondary text-foreground'
                                  : 'text-muted-foreground hover:text-foreground'

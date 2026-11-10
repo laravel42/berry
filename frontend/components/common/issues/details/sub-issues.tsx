@@ -233,6 +233,7 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
             <Button
                size="xs"
                variant="secondary"
+               className="h-12"
                aria-label={t('attachTitle')}
                title={t('attachTitle')}
             >
@@ -402,7 +403,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
 
                <div className="flex flex-wrap items-center gap-2">
                   <Input
-                     className="h-8 min-w-[180px] flex-1"
+                     className="h-12 min-w-[180px] flex-1"
                      placeholder={t('addPlaceholder')}
                      value={title}
                      onChange={(event) => setTitle(event.target.value)}
@@ -411,6 +412,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   <Button
                      size="xs"
                      variant="secondary"
+                     className="h-12"
                      disabled={!title.trim() || adding}
                      onClick={add}
                   >
