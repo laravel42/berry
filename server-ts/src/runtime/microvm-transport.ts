@@ -102,7 +102,7 @@ export function awsMicrovmApi(options: {
          ...(options.credentials ? { credentials: options.credentials } : {}),
       });
    return {
-      async run(settings, runtimeSessionId) {
+      async run(settings) {
          const answer = await client.send(
             new RunMicrovmCommand({
                imageIdentifier: settings.imageArn,
@@ -116,8 +116,9 @@ export function awsMicrovmApi(options: {
                },
                maximumDurationInSeconds: MAX_LIFETIME_SECONDS,
                ...(settings.logGroup ? { logging: { cloudWatch: { logGroup: settings.logGroup } } } : {}),
-               // Tells the guest which session it is for; it holds nothing secret.
-               runHookPayload: JSON.stringify({ runtimeSessionId }),
+               // No runHookPayload: AWS refuses one unless the image enables the
+               // run hook, and the runtime needs none. Each request names its
+               // session in the session header instead.
                clientToken: randomUUID(),
             })
          );

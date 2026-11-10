@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { sampleEnvelope } from './envelope.test.ts';
 import { encodeLifecycle, type LifecycleEvent } from './lifecycle.ts';
 import {
+   awsMicrovmApi,
    microvmHealth,
    microvmTransport,
    type MicrovmApi,
@@ -256,4 +257,22 @@ test('health needs a built image with a version to run', async () => {
 
    api.image = async () => ({ state: 'CREATED', activeVersion: null });
    await assert.rejects(microvmHealth(api, { ...settings, imageVersion: null }), /no active version/);
+});
+
+test('RunMicrovm sends no run hook payload, which an image without hooks refuses', async () => {
+   const sent: Array<{ name: string; input: Record<string, unknown> }> = [];
+   const client = {
+      send: async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
+         sent.push({ name: command.constructor.name, input: command.input });
+         return { microvmId: 'vm-1', endpoint: 'vm-1.lambda-microvm.us-east-1.on.aws' };
+      },
+   };
+   const api = awsMicrovmApi({ region: 'us-east-1', client: client as never });
+
+   await api.run(settings, sampleEnvelope().runtimeSessionId);
+
+   assert.equal(sent[0]!.name, 'RunMicrovmCommand');
+   assert.equal('runHookPayload' in sent[0]!.input, false);
+   assert.equal(sent[0]!.input.imageIdentifier, settings.imageArn);
+   assert.equal(sent[0]!.input.imageVersion, '1.0');
 });
