@@ -6,6 +6,8 @@ import { agentHasRuntime } from '@/lib/runtimes';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { formatDistanceToNowStrict } from 'date-fns';
+import { Archive, Lock, ShieldCheck, TriangleAlert } from 'lucide-react';
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { EmptyStateLoading } from '@/components/common/empty-state';
@@ -213,56 +215,72 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
       overview: t('tabUsage'),
    };
 
+   const tint = colorForAgent(agent.id);
+   const notices: { key: string; icon: typeof Lock; text: string }[] = [
+      ...(managed ? [{ key: 'managed', icon: ShieldCheck, text: t('bannerManaged') }] : []),
+      ...(!managed && readOnly ? [{ key: 'readOnly', icon: Lock, text: t('bannerReadOnly') }] : []),
+      ...(archived ? [{ key: 'archived', icon: Archive, text: t('bannerArchived') }] : []),
+   ];
+
    return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-         <div className="border-b px-8 pb-3 pt-6">
-            <div className="flex min-w-0 gap-4">
-               <span className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted/40">
+         <div
+            className="relative px-8 pt-7 pb-5"
+            style={{
+               // The agent's own hue, faded out, so each drawer reads as that agent.
+               backgroundImage: `radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, ${tint} 18%, transparent), transparent 60%)`,
+            }}
+         >
+            <div className="flex min-w-0 items-start gap-5">
+               <span
+                  className="relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-card"
+                  style={{
+                     boxShadow: `0 0 0 1px color-mix(in oklab, ${tint} 45%, transparent), 0 8px 24px -12px ${tint}`,
+                  }}
+               >
                   {avatarSrc ? (
                      // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
                      <img src={avatarSrc} alt="" className="size-full object-cover" />
                   ) : (
-                     <BerryMark
-                        size="lg"
-                        tone="working"
-                        dotColor={colorForAgent(agent.id)}
-                        label={agent.name}
-                     />
+                     <BerryMark size="lg" tone="working" dotColor={tint} label={agent.name} />
                   )}
                </span>
-               <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                     <h1 className="leading-none">{agent.name}</h1>
+               <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
+                  <h1 className="truncate leading-tight">{agent.name}</h1>
+                  <div className="flex flex-wrap items-center gap-1.5">
                      <AgentWorkloadChip roster={roster} />
                      <AgentModelChip agent={agent} />
                      {needsRuntime ? (
-                        <span className="inline-flex shrink-0 items-center rounded border border-status-warning/40 bg-status-warning/10 px-1.5 py-px leading-none text-status-warning">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 leading-none text-status-warning">
+                           <TriangleAlert className="size-3" aria-hidden />
                            {t('bannerNoRuntime')}
                         </span>
                      ) : null}
                   </div>
                   {agent.description ? (
-                     <p className="mt-2 max-w-3xl text-muted-foreground">{agent.description}</p>
+                     <p className="max-w-3xl text-pretty text-muted-foreground">
+                        {agent.description}
+                     </p>
                   ) : null}
                </div>
             </div>
 
-            {managed || readOnly || archived ? (
+            {roster ? <AgentHeroStats roster={roster} tint={tint} /> : null}
+
+            {notices.length > 0 ? (
                <div className="mt-4 flex flex-col gap-2">
-                  {managed ? (
-                     <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground">
-                        {t('bannerManaged')}
+                  {notices.map(({ key, icon: Icon, text }) => (
+                     <p
+                        key={key}
+                        className="flex items-start gap-2.5 rounded-[10px] border border-border/70 bg-card/70 px-3 py-2.5 text-muted-foreground backdrop-blur-sm"
+                     >
+                        <Icon
+                           className="mt-px size-4 shrink-0 text-subtle-foreground"
+                           aria-hidden
+                        />
+                        <span className="text-pretty">{text}</span>
                      </p>
-                  ) : readOnly ? (
-                     <p className="rounded-md border border-border/70 px-3 py-2 text-muted-foreground">
-                        {t('bannerReadOnly')}
-                     </p>
-                  ) : null}
-                  {archived ? (
-                     <p className="flex flex-wrap items-center gap-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
-                        {t('bannerArchived')}
-                     </p>
-                  ) : null}
+                  ))}
                </div>
             ) : null}
          </div>
@@ -270,12 +288,20 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
          <Tabs
             value={view}
             onValueChange={(value) => requestTab(value as DetailTab)}
-            className="flex min-h-0 flex-1 flex-col"
+            className="flex min-h-0 flex-1 flex-col gap-0"
          >
-            <div className="flex justify-center border-b px-8 py-2">
-               <TabsList aria-label={agent.name}>
+            <div className="no-scrollbar overflow-x-auto border-b px-8">
+               <TabsList
+                  aria-label={agent.name}
+                  className="h-auto gap-5 rounded-none bg-transparent p-0"
+               >
                   {TABS.map((tab) => (
-                     <TabsTrigger key={tab} value={tab}>
+                     <TabsTrigger
+                        key={tab}
+                        value={tab}
+                        className="relative h-10 rounded-none px-0 text-muted-foreground hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:after:absolute data-[state=active]:after:inset-x-0 data-[state=active]:after:-bottom-px data-[state=active]:after:h-0.5 data-[state=active]:after:rounded-full data-[state=active]:after:bg-[var(--agent-tint)]"
+                        style={{ ['--agent-tint' as string]: tint }}
+                     >
                         {tabLabel[tab]}
                      </TabsTrigger>
                   ))}
@@ -385,5 +411,61 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
             </AlertDialogContent>
          </AlertDialog>
       </div>
+   );
+}
+
+/**
+ * What the agent is doing and has done, at a glance: the same roster the list
+ * reads, so the drawer and the row never disagree.
+ */
+function AgentHeroStats({ roster, tint }: { roster: AgentRoster; tint: string }) {
+   const t = useTranslations('agentsChat.detail');
+   const runs = roster.activity.reduce((sum, day) => sum + day.runs, 0);
+   const lastActive = roster.lastActiveAt
+      ? formatDistanceToNowStrict(new Date(roster.lastActiveAt), { addSuffix: true })
+      : t('heroNever');
+   const stats = [
+      {
+         key: 'running',
+         label: t('heroRunning'),
+         value: String(roster.running),
+         live: roster.running > 0,
+         figure: 'sm',
+      },
+      {
+         key: 'queued',
+         label: t('heroQueued'),
+         value: String(roster.queued),
+         live: false,
+         figure: 'sm',
+      },
+      { key: 'runs', label: t('heroRuns'), value: String(runs), live: false, figure: 'sm' },
+      { key: 'last', label: t('heroLastActive'), value: lastActive, live: false, figure: 'sm' },
+   ];
+
+   return (
+      <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-border/70 bg-border/70 sm:grid-cols-4">
+         {stats.map((stat) => (
+            <div
+               key={stat.key}
+               className="flex min-h-20 min-w-0 flex-col justify-between gap-2 bg-card/80 px-4 py-3"
+            >
+               <dt className="truncate text-subtle-foreground">{stat.label}</dt>
+               <dd
+                  data-figure={stat.figure}
+                  className="flex min-w-0 items-center gap-2 font-medium text-foreground"
+               >
+                  {stat.live ? (
+                     <span
+                        className="size-2 shrink-0 animate-pulse rounded-full"
+                        style={{ backgroundColor: tint }}
+                        aria-hidden
+                     />
+                  ) : null}
+                  <span className="truncate">{stat.value}</span>
+               </dd>
+            </div>
+         ))}
+      </dl>
    );
 }

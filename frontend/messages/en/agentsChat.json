@@ -256,6 +256,11 @@
          "useTier": "Use tier"
       },
       "tabGeneral": "General",
+      "heroRunning": "Running now",
+      "heroQueued": "Queued",
+      "heroRuns": "Runs · 30 days",
+      "heroLastActive": "Last active",
+      "heroNever": "Never",
       "tabUsage": "Usage",
       "setNameHint": "Shown wherever the agent appears.",
       "setDescriptionHint": "What it is for, in a line or two.",

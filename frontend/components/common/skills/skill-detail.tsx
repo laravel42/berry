@@ -17,6 +17,57 @@ import { loadSkillLabels } from '@/lib/skill-labels';
 import { getSkill, updateSkill, type Skill } from '@/lib/skills';
 import { useSessionStore } from '@/store/session-store';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
+import { colorForAgent } from '@/lib/agent-color';
+import { cn } from '@/lib/utils';
+import { formatDistanceToNowStrict } from 'date-fns';
+import {
+   Archive,
+   BookOpenText,
+   Bot,
+   Clock,
+   FileArchive,
+   FileText,
+   Files,
+   GitBranch,
+   PenLine,
+   TriangleAlert,
+   type LucideIcon,
+} from 'lucide-react';
+
+/** Where the skill came from, as an icon. */
+const SOURCE_ICON: Record<Skill['source']['kind'], LucideIcon> = {
+   manual: PenLine,
+   github: GitBranch,
+   zip: FileArchive,
+};
+
+/** A small fact about the skill, beside its title. */
+function MetaChip({
+   icon: Icon,
+   tone,
+   interactive,
+   children,
+}: {
+   icon: LucideIcon;
+   tone?: 'warning';
+   interactive?: boolean;
+   children: React.ReactNode;
+}) {
+   return (
+      <span
+         className={cn(
+            'inline-flex h-6 items-center gap-1.5 rounded-full border px-2.5 leading-none',
+            tone === 'warning'
+               ? 'border-status-warning/40 bg-status-warning/10 text-status-warning'
+               : 'border-border/70 bg-card/70 text-muted-foreground',
+            interactive && 'transition-colors hover:text-foreground'
+         )}
+      >
+         <Icon className="size-3.5 shrink-0" aria-hidden />
+         {children}
+      </span>
+   );
+}
 
 interface Draft {
    name: string;
@@ -233,76 +284,157 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
       }
    };
 
+   const tint = colorForAgent(loaded.id);
+   const body = readFrontmatter(draft.content).body;
+   const carriers = loaded.agents.filter((agent) => agent.enabled).length;
+   const SourceIcon = SOURCE_ICON[loaded.source.kind];
+   const sourceLabel = t(`detail.source_${loaded.source.kind}`);
+
    return (
       <div className="flex h-full flex-col">
          {conflict ? (
-            <div className="border-b bg-muted/40 px-6 py-3" role="alert">
-               <p className="font-medium">{t('detail.conflict')}</p>
-               <div className="mt-2 flex flex-wrap gap-2">
-                  <Button size="xs" variant="secondary" onClick={() => take(conflict)}>
-                     {t('detail.conflictTakeTheirs')}
-                  </Button>
-                  <Button size="xs" onClick={() => void write(true)}>
-                     {t('detail.conflictKeepMine')}
-                  </Button>
+            <div
+               className="flex items-start gap-3 border-b border-status-warning/30 bg-status-warning/10 px-6 py-3"
+               role="alert"
+            >
+               <TriangleAlert className="mt-0.5 size-4 shrink-0 text-status-warning" aria-hidden />
+               <div className="flex min-w-0 flex-1 flex-col gap-2">
+                  <p className="font-medium">{t('detail.conflict')}</p>
+                  <div className="flex flex-wrap gap-2">
+                     <Button size="xs" variant="secondary" onClick={() => take(conflict)}>
+                        {t('detail.conflictTakeTheirs')}
+                     </Button>
+                     <Button size="xs" onClick={() => void write(true)}>
+                        {t('detail.conflictKeepMine')}
+                     </Button>
+                  </div>
                </div>
             </div>
          ) : null}
 
-         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden px-6 py-4">
-            <div className="grid shrink-0 gap-3">
-               <label className="flex flex-col gap-1.5">
-                  <span className="text-muted-foreground">{t('create.name')}</span>
-                  <Input
-                     value={draft.name}
-                     disabled={!editable}
-                     onChange={(event) => editIdentity({ name: event.target.value })}
-                  />
-               </label>
-               <label className="flex flex-col gap-1.5">
-                  <span className="text-muted-foreground">{t('create.description')}</span>
-                  <Input
-                     value={draft.description}
-                     disabled={!editable}
-                     onChange={(event) => editIdentity({ description: event.target.value })}
-                  />
-               </label>
-            </div>
-            <SkillLabelMultiselect
-               value={draft.labels}
-               disabled={!editable}
-               options={labelOptions}
-               colors={labelColors}
-               onChange={editLabels}
-            />
-            <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-               <span className="text-muted-foreground">{t('create.instructions')}</span>
-               {editable ? (
-                  <div
-                     data-font-weight="100"
-                     className="border-input bg-background min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs [font-weight:100]"
+         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div
+               className="flex shrink-0 flex-col gap-4 px-6 pt-6 pb-5"
+               style={{
+                  // The skill's own hue, faded out, as on the agent drawer.
+                  backgroundImage: `radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, ${tint} 16%, transparent), transparent 60%)`,
+               }}
+            >
+               <div className="flex min-w-0 items-start gap-4">
+                  <span
+                     className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-card"
+                     style={{
+                        color: tint,
+                        boxShadow: `0 0 0 1px color-mix(in oklab, ${tint} 45%, transparent), 0 8px 24px -12px ${tint}`,
+                     }}
                   >
-                     <TiptapAiEditor
-                        value={readFrontmatter(draft.content).body}
-                        onChange={editBody}
-                        placeholder={t('create.instructionsPlaceholder')}
-                        aria-label={t('create.instructions')}
-                        className="min-h-full"
-                        aiAssist={false}
+                     <BookOpenText className="size-6" aria-hidden />
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-1">
+                     <label htmlFor="skill-name" className="sr-only">
+                        {t('create.name')}
+                     </label>
+                     <Input
+                        id="skill-name"
+                        data-heading="h1"
+                        data-create-title
+                        plain
+                        value={draft.name}
+                        disabled={!editable}
+                        placeholder={t('detail.namePlaceholder')}
+                        className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:font-normal placeholder:text-placeholder disabled:opacity-100"
+                        onChange={(event) => editIdentity({ name: event.target.value })}
+                     />
+                     <label htmlFor="skill-description" className="sr-only">
+                        {t('create.description')}
+                     </label>
+                     <Input
+                        id="skill-description"
+                        plain
+                        value={draft.description}
+                        disabled={!editable}
+                        placeholder={t('detail.descriptionPlaceholder')}
+                        className="h-auto border-none bg-transparent px-0 text-muted-foreground shadow-none placeholder:text-placeholder disabled:opacity-100"
+                        onChange={(event) => editIdentity({ description: event.target.value })}
                      />
                   </div>
-               ) : (
-                  <div className="border-input bg-background min-h-0 flex-1 overflow-y-auto rounded-md border px-3 py-2 shadow-xs">
-                     {readFrontmatter(draft.content).body.trim() ? (
-                        <AgentMarkdown
-                           body={readFrontmatter(draft.content).body}
-                           className="max-w-none"
-                        />
-                     ) : (
-                        <p className="text-muted-foreground">{t('detail.emptyInstructions')}</p>
-                     )}
+               </div>
+
+               <div className="flex flex-wrap items-center gap-1.5">
+                  {loaded.archivedAt ? (
+                     <MetaChip icon={Archive} tone="warning">
+                        {t('detail.archived')}
+                     </MetaChip>
+                  ) : null}
+                  {loaded.source.kind === 'github' && loaded.source.url ? (
+                     <a
+                        href={loaded.source.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                     >
+                        <MetaChip icon={SourceIcon} interactive>
+                           {sourceLabel}
+                        </MetaChip>
+                     </a>
+                  ) : (
+                     <MetaChip icon={SourceIcon}>{sourceLabel}</MetaChip>
+                  )}
+                  <MetaChip icon={Bot}>{t('detail.carriedBy', { count: carriers })}</MetaChip>
+                  {loaded.files.length > 0 ? (
+                     <MetaChip icon={Files}>
+                        {t('detail.fileCount', { count: loaded.files.length })}
+                     </MetaChip>
+                  ) : null}
+                  <MetaChip icon={Clock}>
+                     {t('detail.updated', {
+                        when: formatDistanceToNowStrict(new Date(loaded.updatedAt), {
+                           addSuffix: true,
+                        }),
+                     })}
+                  </MetaChip>
+               </div>
+
+               <SkillLabelMultiselect
+                  value={draft.labels}
+                  disabled={!editable}
+                  options={labelOptions}
+                  colors={labelColors}
+                  onChange={editLabels}
+               />
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col px-6 pb-5">
+               <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card shadow-xs">
+                  <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2.5">
+                     <FileText className="size-4 text-subtle-foreground" aria-hidden />
+                     <span className="font-medium">{t('create.instructions')}</span>
+                     <span className="ml-auto font-mono text-subtle-foreground">SKILL.md</span>
                   </div>
-               )}
+                  {editable ? (
+                     <div
+                        data-font-weight="100"
+                        className="min-h-0 flex-1 overflow-y-auto px-4 py-3 [font-weight:100]"
+                     >
+                        <TiptapAiEditor
+                           value={body}
+                           onChange={editBody}
+                           placeholder={t('create.instructionsPlaceholder')}
+                           aria-label={t('create.instructions')}
+                           className="min-h-full"
+                           aiAssist={false}
+                        />
+                     </div>
+                  ) : (
+                     <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                        {body.trim() ? (
+                           <AgentMarkdown body={body} className="max-w-none" />
+                        ) : (
+                           <p className="text-muted-foreground">{t('detail.emptyInstructions')}</p>
+                        )}
+                     </div>
+                  )}
+               </div>
             </div>
          </div>
 
