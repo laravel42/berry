@@ -3,7 +3,9 @@ import agentsChat from '@/messages/en/agentsChat.json';
 import approvals from '@/messages/en/approvals.json';
 import areas from '@/messages/en/areas.json';
 import common from '@/messages/en/common.json';
-import goals from '@/messages/en/goals.json';
+import milestones from '@/messages/en/milestones.json';
+import cycles from '@/messages/en/cycles.json';
+import loops from '@/messages/en/loops.json';
 import inbox from '@/messages/en/inbox.json';
 import issueDetail from '@/messages/en/issueDetail.json';
 import issueLists from '@/messages/en/issueLists.json';
@@ -28,7 +30,9 @@ const messages = {
    approvals,
    areas,
    common,
-   goals,
+   milestones,
+   cycles,
+   loops,
    inbox,
    issueDetail,
    issueLists,

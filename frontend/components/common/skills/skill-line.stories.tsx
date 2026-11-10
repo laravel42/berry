@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn } from 'storybook/test';
 
-import { liveAgents, skills } from '../agents/stories-fixtures';
+import { skills } from '../agents/stories-fixtures';
 import SkillLine from './skill-line';
 
 const meta = {
@@ -9,8 +9,7 @@ const meta = {
    tags: ['ai-generated'],
    args: {
       skill: skills[0]!,
-      columns: ['agents', 'files', 'creator', 'updated'],
-      agents: liveAgents,
+      columns: ['agents', 'creator', 'updated'],
       canEdit: true,
       selected: false,
       open: false,
@@ -57,14 +56,3 @@ export const LockedForViewers: Story = {
 };
 
 /** Archived: the menu offers Restore instead of Add, Update and Archive. */
-export const Archived: Story = {
-   args: { skill: { ...skills[0]!, archivedAt: '2026-09-01T00:00:00Z' } },
-   play: async ({ args, canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Skill actions' }));
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Restore' }));
-      await expect(args.onRestore).toHaveBeenCalledWith(
-         expect.objectContaining({ id: 'skill-design-tokens' })
-      );
-   },
-};

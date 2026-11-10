@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { CheckoutFailed, branchName, checkout, parseRepository, shellQuote } from './checkout.ts';
+import {
+   CheckoutFailed,
+   branchName,
+   checkout,
+   parseGitLabPath,
+   parseRepository,
+   shellQuote,
+} from './checkout.ts';
 import type { ExecResult, ExecutionSession } from '../execution/driver.ts';
 
 /**
@@ -147,6 +154,17 @@ test('a repository name that is not owner/name is refused, not escaped', () => {
    assert.deepEqual(parseRepository('berry/frontend.git'), { owner: 'berry', name: 'frontend' });
    for (const bad of ['berry', 'berry/front end', "berry/'; rm -rf /", 'a/b/c', '']) {
       assert.throws(() => parseRepository(bad), CheckoutFailed, `accepted: ${bad}`);
+   }
+});
+
+test('a GitLab path_with_namespace may be nested', () => {
+   assert.deepEqual(parseGitLabPath('group/project'), { path: 'group/project', name: 'project' });
+   assert.deepEqual(parseGitLabPath('group/sub/project.git'), {
+      path: 'group/sub/project',
+      name: 'project',
+   });
+   for (const bad of ['solo', 'group/front end', "a/'; rm", '']) {
+      assert.throws(() => parseGitLabPath(bad), CheckoutFailed, `accepted: ${bad}`);
    }
 });
 

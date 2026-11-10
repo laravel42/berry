@@ -17,7 +17,7 @@ import { withinTx, type Sql } from '../db/pool.ts';
 
 export interface ResetCounts {
    projects: number;
-   goals: number;
+   milestones: number;
    issues: number;
    runs: number;
    plans: number;
@@ -51,6 +51,7 @@ export const KEPT_TABLES: ReadonlySet<string> = new Set([
    'auth_accounts',
    'auth_sessions',
    'auth_verifications',
+   'auth_two_factors',
    'sessions',
    'personal_api_tokens',
    'notification_preferences',
@@ -137,8 +138,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    'work_proposals',
    'plan_subscribers',
    'plans',
-   'goal_issues',
-   'goals',
+   'milestone_issues',
+   'milestones',
    'reviews',
    'assignments',
    'attachments',
@@ -169,6 +170,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    // Autopilot runs and their deliveries; the autopilots themselves stay.
    'sys_cron_executions',
    'webhook_deliveries',
+   'autopilot_event_receipts',
+   'autopilot_event_cursor',
    'autopilot_runs',
    // Integrations, GitHub and plugins.
    'integration_audit_events',
@@ -245,7 +248,7 @@ export function unlistedTables(tables: readonly string[]): string[] {
 
 const COUNTED: Record<keyof Omit<ResetCounts, 'other' | 'unlisted' | 'starterLabels'>, string> = {
    projects: 'projects',
-   goals: 'goals',
+   milestones: 'milestones',
    issues: 'issues',
    runs: 'runs',
    plans: 'plans',
@@ -297,7 +300,7 @@ export async function apply(sql: Sql): Promise<ResetCounts> {
 
       return {
          projects: removed[COUNTED.projects] ?? 0,
-         goals: removed[COUNTED.goals] ?? 0,
+         milestones: removed[COUNTED.milestones] ?? 0,
          issues: removed[COUNTED.issues] ?? 0,
          runs: removed[COUNTED.runs] ?? 0,
          plans: removed[COUNTED.plans] ?? 0,

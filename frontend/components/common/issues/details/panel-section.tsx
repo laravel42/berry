@@ -19,8 +19,10 @@ export function Section({
 }) {
    return (
       <section className={className}>
-         <div className="mb-1 flex items-center justify-between gap-2 pb-1">
-            <h2 data-heading="label" className="text-muted-foreground">
+         {/* Same label as a project's sidebar blocks (`DetailSectionLabel`):
+             the dim shell tone at the label weight, not the bolder h2. */}
+         <div className="mb-2 flex items-center justify-between gap-2 pb-[7px]">
+            <h2 data-heading="label" className="font-semibold text-[var(--shell-text-dim)]">
                {title}
             </h2>
             {action}

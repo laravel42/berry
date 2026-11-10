@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { refreshGoalsForIssue } from '../core/goal-status.ts';
+import { refreshMilestonesForIssue } from '../core/milestone-status.ts';
 import { issueHasOpenHold } from '../work/holds.ts';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { RunTerminal } from '../agents/runtime/terminal.ts';
@@ -203,7 +203,7 @@ export class RunLedger {
             SELECT r.id, r.issue_id, r.board_id, r.agent_id,
                    i.title, i.description, r.instructions, r.request_id, r.traceparent,
                    b.workspace_id,
-                   COALESCE(project.github_repo_full_name, '') AS repository,
+                   COALESCE(project.gitlab_project_path, project.github_repo_full_name, '') AS repository,
                    berry_issue_identifier(b.workspace_id, i.number) AS identifier
               FROM runs AS r
               JOIN issues AS i ON i.id = r.issue_id
@@ -308,7 +308,7 @@ export class RunLedger {
                 RETURNING issue.id`;
             if (moved.length > 0) {
                await this.appendIssueUpdated(tx, started, now);
-               if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+               if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
             }
          }
          return started;
@@ -569,7 +569,7 @@ export class RunLedger {
                    active_run_id = NULL, updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
-         if (reviewed.length > 0 && run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+         if (reviewed.length > 0 && run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
 
          const usageSequence = await allocateSequence(tx, run.id);
          const completedSequence = await allocateSequence(tx, run.id);
@@ -648,7 +648,7 @@ export class RunLedger {
              RETURNING id`;
          if (released.length > 0) {
             await this.appendIssueUpdated(tx, run, now);
-            if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+            if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
          }
 
          const sequence = await allocateSequence(tx, run.id);
@@ -704,7 +704,7 @@ export class RunLedger {
              RETURNING id`;
          if (released.length > 0) {
             await this.appendIssueUpdated(tx, run, now);
-            if (run.issueId) await refreshGoalsForIssue(tx, run.issueId, now);
+            if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
          }
 
          const sequence = await allocateSequence(tx, run.id);
@@ -824,7 +824,7 @@ export class RunLedger {
       if (!run.issueId) return;
       const [row] = await tx`
          SELECT i.id, i.board_id, i.number, i.title, i.description,
-                i.status::text AS status, i.priority::text AS priority, i.sort_order, i.due_date,
+                i.status::text AS status, i.priority::text AS priority, i.sort_order, i.start_date, i.due_date,
                 i.assignee_type::text AS assignee_type, i.assignee_id,
                 COALESCE(assignee_user.name, assignee_agent.name) AS assignee_name,
                 COALESCE(assignee_user.avatar_url, assignee_agent.avatar_url) AS assignee_avatar,
@@ -858,6 +858,7 @@ export class RunLedger {
             status: issueStatusToApi(row.status as string),
             priority: row.priority,
             sortOrder: Number(row.sort_order),
+            startDate: toRFC3339(row.start_date as string | null),
             dueDate: toRFC3339(row.due_date as string | null),
             assignee: row.assignee_type
                ? {

@@ -13,12 +13,14 @@ import { ApiTokenError, listApiTokenModels } from '../runtime/api-token-runtimes
 import {
    isAiRuntimeId,
    isApiTokenRuntime,
+   takesBaseUrl,
    findAiRuntime,
    withWorkstationCliPresence,
    type AiRuntimeId,
    type WorkstationCliPresence,
 } from '../runtime/ai-runtime-catalog.ts';
 import { computerHost } from '../runtime/computer-host.ts';
+import { LMSTUDIO_DEFAULT_BASE_URL, lmStudioBaseUrl, lmStudioEndpointLabel } from '../runtime/lmstudio-endpoint.ts';
 import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN } from '../runtime/envelope.ts';
 import { listKiroAgents } from '../runtime/kiro-agents.ts';
 import {
@@ -33,7 +35,9 @@ import {
    RuntimeProtected,
    RuntimeRepository,
    RuntimeSealingUnavailable,
+   singleHost,
    type ProfileView,
+   type RuntimeHosts,
    type RuntimeView,
 } from '../runtime/runtimes.ts';
 import type { RuntimeTarget } from '../runtime/transport.ts';
@@ -41,7 +45,7 @@ import type { RuntimeControlRequest, RuntimeControlResponse } from '../runtime/e
 import { runtimeSessionIdFor } from '../runtime/session-id.ts';
 import type { Permission } from '../identity/roles.ts';
 import type { ScopedDb } from '../identity/workspace-context.ts';
-import { currentWorkspace, owned, pathId, resolveScoped, resolveScopedResource } from './shared.ts';
+import { currentWorkspace, owned, pathId, refuseLockedAgent, resolveScoped, resolveScopedResource } from './shared.ts';
 
 /**
  * The subscription runtimes whose login stays inside a CLI on the workstation
@@ -176,6 +180,8 @@ export function runtimeMounts(options: {
    health: (target: RuntimeTarget) => Promise<void>;
    /** The deployment's own runtime, which a platform row stands for. */
    defaultTarget?: RuntimeTarget | null;
+   /** Every host the deployment runs; a platform row stands for the one of its driver. */
+   hosts?: RuntimeHosts;
    /** Writes a session lifecycle onto an AgentCore runtime. Absent without AgentCore. */
    applyLifecycle?: (arn: string, lifecycle: Lifecycle) => Promise<void>;
    /** Cancels an active run after its personal runtime connection is removed. */
@@ -350,7 +356,49 @@ export function runtimeMounts(options: {
          apiKey: z.string().trim().min(1).max(512).optional(),
          name: z.string().trim().min(1).max(80).optional(),
          host: z.string().trim().min(1).max(253).optional(),
+         baseUrl: z.string().trim().min(1).max(2048).optional(),
       }));
+      if (takesBaseUrl(runtimeId)) {
+         // A server the person runs. The token is optional: LM Studio
+         // answers without one until its authentication is turned on.
+         const baseUrl = lmStudioBaseUrl(body.baseUrl ?? LMSTUDIO_DEFAULT_BASE_URL);
+         if (baseUrl === null) {
+            throw ApiError.badRequest(
+               'Use the LM Studio server address, such as http://localhost:1234/v1. Link-local and cloud metadata addresses are refused.'
+            );
+         }
+         if (body.apiKey && !options.sealer) {
+            throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot store an API token.');
+         }
+         const models = await listApiTokenModels(runtimeId, body.apiKey ?? null, fetch, baseUrl).catch(
+            (error: unknown) => {
+               if (error instanceof ApiTokenError) {
+                  const status = error.code === 'AI_RUNTIME_AUTH_FAILED' ? 409 : 503;
+                  throw new ApiError(status, error.code, error.message);
+               }
+               throw error;
+            }
+         );
+         const connected = await aiRuntimes
+            .connect({
+               workspaceId,
+               userId: user.id,
+               runtimeId,
+               authMethod: body.apiKey ? 'api_token' : 'none',
+               accountId: null,
+               accountName: lmStudioEndpointLabel(baseUrl),
+               metadata: {
+                  models,
+                  modelCatalogComplete: true,
+                  baseUrl,
+                  ...(body.name ? { connectionName: body.name } : {}),
+               },
+               credentialSealed: body.apiKey && options.sealer ? options.sealer.seal(body.apiKey) : null,
+            })
+            .catch(aiError);
+         await cancelRuns(connected.replacedActiveRunIds);
+         return json(connected.connection, 201);
+      }
       if (isApiTokenRuntime(runtimeId)) {
          if (!body.apiKey) throw ApiError.badRequest('Paste an API token.');
          if (!options.sealer) {
@@ -519,7 +567,7 @@ export function runtimeMounts(options: {
       });
    });
 
-   const tierModelList = z.array(z.string().trim().min(3).max(360)).max(3);
+   const tierModelList = z.array(z.string().trim().min(3).max(360));
    const tierModelBody = z.strictObject({
       placement: z.strictObject({
          berry_max: tierModelList,
@@ -630,6 +678,28 @@ export function runtimeMounts(options: {
          await aiRuntimes.recordModels(connection.id, models).catch(aiError);
          return json({ nodes: models, complete: true, detail: null });
       }
+      if (takesBaseUrl(runtimeId)) {
+         // Local models come and go as the person downloads them; ask again.
+         const baseUrl =
+            typeof connection.metadata.baseUrl === 'string' ? lmStudioBaseUrl(connection.metadata.baseUrl) : null;
+         if (baseUrl === null) {
+            throw new ApiError(409, 'AI_RUNTIME_AUTH_REQUIRED', 'Reconnect LM Studio with its server address.');
+         }
+         const sealed = await aiRuntimes.sealedCredential(workspaceId, user.id, runtimeId, connection.id);
+         if (sealed && !options.sealer) {
+            throw new ApiError(503, 'SEALING_UNAVAILABLE', 'This deployment cannot open the stored API token.');
+         }
+         const token = sealed && options.sealer ? options.sealer.open(sealed) : null;
+         const listed = await listApiTokenModels(runtimeId, token, fetch, baseUrl).catch((error: unknown) => {
+            if (error instanceof ApiTokenError) {
+               throw new ApiError(error.code === 'AI_RUNTIME_AUTH_FAILED' ? 409 : 503, error.code, error.message);
+            }
+            throw error;
+         });
+         const models = listed.map((model) => ({ ...model, reasoning: null, tools: null, policy: null }));
+         await aiRuntimes.recordModels(connection.id, models).catch(aiError);
+         return json({ nodes: models, complete: true, detail: null });
+      }
       const models = Array.isArray(connection.metadata.models) ? connection.metadata.models : [];
       return json({
          nodes: models,
@@ -696,7 +766,7 @@ export function runtimeMounts(options: {
       const user = context.get('user');
       const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
       const view = await guard(repository.get(workspaceId, pathId(context.req.param('id'), 'Runtime')));
-      const target = repository.target(view, options.defaultTarget ?? null);
+      const target = repository.target(view, options.hosts ?? singleHost(options.defaultTarget ?? null));
       let error: string | null = target ? null : 'no runtime is configured behind this entry';
       if (target) {
          await options.health(target).catch((cause: unknown) => {
@@ -748,6 +818,7 @@ export function runtimeMounts(options: {
       const id = pathId(context.req.param('id'), 'Runtime');
       const agentId = pathId(context.req.param('agentId'), 'Agent');
       const workspaceId = await scopeFor(user, 'settings.write', runtimeRow(id), agentRow(agentId));
+      await refuseLockedAgent(options.sql, agentId);
       const body = await parse(context.req.raw, z.object({ profileId: z.uuid().nullable().optional() }));
       await guard(repository.bind(workspaceId, id, agentId, body.profileId ?? null));
       return new Response(null, { status: 204 });
@@ -759,6 +830,7 @@ export function runtimeMounts(options: {
       const agentId = pathId(context.req.param('agentId'), 'Agent');
       // The runtime in the path must still be this workspace's, and so must the agent.
       const workspaceId = await scopeFor(user, 'settings.write', runtimeRow(id), agentRow(agentId));
+      await refuseLockedAgent(options.sql, agentId);
       await guard(repository.bind(workspaceId, null, agentId, null));
       return new Response(null, { status: 204 });
    });

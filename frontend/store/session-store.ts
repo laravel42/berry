@@ -136,14 +136,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
    hydrateFromStorage: async () => {
       // The session is a cookie the browser sends on its own, so "is anyone
       // signed in" is simply whether bootstrap answers. A 401 is the normal
-      // anonymous answer, not an error worth showing.
+      // anonymous answer, not an error worth showing. Any other failure
+      // (API down, proxy reset) must not pretend the visitor is signed out —
+      // that bounced people to /sign-in whenever the server briefly refused
+      // connections.
       try {
          const ready = await loadReadyState();
          set({ status: 'ready', error: null, ...ready });
          return;
       } catch (error) {
          if (!(error instanceof BerryApiError) || error.status !== 401) {
-            set({ ...ANONYMOUS, error: error instanceof BerryApiError ? error.message : null });
+            set({
+               status: 'booting',
+               error: error instanceof BerryApiError ? error.message : 'Berry is unreachable.',
+            });
             return;
          }
       }

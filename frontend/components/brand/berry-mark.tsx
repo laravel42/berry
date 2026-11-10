@@ -139,27 +139,24 @@ export function BerryMark({
 }
 
 /**
- * The lockup's proportions, measured off `public/logotipo.svg`.
- *
- * In the official lockup the mark is 100 tall where the word's capitals are
- * 61.3, and the gap between them is 25.1. So the mark is *taller* than the
- * text, closing over the line above and below it, and the ratios against the
- * word's font size come out at 1.186 for the mark and 0.297 for the gap.
- *
- * This is where the official asset and the Ledger spec disagree, and the asset
- * wins: the spec sets the mark as a 21px mono glyph against a 32px word, which
- * makes it two thirds of the word rather than larger than it. The spec was
- * standing a text character in for artwork it did not have.
- *
- * Both ratios are in `em`, which is why `data-wordmark` sits on the wrapper
- * rather than on the word: the font size has to be set above both children for
- * them to scale off it. That also keeps the lockup correct inside the sidebar,
- * which rewrites the --text-* scale under itself.
+ * Lockup sizes matching the berry.pm nav mark (`apps/web` Logo + word).
+ * Mark geometry and type are the public site's; do not restyle from the UI scale.
  */
+const wordmarkSizes = {
+   sm: { mark: 18, type: 18 },
+   md: { mark: 22, type: 23 },
+   lg: { mark: 28, type: 29 },
+} as const;
 
 interface BerryWordmarkProps {
    className?: string;
-   size?: 'sm' | 'md' | 'lg';
+   size?: keyof typeof wordmarkSizes;
+   /**
+    * Home link target. Pass `null` when the lockup sits inside another control
+    * (e.g. the shell workspace menu) so it is not nested in an interactive
+    * element of its own.
+    */
+   href?: string | null;
 }
 
 /** The pulsing mark and a line, centred, while a pane is still fetching. */
@@ -177,24 +174,55 @@ export function BerryLoading({ label, className }: { label: string; className?: 
    );
 }
 
-export function BerryWordmark({ className, size = 'md' }: BerryWordmarkProps) {
+/** Public-site mark: brackets + berry (same paths as `apps/web` Logo.astro). */
+function WordmarkMark({ size }: { size: number }) {
    return (
-      <span
-         role="img"
-         aria-label="Berry"
-         /* Sized by attribute in app/globals.css: the lockup is the one
-            sanctioned departure from the type scale, and it is easier to keep
-            honest sitting next to the rule it departs from than as a lone
-            text-* utility out here. */
-         data-wordmark={size}
-         className={cn('inline-flex items-center gap-[0.297em] leading-none', className)}
+      <svg
+         width={size}
+         height={size}
+         viewBox="0 0 64 64"
+         aria-hidden
+         className="shrink-0"
+         focusable="false"
       >
-         <BerryMark className="size-[1.186em]" />
-         <span className="font-display tracking-[-0.025em] text-lockup-ink">
-            {/* The official lockup ends on a berry period. An earlier pass
-                removed it on the Ledger spec's authority; the asset has it. */}
-            Berry<span className="text-berry">.</span>
+         <path d="M14 8H8v48h6" stroke="currentColor" strokeWidth={6} fill="none" />
+         <path d="M50 8h6v48h-6" stroke="currentColor" strokeWidth={6} fill="none" />
+         <circle cx="32" cy="32" r={13} fill="#c74a5e" />
+      </svg>
+   );
+}
+
+function WordmarkLabel({ size }: { size: keyof typeof wordmarkSizes }) {
+   const sizing = wordmarkSizes[size];
+   return (
+      <>
+         <WordmarkMark size={sizing.mark} />
+         {/* Same lockup as berry.pm: DM Serif Display, lowercase, accent period. */}
+         <span
+            data-wordmark={size}
+            className="font-[family-name:var(--font-dm-serif-display)] leading-none tracking-[-0.02em]"
+            style={{ fontSize: sizing.type }}
+         >
+            berry<span className="text-[#de6d80]">.</span>
          </span>
-      </span>
+      </>
+   );
+}
+
+export function BerryWordmark({ className, size = 'md', href = '/' }: BerryWordmarkProps) {
+   const lockup = cn('inline-flex items-center gap-[11px] text-inherit no-underline', className);
+
+   if (href === null) {
+      return (
+         <span className={lockup} aria-hidden>
+            <WordmarkLabel size={size} />
+         </span>
+      );
+   }
+
+   return (
+      <a href={href} aria-label="Berry home" className={lockup}>
+         <WordmarkLabel size={size} />
+      </a>
    );
 }

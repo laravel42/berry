@@ -10,6 +10,7 @@ export const AI_RUNTIME_IDS = [
    'xai',
    'anthropic',
    'gemini',
+   'lmstudio',
 ] as const;
 
 export type AiRuntimeId = (typeof AI_RUNTIME_IDS)[number];
@@ -49,7 +50,7 @@ export interface AiRuntimeDefinition {
 
 /**
  * Connectable subscription CLIs, plus API-token runtimes whose official
- * server key Berry can seal. A CLI product is omitted until Berry can start
+ * server key Berry can seal, plus an LM Studio server the person runs. A CLI product is omitted until Berry can start
  * its official child on a workstation login without reading a credential
  * store or forwarding a key. OpenCode, OpenClaw, Hermes, Pi, Antigravity,
  * Trae, and Qwen stay out until those adapters ship.
@@ -255,7 +256,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       name: 'OpenAI API',
       publisher: 'OpenAI',
       product: 'OpenAI API',
-      description: 'OpenAI’s API. Paste an API token. Berry seals it and lists the models that token can call.',
+      description: 'OpenAI’s API. Paste an API token. Berry seals it, lists models, and runs work on the compute host.',
       provider: 'OpenAI',
       billingDetail: 'The token is billed by OpenAI. It is not a ChatGPT subscription login.',
       connectionMethods: ['API token'],
@@ -267,7 +268,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       name: 'Grok API',
       publisher: 'xAI',
       product: 'xAI API',
-      description: 'xAI’s API for Grok. Paste an API token. Berry seals it and lists the models that token can call.',
+      description: 'xAI’s API for Grok. Paste an API token. Berry seals it, lists models, and runs work on the compute host.',
       provider: 'xAI',
       billingDetail: 'The token is billed by xAI. It is not a SuperGrok or X Premium Plus CLI login.',
       connectionMethods: ['API token'],
@@ -279,7 +280,7 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       name: 'Claude API',
       publisher: 'Anthropic',
       product: 'Anthropic API',
-      description: 'Anthropic’s API for Claude. Paste an API token. Berry seals it and lists the models that token can call.',
+      description: 'Anthropic’s API for Claude. Paste an API token. Berry seals it, lists models, and runs work on the compute host.',
       provider: 'Anthropic',
       billingDetail: 'The token is billed by Anthropic Console. It is not a Claude Pro or Max CLI login.',
       connectionMethods: ['API token'],
@@ -291,13 +292,42 @@ export const AI_RUNTIME_CATALOG: readonly AiRuntimeDefinition[] = [
       name: 'Gemini API',
       publisher: 'Google',
       product: 'Gemini API',
-      description: 'Google’s Gemini API. Paste an API token. Berry seals it and lists the models that token can call.',
+      description: 'Google’s Gemini API. Paste an API token. Berry seals it, lists models, and runs work on the compute host.',
       provider: 'Google Gemini',
       billingDetail: 'The token is billed by Google AI. Berry does not use a Gemini CLI login.',
       connectionMethods: ['API token'],
       installation: 'Create an API token in Google AI Studio and paste it here. Berry stores it sealed.',
       officialSources: ['https://ai.google.dev/api/models'],
    }),
+   {
+      ...apiTokenRuntime({
+         id: 'lmstudio',
+         name: 'LM Studio',
+         publisher: 'Element Labs',
+         product: 'LM Studio local server',
+         description: 'Open models running in LM Studio on your own hardware, including the ones Bionic uses. Berry calls LM Studio’s OpenAI-compatible server.',
+         provider: 'LM Studio',
+         billingDetail: 'Local models run on the computer that serves LM Studio. Berry is not billed and does not bill the run.',
+         connectionMethods: ['LM Studio server address', 'API token when authentication is on'],
+         installation: 'Start the server in LM Studio (Developer → Start server, or `lms server start`) and load or download a model. Berry calls it from the compute host, so that host must reach the address. Use Serve on Local Network and turn on authentication for anything beyond localhost.',
+         officialSources: [
+            'https://lmstudio.ai/docs/developer/core/server',
+            'https://lmstudio.ai/docs/developer/openai-compat',
+            'https://lmstudio.ai/docs/developer/openai-compat/tools',
+            'https://lmstudio.ai/docs/developer/core/authentication',
+         ],
+      }),
+      billing: 'provider_dependent',
+      // LM Studio reports token counts on most replies; there is no price.
+      capabilities: {
+         modelDiscovery: 'supported',
+         streaming: 'supported',
+         tools: 'supported',
+         sessions: 'unsupported',
+         cancellation: 'supported',
+         usage: 'unknown',
+      },
+   },
 ];
 
 /** An API-token runtime: Berry seals the token and lists models. It is not a workstation CLI. */
@@ -327,7 +357,7 @@ function apiTokenRuntime(
       capabilities: {
          modelDiscovery: 'supported',
          streaming: 'supported',
-         tools: 'unsupported',
+         tools: 'supported',
          sessions: 'unsupported',
          cancellation: 'supported',
          usage: 'supported',
@@ -345,9 +375,17 @@ export function isAiRuntimeId(value: string): value is AiRuntimeId {
    return (AI_RUNTIME_IDS as readonly string[]).includes(value);
 }
 
-/** A runtime that connects with a pasted API token rather than a CLI login. */
+/**
+ * A runtime the runtime image calls directly with `fetch`: a pasted provider
+ * token, or an LM Studio server. It is not a workstation CLI.
+ */
 export function isApiTokenRuntime(id: string): boolean {
-   return findAiRuntime(id)?.billing === 'api_billing';
+   return findAiRuntime(id)?.executionMode === 'direct_inference';
+}
+
+/** A runtime reached at an address the person chose, with an optional token. */
+export function takesBaseUrl(id: string): boolean {
+   return id === 'lmstudio';
 }
 
 /** Adapter `checkAvailability` for a workstation CLI, or nothing when it was not probed. */

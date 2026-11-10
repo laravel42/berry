@@ -14,8 +14,10 @@ Shipped but not yet given a full schema here — treat the implementation as aut
 
 - **Inbox** — `GET /api/v1/inbox`, `GET /api/v1/inbox/unread-count`, `POST /api/v1/inbox/{itemId}/{action}` (`read`, `unread`, `archive`, `unarchive`), `POST /api/v1/inbox/bulk`. Items carry `issueIdentifier` (workspace issue prefix and issue number, for example `BER-3`), derived on read and `null` when the item references no issue.
 - **Conversations** — `GET /api/v1/conversations`, `POST /api/v1/conversations/agents/{agentId}`, and `GET`/`POST /api/v1/conversations/{conversationId}/messages`. All require the caller to be a participant in the thread.
-- **Integrations** — `GET /api/v1/integrations/providers` (catalogue joined with this workspace's state), `GET`/`DELETE /api/v1/integrations/connections`, `POST /api/v1/integrations/connections/{provider}/authorize`, `GET /api/v1/integrations/github/repositories`, `GET /api/v1/integrations/github/repository-owners` (`{ owners: [{ login, type }] }`: the signed-in person's account and the organisations that let them create repositories, read with their own token), and `POST /api/v1/integrations/github/repositories` (`{ name, owner?, private? }`; creates a repository with the signed-in person's own GitHub token, under their account or an organisation they may create in, pushes an empty commit on its default branch, and returns `{ repository }` for the project dialog to link; 409 `REPOSITORY_EXISTS` when the name is taken, 403 when GitHub will not let them create there, 409 `SIGN_IN_REQUIRED` without a GitHub sign-in). A provider whose stored credential has passed `expiresAt` reports `status: "expired"` and `connected: false`, derived rather than read from a column, so this endpoint and `/connections` cannot disagree.
+- **Voice** — `POST /api/v1/voice/token` (`{ workspaceId, agentId, conversationId? }`) returns `{ url, token, room, agentName }` for a workspace member. The token is a LiveKit JWT (10 minutes, microphone publish, the Berry agent in metadata). `GET /api/v1/config` `capabilities.voiceAgents` is true only when this process has LiveKit credentials. `422 VOICE_UNAVAILABLE` when it does not.
+- **Integrations** — `GET /api/v1/integrations/providers` (catalogue joined with this workspace's state), `GET`/`DELETE /api/v1/integrations/connections`, `POST /api/v1/integrations/connections/{provider}/authorize`, `GET /api/v1/integrations/github/repositories`, `GET /api/v1/integrations/github/repository-owners` (`{ owners: [{ login, type }] }`: the signed-in person's account and the organisations that let them create repositories, read with their own token), `POST /api/v1/integrations/github/repositories` (`{ name, owner?, private? }`; creates a repository with the signed-in person's own GitHub token, under their account or an organisation they may create in, pushes an empty commit on its default branch, and returns `{ repository }` for the project dialog to link; 409 `REPOSITORY_EXISTS` when the name is taken, 403 when GitHub will not let them create there, 409 `SIGN_IN_REQUIRED` without a GitHub sign-in), `GET /api/v1/integrations/gitlab/repositories` (projects the workspace GitLab access token can see, same `{ repositories, access }` shape as GitHub; 409 `NOT_CONNECTED` / `CONNECTION_UNUSABLE` when the connection is missing or refused), `GET /api/v1/integrations/gitlab/repository-owners` (`{ owners: [{ login, type, id }] }`), and `POST /api/v1/integrations/gitlab/repositories` (`{ name, owner?, private? }` → `{ repository }`; 409 `REPOSITORY_EXISTS` when the path is taken). A provider whose stored credential has passed `expiresAt` reports `status: "expired"` and `connected: false`, derived rather than read from a column, so this endpoint and `/connections` cannot disagree.
 - **GitHub App** — `GET /api/v1/integrations/github/app` reports the deployment's App and this workspace's installation; `POST /api/v1/integrations/github/app/manifest` returns the manifest to post to GitHub and where to post it; `POST`/`DELETE /api/v1/integrations/github/app/install` start and forget an installation. Two callbacks — `GET /api/v1/integrations/github/app/callback` and `.../installation/callback` — are reached by the browser from GitHub and are authorised by a single-use state row rather than a session cookie, which a cross-site redirect may not carry. The installation callback verifies the `installation_id` it is handed against `GET /app/installations/{id}` and refuses one another workspace already holds; an unverified id would let a caller mint tokens for repositories they were never given.
+- **Plugin MCP OAuth** — `POST /api/v1/plugins/{workspaceId}/installations/{id}/oauth` returns `{ authorizeUrl }` for a plugin whose manifest sets `mcp.auth: "oauth"` (Customer.io, Gmail, GitHub, and catalog hosts that advertise dynamic client registration). Berry discovers the resource (`/.well-known/oauth-protected-resource` inserted before the MCP path), then the authorization server (issuer path kept), and registers a public client (`token_endpoint_auth_method: none`) only when that server names a `registration_endpoint`. When it does not, this deployment's `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` are used (`client_secret_post` + PKCE). Extra authorize fields come from `mcp.authorize`. Authorization-code + PKCE S256 follows. `GET /api/v1/plugins/oauth/callback` is sessionless: the hashed one-use row in `plugin_oauth_states` is the authorisation. The access token is sealed as `API_KEY`; a refresh token is sealed as `REFRESH_TOKEN` when declared. The browser is sent to `/{slug}/integrations?plugin={key}&status=connected|error`. Catalog preview includes `available`. A plugin that is not available yet is listed last; `POST /api/v1/plugins/{workspaceId}/installations` answers `422 PLUGIN_UNAVAILABLE`.
 
 ## Protocol conventions
 
@@ -159,7 +161,7 @@ Validation failures set `details.fields` to an array of field errors:
 | 503 | `DEPENDENCY_UNAVAILABLE` | Runtime dependency is unavailable or timed out |
 | 500 | `INTERNAL` | Unhandled server failure |
 
-Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRED`, `INVALID_STATE_TRANSITION`, `ACTIVE_RUN_EXISTS`, `IDEMPOTENCY_CONFLICT`, `RUN_TERMINAL`, `APPROVAL_REQUIRED`, `APPROVAL_RESOLVED`, `DEPENDENCY_CYCLE`, `ISSUE_NOT_FOUND`, `GOAL_NOT_FOUND`, `GOAL_TRANSITION_INVALID`, `PLAN_FORBIDDEN`, `PLAN_INVALID`, `PLAN_NOT_OPEN`, `PLAN_BUSY`, `PLAN_OPEN_EXISTS`, `PLAN_COMPILE_FAILED`, `PLANNER_UNAVAILABLE`, `BOARD_REQUIRED`, `DEFINITION_INVALID`, `CONNECTIONS_MISSING`, `REVISION_CONFLICT`, `AGENT_UNAVAILABLE`, and `ANSWER_INVALID`.
+Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRED`, `INVALID_STATE_TRANSITION`, `ACTIVE_RUN_EXISTS`, `IDEMPOTENCY_CONFLICT`, `RUN_TERMINAL`, `APPROVAL_REQUIRED`, `APPROVAL_RESOLVED`, `DEPENDENCY_CYCLE`, `ISSUE_NOT_FOUND`, `MILESTONE_NOT_FOUND`, `MILESTONE_TRANSITION_INVALID`, `PLAN_FORBIDDEN`, `PLAN_INVALID`, `PLAN_NOT_OPEN`, `PLAN_BUSY`, `PLAN_OPEN_EXISTS`, `PLAN_COMPILE_FAILED`, `PLANNER_UNAVAILABLE`, `BOARD_REQUIRED`, `DEFINITION_INVALID`, `CONNECTIONS_MISSING`, `REVISION_CONFLICT`, `AGENT_UNAVAILABLE`, and `ANSWER_INVALID`.
 
 ## Resource schemas
 
@@ -216,6 +218,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
 | `priority` | `IssuePriority` | yes | Scheduling priority |
 | `sortOrder` | integer | yes | Relative order within a board column |
 | `autoGate` | boolean | yes | A passing agent review closes the task (merging its pull request) without a person |
+| `startDate` | `Timestamp` or null | yes | Planned start instant; never after `dueDate` |
 | `dueDate` | `Timestamp` or null | yes | Due instant |
 | `assignee` | `ActorRef` or null | yes | Current assignee |
 | `activeRunId` | `Uuid` or null | yes | Active Berry run; null when no run is active |
@@ -234,6 +237,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
   "status": "inProgress",
   "priority": "high",
   "sortOrder": 1200,
+  "startDate": null,
   "dueDate": null,
   "assignee": {
     "type": "agent",
@@ -257,11 +261,11 @@ An issue additionally carries its place in a plan:
 
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
-| `goal` | `{ "id": Uuid, "title": string }` or null | yes | The goal the issue serves (`goal_issues`) |
+| `goal` | `{ "id": Uuid, "title": string }` or null | yes | The goal the issue serves (`milestone_issues`) |
 | `dependsOn` | `IssueDependencyRef[]` | yes | Issues that must finish before this one starts |
 | `blocks` | `IssueDependencyRef[]` | yes | Issues waiting on this one |
 
-`IssueDependencyRef` is `{ "id": Uuid, "identifier": string, "title": string, "status": IssueStatus }`. `POST`/`PATCH` bodies accept `goalId` (`Uuid` or null; null unlinks); a goal outside the workspace answers `422 GOAL_NOT_FOUND`. `blocked` is an `IssueStatus`: a compiled issue with open blockers starts there and the dependency release moves it to `todo`.
+`IssueDependencyRef` is `{ "id": Uuid, "identifier": string, "title": string, "status": IssueStatus }`. `POST`/`PATCH` bodies accept `milestoneId` (`Uuid` or null; null unlinks); a goal outside the workspace answers `422 MILESTONE_NOT_FOUND`. `blocked` is an `IssueStatus`: a compiled issue with open blockers starts there and the dependency release moves it to `todo`.
 
 ### Comment
 
@@ -392,24 +396,26 @@ The gateway MUST NOT expose provider configuration, credentials, system prompts,
 }
 ```
 
-### Goal
+### Milestone
 
-`GoalStatus` is one of `draft`, `planned`, `active`, `blocked`, `completed`, `cancelled`. `blocked` is set only by the trigger dispatcher.
+Authored project stage (name, optional description, optional target date, manual sort order). Progress percent is derived from linked issues. `MilestoneStatus` (`draft`, `planned`, `active`, `blocked`, `completed`, `cancelled`) remains for SCM open/closed mapping; product UX uses `progress.percent`. Live rows require `projectId`.
 
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
 | `id` | `Uuid` | yes | |
 | `workspaceId` | `Uuid` | yes | |
-| `projectId` | `Uuid` or null | yes | |
+| `projectId` | `Uuid` | yes | Owning project; required on create |
 | `title` | string | yes | 1–500 characters |
 | `description` | string or null | yes | At most 20,000 characters |
-| `status` | `GoalStatus` | yes | |
-| `source` | `manual \| ai` | yes | Who wrote the goal |
-| `sourcePrompt` | string or null | yes | The prompt an AI goal came from |
+| `status` | `MilestoneStatus` | yes | Coarse SCM/debug status; not the primary UX |
+| `targetDate` | `date` (`YYYY-MM-DD`) or null | yes | Optional delivery target |
+| `sortOrder` | number | yes | Order within the project (ascending) |
+| `source` | `manual \| ai` | yes | Who wrote the milestone |
+| `sourcePrompt` | string or null | yes | The prompt an AI milestone came from |
 | `createdBy` | `ActorRef` or null | yes | |
 | `createdAt`, `updatedAt` | `Timestamp` | yes | |
 | `startedAt`, `completedAt` | `Timestamp` or null | yes | |
-| `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "approvalsPending": integer }` | on list and single reads | Issues linked to the goal, and pending approvals on the goal or its issues |
+| `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "issuesWorking", "approvalsPending", "percent": number }` | on list and single reads | `percent` = `round(100 * (finished + 0.5 * working) / total)` when `total > 0`, else `0` |
 
 ### Plan
 
@@ -418,7 +424,7 @@ A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved;
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
 | `id`, `workspaceId` | `Uuid` | yes | |
-| `goalId`, `projectId` | `Uuid` or null | yes | The project is the goal's |
+| `milestoneId`, `projectId` | `Uuid` or null | yes | The project is the milestone's |
 | `status` | `draft \| pendingApproval \| approved \| rejected \| superseded` | yes | |
 | `source` | `ai \| manual` | yes | |
 | `sourcePrompt` | string or null | yes | |
@@ -428,7 +434,7 @@ A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved;
 | `generation` | `{ "status": idle \| running \| succeeded \| failed, "error": string or null, "stage": string or null }` | yes | `stage` is the pipeline stage in progress while `status` is `running` (`intent`, `context`, `generate`, `validate`, `repair`, `critic`, `finalize`) and null otherwise. `error` is `PLAN_INVALID` when the bounded repairs ran out (the last IR is kept for editing), `shutdown` when the server stopped mid-generation, or `<code> at <stage>` (`timeout`, `ROLE_RATE_LIMITED`, `PLANNER_UNAVAILABLE`, `REQUEST_TOO_LARGE`, `INTENT_INVALID`, `upstream error`) |
 | `validation` | `{ "status": unknown \| valid \| invalid \| blocked, "errors": FieldError[], "warnings": FieldError[], "requiredConnections": [{ "provider", "purpose", "connected" }], "ambiguities": [{ "id", "question", "blocking" }], "risk": low \| medium \| high, "needsAdminActivation": boolean }` | yes | Errors and warnings are recomputed on every read from the stored IR with the workspace's agents and issues; `path` values are JSON pointers into `plan`. `blocked` means the classifier found a blocking question: `plan` is a goal-only skeleton whose `assumptions` carry the questions (`blocking: true`) and `ambiguities` lists them; answering lands in a later phase |
 | `critic` | object or null | yes | `{ "verdict": accept \| revise, "problems": [...], "coverage"?: [{ "requirement", "tasks", "status": covered \| weakened \| missing, "note"? }] }` |
-| `compile` | `{ "status": running \| succeeded \| failed, "error": string or null, "compiledAt": Timestamp or null, "goalId", "issueIds": Uuid[], "approvalIds": Uuid[] }` or null | yes | Null until a compile was attempted |
+| `compile` | `{ "status": running \| succeeded \| failed, "error": string or null, "compiledAt": Timestamp or null, "milestoneId", "issueIds": Uuid[], "approvalIds": Uuid[] }` or null | yes | Null until a compile was attempted |
 | `plan` | BerryPlan or null | yes | The current IR; after compile it carries `compiled` with the temporary-id map. A generated plan may carry `requirements` (`[{ "id", "description" }]`, what the request asked for) and, on each issue, `covers` (the requirement ids it delivers); both are optional and absent on older plans. A requirement no issue covers, or a `covers` id that is not a requirement, is a validation warning |
 | `createdAt`, `updatedAt` | `Timestamp` | yes | |
 
@@ -442,7 +448,7 @@ A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved;
 | `kind` | `ApprovalKind` | yes | |
 | `risk` | `low \| medium \| high` | yes | High risk needs `settings.write` to resolve |
 | `title`, `description` | string, string or null | yes | |
-| `goalId`, `planId`, `issueId` | `Uuid` or null | yes | What the approval gates |
+| `milestoneId`, `planId`, `issueId` | `Uuid` or null | yes | What the approval gates |
 | `issue` | `{ "id", "identifier", "title" }` or null | yes | The gated issue, when any |
 | `requestedFrom` | `{ "userId": Uuid or null, "role": owner \| admin \| member or null }` | yes | The addressee: one person, or anyone holding the role or a stronger one |
 | `requestedBy` | `{ "type": user \| system \| agent, "id": Uuid }` or null | yes | |
@@ -520,6 +526,7 @@ Request:
 | `status` | `IssueStatus` | no | `backlog` |
 | `priority` | `IssuePriority` | no | `none` |
 | `sortOrder` | integer | no | 0 |
+| `startDate` | `Timestamp` or null | no | null |
 | `dueDate` | `Timestamp` or null | no | null |
 | `assignee` | `{ "type": "user \| agent", "id": "Uuid" }` or null | no | null |
 
@@ -538,13 +545,13 @@ Assignment through this general-purpose resource endpoint records assignment but
 
 #### `PATCH /api/v1/issues/{issueId}`
 
-Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `dueDate`, `assignee`, and `autoGate` (boolean). Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
+Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `startDate`, `dueDate`, `assignee`, and `autoGate` (boolean). A `startDate` later than the issue's `dueDate` returns `422 VALIDATION_FAILED` on `/startDate`. Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
 
 - `200`: updated `Issue`
 - `404`: issue or assignee `NOT_FOUND`
 - `409`: `INVALID_STATE_TRANSITION`
 - `409`: `APPROVAL_REQUIRED` with `details.approvalId` when the issue's plan or its `issueStart` approval is not approved and the move targets `todo`
-- `422`: `VALIDATION_FAILED`, `GOAL_NOT_FOUND`
+- `422`: `VALIDATION_FAILED`, `MILESTONE_NOT_FOUND`
 
 #### `POST /api/v1/issues/batch`
 
@@ -743,49 +750,92 @@ Requests cancellation. The operation is idempotent while cancellation is pending
 - `409 RUN_TERMINAL`: run already succeeded or failed
 - `503`: dependency unavailable; run remains in its prior state
 
-### Goals
+### Milestones
 
 Every creating `POST` requires `Idempotency-Key`. Reads need `product.read`, writes `product.write`, deletion `settings.write`.
 
-#### `GET /api/v1/goals`
+#### `GET /api/v1/milestones`
 
-Query `workspaceId` (required), `query`, `status`, `projectId`, `first`, `after`. Ordered by `(updatedAt DESC, id DESC)`.
+Query `workspaceId` (required), `query`, `status`, `projectId`, `first`, `after`. With `projectId`, ordered by `(sortOrder ASC, id ASC)` without cursors; otherwise `(updatedAt DESC, id DESC)`.
 
-- `200`: connection of `Goal` (with `progress`)
+- `200`: connection of `Milestone` (with `progress`)
 
-#### `POST /api/v1/goals`
+#### `POST /api/v1/milestones`
 
-Request `{ "workspaceId", "title", "description"?, "projectId"? }`.
+Request `{ "workspaceId", "title", "projectId", "description"?, "targetDate"? }`. Assigns the next `sortOrder` in the project. Status starts as `planned`.
 
-- `201`: `Goal`; `Location: /api/v1/goals/{id}`
+- `201`: `Milestone`; `Location: /api/v1/milestones/{id}`
 - `422`: `VALIDATION_FAILED`, `PROJECT_NOT_FOUND`
 
-#### `GET /api/v1/goals/{goalId}`
+#### `PUT /api/v1/milestones/order`
 
-- `200`: `Goal` with `progress`
+Request `{ "workspaceId", "projectId", "milestoneIds": Uuid[] }` — every live milestone of the project, in the new order. Sets `sortOrder` to `1..n`.
 
-#### `PATCH /api/v1/goals/{goalId}`
+- `200`: `{ "ok": true }`
+- `404`: when the id set does not match the project's live milestones
 
-Any non-empty subset of `title`, `description`, `status`, `projectId`. Status follows `draft → planned → active → completed | cancelled`; `blocked` cannot be requested.
+#### `GET /api/v1/milestones/{milestoneId}`
 
-- `200`: `Goal` with `progress`
-- `422`: `VALIDATION_FAILED`, `GOAL_TRANSITION_INVALID` with `details.from`/`details.to`
+- `200`: `Milestone` with `progress`
 
-#### `DELETE /api/v1/goals/{goalId}`
+#### `PATCH /api/v1/milestones/{milestoneId}`
 
-Archives the goal; its issues keep their links. `settings.write`.
+Any non-empty subset of `title`, `description`, `projectId`, `targetDate`, `sortOrder`, and optionally `status` (SCM/debug). Prefer `PUT /order` for reordering a whole project.
+
+- `200`: `Milestone` with `progress`
+- `422`: `VALIDATION_FAILED`, `MILESTONE_TRANSITION_INVALID` with `details.from`/`details.to`
+
+#### `DELETE /api/v1/milestones/{milestoneId}`
+
+Archives the milestone; its issues keep their links. `settings.write`.
 
 - `204`
 
-#### `GET /api/v1/goals/{goalId}/issues`, `/approvals`, `/plans`
+#### `GET /api/v1/milestones/{milestoneId}/issues`, `/approvals`, `/plans`
 
 - `200`: `{ "nodes": [...] }` summaries
 
-#### `PUT` / `DELETE /api/v1/goals/{goalId}/issues/{issueId}`
+#### `PUT` / `DELETE /api/v1/milestones/{milestoneId}/issues/{issueId}`
 
-Links or unlinks an issue (id or identifier) in the goal's workspace. An issue belongs to at most one goal.
+Links or unlinks an issue (id or identifier) in the milestone's workspace. An issue belongs to at most one milestone.
 
 - `204`
+
+### Cycles
+
+Workspace-scoped timeboxes (`upcoming` | `active` | `completed`). An issue belongs to at most one cycle via `cycleId` on the issue. At most one cycle per workspace may be `active`. Progress percent is derived from issues in the cycle.
+
+#### `GET /api/v1/cycles`
+
+- Query: `workspaceId` (required), `query?`, `status?`, `first`, `after`
+- `200`: connection of `Cycle` (`id`, `workspaceId`, `number`, `name`, `startsOn`, `endsOn`, `status`, `createdBy`, timestamps, optional `progress`)
+
+#### `POST /api/v1/cycles`
+
+- Body: `{ "workspaceId", "startsOn", "endsOn", "name"?, "status"? }` — `Idempotency-Key` required (`product.write`)
+- `201`: `Cycle`
+
+#### `GET /api/v1/cycles/{cycleId}`
+
+- `200`: `Cycle` with `progress`
+
+#### `PATCH /api/v1/cycles/{cycleId}`
+
+- Body may include `name`, `startsOn`, `endsOn`, `status` (`product.write`)
+- Activating a cycle completes any other active cycle in the workspace
+
+#### `DELETE /api/v1/cycles/{cycleId}`
+
+- Soft-deletes; clears `cycle_id` on its issues (`settings.write`)
+- `204`
+
+#### `GET /api/v1/cycles/{cycleId}/issues`
+
+- `200`: `{ "nodes": [...] }` issue summaries: `id`, `identifier`, `title`, `status` (`IssueStatus`), `assignee` (`ActorRef` or `null`), and `completedAt` — for a done task, its latest `issue.completed` event (or its last write when it reached done without one); `null` otherwise
+
+#### `PUT` / `DELETE /api/v1/cycles/{cycleId}/issues/{issueRef}`
+
+Links or clears the issue's cycle (`product.write`). `204`.
 
 ### Plans
 
@@ -793,11 +843,11 @@ Generated plans only. Mutating routes answer `403 PLAN_FORBIDDEN` for viewers.
 
 #### `POST /api/v1/plans/generate`
 
-Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "goalId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `goalId` no goal exists until the plan is started: `projectId` is kept on the plan, `goalId` stays null, and `POST /approve` creates one goal per milestone (the first becomes the plan's `goalId`) with every compiled task linked to the project. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
+Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "milestoneId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `milestoneId` no milestone exists until the plan is started: `projectId` is kept on the plan, `milestoneId` stays null, and `POST /approve` creates one milestone row per plan IR milestone (the first becomes the plan's `milestoneId`) with every compiled task linked to the project. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
 
 - `202`: `Plan` with `generation.status = "running"`; `Location: /api/v1/plans/{id}`
 - `403`: `PLAN_FORBIDDEN`
-- `409`: `PLAN_OPEN_EXISTS` (the goal already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
+- `409`: `PLAN_OPEN_EXISTS` (the milestone already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
 - `412`: `PLANNER_UNAVAILABLE` (no planner configured, or a model role is not provisioned)
 
 #### `POST /api/v1/plans/{planId}/again`
@@ -813,7 +863,7 @@ Plans the same request again on this plan (`product.write`). The plan must still
 
 The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`, and not archived; `all` adds `rejected`, `superseded` and archived). Deleted plans are left out of both. At most 200 rows.
 
-- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "goalId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "archived", "createdAt", "updatedAt" }] }`
+- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "milestoneId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "archived", "createdAt", "updatedAt" }] }`
 
 #### `GET /api/v1/plans/roles`
 
@@ -849,7 +899,7 @@ Re-runs the deterministic checks on the stored IR and records the verdict.
 
 #### `POST /api/v1/plans/{planId}/approve`
 
-Start Plan. Request `{ "note"? }`, `Idempotency-Key` required. Compiles the plan in one transaction: the goal is promoted to `planned`, issues are created in dependency order (`todo`; `blocked` when they depend on another issue; `backlog` with an `issueStart` approval when they require approval or match the destructive-action policy), required capabilities become labels, and `goal_issues`, `issue_project_links` and dependency edges are written. A member approving a plan whose `validation.risk` is `high` does not compile: the plan enters `pendingApproval` with a `plan` approval addressed to admins. Approving a compiled plan again is a no-op.
+Start Plan. Request `{ "note"? }`, `Idempotency-Key` required. Compiles the plan in one transaction: the goal is promoted to `planned`, issues are created in dependency order (`todo`; `blocked` when they depend on another issue; `backlog` with an `issueStart` approval when they require approval or match the destructive-action policy), required capabilities become labels, and `milestone_issues`, `issue_project_links` and dependency edges are written. A member approving a plan whose `validation.risk` is `high` does not compile: the plan enters `pendingApproval` with a `plan` approval addressed to admins. Approving a compiled plan again is a no-op.
 
 - `200`: `Plan` with `compile.status = "succeeded"`
 - `202`: `Plan` with `status = "pendingApproval"`
@@ -895,7 +945,7 @@ Request `{ "note"? }`. Closes an open plan; a draft AI goal the plan created wit
 
 #### `GET /api/v1/approvals`
 
-Query `workspaceId` (required), `status`, `kind`, `goalId`, `issueId`, `mine` (true returns the pending approvals the caller may resolve), `first`, `after`. Ordered by `(requestedAt DESC, id DESC)`.
+Query `workspaceId` (required), `status`, `kind`, `milestoneId`, `issueId`, `mine` (true returns the pending approvals the caller may resolve), `first`, `after`. Ordered by `(requestedAt DESC, id DESC)`.
 
 - `200`: connection of `Approval`
 
@@ -920,7 +970,7 @@ Request `{ "note"? }`, `Idempotency-Key` required. The caller must be the addres
 
 ### Organization (route table only)
 
-Every workspace is provisioned with a default organization: a protected Orchestrator agent plus seven core role agents, including the Planner; fourteen specialists (product, engineering, quality/security, platform, growth-insight, and leadership departments) are added with `POST /api/v1/organization/roles/{roleKey}` and listed under `specialists` in `GET /api/v1/organization` (ADR-0018). Each role carries a mission, an autonomy level (1–5, a ceiling on tool access), delegation/escalation rules, and required-reviewer rules. See `server-ts/src/organization/`.
+Every workspace is provisioned with only a protected Orchestrator agent, which no route may edit, copy or archive (`409 AGENT_LOCKED`). Every other role — 95 in the catalogue, eight per department across product, engineering, quality/security, platform, growth-insight, leadership, marketing, sales and customer, people, finance and legal, research and knowledge, and operations — is added with `POST /api/v1/organization/roles/{roleKey}` and listed under `specialists` in `GET /api/v1/organization` (each with `tier` and `autonomyLevel`). `GET /api/v1/organization/roles/{roleKey}` returns one catalogue role's full contract. Each role carries a mission, an autonomy level (1–5, a ceiling on tool access), delegation/escalation rules, and required-reviewer rules. See `server-ts/src/organization/`.
 
 | Route | Purpose |
 |---|---|
@@ -962,10 +1012,10 @@ connection, and the connection id is part of the provider session identity.
 |---|---|
 | `GET /api/v1/runtimes/catalog` | All requested AI runtimes, verified billing/auth/capability evidence, this user's connection state, and preference. `installed` is true only when that CLI is on this workstation PATH |
 | `GET /api/v1/runtimes/connections` | This user's AI-runtime connections in the current workspace |
-| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. Body is `{ name?, host?, apiKey? }`. `name` is the person's label (`metadata.connectionName`). `host` is the computer that exposes the CLI: `localhost` or a fully qualified domain name (`metadata.host`). Berry starts the CLI only for `localhost`. Kiro requires `apiKey`, a `ksk_` subscription key, which is sealed and never returned |
+| `POST /api/v1/runtimes/connections/{runtimeId}` | Connect through the runtime's official auth boundary. Body is `{ name?, host?, apiKey?, baseUrl? }`. `lmstudio` takes `baseUrl` (default `http://localhost:1234/v1`; link-local and cloud-metadata addresses answer `400`) and an optional `apiKey`; an unreachable server answers `503 AI_RUNTIME_AUTH_UNAVAILABLE` and a refused token `409 AI_RUNTIME_AUTH_FAILED`. `name` is the person's label (`metadata.connectionName`). `host` is the computer that exposes the CLI: `localhost` or a fully qualified domain name (`metadata.host`). Berry starts the CLI only for `localhost`. Kiro requires `apiKey`, a `ksk_` subscription key, which is sealed and never returned |
 | `DELETE /api/v1/runtimes/connections/{runtimeId}` | Disconnect, clear this user's matching default, and cancel active runs using the connection |
 | `GET`, `PUT /api/v1/runtimes/preference` | Read / replace this user's default `{ runtimeId, modelId }`; both null selects the native deployment runtime |
-| `GET`, `PUT /api/v1/runtimes/tier-models` | Read / replace the workspace's BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow model lists. Each entry is `runtime/model`. A model may appear on more than one tier, at most three times per tier, and only once inside a tier. Admin write |
+| `GET`, `PUT /api/v1/runtimes/tier-models` | Read / replace the workspace's BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow model lists. Each entry is `runtime/model`. A model may appear on more than one tier, and only once inside a tier. Admin write |
 | `GET`, `PUT /api/v1/runtimes/agent-tiers` | Read / replace which subscription agents the workspace placed on each tier. The task console does not pick one |
 | `GET /api/v1/runtimes/connections/{runtimeId}/models` | Discover models from the connected runtime; returns `{ nodes, complete, detail }` |
 | `GET`, `PUT /api/v1/issues/{ref}/runtime-selection` | Read / replace a task override. Null inherits the project, then the user preference. `berry-native` forces native |
@@ -981,6 +1031,33 @@ codes including `AI_RUNTIME_UNAVAILABLE`, `AI_RUNTIME_NOT_CONNECTED`,
 `AI_RUNTIME_AUTH_EXPIRED`, `AI_MODEL_UNAVAILABLE`, and
 `AI_QUOTA_EXHAUSTED`.
 
+### Loops (route table only)
+
+A Loop is an autopilot: storage and routes keep that name ([ADR-0020](../adr/0020-loops.md)). A Loop has an agent, instructions, triggers (`cron`, `webhook`, `event`) and a policy: `accessMode` (`recommend`, the default, or `act`), `concurrencyPolicy` (`skip_if_running`, the default, or `allow`), `maxTurns`, `maxDurationMinutes`, `maxChainDepth` (0–3, default 0), `allowAgentEvents` (default false). Neither access mode adds reach beyond the agent's contract; both are enforced by the agent-tools allowlist. Every list item carries `activity` (`lastRun`, `nextFireAt`, `runsLast7Days`, `failedLast7Days`, `eventTypes`). Workspace-scoped routes take `?workspaceId=`; routes naming a Loop answer `404` for one in another workspace.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/v1/autopilots?workspaceId=&archived=&projectId=` | List Loops |
+| `POST /api/v1/autopilots` | Create (idempotent). `status: "paused"` creates it paused |
+| `GET`, `PATCH`, `DELETE /api/v1/autopilots/{id}` | Read with triggers and members, update, archive |
+| `POST /api/v1/autopilots/{id}/restore` | Restore an archived Loop, paused |
+| `POST /api/v1/autopilots/{id}/duplicate` | Paused copy with its cron and event triggers (idempotent) |
+| `POST /api/v1/autopilots/{id}/run` | Run now (idempotent; `runs.dispatch`) |
+| `POST /api/v1/autopilots/{id}/triggers` | Add `{kind: "cron", expression, timezone}`, `{kind: "webhook", eventFilters}` or `{kind: "event", eventType, conditions}` |
+| `PATCH`, `DELETE /api/v1/autopilots/{id}/triggers/{triggerId}` | Update / remove a trigger |
+| `GET /api/v1/autopilots/{id}/runs?first=&after=` | Runs newest first, cursor-paginated. Each has a derived `state`: `queued`, `running`, `waiting_for_approval`, `succeeded`, `failed`, `canceled`, `timed_out`, `skipped` |
+| `GET /api/v1/autopilots/{id}/runs/{runId}` | One run with trigger payload, failure, usage, model, and the Loop runs it led to |
+| `POST /api/v1/autopilots/{id}/runs/{runId}/retry` | Retry a failed, canceled or timed-out run once, on the same task. `409 RUN_NOT_RETRYABLE`, `409 ALREADY_RETRIED` |
+| `POST /api/v1/autopilots/{id}/runs/{runId}/cancel` | Cancel through the ledger. `409 RUN_TERMINAL` |
+| `GET /api/v1/autopilots/{id}/receipts` | Events the Loop's triggers heard and what became of each (`fired`, `filtered`, `skipped`, `failed`, with a reason code) |
+| `GET /api/v1/autopilots/templates?workspaceId=` | Template catalogue, each with the workspace agent it suggests |
+| `GET /api/v1/autopilots/events` | Event types a trigger may name |
+| `POST /api/v1/autopilots/validate-trigger` | Check a cron (`nextTimes`) or an event type and `conditions` without saving |
+| `POST /api/v1/autopilots/draft` | `{workspaceId, prompt}` → a suggested configuration. Stores nothing; never proposes `act` |
+| `GET /api/v1/autopilots/activity?workspaceId=&attention=` | Recent runs across Loops; `attention=true` lists failures not yet retried |
+
+Event types: `issue.created`, `issue.updated`, `issue.status_changed`, `issue.assigned`, `issue.started`, `issue.completed`, `comment.created`, `project.created`, `project.updated`, `run.completed`, `run.failed`, `approval.requested`, `github.pull_request.updated`. `conditions` is `{match: "all" | "any", rules: [{field, op: "in" | "not_in", values}]}` with at most eight rules; a field the event type cannot state answers `422`. Skip reasons include `PAUSED`, `ALREADY_RUNNING`, `RATE_LIMITED`, `CHAIN_TOO_DEEP`, `LOOP_CYCLE` and `AGENT_EVENT`. The workspace stream carries `autopilot.run.updated` when a Loop's agent run ends.
+
 ### Agent contract: `/api/v1/agent-tools` (route table only)
 
 This prefix is how a running agent acts on Berry — the only path it has, since agents never touch the database directly. It accepts a short-lived, task-scoped bearer token only (minted per run, TTL at most 8 hours); every other credential type is refused here, and a task token is refused everywhere else.
@@ -990,7 +1067,7 @@ This prefix is how a running agent acts on Berry — the only path it has, since
 | `GET /api/v1/agent-tools` | List tools available to the calling agent for its current task |
 | `POST /api/v1/agent-tools/{name}` | Call one tool |
 
-Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling. Core tools include `read_task`, `list_tasks`, `list_plans`, `list_goals`, `list_projects`, `list_agents`, `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` and `move_file` (the last three come with `write_file` and refuse `.git` and `.handoffs/`), `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). A chat envelope carries an open-work snapshot so a summary does not list first; those list tools remain for a filter, another page, or a full `read_task`. Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
+Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling. Core tools include `read_task`, `list_tasks`, `list_plans`, `list_milestones`, `list_projects`, `list_agents`, `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` and `move_file` (the last three come with `write_file` and refuse `.git` and `.handoffs/`), `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). A chat envelope carries an open-work snapshot so a summary does not list first; those list tools remain for a filter, another page, or a full `read_task`. Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
 
 Subscription runtimes receive that same set from the berry MCP server. The task prompt names the sandbox commands, the same set on every runtime, and the agent runs them with `run_command`. A finished run's handoff is the file `.handoffs/<identifier> - <slug of the title>` in the repository. The first line is that path. A task that depends on it is told to read the file. A delivery does not delete any other file under `.handoffs/`. `HANDOFF.md` at the repository root is not a handoff.
 
@@ -1010,7 +1087,7 @@ Follows product changes in one scope. Exactly one of `boardId` or `workspaceId` 
 
 With `boardId`, the stream emits every `issue.*` mutation on the board — whether a person, a batch edit, project planning or a run made it — plus `comment.created` and the run lifecycle events for issues on that board. Replay filters on the event's stored board scope, so a comment posted by a run and a comment posted by a person appear on the same stream.
 
-With `workspaceId` (`product.read`), the stream replays the facts that belong to no board beside the workspace-wide issue and agent moments: `goal.*`, `approval.*`, `plan.*`, `issue.created`, `issue.completed`, `issue.deleted`, `agent.*` and `artifact.created`. Frames use the same envelope with `boardId` and `issueId` null when the aggregate has none. A cursor from one scope is refused on the other.
+With `workspaceId` (`product.read`), the stream replays the facts that belong to no board beside the workspace-wide issue and agent moments: `milestone.*` (and historical `goal.*`), `approval.*`, `plan.*`, `issue.created`, `issue.completed`, `issue.deleted`, `agent.*` and `artifact.created`. Frames use the same envelope with `boardId` and `issueId` null when the aggregate has none. A cursor from one scope is refused on the other.
 
 All three endpoints:
 
@@ -1070,12 +1147,13 @@ Run sequences start at 0 and MUST be contiguous in the persisted stream. Deliver
 | `issue.completed` | `IssueMutation` | Emitted beside `issue.updated` when `status` moved to `done` |
 | `issue.deleted` | `IssueMutation` | Soft delete; the `issue` snapshot is the row as it was |
 | `comment.created` | `{ "comment": Comment }` | `runId` is the authoring run when applicable |
-| `goal.created`, `goal.updated`, `goal.started`, `goal.completed`, `goal.cancelled`, `goal.archived` | `{ "goal": Goal, "changedFields": string[], "actor"? }` | Workspace stream; `goal.archived` is a topic no consumer dispatches or projects on |
+| `milestone.created`, `milestone.updated`, `milestone.started`, `milestone.completed`, `milestone.cancelled`, `milestone.archived` | `{ "milestone": Milestone, "changedFields": string[], "actor"? }` | Workspace stream; `milestone.archived` is a topic no consumer dispatches or projects on. Historical `goal.*` topics with a `goal` payload key still replay. |
+| `cycle.created`, `cycle.updated`, `cycle.archived` | `{ "cycle": Cycle, "changedFields": string[], "actor"? }` | Workspace stream. Activating a cycle completes the previously active one in the same transaction without an event of its own; consumers refetch the list. |
 | `project.created`, `project.updated`, `project.archived` | `{ "project": { "id", "workspaceId", "name", "status", … }, "changedFields": string[], "actor"? }` | Workspace stream. A project has no board, so these never appear on a board replay. `project.archived` is the soft-delete. |
 | `approval.requested`, `approval.approved`, `approval.rejected`, `approval.expired` | `{ "approval": Approval, "issueId"?, "actor"? }` | On the board stream too when the approval gates an issue |
 | `integration.webhook.received` | `{ "provider", "event", "deliveryId", "payload" }` | Written once per verified provider delivery by `POST /api/v1/hooks/{provider}`; consumed by the trigger dispatcher, subscribable as a `berry_event` |
-| `plan.approved`, `plan.compiled`, `plan.compile_failed` | `{ "plan": { "id", "workspaceId", "goalId", "status", "compileStatus", "validationStatus" }, ... }` | `plan.compiled` carries `compiled` (the id map); `plan.compile_failed` carries `stage` and `message`. `plan.patched` arrives with conversational editing |
-| `plan.updated`, `plan.generated`, `plan.blocked` | `{ "plan": { "id", "workspaceId", "goalId", "status", "compileStatus", "validationStatus" }, "stage", "status", ... }` | Workspace stream. `plan.updated` is emitted when each pipeline stage starts (`status: "running"`) and once more when generation fails (`status: "failed"`, `error`, `outcome`, `errors` codes when `PLAN_INVALID`); `plan.generated` closes a valid generation with `version`, `confidence`, `repairs`, `warnings` codes and `risk`; `plan.blocked` carries `questions: [{ "id", "question" }]`. None carries prompt text |
+| `plan.approved`, `plan.compiled`, `plan.compile_failed` | `{ "plan": { "id", "workspaceId", "milestoneId", "status", "compileStatus", "validationStatus" }, ... }` | `plan.compiled` carries `compiled` (the id map); `plan.compile_failed` carries `stage` and `message`. `plan.patched` arrives with conversational editing |
+| `plan.updated`, `plan.generated`, `plan.blocked` | `{ "plan": { "id", "workspaceId", "milestoneId", "status", "compileStatus", "validationStatus" }, "stage", "status", ... }` | Workspace stream. `plan.updated` is emitted when each pipeline stage starts (`status: "running"`) and once more when generation fails (`status: "failed"`, `error`, `outcome`, `errors` codes when `PLAN_INVALID`); `plan.generated` closes a valid generation with `version`, `confidence`, `repairs`, `warnings` codes and `risk`; `plan.blocked` carries `questions: [{ "id", "question" }]`. None carries prompt text |
 
 `IssueMutation` is `{ "issue": Issue, "changedFields": string[], "previousStatus"?: IssueStatus, "actor"?: { "type": "user" | "agent", "id": Uuid } }`. `changedFields` is empty for `issue.created` and `issue.deleted`; `previousStatus` is present only when `status` changed; `actor` is the user who made the change and is absent when a run made it. The derived topics (`assigned`, `started`, `completed`) carry the same payload as the `issue.updated` they accompany and are ordered after it.
 
@@ -1122,7 +1200,7 @@ These do not weaken the wire contract above, but require a product decision befo
 
 ## Contract self-check
 
-- Resource shapes: `Board`, `Issue`, `Comment`, `Agent`, `Run`, `Goal`, `Plan`, and `Approval` are defined with constraints; the first five with JSON examples.
+- Resource shapes: `Board`, `Issue`, `Comment`, `Agent`, `Run`, `Milestone`, `Plan`, and `Approval` are defined with constraints; the first five with JSON examples.
 - Pagination: connection envelope, cursor rules, limits, stable ordering, invalid and expired cursor behavior are defined.
 - Errors: one stable envelope, validation details, HTTP mappings, and domain codes are defined.
 - SSE: endpoints (run, board and workspace scopes), reconnection/replay behavior, envelope, ordering/deduplication, redaction rules, event types, payload shapes, and examples are defined.
@@ -1136,6 +1214,7 @@ A small, stable API for scripts and plugins, separate from the product API.
 - **Scopes.** `issues:read`, `issues:write`, `comments:read`, `comments:write`, `storage:read`, `storage:write`. A personal token created without `scopes` holds all of them. A missing scope is `403 INSUFFICIENT_SCOPE` with `details.required`.
 - **Tenancy.** A personal token acts as its user, through the same membership checks as `/api/v1`. A plugin token acts as the member who installed the plugin, and only inside that plugin's workspace. An issue in another workspace is `404`, the same as a missing one.
 - `GET /v1/context` — `{ principal, scopes, workspaces[] }`.
+- `GET /v1/self` — plugin tokens only (`403 PLUGIN_TOKEN_REQUIRED` otherwise). `{ config, secrets }`: the installation's settings and its opened secrets, so a tool an agent calls can use the credentials saved on the plugin. `Cache-Control: no-store`.
 - `GET /v1/issues/{ref}` and `PATCH /v1/issues/{ref}` — `ref` is a UUID or an identifier such as `BER-12`. PATCH accepts `title`, `description`, `status` (`backlog`, `todo`, `inProgress`, `inReview`, `done`, `blocked`, `cancelled`) and `priority` (`none`, `urgent`, `high`, `medium`, `low`). Status moves follow the board's rules (`409 INVALID_TRANSITION`).
 - `GET /v1/issues/{ref}/comments?first=1..100` — `{ nodes[] }`, oldest first. `POST` accepts `{ body, parentId? }` and returns `201`.
 - `GET /v1/storage?prefix=&after=&first=`, `GET|PUT|DELETE /v1/storage/{key}` — plugin tokens only (`403 PLUGIN_TOKEN_REQUIRED` otherwise). Keys are 1–200 of `A–Z a–z 0–9 . _ : / -`. `PUT` takes `{ value }`, any JSON of at most 64 KB.

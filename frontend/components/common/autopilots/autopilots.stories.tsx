@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, waitFor, within } from 'storybook/test';
+import { expect, fn, waitFor } from 'storybook/test';
 import {
    autopilots,
    liveAgents,
+   loopTemplates,
    orgParams,
    storyHandlers,
 } from '@/components/common/agents/stories-fixtures';
 import type { Autopilot } from '@/lib/autopilots';
 import Autopilots from './autopilots';
-import { DEFAULT_AUTOPILOT_CRITERIA } from './autopilots-filters';
 
 const assigneeName = (autopilot: Autopilot) =>
    liveAgents.find((agent) => agent.id === autopilot.assigneeId)?.name ?? 'Someone who is gone';
@@ -21,11 +21,11 @@ const meta = {
       autopilots,
       loaded: true,
       error: null,
-      criteria: DEFAULT_AUTOPILOT_CRITERIA,
       assigneeName,
       canEdit: true,
       onChanged: fn(),
       narrowed: false,
+      templates: loopTemplates,
       onUseTemplate: fn(),
    },
    beforeEach: ({ msw }) => {
@@ -47,33 +47,18 @@ export const List: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('link', { name: /Morning triage/ })).toHaveAttribute(
          'href',
-         '/berry/autopilot/ap-triage'
+         '/berry/loop/ap-triage'
       );
    },
 };
 
-/** Every column, newest first. */
-export const AllColumns: Story = {
-   args: {
-      criteria: { sort: 'created', sortDescending: true, columns: ['status', 'mode', 'quota', 'updated'] },
-   },
-};
-
-export const PauseFromMenu: Story = {
-   play: async ({ args, canvas, canvasElement, userEvent }) => {
-      const [firstMenu] = canvas.getAllByRole('button', { name: 'Autopilot actions' });
-      await userEvent.click(firstMenu!);
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Pause' }));
+/** The switch on a card pauses its Loop in place. */
+export const PauseFromSwitch: Story = {
+   play: async ({ args, canvas, userEvent }) => {
+      const [firstSwitch] = canvas.getAllByRole('switch', { name: 'Pause' });
+      await userEvent.click(firstSwitch!);
       // PATCH /api/v1/autopilots/:id answers from MSW; then the page re-reads.
       await waitFor(() => expect(args.onChanged).toHaveBeenCalled());
-   },
-};
-
-export const BulkSelection: Story = {
-   play: async ({ canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('checkbox', { name: 'Select every autopilot' }));
-      await expect(canvas.getByText('3 selected')).toBeVisible();
    },
 };
 
@@ -81,9 +66,9 @@ export const BulkSelection: Story = {
 export const EmptyWithTemplates: Story = {
    args: { autopilots: [] },
    play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: /Weekly digest/ }));
+      await userEvent.click(canvas.getByRole('button', { name: /Triage new bugs/ }));
       await expect(args.onUseTemplate).toHaveBeenCalledWith(
-         expect.objectContaining({ name: 'Weekly digest' })
+         expect.objectContaining({ key: 'bug-triage' })
       );
    },
 };
@@ -95,5 +80,5 @@ export const ReadOnly: Story = { args: { canEdit: false } };
 export const Loading: Story = { args: { loaded: false } };
 
 export const LoadFailed: Story = {
-   args: { loaded: false, error: 'Your role cannot change autopilots in this workspace.' },
+   args: { loaded: false, error: 'Your role cannot change loops in this workspace.' },
 };

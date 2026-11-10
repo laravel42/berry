@@ -1,16 +1,26 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import {
+   Children,
+   cloneElement,
+   isValidElement,
+   useCallback,
+   useEffect,
+   useState,
+   type ReactElement,
+} from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { AgentTierSection } from '@/components/common/agents/agent-tier-section';
+import { type ExecutionUnsaved } from '@/components/common/agents/agent-execution-settings';
 import { FormRow } from '@/components/common/settings/form-row';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { BerryApiError } from '@/lib/api';
 import { isTier, updateAgentConfig, type Agent, type Tier } from '@/lib/agents';
+import { cn } from '@/lib/utils';
 
 const reason = (error: unknown, fallback: string) =>
    error instanceof BerryApiError ? error.message : fallback;
@@ -32,7 +42,8 @@ interface AgentSettingsTabProps {
 
 /**
  * The agent's name, description and model (or tier, under a model gateway).
- * Edits stay local until Save on the unsaved bar.
+ * Edits stay local until Save on the unsaved bar. When runtime settings are
+ * nested here, their draft joins this same bar so the tab never shows two.
  */
 export default function AgentSettingsTab({
    agent,
@@ -45,16 +56,20 @@ export default function AgentSettingsTab({
    const t = useTranslations('agentsChat.detail');
    const common = useTranslations('agentsChat.common');
 
-   const failed = (error: unknown) => {
-      if (error instanceof BerryApiError && error.status === 403) onForbidden();
-      toast.error(reason(error, t('failureUnknown')));
-   };
+   const failed = useCallback(
+      (error: unknown) => {
+         if (error instanceof BerryApiError && error.status === 403) onForbidden();
+         toast.error(reason(error, t('failureUnknown')));
+      },
+      [onForbidden, t]
+   );
    const [name, setName] = useState(agent.name);
    const [description, setDescription] = useState(agent.description ?? '');
    const [provider, setProvider] = useState(agent.modelProvider ?? null);
    const [model, setModel] = useState(agent.modelName ?? null);
    const [tier, setTier] = useState<Tier | null>(() => tierOf(agent));
    const [saving, setSaving] = useState(false);
+   const [runtimeUnsaved, setRuntimeUnsaved] = useState<ExecutionUnsaved | null>(null);
 
    useEffect(() => {
       setName(agent.name);
@@ -71,32 +86,24 @@ export default function AgentSettingsTab({
       (model ?? null) !== (agent.modelName ?? null);
    const tierDirty = tier !== tierOf(agent);
 
-   const dirty = nameDirty || descriptionDirty || modelDirty || tierDirty;
+   const settingsDirty = nameDirty || descriptionDirty || modelDirty || tierDirty;
 
    useEffect(() => {
-      onDirtyChange(dirty);
-   }, [dirty, onDirtyChange]);
+      onDirtyChange(settingsDirty);
+   }, [settingsDirty, onDirtyChange]);
 
-   const whatChanged = useMemo(() => {
-      const parts: string[] = [];
-      if (nameDirty || descriptionDirty) parts.push(t('change_general'));
-      if (modelDirty) parts.push(t('change_model'));
-      if (tierDirty) parts.push(t('change_tier'));
-      return parts.join(', ');
-   }, [nameDirty, descriptionDirty, modelDirty, tierDirty, t]);
-
-   const discard = () => {
+   const discardSettings = useCallback(() => {
       setName(agent.name);
       setDescription(agent.description ?? '');
       setProvider(agent.modelProvider ?? null);
       setModel(agent.modelName ?? null);
       setTier(tierOf(agent));
-   };
+   }, [agent.description, agent.modelName, agent.modelProvider, agent.name, agent.tier]);
 
-   const save = async () => {
+   const saveSettings = useCallback(async () => {
       if (nameDirty && !name.trim()) {
          toast.error(t('setNameRequired'));
-         return;
+         throw new Error('name-required');
       }
       setSaving(true);
       try {
@@ -110,64 +117,122 @@ export default function AgentSettingsTab({
          if (tierDirty) config.tier = tier;
 
          onChange(await updateAgentConfig(agent.id, config));
-         toast.success(common('saved'));
       } catch (error) {
+         if (error instanceof Error && error.message === 'name-required') throw error;
          failed(error);
+         throw error;
       } finally {
          setSaving(false);
       }
+   }, [
+      agent.id,
+      description,
+      descriptionDirty,
+      failed,
+      model,
+      modelDirty,
+      name,
+      nameDirty,
+      onChange,
+      provider,
+      t,
+      tier,
+      tierDirty,
+   ]);
+
+   const combinedDirty = settingsDirty || (runtimeUnsaved?.dirty ?? false);
+   const combinedBusy = saving || (runtimeUnsaved?.busy ?? false);
+
+   const discard = () => {
+      if (settingsDirty) discardSettings();
+      if (runtimeUnsaved?.dirty) runtimeUnsaved.discard();
    };
+
+   const saveAll = async () => {
+      if (!combinedDirty) return;
+      try {
+         if (settingsDirty) await saveSettings();
+         if (runtimeUnsaved?.dirty) await runtimeUnsaved.save({ silent: true });
+         toast.success(common('saved'));
+      } catch {
+         // Each write already toasted the failure, except a missing name.
+      }
+   };
+
+   const execution = Children.map(children, (child) => {
+      if (!isValidElement(child)) return child;
+      return cloneElement(
+         child as ReactElement<{
+            showUnsavedBar?: boolean;
+            onUnsavedChange?: (unsaved: ExecutionUnsaved | null) => void;
+         }>,
+         {
+            showUnsavedBar: false,
+            onUnsavedChange: setRuntimeUnsaved,
+         }
+      );
+   });
 
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-auto px-8 py-6">
-            <div className="flex flex-col">
-               <FormRow label={t('setName')} caption={t('setNameHint')} htmlFor="agent-name">
-                  <Input
-                     id="agent-name"
-                     value={name}
-                     disabled={readOnly}
-                     onChange={(event) => setName(event.target.value)}
-                  />
-               </FormRow>
-               <FormRow
-                  label={t('setDescription')}
-                  caption={t('setDescriptionHint')}
-                  htmlFor="agent-description"
-               >
-                  <Textarea
-                     id="agent-description"
-                     rows={3}
-                     value={description}
-                     disabled={readOnly}
-                     onChange={(event) => setDescription(event.target.value)}
-                  />
-               </FormRow>
-               <FormRow label={t('tiers.title')} caption={t('setTierHint')}>
-                  <AgentTierSection
-                     bare
-                     agent={agent}
-                     tier={tier}
-                     model={model}
-                     disabled={readOnly}
-                     onTierChange={setTier}
-                     onUnpin={() => {
-                        setProvider(null);
-                        setModel(null);
-                     }}
-                  />
-               </FormRow>
+         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div
+               className={cn(
+                  'overflow-auto px-8 pt-6 pb-4',
+                  children ? 'shrink-0' : 'min-h-0 flex-1'
+               )}
+            >
+               <div className="flex flex-col">
+                  <FormRow label={t('setName')} caption={t('setNameHint')} htmlFor="agent-name">
+                     <Input
+                        id="agent-name"
+                        value={name}
+                        disabled={readOnly}
+                        onChange={(event) => setName(event.target.value)}
+                     />
+                  </FormRow>
+                  <FormRow
+                     label={t('setDescription')}
+                     caption={t('setDescriptionHint')}
+                     htmlFor="agent-description"
+                  >
+                     <Textarea
+                        id="agent-description"
+                        rows={3}
+                        value={description}
+                        disabled={readOnly}
+                        onChange={(event) => setDescription(event.target.value)}
+                     />
+                  </FormRow>
+                  <FormRow label={t('tiers.title')} caption={t('setTierHint')}>
+                     <AgentTierSection
+                        bare
+                        agent={agent}
+                        tier={tier}
+                        model={model}
+                        disabled={readOnly}
+                        onTierChange={setTier}
+                        onUnpin={() => {
+                           setProvider(null);
+                           setModel(null);
+                        }}
+                     />
+                  </FormRow>
+               </div>
             </div>
 
-            {children ? <div className="border-t border-border/70 pt-4">{children}</div> : null}
+            {execution ? (
+               <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
+                  {execution}
+               </div>
+            ) : null}
          </div>
 
-         {!readOnly && dirty ? (
+         {!readOnly && combinedDirty ? (
             <UnsavedChangesBar
-               what={whatChanged}
-               busy={saving}
+               busy={combinedBusy}
                onDiscard={discard}
-               onSave={() => void save()}
+               onSave={() => void saveAll()}
             />
          ) : null}
       </div>

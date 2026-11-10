@@ -56,8 +56,8 @@ const ROWS: Array<{ key: NotificationKey; title: string; description: string }> 
       description: 'A run on your task finishes, fails, or opens a pull request.',
    },
    {
-      key: 'goals',
-      title: 'Goals',
+      key: 'milestones',
+      title: 'Milestones',
       description: 'A goal you follow is planned, blocked or completed.',
    },
    {
@@ -104,6 +104,7 @@ export default function AccountNotifications() {
                      description={row.description}
                      trailing={
                         <Switch
+                           variant="settings"
                            checked={switches.value?.[row.key] ?? true}
                            disabled={switches.loading || switches.saving || !workspaceId}
                            onCheckedChange={(enabled) => toggle(row.key, enabled)}

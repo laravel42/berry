@@ -39,7 +39,7 @@ import { APPROVAL_STATUS, statusLook } from '@/lib/catalog';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import { useApprovalsStore } from '@/store/approvals-store';
-import { useGoalsStore } from '@/store/goals-store';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useMembersStore } from '@/store/members-store';
 import { format, parseISO } from 'date-fns';
 import { CircleCheck, CircleHelp, CircleX } from 'lucide-react';
@@ -225,8 +225,10 @@ export function ApprovalCard({
    const orgId = params?.orgId || WORKSPACE_SLUG;
    const members = useMembersStore((state) => state.members);
    const upsertApproval = useApprovalsStore((state) => state.upsertApproval);
-   const goalTitle = useGoalsStore((state) =>
-      approval.goalId ? state.goals.find((goal) => goal.id === approval.goalId)?.title : undefined
+   const goalTitle = useMilestonesStore((state) =>
+      approval.milestoneId
+         ? state.milestones.find((goal) => goal.id === approval.milestoneId)?.title
+         : undefined
    );
    const [busy, setBusy] = useState<Decision | null>(null);
    const [refusal, setRefusal] = useState<'not_addressee' | 'admin_required' | null>(null);
@@ -336,9 +338,9 @@ export function ApprovalCard({
          label: compact ? approval.issue.identifier : `${approval.issue.identifier} ${issueTitle}`,
       });
    }
-   if (approval.goalId) {
+   if (approval.milestoneId) {
       links.push({
-         href: `/${orgId}/goal/${approval.goalId}/overview`,
+         href: `/${orgId}/milestone/${approval.milestoneId}/overview`,
          label: goalTitle ? decodeApprovalText(goalTitle) : 'goal',
       });
    }

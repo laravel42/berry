@@ -78,6 +78,11 @@ export interface PromptContext extends Dispatch {
     */
    skills?: Array<{ name: string; description: string }>;
    /**
+    * Plugins the description named, and the MCP server name their tools are
+    * prefixed with. Absent when the task named none.
+    */
+   plugins?: Array<{ name: string; server: string }>;
+   /**
     * What people wrote on the task, oldest first. Agents' comments are run
     * reports and are not repeated. When the prompt is short of room the
     * newest are kept and the oldest give way.
@@ -132,6 +137,7 @@ export function buildMessage(dispatch: PromptContext): string {
    const review = dispatch.reviewFeedback ? reviewSection(dispatch.reviewFeedback) : '';
    const repository = dispatch.repository ? `\n\nRepository: ${dispatch.repository}` : '';
    const skills = dispatch.skills && dispatch.skills.length > 0 ? `\n\n${skillsContract(dispatch.skills)}` : '';
+   const plugins = dispatch.plugins && dispatch.plugins.length > 0 ? `\n\n${pluginsContract(dispatch.plugins)}` : '';
    // After the repository it concerns. Whatever else the run was asked to do,
    // the pull request cannot merge until this is done.
    let merge = '';
@@ -191,7 +197,7 @@ export function buildMessage(dispatch: PromptContext): string {
    const present = evidence.filter((block): block is Evidence => block !== null);
    const fixed =
       bytes(header) + bytes(dependencies) + bytes(instructions) + bytes(review) + bytes(repository) +
-      bytes(skills) + bytes(merge) + bytes(contracts) +
+      bytes(skills) + bytes(plugins) + bytes(merge) + bytes(contracts) +
       present.reduce((sum, block) => sum + block.floor, 0);
    const extra = allot(
       present.map((block) => Math.max(0, bytes(block.whole) - block.floor)),
@@ -203,7 +209,7 @@ export function buildMessage(dispatch: PromptContext): string {
 
    const message =
       header + shown(description) + shown(comments) + shown(related) + shown(handoffs) + dependencies +
-      instructions + review + shown(prior) + repository + skills + merge;
+      instructions + review + shown(prior) + repository + skills + plugins + merge;
    // Only a message whose required sections alone overrun the cap reaches
    // this cut: dozens of skills or dependencies. The contracts still survive it.
    return truncateUtf8(message, MAX_PROMPT_BYTES - bytes(contracts)) + contracts;
@@ -436,6 +442,18 @@ function reportingContract(identifier: string, title: string): string {
       'Call a file attached to the task only when its result has that id. A file a command produces (a merged clip, a built ' +
       'archive) is saved on the task with collect_file — the workspace is ' +
       'gone when the run ends, and only collected files survive it.\n'
+   );
+}
+
+/** The plugins the description named, and the prefix their tools use. */
+function pluginsContract(plugins: Array<{ name: string; server: string }>): string {
+   const lines = plugins.map((plugin) => `- ${plugin.name}: tools are named ${plugin.server}_<tool>`);
+   return (
+      'Plugins named on this task\n' +
+      'The description added these services. Their tools are on this run. Use them for the part of the task ' +
+      'that belongs to that service. Every tool the service offers is available.\n' +
+      lines.join('\n') +
+      '\n'
    );
 }
 

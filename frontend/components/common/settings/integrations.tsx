@@ -13,8 +13,17 @@ import {
 import { GitHubIntegrationSettings } from '@/components/common/settings/github-integration-settings';
 import { GitLabIntegrationSettings } from '@/components/common/settings/gitlab-integration-settings';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
-import { StatusBadge } from '@/components/common/status-badge';
 import { Button, buttonVariants } from '@/components/ui/button';
+import {
+   Dialog,
+   DialogContent,
+   DialogDescription,
+   DialogFooter,
+   DialogHeader,
+   DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { updateGitHubSettings } from '@/lib/github';
 import {
    BUILT_IN_PROVIDER,
    describeConnectionResult,
@@ -22,9 +31,10 @@ import {
    describeProviderState,
    describeToolEffect,
    disconnectProvider,
+   forgetGitHubInstall,
    listConnections,
    listProviders,
-   startAuthorize,
+   saveProviderToken,
    toolOperation,
    type Provider,
    type ProviderConnection,
@@ -33,23 +43,28 @@ import { cn } from '@/lib/utils';
 import { useProvidersStore } from '@/store/providers-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, parseISO } from 'date-fns';
-import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { INTEGRATION_LOGOS } from './integration-logos';
-import { SettingsCard, SettingsRow, SettingsShell } from './shared';
+import {
+   SettingsCard,
+   SettingsChip,
+   SettingsEmpty,
+   SettingsRow,
+   SettingsShell,
+   SettingsTile,
+   StatusIndicator,
+} from './shared';
 
 function ProviderIcon({ provider }: { provider: Provider }) {
    const Logo = INTEGRATION_LOGOS[provider.id];
    if (Logo) {
       return (
-         <span
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border bg-background"
-            aria-hidden
-         >
-            <Logo className="size-[60%]" />
-         </span>
+         <SettingsTile size="lg" className="text-[var(--brand-body)]">
+            <Logo className="size-[55%]" aria-hidden />
+         </SettingsTile>
       );
    }
    const initials = visibleProviderName(provider)
@@ -61,12 +76,9 @@ function ProviderIcon({ provider }: { provider: Provider }) {
       .join('')
       .toUpperCase();
    return (
-      <span
-         className="inline-flex size-9 shrink-0 select-none items-center justify-center rounded-md border bg-accent font-medium text-accent-foreground"
-         aria-hidden
-      >
+      <SettingsTile size="lg" className="text-[var(--brand-body)] select-none">
          {initials}
-      </span>
+      </SettingsTile>
    );
 }
 
@@ -93,8 +105,44 @@ function visibleProviderName(provider: { id: string; name: string }): string {
    return drawer ? DRAWER_NAMES[drawer] : provider.name;
 }
 
-function visibleProviderDescription(provider: { description?: string | null }): string {
-   return provider.description ?? '';
+function visibleProviderDescription(provider: {
+   id?: string;
+   description?: string | null;
+}): string {
+   return (provider.description ?? '').trim();
+}
+
+/**
+ * GitHub and GitLab first (Connect or a settings drawer already ships), then
+ * the rest of the source-control catalogue in the order a person expects to
+ * scan it. Filename order would put AWS and Azure first.
+ */
+const DIRECTORY_ORDER = [
+   'github',
+   'gitlab',
+   'bitbucket',
+   'azure-devops',
+   'gitea',
+   'forgejo',
+   'codeberg',
+   'aws-codecommit',
+   'gerrit',
+   'sourcehut',
+   'gogs',
+   'perforce',
+] as const;
+
+function directoryOrder(providers: Provider[]): Provider[] {
+   return [...providers].sort((left, right) => {
+      const leftRank = DIRECTORY_ORDER.indexOf(left.id as (typeof DIRECTORY_ORDER)[number]);
+      const rightRank = DIRECTORY_ORDER.indexOf(right.id as (typeof DIRECTORY_ORDER)[number]);
+      if (leftRank === -1 && rightRank === -1) {
+         return left.name.localeCompare(right.name);
+      }
+      if (leftRank === -1) return 1;
+      if (rightRank === -1) return -1;
+      return leftRank - rightRank;
+   });
 }
 
 function publicDetail(detail: string | null | undefined): string | null {
@@ -105,76 +153,69 @@ function visibleFailure(failure: unknown): string {
    return describeIntegrationFailure(failure);
 }
 
+/**
+ * What a tool may do once the provider is connected. Read-only: the policy is
+ * the provider's own declaration, and no endpoint changes it per workspace.
+ */
+function toolPolicy(tool: Provider['tools'][number]): string {
+   if (tool.enabledByDefault === false && tool.allowed !== true) return 'Blocked';
+   if (tool.requiresApproval) return 'Needs approval';
+   return 'Allowed';
+}
+
 function ToolsTable({ provider }: { provider: Provider }) {
    return (
-      <div className="min-w-0">
-         <table className="w-full table-fixed border-t border-border/60">
-            <thead>
-               <tr className="text-left text-muted-foreground">
-                  <th className="w-[40%] px-3 py-1.5 font-medium">Tool</th>
-                  <th className="px-1.5 py-1.5 font-medium break-words">Effect</th>
-                  <th className="px-1.5 py-1.5 font-medium break-words">Approval</th>
-                  <th className="px-1.5 py-1.5 pr-3 font-medium break-words">Default</th>
-               </tr>
-            </thead>
-            <tbody>
-               {provider.tools.map((tool) => (
-                  <tr key={tool.name} className="border-t border-border/40 align-top">
-                     <td className="px-3 py-1.5">
-                        <span className="font-mono break-all">{toolOperation(tool.name)}</span>
-                        {tool.description && (
-                           <span className="block text-muted-foreground break-words">
-                              {tool.description}
-                           </span>
-                        )}
-                     </td>
-                     <td
-                        className={cn(
-                           'px-1.5 py-1.5 break-words',
-                           tool.effect === 'destructive'
-                              ? 'text-status-danger'
-                              : tool.effect === 'external_side_effect'
-                                ? 'text-status-warning'
-                                : 'text-muted-foreground'
-                        )}
+      <ul className="flex flex-col">
+         {provider.tools.map((tool) => (
+            <li
+               key={tool.name}
+               className="flex min-h-10 items-center gap-3 border-t border-settings-divider py-2 pr-4 pl-[34px]"
+            >
+               <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="font-mono break-all text-[var(--brand-body)]">
+                     {toolOperation(tool.name)}
+                  </span>
+                  {tool.description ? (
+                     <span
+                        data-settings-type="caption"
+                        className="break-words text-subtle-foreground"
                      >
-                        {describeToolEffect(tool.effect)}
-                     </td>
-                     <td className="px-1.5 py-1.5 break-words">
-                        {tool.requiresApproval ? (
-                           <span className="text-status-warning">required</span>
-                        ) : (
-                           <span className="text-muted-foreground">—</span>
-                        )}
-                     </td>
-                     <td className="px-1.5 py-1.5 pr-3 break-words text-muted-foreground">
-                        {tool.enabledByDefault === false ? 'opt-in' : 'on'}
-                     </td>
-                  </tr>
-               ))}
-            </tbody>
-         </table>
-      </div>
+                        {tool.description}
+                     </span>
+                  ) : null}
+               </span>
+               {tool.effect === 'destructive' ? (
+                  <span data-settings-type="small" className="shrink-0 text-status-danger">
+                     Destructive
+                  </span>
+               ) : tool.effect === 'external_side_effect' ? (
+                  <span data-settings-type="small" className="shrink-0 text-status-warning">
+                     {describeToolEffect(tool.effect)}
+                  </span>
+               ) : null}
+               <SettingsChip className="text-[var(--brand-body)]">{toolPolicy(tool)}</SettingsChip>
+            </li>
+         ))}
+      </ul>
    );
+}
+
+/** Whether Connect is offered for this catalogue entry (card modal / drawer). */
+function canConnectProvider(provider: Provider): boolean {
+   return provider.configured;
 }
 
 function ProviderCard({
    provider,
    connection,
    highlighted,
-   busy,
-   onConnect,
-   onDisconnect,
    onOpen,
 }: {
    provider: Provider;
    connection: ProviderConnection | undefined;
    highlighted: boolean;
-   busy: boolean;
-   onConnect: () => void;
-   onDisconnect: () => void;
-   /** Opens this provider's settings. The tools row and connect actions stay their own controls. */
-   onOpen?: () => void;
+   /** Opens the connect dialog, or the settings drawer when already connected. */
+   onOpen: () => void;
 }) {
    const [toolsOpen, setToolsOpen] = useState(false);
    const state = describeProviderState(provider);
@@ -182,11 +223,7 @@ function ProviderCard({
    const destructive = provider.tools.filter((tool) => tool.effect === 'destructive').length;
    const allowedCount = provider.tools.filter((tool) => tool.allowed === true).length;
    const scopes = connection?.scopes?.length ? connection.scopes : (provider.scopes ?? []);
-   // GitHub and GitLab disconnect from their drawers. The row has no
-   // second column once that account is connected.
    const inDrawer = drawerProviderId(provider.id) !== null;
-   const showDisconnect = !inDrawer && provider.connected;
-   const showConnect = !provider.connected;
    const accountName = connection?.accountName ?? provider.accountName;
    // The badge already says connected. This line is only the account and the
    // dates, so a provider with neither does not repeat the word.
@@ -202,131 +239,88 @@ function ProviderCard({
    ]
       .filter(Boolean)
       .join(' · ');
-   const identity = (
-      <>
-         <ProviderIcon provider={provider} />
-         <div className="min-w-0 flex-1">
-            <div
-               className={cn(
-                  'flex flex-wrap items-center gap-x-2 gap-y-1',
-                  (showConnect || showDisconnect) && 'pr-24'
-               )}
-            >
-               <h3 className="font-medium">{visibleProviderName(provider)}</h3>
-               <StatusBadge
-                  look={{
-                     label: state.label,
-                     tone: state.tone,
-                     state: state.tone === 'complete' ? 'solid' : 'hollow',
-                  }}
-               />
-            </div>
-            {visibleProviderDescription(provider) && (
-               <p className="mt-0.5 text-muted-foreground">
-                  {visibleProviderDescription(provider)}
-               </p>
-            )}
-            {provider.connected && connectionLine ? (
-               <p className="mt-1 text-muted-foreground">{connectionLine}</p>
-            ) : null}
-            {/* A connection that lapsed is not a connection that was never
-                   made, and the reason is the whole difference between "press
-                   Connect" and "this was never set up". */}
-            {!inDrawer && !provider.connected && publicDetail(connection?.statusDetail) && (
-               <p className="mt-1 text-muted-foreground">
-                  {publicDetail(connection?.statusDetail)}
-                  {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
-               </p>
-            )}
-            {provider.id === 'github' &&
-               !provider.connected &&
-               provider.status !== 'reconnect' &&
-               provider.status !== 'expired' && (
-                  <p className="mt-1 text-muted-foreground">
-                     Sign in with GitHub to grant repository access so agents can clone, push and
-                     open pull requests.
-                  </p>
-               )}
-            {inDrawer && provider.status === 'reconnect' && (
-               <p className="mt-1 text-muted-foreground">
-                  The {visibleProviderName(provider)} connection needs to be renewed before agents
-                  can use a repository.
-               </p>
-            )}
-            {inDrawer && provider.status === 'expired' && publicDetail(provider.statusDetail) && (
-               <p className="mt-1 text-muted-foreground">{publicDetail(provider.statusDetail)}</p>
-            )}
-            {scopes.length > 0 && (
-               <ul className="mt-1.5 flex flex-wrap gap-1">
-                  {scopes.map((scope) => (
-                     <li
-                        key={scope}
-                        className="rounded border border-border/60 bg-muted/40 px-1.5 font-mono leading-5 text-muted-foreground"
-                     >
-                        {scope}
-                     </li>
-                  ))}
-               </ul>
-            )}
-         </div>
-      </>
-   );
 
    return (
       <section
          id={`provider-${provider.id}`}
          className={cn(
-            'min-w-0 overflow-hidden rounded-lg border bg-container transition-shadow',
+            'flex h-full min-w-0 flex-col overflow-hidden rounded-[10px] bg-settings-group transition-shadow',
             highlighted && 'ring-2 ring-ring/50'
          )}
          aria-label={visibleProviderName(provider)}
       >
-         <div className="relative flex items-start">
-            {onOpen ? (
-               <button
-                  type="button"
-                  onClick={onOpen}
-                  className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
-               >
-                  {identity}
-               </button>
-            ) : (
-               <div className="flex min-w-0 flex-1 items-start gap-3 px-4 py-3">{identity}</div>
-            )}
-            {showDisconnect || showConnect ? (
-               <div className="absolute top-3 right-4 flex items-center gap-2">
-                  {showDisconnect ? (
-                     <Button size="xs" variant="secondary" disabled={busy} onClick={onDisconnect}>
-                        {busy ? 'Working…' : 'Disconnect'}
-                     </Button>
-                  ) : null}
-                  {showConnect ? (
-                     <Button
-                        size="xs"
-                        disabled={busy || !provider.configured}
-                        title={
-                           provider.configured
-                              ? `Sign in to ${visibleProviderName(provider)}`
-                              : `${visibleProviderName(provider)} is not configured on this deployment`
-                        }
-                        onClick={onConnect}
-                     >
-                        {busy ? 'Opening…' : 'Connect'}
-                     </Button>
-                  ) : null}
-               </div>
-            ) : null}
-         </div>
          <button
             type="button"
-            className="flex w-full min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 border-t border-border/60 px-4 py-2 text-left text-muted-foreground transition-colors hover:bg-accent/40"
+            onClick={onOpen}
+            className="flex min-h-0 min-w-0 flex-1 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+         >
+            <ProviderIcon provider={provider} />
+            <div className="min-w-0 flex-1">
+               <div className="flex min-w-0 items-start justify-between gap-3">
+                  <h3 className="m-0 min-w-0 truncate">{visibleProviderName(provider)}</h3>
+                  <StatusIndicator status={provider.connected ? 'connected' : 'off'}>
+                     {state.label}
+                  </StatusIndicator>
+               </div>
+               {visibleProviderDescription(provider) && (
+                  <p
+                     data-settings-type="caption"
+                     title={visibleProviderDescription(provider)}
+                     className="mt-1 line-clamp-2 leading-[1.55] text-muted-foreground"
+                  >
+                     {visibleProviderDescription(provider)}
+                  </p>
+               )}
+               {provider.connected && connectionLine ? (
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                     {connectionLine}
+                  </p>
+               ) : null}
+               {/* A connection that lapsed is not a connection that was never
+                   made, and the reason is the whole difference between "press
+                   Connect" and "this was never set up". */}
+               {!inDrawer && !provider.connected && publicDetail(connection?.statusDetail) && (
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                     {publicDetail(connection?.statusDetail)}
+                     {connection?.expiresAt && ` · expired ${whenText(connection.expiresAt)}`}
+                  </p>
+               )}
+               {inDrawer && provider.status === 'reconnect' && (
+                  <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                     The {visibleProviderName(provider)} connection needs to be renewed before
+                     agents can use a repository.
+                  </p>
+               )}
+               {inDrawer &&
+                  provider.status === 'expired' &&
+                  publicDetail(provider.statusDetail) && (
+                     <p data-settings-type="caption" className="mt-1 text-subtle-foreground">
+                        {publicDetail(provider.statusDetail)}
+                     </p>
+                  )}
+               {scopes.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                     {scopes.map((scope) => (
+                        <li key={scope}>
+                           <SettingsChip>{scope}</SettingsChip>
+                        </li>
+                     ))}
+                  </ul>
+               )}
+            </div>
+         </button>
+         <button
+            type="button"
+            data-settings-type="caption"
+            className="flex min-h-10 w-full min-w-0 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-0.5 border-t border-settings-divider px-4 py-2 text-left text-muted-foreground transition-colors hover:bg-settings-row-hover"
             aria-expanded={toolsOpen}
             onClick={() => setToolsOpen((open) => !open)}
          >
-            <ChevronDown
+            <ChevronRight
+               strokeWidth={2.5}
                className={cn(
-                  'size-3.5 transition-transform',
-                  toolsOpen ? 'rotate-0' : '-rotate-90'
+                  'mr-0.5 size-2.5 transition-transform duration-150 motion-reduce:transition-none',
+                  toolsOpen && 'rotate-90'
                )}
             />
             {provider.tools.length} tool{provider.tools.length === 1 ? '' : 's'}
@@ -397,12 +391,12 @@ function ProviderConnectionPanel({
                description={description}
                trailing={
                   provider.connected && !renewing ? (
-                     <Button size="xs" variant="destructive" disabled={busy} onClick={onDisconnect}>
+                     <Button variant="soft-destructive" disabled={busy} onClick={onDisconnect}>
                         <Trash2 aria-hidden />
                         {busy ? 'Working…' : 'Disconnect'}
                      </Button>
                   ) : (
-                     <Button size="xs" disabled={busy || !provider.configured} onClick={onConnect}>
+                     <Button disabled={busy || !provider.configured} onClick={onConnect}>
                         {busy ? 'Opening…' : renewing ? 'Reconnect' : 'Connect'}
                      </Button>
                   )
@@ -427,6 +421,8 @@ function IntegrationsDirectory() {
    const [error, setError] = useState<string | null>(null);
    const [busy, setBusy] = useState<string | null>(null);
    const [disconnecting, setDisconnecting] = useState<Provider | null>(null);
+   const [connecting, setConnecting] = useState<Provider | null>(null);
+   const [accessToken, setAccessToken] = useState('');
    const [drawer, setDrawer] = useState<DrawerProviderId | null>(null);
 
    const load = useCallback(async (): Promise<Provider[]> => {
@@ -436,7 +432,9 @@ function IntegrationsDirectory() {
             listProviders(workspace.id),
             listConnections().catch(() => [] as ProviderConnection[]),
          ]);
-         const connected = providerList.filter((provider) => provider.id !== BUILT_IN_PROVIDER);
+         const connected = directoryOrder(
+            providerList.filter((provider) => provider.id !== BUILT_IN_PROVIDER)
+         );
          setProviders(connected);
          setConnections(connectionList);
          hydrateProviders(connected);
@@ -493,13 +491,51 @@ function IntegrationsDirectory() {
       document.getElementById(`provider-${highlighted}`)?.scrollIntoView({ block: 'center' });
    }, [highlighted, loaded]);
 
-   const connect = async (provider: Provider) => {
+   const connectWithToken = async (provider: Provider, token: string) => {
+      const trimmed = token.trim();
+      if (trimmed === '') {
+         toast.error('Paste an access token to connect.');
+         return;
+      }
       setBusy(provider.id);
       try {
-         const url = await startAuthorize(provider.id);
-         window.location.assign(url);
+         // GitHub may already be reachable through sign-in; turning the
+         // workspace switch back on is enough when Disconnect only flipped it.
+         if (provider.id === 'github' && workspace?.id) {
+            await updateGitHubSettings(workspace.id, { enabled: true });
+         }
+         await saveProviderToken(provider.id, trimmed);
+         toast.success(`${visibleProviderName(provider)} connected`);
+         setConnecting(null);
+         setAccessToken('');
+         await load();
       } catch (failure) {
          toast.error(visibleFailure(failure));
+      } finally {
+         setBusy(null);
+      }
+   };
+
+   /** Re-enable GitHub when sign-in still connects it; otherwise open paste. */
+   const resumeGitHubOrPaste = async (provider: Provider) => {
+      if (provider.id !== 'github' || !workspace?.id) {
+         setConnecting(provider);
+         setAccessToken('');
+         return;
+      }
+      setBusy(provider.id);
+      try {
+         await updateGitHubSettings(workspace.id, { enabled: true });
+         const refreshed = await load();
+         if (refreshed.some((entry) => entry.id === 'github' && entry.connected)) {
+            toast.success(`${visibleProviderName(provider)} connected`);
+            return;
+         }
+         setConnecting(provider);
+         setAccessToken('');
+      } catch (failure) {
+         toast.error(visibleFailure(failure));
+      } finally {
          setBusy(null);
       }
    };
@@ -507,8 +543,15 @@ function IntegrationsDirectory() {
    const disconnect = async (provider: Provider) => {
       setBusy(provider.id);
       try {
+         // GitHub's DELETE clears the connection, App installs and the
+         // workspace switch. forgetGitHubInstall is a second pass for a
+         // deployment whose DELETE predates that; a missing install is fine.
+         if (provider.id === 'github') {
+            await forgetGitHubInstall().catch(() => undefined);
+         }
          await disconnectProvider(provider.id);
          toast.success(`${visibleProviderName(provider)} disconnected`);
+         setDrawer(null);
          await load();
       } catch (failure) {
          toast.error(visibleFailure(failure));
@@ -519,41 +562,116 @@ function IntegrationsDirectory() {
 
    return (
       <SettingsShell
-         title="Integrations"
+         wide
+         title="Source control"
          description="Connect the tools your agents may reach. An agent cannot reach a provider until it is connected."
       >
-         {error && (
-            <p role="alert" className="text-status-danger">
-               {error}
-            </p>
-         )}
-         {!loaded && !error && (
-            <p role="status" className="text-muted-foreground">
-               Loading providers…
-            </p>
-         )}
+         {error ? (
+            <SettingsCard>
+               <SettingsEmpty title={error} />
+            </SettingsCard>
+         ) : null}
+         {!loaded && !error ? (
+            <SettingsCard>
+               <SettingsEmpty title="Loading providers…" />
+            </SettingsCard>
+         ) : null}
 
-         <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-stretch">
             {providers.map((provider) => (
                <ProviderCard
                   key={provider.id}
                   provider={provider}
                   connection={connections.find((entry) => entry.provider === provider.id)}
                   highlighted={highlighted === provider.id}
-                  busy={busy === provider.id}
-                  onConnect={() => void connect(provider)}
-                  onDisconnect={() => setDisconnecting(provider)}
-                  onOpen={
-                     provider.connected && drawerProviderId(provider.id)
-                        ? () => {
-                             const id = drawerProviderId(provider.id);
-                             if (id) setDrawer(id);
-                          }
-                        : undefined
-                  }
+                  onOpen={() => {
+                     if (busy) return;
+                     if (provider.connected) {
+                        const drawerId = drawerProviderId(provider.id);
+                        if (drawerId) {
+                           setDrawer(drawerId);
+                           return;
+                        }
+                     }
+                     setConnecting(provider);
+                     setAccessToken('');
+                  }}
                />
             ))}
          </div>
+
+         <Dialog
+            open={connecting !== null}
+            onOpenChange={(open) => {
+               if (!open && !busy) {
+                  setConnecting(null);
+                  setAccessToken('');
+               }
+            }}
+         >
+            {connecting ? (
+               <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+                  <form
+                     className="flex flex-col gap-4"
+                     onSubmit={(event) => {
+                        event.preventDefault();
+                        void connectWithToken(connecting, accessToken);
+                     }}
+                  >
+                     <DialogHeader>
+                        <DialogTitle>{visibleProviderName(connecting)}</DialogTitle>
+                        <DialogDescription>
+                           {visibleProviderDescription(connecting) ||
+                              `Connect ${visibleProviderName(connecting)} so agents can reach it.`}
+                        </DialogDescription>
+                     </DialogHeader>
+                     {canConnectProvider(connecting) ? (
+                        <>
+                           <p data-settings-type="caption" className="text-subtle-foreground">
+                              Paste a personal access token from {visibleProviderName(connecting)}.
+                              Berry seals it and never shows it again.
+                           </p>
+                           <label className="flex flex-col gap-1" htmlFor="scm-access-token">
+                              <span>Access token</span>
+                              <Input
+                                 variant="settings"
+                                 id="scm-access-token"
+                                 type="password"
+                                 autoComplete="off"
+                                 autoFocus
+                                 spellCheck={false}
+                                 value={accessToken}
+                                 disabled={busy === connecting.id}
+                                 placeholder="Paste token"
+                                 onChange={(event) => setAccessToken(event.target.value)}
+                              />
+                           </label>
+                           <DialogFooter>
+                              <Button
+                                 type="submit"
+                                 disabled={busy === connecting.id || accessToken.trim() === ''}
+                              >
+                                 {busy === connecting.id ? (
+                                    <Loader2 className="size-3.5 animate-spin" />
+                                 ) : connecting.status === 'reconnect' ||
+                                   connecting.status === 'expired' ? (
+                                    'Reconnect'
+                                 ) : (
+                                    'Install and connect'
+                                 )}
+                              </Button>
+                           </DialogFooter>
+                        </>
+                     ) : (
+                        <p data-settings-type="caption" className="text-subtle-foreground">
+                           Connect is unavailable until this deployment can seal a credential (set
+                           INTEGRATION_ENCRYPTION_KEY).
+                        </p>
+                     )}
+                  </form>
+               </DialogContent>
+            ) : null}
+         </Dialog>
 
          <AlertDialog
             open={disconnecting !== null}
@@ -596,7 +714,7 @@ function IntegrationsDirectory() {
                      onClick={() => setDrawer(null)}
                      className="text-muted-foreground transition-colors hover:text-foreground"
                   >
-                     Integrations
+                     Source control
                   </button>
                   <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate font-medium">{drawer ? DRAWER_NAMES[drawer] : ''}</span>
@@ -612,7 +730,7 @@ function IntegrationsDirectory() {
                      busy={busy === drawer}
                      onConnect={() => {
                         const provider = providers.find((entry) => entry.id === drawer);
-                        if (provider) void connect(provider);
+                        if (provider) void resumeGitHubOrPaste(provider);
                      }}
                      onDisconnect={() => {
                         const provider = providers.find((entry) => entry.id === drawer);

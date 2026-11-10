@@ -15,12 +15,13 @@ import {
    AlertDialogTitle,
    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import {
    SHORTCUTS,
    comboFromEvent,
    comboProblem,
    formatCombo,
+   formatComboKeys,
    shortcutById,
    type ShortcutDefinition,
    type ShortcutGroup,
@@ -28,7 +29,15 @@ import {
 import { setShortcutsSuspended } from '@/components/layout/shortcut-provider';
 import { useShortcutBindings, useShortcutsStore } from '@/store/shortcuts-store';
 import { cn } from '@/lib/utils';
-import { SETTINGS_PILL, SettingsCard, SettingsShell } from './shared';
+import {
+   KeyCap,
+   SettingsCard,
+   SettingsEmpty,
+   SettingsIconButton,
+   SettingsSearch,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 
 /**
  * Settings › keyboard shortcuts.
@@ -144,22 +153,16 @@ export function KeyboardShortcuts() {
 
    return (
       <SettingsShell compact title={t('title')} description={t('description')}>
-         <div className="flex items-center gap-2">
-            <Input
+         <div className="flex items-center gap-2.5">
+            <SettingsSearch
                value={search}
-               onChange={(event) => setSearch(event.target.value)}
+               onChange={setSearch}
                aria-label={t('searchLabel')}
                placeholder={t('searchPlaceholder')}
-               className="h-8 max-w-xs"
             />
             <AlertDialog>
                <AlertDialogTrigger asChild>
-                  <button
-                     type="button"
-                     className={cn(SETTINGS_PILL, 'ml-auto h-8 min-h-8 py-0 lg:min-h-8')}
-                  >
-                     {t('restoreAll')}
-                  </button>
+                  <Button variant="soft">{t('restoreAll')}</Button>
                </AlertDialogTrigger>
                <AlertDialogContent>
                   <AlertDialogHeader>
@@ -176,33 +179,34 @@ export function KeyboardShortcuts() {
             </AlertDialog>
          </div>
 
-         {nothingMatches ? <p className="text-muted-foreground">{t('noMatches')}</p> : null}
+         {nothingMatches ? (
+            <SettingsCard>
+               <SettingsEmpty title={t('noMatches')} />
+            </SettingsCard>
+         ) : null}
 
-         <SettingsCard>
-            {groups.map(({ group, title }) => {
-               const rows = matching.filter((shortcut) => shortcut.group === group);
-               if (rows.length === 0) return null;
-               return (
-                  <div key={group} className="grid grid-cols-1 sm:grid-cols-2">
-                     <div className="col-span-full border-b border-border/60 bg-muted/30 px-3 py-1 text-muted-foreground uppercase tracking-[0.14em]">
-                        {title}
-                     </div>
-                     {rows.map((shortcut, index) => {
+         {groups.map(({ group, title }) => {
+            const rows = matching.filter((shortcut) => shortcut.group === group);
+            if (rows.length === 0) return null;
+            return (
+               <SettingsSection key={group} title={title}>
+                  <SettingsCard>
+                     {rows.map((shortcut) => {
                         const combo = bindings[shortcut.id];
                         const isRecording = recording === shortcut.id;
                         const overridden = combo !== defaultOf(shortcut);
                         return (
                            <div
                               key={shortcut.id}
-                              className={cn(
-                                 'group flex items-center gap-2 px-3 py-1 text-left',
-                                 gridCellClass(index, rows.length)
-                              )}
+                              className="group flex min-h-[42px] items-center gap-2 py-1.5 pr-3 pl-4 transition-colors hover:bg-settings-row-hover"
                            >
                               <div className="min-w-0 flex-1">
-                                 <div>{label(shortcut)}</div>
+                                 <div className="text-[var(--brand-body)]">{label(shortcut)}</div>
                                  {isRecording ? (
-                                    <div className="text-muted-foreground">
+                                    <div
+                                       data-settings-type="caption"
+                                       className="text-subtle-foreground"
+                                    >
                                        {problem ?? t('recordHint')}
                                     </div>
                                  ) : null}
@@ -214,64 +218,58 @@ export function KeyboardShortcuts() {
                                     setRecording(isRecording ? null : shortcut.id);
                                  }}
                                  aria-label={t('record', { action: label(shortcut) })}
-                                 className={[
-                                    'h-6 min-w-16 rounded-md border px-1.5 tabular-nums transition-colors',
-                                    isRecording
-                                       ? 'border-primary text-foreground'
-                                       : 'bg-container hover:bg-accent',
-                                 ].join(' ')}
+                                 className={cn(
+                                    'flex min-h-[26px] cursor-pointer items-center gap-1 rounded-[7px] px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                    isRecording && 'ring-1 ring-settings-field-focus'
+                                 )}
                               >
-                                 {isRecording
-                                    ? t('recording')
-                                    : combo
-                                      ? formatCombo(combo)
-                                      : shortcut.id in overrides
-                                        ? t('disabled')
-                                        : t('unbound')}
+                                 {isRecording ? (
+                                    <span
+                                       data-settings-type="caption"
+                                       className="px-1 text-foreground"
+                                    >
+                                       {t('recording')}
+                                    </span>
+                                 ) : combo ? (
+                                    formatComboKeys(combo).map((chord, chordIndex) =>
+                                       chord.map((key, keyIndex) => (
+                                          <KeyCap key={`${chordIndex}-${keyIndex}`}>{key}</KeyCap>
+                                       ))
+                                    )
+                                 ) : (
+                                    <span
+                                       data-settings-type="caption"
+                                       className="px-1 text-subtle-foreground"
+                                    >
+                                       {shortcut.id in overrides ? t('disabled') : t('unbound')}
+                                    </span>
+                                 )}
                               </button>
-                              <button
-                                 type="button"
-                                 onClick={() => disable(shortcut.id)}
-                                 disabled={combo === null}
-                                 aria-label={t('disableAction', { action: label(shortcut) })}
-                                 title={t('disableAction', { action: label(shortcut) })}
-                                 className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 disabled:opacity-0"
-                              >
-                                 <X className="size-3.5" />
-                              </button>
-                              <button
-                                 type="button"
-                                 onClick={() => reset(shortcut.id)}
-                                 disabled={!overridden}
-                                 aria-label={t('reset', { action: label(shortcut) })}
-                                 title={t('reset', { action: label(shortcut) })}
-                                 className="inline-flex size-6 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-colors group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-accent hover:text-foreground focus-visible:opacity-100 disabled:opacity-0"
-                              >
-                                 <RotateCcw className="size-3.5" />
-                              </button>
+                              <span className="hidden group-focus-within:flex group-hover:flex">
+                                 <SettingsIconButton
+                                    label={t('disableAction', { action: label(shortcut) })}
+                                    disabled={combo === null}
+                                    destructive
+                                    onClick={() => disable(shortcut.id)}
+                                 >
+                                    <X />
+                                 </SettingsIconButton>
+                                 <SettingsIconButton
+                                    label={t('reset', { action: label(shortcut) })}
+                                    disabled={!overridden}
+                                    onClick={() => reset(shortcut.id)}
+                                 >
+                                    <RotateCcw />
+                                 </SettingsIconButton>
+                              </span>
                            </div>
                         );
                      })}
-                  </div>
-               );
-            })}
-         </SettingsCard>
+                  </SettingsCard>
+               </SettingsSection>
+            );
+         })}
       </SettingsShell>
-   );
-}
-
-/**
- * Hairline between the two columns and between rows. A single column below
- * `sm` only separates rows, and the last row leaves the section divider to
- * the card.
- */
-function gridCellClass(index: number, count: number): string {
-   const lastRowStart = count - (count % 2 === 0 ? 2 : 1);
-   return cn(
-      'border-border/60',
-      index < count - 1 && 'max-sm:border-b',
-      index < lastRowStart && 'sm:border-b',
-      index % 2 === 0 && index + 1 < count && 'sm:border-r'
    );
 }
 

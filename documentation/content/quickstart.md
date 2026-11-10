@@ -1,10 +1,10 @@
 ## Prerequisites
-Use Node.js 22 with TypeScript stripping support, pnpm 10, and Python 3 for repository checks. Local development uses PGlite (`DATABASE_URL=pglite:./.berry` in `.env.example`). A host PostgreSQL 16 or later is optional. You need an S3 bucket or compatible object store for attachments and artifacts. Agent execution additionally needs a running agent runtime and model access.
+Use Node.js 22 with TypeScript stripping support, Bun 1.4, and Python 3 for repository checks. Local development uses PGlite (`DATABASE_URL=pglite:./.berry` in `.env.example`). A host PostgreSQL 16 or later is optional. You need an S3 bucket or compatible object store for attachments and artifacts. Agent execution additionally needs a running agent runtime and model access.
 
 ## Install the repository
 From the repository root, install dependencies and create configuration files only if they do not already exist:
 ```sh
-pnpm install
+bun install
 test -f .env || cp .env.example .env
 test -f frontend/.env.local || cp frontend/.env.example frontend/.env.local
 ```
@@ -12,21 +12,21 @@ The example `.env` uses PGlite. Set `DATABASE_URL` to a `postgres://` URL if you
 
 ## Prepare the database
 ```sh
-pnpm db:migrate
+bun run db:migrate
 ```
 For a new local development installation, you can also load the idempotent development seed:
 ```sh
-pnpm db:seed
+bun run db:seed
 ```
 Migrations are forward-only and checksum-verified. Back up an existing database before upgrading. The seed command is for development data.
 
 ## Start Berry
 Run each command in its own terminal:
 ```sh
-pnpm dev:server
+bun run dev:server
 ```
 ```sh
-pnpm dev:frontend
+bun run dev:frontend
 ```
 Or start both together in one terminal:
 ```sh

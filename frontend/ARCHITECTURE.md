@@ -11,7 +11,7 @@ server data calls a **client module** in `lib/` (never `fetch` directly), which
 goes through the one API seam `lib/api.ts`. Cross-render state lives in a
 **Zustand store** in `store/`, typed by the domain types in `data/` and filled from the API. Shared
 subscriptions and loaders are **hooks** in `hooks/`. There is no test runner —
-a change is verified with `pnpm lint`, `pnpm build:check`, and a look at the
+a change is verified with `bun run lint`, `bun run build:check`, and a look at the
 screen.
 
 ```
@@ -62,11 +62,12 @@ which rejects anything else.
 `components/layout/sidebar/nav-settings.tsx` groups settings pages into three
 sections: personal (preferences, notifications, shortcuts, security, tokens,
 connected-accounts), workspace (general, members, agents, **runtimes**,
-**organization**, labels, properties, quick actions), and connections
-(repositories, integrations, MCP, plugins). Runtimes and Organization are
-workspace-settings pages, not top-level rail items. A few settings pages
-exist but are intentionally absent from the nav (`profile`,
-`project-statuses`, `join-links`).
+**organization**, labels, properties, quick actions, logs), and connections
+(repositories, integrations, MCP). Runtimes and Organization are
+workspace-settings pages, not top-level rail items. Connect and Usage live
+on the Manage rail (`/integrations`, `/usage`); old Settings paths redirect
+there. A few settings pages exist but are intentionally absent from the nav
+(`profile`, `project-statuses`, `join-links`).
 
 ## Conventions worth knowing before you edit
 
@@ -91,7 +92,7 @@ exist but are intentionally absent from the nav (`profile`,
 - **Forms use `react-hook-form` + a Zod schema** (one schema per form). The
   frontend and server are both on **Zod 4**; see `lib/zod-resolver.ts` for the
   thin `zodResolver` seam used by forms.
-- **No test runner.** Verify with `pnpm lint` and `pnpm build:check` (which
+- **No test runner.** Verify with `bun run lint` and `bun run build:check` (which
   writes to a throwaway dist dir so it will not corrupt a running `next dev`),
   plus a manual check of the changed view.
 - Prefer existing `ui/` primitives and the semantic tokens in `globals.css`

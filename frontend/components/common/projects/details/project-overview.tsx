@@ -1,5 +1,6 @@
 'use client';
 
+import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { Button } from '@/components/ui/button';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
@@ -12,10 +13,12 @@ import { useComposerPalette } from '@/components/common/composer-palette';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { useSessionStore } from '@/store/session-store';
 import { cn } from '@/lib/utils';
-import { SendHorizonal } from 'lucide-react';
+import { Check, Copy, SendHorizonal } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { ProjectActivityFeedList } from './project-activity-section';
-import { ProjectGoalsSection } from './project-goals-section';
+import { ProjectGoalsSection } from './project-milestones-section';
 import { ProjectPlanSection } from './project-plan-section';
 import { ProjectTitle } from './project-title';
 import { ProjectPropertiesPanel } from './project-properties-panel';
@@ -34,8 +37,11 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);
    const { postUpdate } = useProjectUpdatesStore();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
+   const searchParams = useSearchParams();
+   const milestoneFilter = searchParams.get('milestone');
    const [draft, setDraft] = useState('');
    const [focused, setFocused] = useState(false);
+   const [copiedDescription, setCopiedDescription] = useState(false);
    const updateRef = useRef<HTMLTextAreaElement>(null);
    const palette = useComposerPalette({
       textareaRef: updateRef,
@@ -43,10 +49,12 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       onChange: setDraft,
       workspaceId,
    });
-   const issues = useMemo(
-      () => (project ? allIssues.filter((issue) => issue.project?.id === project.id) : []),
-      [allIssues, project]
-   );
+   const issues = useMemo(() => {
+      if (!project) return [];
+      const inProject = allIssues.filter((issue) => issue.project?.id === project.id);
+      if (!milestoneFilter) return inProject;
+      return inProject.filter((issue) => issue.milestone?.id === milestoneFilter);
+   }, [allIssues, project, milestoneFilter]);
 
    const submitComment = useCallback(() => {
       const text = draft.trim();
@@ -65,6 +73,21 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
 
    const description = project?.description ?? '';
 
+   const copyDescription = useCallback(() => {
+      const text = description.trim();
+      if (!text) {
+         toast.message('Nothing to copy');
+         return;
+      }
+      void navigator.clipboard.writeText(text).then(
+         () => {
+            setCopiedDescription(true);
+            window.setTimeout(() => setCopiedDescription(false), 1200);
+         },
+         () => toast.error('Could not copy description')
+      );
+   }, [description]);
+
    if (!project) {
       return <div className="p-6 text-muted-foreground">Loading project…</div>;
    }
@@ -78,30 +101,55 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto">
-               <div className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8">
+               <div
+                  className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8"
+                  data-detail-description
+                  data-detail-body
+               >
                   <ProjectTitle project={project} />
-                  <TiptapAiEditor
-                     value={description}
-                     onChange={() => undefined}
-                     onBlur={(markdown) => {
-                        if (markdown.trim() === description.trim()) return;
-                        updateProjectDescription(project.id, markdown);
-                     }}
-                     placeholder="Add description…"
-                     aria-label="Project description"
-                     className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin"
-                     aiAssist={false}
-                  />
+                  <CollapsibleDescription>
+                     <TiptapAiEditor
+                        value={description}
+                        onChange={() => undefined}
+                        onBlur={(markdown) => {
+                           if (markdown.trim() === description.trim()) return;
+                           updateProjectDescription(project.id, markdown);
+                        }}
+                        placeholder="Add description…"
+                        aria-label="Project description"
+                        className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold"
+                        aiAssist={false}
+                     />
+                  </CollapsibleDescription>
+                  <div className="-mt-0.5 flex justify-end">
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
+                        aria-label="Copy description"
+                        title="Copy description"
+                        disabled={!description.trim()}
+                        onClick={copyDescription}
+                     >
+                        {copiedDescription ? (
+                           <Check className="size-3.5" aria-hidden />
+                        ) : (
+                           <Copy className="size-3.5" aria-hidden />
+                        )}
+                     </Button>
+                  </div>
 
                   <div className="mt-4 [&>*:first-child]:mt-0">
                      <ProjectPlanSection projectId={projectId} />
                      <ProjectGoalsSection projectId={projectId} />
-                     <ProjectActivityFeedList projectId={projectId} />
                   </div>
 
                   <div className="mt-6 border-t border-border/60 pt-4 pb-2">
-                     <ProjectTasksSection issues={issues} />
+                     <ProjectTasksSection projectId={projectId} issues={issues} />
                   </div>
+
+                  <ProjectActivityFeedList projectId={projectId} />
                </div>
             </div>
 
@@ -169,7 +217,10 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
             </div>
          </div>
 
-         <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
+         <aside
+            data-detail-sidebar
+            className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex"
+         >
             <ProjectPropertiesPanel project={project} detail={detail} issues={issues} compact />
          </aside>
       </div>

@@ -38,6 +38,24 @@ export type Skill = z.infer<typeof skillSchema>;
 /** An agent carries a skill only when a binding says so and is switched on. */
 export const isSkillInUse = (skill: Skill): boolean => skill.agents.some((agent) => agent.enabled);
 
+/** The Orchestrator stays behind the scenes; its skill label does too. */
+export function isOrchestratorSkillLabel(label: string): boolean {
+   return label.trim().toLowerCase() === 'orchestrator';
+}
+
+/**
+ * Drop skills that only belong to the Orchestrator, and strip that label from
+ * skills that also sit under other roles.
+ */
+export function withoutOrchestratorSkills(skills: Skill[]): Skill[] {
+   return skills.flatMap((skill) => {
+      const labels = skill.labels.filter((label) => !isOrchestratorSkillLabel(label));
+      if (skill.labels.length > 0 && labels.length === 0) return [];
+      if (labels.length === skill.labels.length) return [skill];
+      return [{ ...skill, labels }];
+   });
+}
+
 export interface SkillFilters {
    q?: string;
    label?: string;

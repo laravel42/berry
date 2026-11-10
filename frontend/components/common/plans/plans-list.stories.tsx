@@ -12,7 +12,7 @@ function plan(overrides: Partial<PlanSummary> & Pick<PlanSummary, 'id' | 'title'
       status: 'draft',
       projectId: null,
       projectName: null,
-      goalId: null,
+      milestoneId: null,
       generation: { status: 'succeeded', error: null, stage: 'finalize' },
       validationStatus: 'valid',
       compileStatus: 'idle',

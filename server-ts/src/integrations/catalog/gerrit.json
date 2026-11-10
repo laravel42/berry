@@ -1,0 +1,40 @@
+{
+   "id": "gerrit",
+   "name": "Gerrit",
+   "description": "Self-hosted. Advanced code review workflows. Agents will check repositories out, branch and open changes for review there.",
+   "include": "access_token",
+   "scopes": [
+      "read",
+      "write"
+   ],
+   "tools": [
+      {
+         "name": "gerrit.read_repository",
+         "description": "Permission to read repository contents, if this connection grants it later.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gerrit.create_branch",
+         "description": "Permission to create a branch, if this connection grants it later.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gerrit.open_change",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gerrit.submit_change",
+         "description": "Permission to submit a change without a review, if this connection grants it later.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}

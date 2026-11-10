@@ -44,7 +44,7 @@ import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 
-/** Left click on a project row or card opens the same menu as a right click. */
+/** Left click on a project card opens the same menu as a right click. */
 export function openContextMenuOnClick(event: MouseEvent<HTMLElement>) {
    const target = event.target;
    if (!(target instanceof Element)) return;

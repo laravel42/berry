@@ -40,9 +40,10 @@ consume semantic state names rather than raw colors.
 | `ash` | `#A9A7AD` | Secondary text |
 | `slate` | `#76747B` | Tertiary labels |
 | `hairline` | `#2A2A2F` | Separators; never body text |
-| `berry` | `#C74A5E` | Brand mark and one filled primary action per view |
-| `berry-hover` | `#D55A6E` | Primary hover |
-| `primary-text` | `#E07A8B` | Berry as ink: links, selected chips. Fill stays `berry`. |
+| `berry` | `#B84355` | Brand mark |
+| `berry-hover` | `#C65062` | Berry hover |
+| `button-primary` | `#CDCDCD` | Filled primary button (`.btn-primary`); hover `#C2C2C2`, label `button-primary-foreground` `#222226` |
+| `primary-text` | `var(--berry)` / `#B84355` | Berry as ink (`.text-primary`). |
 | `amber` | `#E0A84A` | In review, waiting |
 | `verdant` | `#5FB08A` | Done, accepted |
 | `azure` | `#6EA0D8` | Agent activity |
@@ -101,12 +102,12 @@ The app ships one face, loaded in `app/layout.tsx`: JetBrains Mono (100-800).
 | Role | Current implementation | Guidance |
 | --- | --- | --- |
 | Interface | JetBrains Mono 400, 13 px / 1.45 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | JetBrains Mono 600 | Every `h1`–`h3` title and the `data-heading` stand-ins |
+| Display | JetBrains Mono 600, `h2` at 700 | Page titles and the `data-heading` stand-ins; section titles are 700 |
 | Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here |
 | Page title | `h1` = 17 px / 600 | Index and detail page names |
-| Section | `h2` = 15 px / 600 | Groups inside a page |
+| Section | `h2` = 15 px / 700 | Groups inside a page |
 | Callout | 12 px | Identifiers, timestamps |
-| Label | `data-heading="label"` = 11.5 px / 600 | "Properties", "Status": labels, not tracked caps |
+| Label | `data-heading="label"` on an `h2` = 11.5 px / 700 | "Properties", "Status": labels, not tracked caps |
 | Display size | `data-heading="display"` = 28 px / 600 | Page display titles |
 | Sidebar menu | `[data-slot='sidebar']` keeps the inherited scale | Already compacted; do not inherit the workspace scale |
 
@@ -118,14 +119,15 @@ with `data-heading="h1|h2|h3"`; `data-heading="display"` is the page display siz
 `data-heading="label"` is the section-label role. Only the wordmark sizes outside the scale,
 through `data-wordmark`.
 
-**Weight.** The body is 400. Titles are 600. Hierarchy otherwise comes from size
+**Weight.** The body is 400. Page titles are 600. Section titles (`h2`) are 700. Hierarchy otherwise comes from size
 and tone. `font-normal` resolves to 300 (`--font-weight-normal`); do not use it
 to "reset" page text.
 
 Form controls inherit `color` and `-webkit-text-fill-color` from `--foreground` in
-`globals.css`. Placeholders use `#6A6970`. Berry as ink uses `--primary-text`
-(`#E07A8B`). Filled primary actions stay `--primary` / `--brand-berry` with a
-white label; hover is `--primary-hover` (`#D55A6E`).
+`globals.css`. Placeholders use `#6A6970`. Berry as ink is `.text-primary`
+(`--berry`, `#B84355`). Filled primary buttons (`.btn-primary`) use
+`--button-primary` (`#CDCDCD`) with a `--button-primary-foreground` (`#222226`)
+label in both themes; hover is `--button-primary-hover` (`#C2C2C2`).
 
 Titles stay on JetBrains Mono. Write them as they should read; do not
 `text-transform: capitalize` headings — that rewrites identifiers (`BER-286`,

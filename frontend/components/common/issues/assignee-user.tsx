@@ -162,7 +162,7 @@ export function AssigneeUser({
                         ? t('assigned', { name: currentAssignee.name })
                         : t('unassigned')
                   }
-                  className="w-full min-w-0 justify-start gap-2 px-1.5"
+                  className="w-full min-w-0 justify-start gap-2 px-0"
                >
                   {currentAssignee ? (
                      <>
@@ -197,7 +197,7 @@ export function AssigneeUser({
                            <ActorAvatar user={currentAssignee} monogram={monogram} />
                            {currentAssignee.role !== 'Application' ? (
                               <span
-                                 className="border-background absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full border-2"
+                                 className="border-background absolute -end-0.5 -bottom-0.5 size-2 rounded-full border-2"
                                  style={{
                                     backgroundColor: statusUserColors[currentAssignee.status],
                                  }}

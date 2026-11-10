@@ -7,8 +7,8 @@ or a `postgres://` `BERRY_DESKTOP_DATABASE_URL` / checkout `DATABASE_URL`
 when you point it at host Postgres.
 
 ```bash
-pnpm dev:desktop          # starts API + `next dev` from this checkout
-pnpm package:desktop      # unpacked .app / dir with the server inside
+bun run dev:desktop          # starts API + `next dev` from this checkout
+bun run package:desktop      # unpacked .app / dir with the server inside
 ```
 
 `package` stages `resources/berry` (server sources and production

@@ -2,10 +2,19 @@
 
 import * as React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { DayPicker } from 'react-day-picker';
+import { DayPicker, type DayButtonProps } from 'react-day-picker';
 
 import { cn } from '@/lib/utils';
 import { buttonVariants } from '@/components/ui/button';
+
+/** Day cells are bare <button>s; pin type so they never submit a wrapping form. */
+function CalendarDayButton({ day: _day, modifiers, ...buttonProps }: DayButtonProps) {
+   const ref = React.useRef<HTMLButtonElement>(null);
+   React.useEffect(() => {
+      if (modifiers.focused) ref.current?.focus();
+   }, [modifiers.focused]);
+   return <button ref={ref} type="button" {...buttonProps} />;
+}
 
 function Calendar({
    className,
@@ -65,6 +74,7 @@ function Calendar({
                ) : (
                   <ChevronRight className={cn('size-4', className)} {...props} />
                ),
+            DayButton: CalendarDayButton,
          }}
          {...props}
       />

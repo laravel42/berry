@@ -1,114 +1,92 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
-import { deflateRawSync } from 'node:zlib';
 import { CATALOG } from '../organization/catalog.ts';
-import { skillsFromPack } from './skill-pack.ts';
+import { parseSkillMarkdown } from '../skills/frontmatter.ts';
+import { SKILLS_PER_ROLE, skillsFromFiles, SOFTWARE_PACK_SOURCE, WORK_PACK_SOURCE } from './skill-pack.ts';
+import { loadPackedSkills, loadSkillFolder, SOFTWARE_PACK, WORK_PACK } from './skills.ts';
 
-const PACK = join(dirname(fileURLToPath(import.meta.url)), 'data', 'berry-agentcore-deep-skills-100.zip');
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
-function zip(files: { name: string; data: string }[]): Buffer {
-   const locals: Buffer[] = [];
-   const centrals: Buffer[] = [];
-   let offset = 0;
-   for (const file of files) {
-      const raw = Buffer.from(file.data);
-      const body = deflateRawSync(raw);
-      const name = Buffer.from(file.name);
-      const local = Buffer.alloc(30);
-      local.writeUInt32LE(0x04034b50, 0);
-      local.writeUInt16LE(8, 8);
-      local.writeUInt32LE(body.length, 18);
-      local.writeUInt32LE(raw.length, 22);
-      local.writeUInt16LE(name.length, 26);
-      const central = Buffer.alloc(46);
-      central.writeUInt32LE(0x02014b50, 0);
-      central.writeUInt16LE(8, 10);
-      central.writeUInt32LE(body.length, 20);
-      central.writeUInt32LE(raw.length, 24);
-      central.writeUInt16LE(name.length, 28);
-      central.writeUInt32LE(offset, 42);
-      locals.push(local, name, body);
-      centrals.push(central, name);
-      offset += 30 + name.length + body.length;
-   }
-   const cd = Buffer.concat(centrals);
-   const end = Buffer.alloc(22);
-   end.writeUInt32LE(0x06054b50, 0);
-   end.writeUInt16LE(files.length, 8);
-   end.writeUInt16LE(files.length, 10);
-   end.writeUInt32LE(cd.length, 12);
-   end.writeUInt32LE(offset, 16);
-   return Buffer.concat([...locals, cd, end]);
-}
-
-test('the committed pack is 100 named skills with instructions', () => {
-   const skills = skillsFromPack(readFileSync(PACK));
-   assert.equal(skills.length, 100);
-   assert.equal(new Set(skills.map((skill) => skill.name)).size, 100);
+test('every committed skill is named, described and labelled with one role', () => {
+   const skills = loadPackedSkills();
    for (const skill of skills) {
       assert.match(skill.name, NAME);
-      assert.ok(skill.description.length > 0);
-      assert.ok(skill.description.length <= 1024);
-      assert.ok(skill.content.includes('# '));
+      assert.ok(skill.description.length > 0 && skill.description.length <= 1024);
+      assert.ok(skill.content.includes('# '), `${skill.name} has no heading`);
       assert.equal(skill.labels.length, 1);
    }
    const discovery = skills.find((skill) => skill.name === 'product-discovery');
    assert.equal(discovery?.description, 'Use for a new product/feature idea before solution commitment.');
    assert.equal(discovery?.labels[0], 'Product Lead');
-   assert.ok(discovery?.content.includes('When to use'));
+   assert.equal(discovery?.source, SOFTWARE_PACK_SOURCE);
 });
 
-test('every pack skill label matches a catalog role agent name', () => {
-   const skills = skillsFromPack(readFileSync(PACK));
-   const catalogNames = new Set(CATALOG.map((role) => role.name));
-   const packRoles = new Set(skills.map((skill) => skill.labels[0]!));
-   for (const role of packRoles) {
-      assert.ok(catalogNames.has(role), `pack role "${role}" has no catalog agent`);
+test('skill names are unique across every committed pack', () => {
+   const names = loadPackedSkills().map((skill) => skill.name);
+   assert.equal(new Set(names).size, names.length);
+});
+
+test('every catalogue role offers exactly eight skills, and every skill names a role', () => {
+   const perRole = new Map<string, number>();
+   for (const skill of loadPackedSkills()) {
+      perRole.set(skill.labels[0]!, (perRole.get(skill.labels[0]!) ?? 0) + 1);
    }
-   // The Orchestrator has no pack skills; capability seeding covers it.
-   assert.ok(catalogNames.has('Orchestrator'));
-   assert.equal(packRoles.has('Orchestrator'), false);
+   const roleNames = new Set(CATALOG.map((role) => role.name));
+   for (const label of perRole.keys()) assert.ok(roleNames.has(label), `pack role "${label}" has no catalog agent`);
+   for (const role of CATALOG) {
+      assert.equal(perRole.get(role.name) ?? 0, SKILLS_PER_ROLE, `${role.name} offers ${perRole.get(role.name) ?? 0} skills`);
+   }
 });
 
-test('a wrapped pack is split on the manifest, not treated as one skill', () => {
-   const skills = skillsFromPack(
-      zip([
-         {
-            name: 'pack/manifest.json',
-            data: JSON.stringify([
-               {
-                  name: 'alpha-skill',
-                  role: 'Backend Engineer',
-                  description: 'Use when writing alpha.',
-                  path: 'alpha-skill/SKILL.md',
-               },
-               {
-                  name: 'beta-skill',
-                  role: 'QA Engineer',
-                  description: 'Use when writing beta.',
-                  path: 'beta-skill/SKILL.md',
-               },
-            ]),
-         },
-         {
-            name: 'pack/alpha-skill/SKILL.md',
-            data: '---\nname: alpha-skill\n---\n\n# Alpha\n\nDo the alpha thing.\n',
-         },
-         {
-            name: 'pack/beta-skill/SKILL.md',
-            data: '---\nname: beta-skill\n---\n\n# Beta\n\nDo the beta thing.\n',
-         },
-      ])
-   );
+test('software roles and work roles come from their own packs', () => {
+   const software = loadSkillFolder(SOFTWARE_PACK, SOFTWARE_PACK_SOURCE);
+   const work = loadSkillFolder(WORK_PACK, WORK_PACK_SOURCE);
+   assert.ok(software.every((skill) => skill.source === SOFTWARE_PACK_SOURCE));
+   assert.ok(work.every((skill) => skill.source === WORK_PACK_SOURCE));
+   for (const skill of work) {
+      for (const section of ['## When to use', '## Deliverable', '## Steps', '## Stop and hand to a person when', '## Done when']) {
+         assert.ok(skill.content.includes(section), `${skill.name} has no "${section}"`);
+      }
+   }
+   for (const skill of software) {
+      for (const section of ['## When to use', '## Required deliverable', '### 2. Specialist checks', '## Escalation rules']) {
+         assert.ok(skill.content.includes(section), `${skill.name} has no "${section}"`);
+      }
+   }
+});
+
+test('each work skill file agrees with its manifest entry', () => {
+   const manifest = JSON.parse(readFileSync(join(WORK_PACK, 'manifest.json'), 'utf8')) as Array<{
+      name: string;
+      description: string;
+      path: string;
+   }>;
+   for (const entry of manifest) {
+      const parsed = parseSkillMarkdown(readFileSync(join(WORK_PACK, entry.path), 'utf8'));
+      assert.equal(parsed.name, entry.name);
+      assert.equal(parsed.description, entry.description);
+   }
+});
+
+test('a pack is split on its manifest, and a missing file is refused', () => {
+   const manifest = JSON.stringify([
+      { name: 'alpha-skill', role: 'Backend Engineer', description: 'Use when writing alpha.', path: 'alpha-skill/SKILL.md' },
+      { name: 'beta-skill', role: 'QA Engineer', description: 'Use when writing beta.', path: 'beta-skill/SKILL.md' },
+   ]);
+   const files = new Map([
+      ['manifest.json', manifest],
+      ['alpha-skill/SKILL.md', '---\nname: alpha-skill\n---\n\n# Alpha\n\nDo the alpha thing.\n'],
+      ['beta-skill/SKILL.md', '---\nname: beta-skill\n---\n\n# Beta\n\nDo the beta thing.\n'],
+   ]);
    assert.deepEqual(
-      skills.map((skill) => [skill.name, skill.labels[0], skill.content.includes('# Alpha')]),
+      skillsFromFiles(files, 'seed://test').map((skill) => [skill.name, skill.labels[0], skill.content.includes('# Alpha')]),
       [
          ['alpha-skill', 'Backend Engineer', true],
          ['beta-skill', 'QA Engineer', false],
       ]
    );
+   files.delete('beta-skill/SKILL.md');
+   assert.throws(() => skillsFromFiles(files, 'seed://test'), /beta-skill has no/);
 });

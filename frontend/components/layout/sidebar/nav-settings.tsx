@@ -9,7 +9,7 @@ import {
    ListChecks,
    LucideIcon,
    Plug,
-   Puzzle,
+   ScrollText,
    Server,
    Settings,
    Tag,
@@ -44,9 +44,9 @@ export type SettingsNavKey =
    | 'skillLabels'
    | 'properties'
    | 'quickActions'
+   | 'logs'
    | 'integrations'
-   | 'mcp'
-   | 'plugins';
+   | 'mcp';
 
 interface SettingsNavItem {
    /** Key under `workspaceAdmin.nav` in the message catalogues. */
@@ -96,6 +96,7 @@ export const settingsNav: SettingsNavGroup[] = [
          { labelKey: 'skillLabels', url: '/settings/skill-labels', icon: Tags },
          { labelKey: 'properties', url: '/settings/issue-properties', icon: ListChecks },
          { labelKey: 'quickActions', url: '/settings/quick-actions', icon: Zap },
+         { labelKey: 'logs', url: '/settings/logs', icon: ScrollText },
       ],
    },
    {
@@ -103,7 +104,6 @@ export const settingsNav: SettingsNavGroup[] = [
       items: [
          { labelKey: 'integrations', url: '/settings/integrations', icon: Blocks },
          { labelKey: 'mcp', url: '/settings/mcp', icon: Plug },
-         { labelKey: 'plugins', url: '/settings/plugins', icon: Puzzle },
       ],
    },
 ];

@@ -1,6 +1,7 @@
 'use client';
 
 import { CustomizeSidebarDialog } from '@/components/layout/sidebar/customize-sidebar-dialog';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { writeLocaleCookie } from '@/lib/i18n/client-locale';
@@ -19,14 +20,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { SaveIndicator } from './save-indicator';
-import {
-   SelectMenu,
-   SETTINGS_PILL,
-   SettingsCard,
-   SettingsRow,
-   SettingsSection,
-   SettingsShell,
-} from './shared';
+import { SelectMenu, SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
 import { useAutosave } from './use-autosave';
 import { useSettingsResource } from './use-settings-resource';
 
@@ -94,7 +88,7 @@ export default function Preferences() {
    };
 
    return (
-      <SettingsShell title={t('title')}>
+      <SettingsShell title={t('title')} description={t('description')}>
          <SettingsSection
             title={t('general')}
             description={settings.error ?? profile.error ?? undefined}
@@ -106,11 +100,12 @@ export default function Preferences() {
                      <span className="flex items-center gap-2">
                         <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
                         <Input
+                           variant="settings"
                            value={name.value ?? ''}
                            aria-label={t('name')}
                            disabled={profile.loading}
                            placeholder={t('namePlaceholder')}
-                           className="h-8 w-44"
+                           className="w-[220px]"
                            onChange={(event) => name.change(event.target.value)}
                            onBlur={() =>
                               (name.value ?? '').trim() === '' ? name.revert() : name.flush()
@@ -158,6 +153,7 @@ export default function Preferences() {
                   description={t5('stickyCommentBarDescription')}
                   trailing={
                      <Switch
+                        variant="settings"
                         checked={ui.stickyCommentBar}
                         onCheckedChange={ui.setStickyCommentBar}
                      />
@@ -171,9 +167,12 @@ export default function Preferences() {
                {CREATE_FIELDS.map((field) => (
                   <SettingsRow
                      key={field}
+                     compact
+                     className="min-h-12"
                      title={t5(`createField_${field}`)}
                      trailing={
                         <Switch
+                           variant="settings"
                            checked={ui.createFields[field]}
                            onCheckedChange={(shown) => ui.setCreateField(field, shown)}
                         />
@@ -189,13 +188,9 @@ export default function Preferences() {
                   title={t('sidebar')}
                   description={t('sidebarDescription')}
                   trailing={
-                     <button
-                        type="button"
-                        className={SETTINGS_PILL}
-                        onClick={() => setCustomizeOpen(true)}
-                     >
+                     <Button type="button" variant="soft" onClick={() => setCustomizeOpen(true)}>
                         {t('customize')}
-                     </button>
+                     </Button>
                   }
                />
                <SettingsRow
@@ -203,6 +198,7 @@ export default function Preferences() {
                   description={t('reduceMotionDescription')}
                   trailing={
                      <Switch
+                        variant="settings"
                         checked={settings.value?.reducedMotion ?? false}
                         disabled={settings.loading || settings.saving}
                         onCheckedChange={(reducedMotion) => change({ reducedMotion })}

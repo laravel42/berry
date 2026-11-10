@@ -4,7 +4,8 @@ import { currentUser } from '@/data/users';
 import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents } from '@/lib/agents';
 import { loadWorkspaceApprovals } from '@/lib/approvals';
-import { loadWorkspaceGoals } from '@/lib/goals';
+import { loadWorkspaceMilestones } from '@/lib/milestones';
+import { loadWorkspaceCycles } from '@/lib/cycles';
 import { loadWorkspaceLabels } from '@/lib/labels';
 import { loadWorkspaceInbox, loadInboxUnreadCount } from '@/lib/inbox';
 import { loadBoardIssues } from '@/lib/issues';
@@ -14,7 +15,8 @@ import { loadBoardRuns } from '@/lib/runs';
 import { loadWorkspaceViews } from '@/lib/views';
 import { useAgentsStore } from '@/store/agents-store';
 import { useApprovalsStore } from '@/store/approvals-store';
-import { useGoalsStore } from '@/store/goals-store';
+import { useMilestonesStore } from '@/store/milestones-store';
+import { useCyclesStore } from '@/store/cycles-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useLabelsStore } from '@/store/labels-store';
 import { useMembersStore } from '@/store/members-store';
@@ -41,7 +43,7 @@ let seededBoardRetry = -1;
 export function useHydrateWorkspaceData(): void {
    // The initial load below is a snapshot; these keep it current as agents
    // work: the board stream for tasks and runs, the workspace stream for
-   // goals, approvals and the inbox.
+   // milestones, approvals and the inbox.
    useBoardEventStream();
    useWorkspaceEventStream();
    // The open review queue feeds the rail's count and the task page's link to
@@ -63,7 +65,8 @@ export function useHydrateWorkspaceData(): void {
    const hydrateMembers = useMembersStore((state) => state.hydrateMembers);
    const hydrateLabels = useLabelsStore((state) => state.hydrateLabels);
    const hydrateViews = useViewsStore((state) => state.hydrateViews);
-   const hydrateGoals = useGoalsStore((state) => state.hydrateGoals);
+   const hydrateGoals = useMilestonesStore((state) => state.hydrateGoals);
+   const hydrateCycles = useCyclesStore((state) => state.hydrateCycles);
    const hydrateApprovals = useApprovalsStore((state) => state.hydrateApprovals);
 
    useEffect(() => {
@@ -142,8 +145,11 @@ export function useHydrateWorkspaceData(): void {
       void loadWorkspaceViews(workspaceId, viewer).then((views) => {
          if (!cancelled) hydrateViews(views);
       });
-      void loadWorkspaceGoals(workspaceId).then((goals) => {
-         if (!cancelled) hydrateGoals(goals);
+      void loadWorkspaceMilestones(workspaceId).then((milestones) => {
+         if (!cancelled) hydrateGoals(milestones);
+      });
+      void loadWorkspaceCycles(workspaceId).then((cycles) => {
+         if (!cancelled) hydrateCycles(cycles);
       });
       void loadWorkspaceApprovals(workspaceId).then((approvals) => {
          if (!cancelled) hydrateApprovals(approvals);
@@ -163,6 +169,7 @@ export function useHydrateWorkspaceData(): void {
       hydrateLabels,
       hydrateViews,
       hydrateGoals,
+      hydrateCycles,
       hydrateApprovals,
    ]);
 }

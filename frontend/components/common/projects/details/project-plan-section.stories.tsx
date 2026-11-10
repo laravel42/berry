@@ -11,7 +11,7 @@ function plan(overrides: Partial<PlanSummary> & Pick<PlanSummary, 'id' | 'title'
       status: 'approved',
       projectId: projectHealth.id,
       projectName: projectHealth.name,
-      goalId: null,
+      milestoneId: null,
       generation: { status: 'succeeded', error: null, stage: 'finalize' },
       validationStatus: 'valid',
       compileStatus: 'succeeded',

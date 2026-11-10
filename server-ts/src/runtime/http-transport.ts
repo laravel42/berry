@@ -7,15 +7,30 @@ import { guardIdle, RunNotResumable, RuntimeUnavailable, STREAM_IDLE_MS, type Ru
 
 const SESSION_HEADER = 'x-amzn-bedrock-agentcore-runtime-session-id';
 
-/** OAuth-bearing requests need TLS unless they never leave this host. */
+/**
+ * OAuth-bearing requests need TLS unless they never leave a private network.
+ *
+ * Plain HTTP is accepted for loopback, for a single-label host name (a
+ * container on the same Docker network, such as the self-hosted stack's
+ * `sessions`), and for private IPv4 ranges (10/8, 172.16/12, 192.168/16).
+ * A dotted name or a public address can cross the internet, so it needs HTTPS.
+ * The shared runtime bearer token already travels on this same hop.
+ */
 export function credentialSafeRuntimeUrl(raw: string | null): boolean {
    if (!raw) return false;
    try {
       const url = new URL(raw);
       if (url.protocol === 'https:') return true;
       if (url.protocol !== 'http:') return false;
-      const host = url.hostname.toLowerCase();
-      return host === 'localhost' || host === '::1' || host.startsWith('127.');
+      const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+      if (host === 'localhost' || host === '::1' || host.startsWith('127.')) return true;
+      const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+      if (ipv4) {
+         const a = Number(ipv4[1]);
+         const b = Number(ipv4[2]);
+         return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+      }
+      return !host.includes('.') && !host.includes(':');
    } catch {
       return false;
    }

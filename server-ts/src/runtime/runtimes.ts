@@ -12,7 +12,7 @@ export interface RuntimeView {
    id: string;
    name: string;
    kind: 'platform' | 'custom';
-   driver: 'agentcore' | 'http';
+   driver: 'agentcore' | 'microvm' | 'http';
    arn: string | null;
    endpointUrl: string | null;
    qualifier: string;
@@ -338,9 +338,12 @@ export class RuntimeRepository {
       if (rows.length === 0) throw new RuntimeNotFound();
    }
 
-   /** What a row points at. A platform row names the deployment's own runtime. */
-   target(view: RuntimeView, fallback: RuntimeTarget | null): RuntimeTarget | null {
-      if (view.kind === 'platform') return fallback ? { ...fallback, id: view.id } : null;
+   /** What a row points at. A platform row names one of the deployment's own hosts. */
+   target(view: RuntimeView, hosts: RuntimeHosts): RuntimeTarget | null {
+      if (view.kind === 'platform') {
+         const host = hostFor(hosts, view.driver) ?? hosts.default;
+         return host ? { ...host, id: view.id } : null;
+      }
       return {
          id: view.id,
          driver: view.driver,
@@ -353,46 +356,116 @@ export class RuntimeRepository {
 }
 
 /**
- * One platform runtime row per workspace, naming the deployment's own runtime.
- * Idempotent; run at boot. The row carries no target of its own — it resolves
- * to the configured default — and a workspace created after boot simply has
- * none until the next boot, while its tasks use the default target anyway.
+ * The hosts this deployment runs tasks on: the local session router
+ * (`http`), an AgentCore Runtime (`agentcore`), Lambda MicroVMs (`microvm`).
+ * Any of them may be configured at once; `default` is where an agent bound to
+ * nothing runs.
+ */
+export interface RuntimeHosts {
+   default: RuntimeTarget | null;
+   /** Every configured host, most preferred first. */
+   all: RuntimeTarget[];
+}
+
+/** A deployment with one host, or none. */
+export function singleHost(target: RuntimeTarget | null): RuntimeHosts {
+   return { default: target, all: target ? [target] : [] };
+}
+
+export function hostFor(hosts: RuntimeHosts, driver: RuntimeTarget['driver']): RuntimeTarget | null {
+   return hosts.all.find((host) => host.driver === driver) ?? null;
+}
+
+/** What each host is called where an agent is bound to it. */
+export const PLATFORM_RUNTIME_NAMES: Record<RuntimeTarget['driver'], string> = {
+   http: 'Local Docker',
+   agentcore: 'AWS AgentCore',
+   microvm: 'Lambda MicroVMs',
+};
+
+/**
+ * One platform runtime row per configured host, per workspace, so an agent
+ * can be bound to the host it should run on. Idempotent; run at boot and when
+ * a workspace is created. A row names no target of its own: it resolves to
+ * its host as the server is configured.
  *
- * Existing rows follow the configuration too: a deployment moved from the
- * local `http` runtime to AgentCore would otherwise keep listing, and probing,
- * its platform runtime under the driver it had when the row was first written.
+ * A row whose host is no longer configured is turned into a configured host
+ * that has none yet, so its agents, profiles and status (a disabled row stays
+ * disabled) carry over. That is how a deployment moved from the local runtime
+ * to AgentCore keeps its bindings. Any row left over is removed; its agents
+ * fall back to the workspace default. The default is kept on a row that still
+ * exists, else put on the default host's row.
  *
- * `scope.workspaceId` limits it to one workspace — for a workspace created
- * after boot, and for tests that share a database. Two servers booting at once
- * may race to insert the same row; the loser's insert is a no-op, not an error.
+ * `scope.workspaceId` limits it to one workspace, for a workspace created
+ * after boot and for tests that share a database. Two servers booting at once
+ * may race to insert the same row; the loser's insert is a no-op.
  */
 export async function syncPlatformRuntime(
    sql: Sql,
-   target: RuntimeTarget | null,
+   hosts: RuntimeHosts,
    scope: { workspaceId?: string } = {}
 ): Promise<void> {
-   if (!target) return;
-   const onlyRow = scope.workspaceId ? sql`AND workspace_id = ${scope.workspaceId}` : sql``;
-   const onlyWorkspace = scope.workspaceId ? sql`AND w.id = ${scope.workspaceId}` : sql``;
-   await sql`
-      UPDATE agent_runtimes
-         SET name = 'Default', updated_at = now()
-       WHERE kind = 'platform' AND name = 'Berry platform' ${onlyRow}`;
-   await sql`
-      UPDATE agent_runtimes
-         SET driver = ${target.driver}, qualifier = ${target.qualifier}, region = ${target.region},
-             last_health_at = NULL, last_health_error = NULL,
-             status = CASE WHEN status = 'disabled' THEN status ELSE 'active' END,
-             updated_at = now()
-       WHERE kind = 'platform' ${onlyRow}
-         AND (driver <> ${target.driver} OR qualifier <> ${target.qualifier}
-              OR region IS DISTINCT FROM ${target.region})`;
-   await sql`
-      INSERT INTO agent_runtimes (workspace_id, name, kind, driver, qualifier, region, is_default)
-      SELECT w.id, 'Default', 'platform', ${target.driver}, ${target.qualifier}, ${target.region},
-             NOT EXISTS (SELECT 1 FROM agent_runtimes d WHERE d.workspace_id = w.id AND d.is_default)
-        FROM workspaces AS w
-       WHERE NOT EXISTS (SELECT 1 FROM agent_runtimes p WHERE p.workspace_id = w.id AND p.kind = 'platform')
-             ${onlyWorkspace}
-      ON CONFLICT DO NOTHING`;
+   if (hosts.all.length === 0) return;
+   const configured = new Set(hosts.all.map((host) => host.driver));
+   const workspaces = scope.workspaceId
+      ? [{ id: scope.workspaceId }]
+      : await sql<{ id: string }[]>`SELECT id FROM workspaces`;
+   for (const { id: workspaceId } of workspaces) {
+      await sql.begin(async (transaction) => {
+         const tx = transaction as unknown as Sql;
+         const rows = await tx<{ id: string; driver: RuntimeTarget['driver'] }[]>`
+            SELECT id, driver FROM agent_runtimes
+             WHERE workspace_id = ${workspaceId} AND kind = 'platform'
+             ORDER BY is_default DESC, created_at ASC
+             FOR UPDATE`;
+         const spare = rows.filter((row) => !configured.has(row.driver));
+         for (const host of hosts.all) {
+            const name = PLATFORM_RUNTIME_NAMES[host.driver];
+            const own = rows.find((row) => row.driver === host.driver);
+            if (own) {
+               await tx`
+                  UPDATE agent_runtimes
+                     SET name = ${name}, qualifier = ${host.qualifier}, region = ${host.region},
+                         last_health_at = CASE WHEN qualifier = ${host.qualifier}
+                                                AND region IS NOT DISTINCT FROM ${host.region}
+                                               THEN last_health_at END,
+                         last_health_error = CASE WHEN qualifier = ${host.qualifier}
+                                                   AND region IS NOT DISTINCT FROM ${host.region}
+                                                  THEN last_health_error END,
+                         updated_at = now()
+                   WHERE id = ${own.id}
+                     AND (name <> ${name} OR qualifier <> ${host.qualifier}
+                          OR region IS DISTINCT FROM ${host.region})`;
+               continue;
+            }
+            const reused = spare.shift();
+            if (reused) {
+               // The old probe was of a different host; it says nothing about this one.
+               await tx`
+                  UPDATE agent_runtimes
+                     SET driver = ${host.driver}, name = ${name}, qualifier = ${host.qualifier},
+                         region = ${host.region}, last_health_at = NULL, last_health_error = NULL,
+                         status = CASE WHEN status = 'disabled' THEN status ELSE 'active' END,
+                         updated_at = now()
+                   WHERE id = ${reused.id}`;
+               continue;
+            }
+            await tx`
+               INSERT INTO agent_runtimes (workspace_id, name, kind, driver, qualifier, region, is_default)
+               VALUES (${workspaceId}, ${name}, 'platform', ${host.driver}, ${host.qualifier}, ${host.region}, false)
+               ON CONFLICT DO NOTHING`;
+         }
+         if (spare.length > 0) {
+            await tx`DELETE FROM agent_runtimes WHERE id IN ${tx(spare.map((row) => row.id))}`;
+         }
+         if (hosts.default) {
+            await tx`
+               UPDATE agent_runtimes SET is_default = true, updated_at = now()
+                WHERE workspace_id = ${workspaceId} AND kind = 'platform' AND driver = ${hosts.default.driver}
+                  AND NOT EXISTS (
+                     SELECT 1 FROM agent_runtimes d WHERE d.workspace_id = ${workspaceId} AND d.is_default
+                  )`;
+         }
+      });
+   }
 }

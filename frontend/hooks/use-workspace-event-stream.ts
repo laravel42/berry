@@ -3,13 +3,15 @@
 import { BerryApiError } from '@/lib/api';
 import { currentUser } from '@/data/users';
 import { loadWorkspaceApprovals } from '@/lib/approvals';
+import { loadWorkspaceCycles } from '@/lib/cycles';
 import { publishWorkspaceEvent, streamWorkspaceEvents, type EventEnvelope } from '@/lib/events';
-import { loadWorkspaceGoals } from '@/lib/goals';
+import { loadWorkspaceMilestones } from '@/lib/milestones';
 import { loadInboxUnreadCount, loadWorkspaceInbox } from '@/lib/inbox';
 import { loadWorkspaceProjects } from '@/lib/projects';
 import { useApprovalsStore } from '@/store/approvals-store';
+import { useCyclesStore } from '@/store/cycles-store';
 import { useEventStreamStore } from '@/store/event-stream-store';
-import { useGoalsStore } from '@/store/goals-store';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
@@ -22,21 +24,23 @@ const REFRESH_DEBOUNCE_MS = 400;
 const RECONNECT_MIN_MS = 3000;
 const RECONNECT_MAX_MS = 30_000;
 
-type Family = 'goals' | 'approvals' | 'inbox' | 'projects';
+type Family = 'milestones' | 'cycles' | 'approvals' | 'inbox' | 'projects';
 
 /** Which stores a frame makes stale. Events are invalidation signals only. */
 function familiesFor(event: EventEnvelope): Family[] {
    const type = event.type;
-   if (type.startsWith('goal.')) return ['goals'];
+   if (type.startsWith('milestone.') || type.startsWith('goal.')) return ['milestones'];
    if (type.startsWith('project.')) return ['projects'];
-   if (type.startsWith('approval.')) return ['approvals', 'goals', 'inbox'];
-   if (type.startsWith('plan.')) return ['inbox', 'goals'];
-   if (type.startsWith('issue.')) return ['goals'];
+   if (type.startsWith('cycle.')) return ['cycles'];
+   if (type.startsWith('approval.')) return ['approvals', 'milestones', 'inbox'];
+   if (type.startsWith('plan.')) return ['inbox', 'milestones'];
+   // A task done, filed or deleted moves its milestone's and its cycle's progress.
+   if (type.startsWith('issue.')) return ['milestones', 'cycles'];
    return [];
 }
 
 /**
- * Keeps goals, projects, approvals and the inbox live.
+ * Keeps milestones, cycles, projects, approvals and the inbox live.
  *
  * One connection per page over `GET /api/v1/events?workspaceId=`; every
  * frame is fanned out to in-page subscribers (a plan page refetches its
@@ -48,8 +52,9 @@ export function useWorkspaceEventStream(): void {
    const status = useSessionStore((state) => state.status);
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const user = useSessionStore((state) => state.user);
-   const hydrateGoals = useGoalsStore((state) => state.hydrateGoals);
+   const hydrateGoals = useMilestonesStore((state) => state.hydrateGoals);
    const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
+   const hydrateCycles = useCyclesStore((state) => state.hydrateCycles);
    const hydrateApprovals = useApprovalsStore((state) => state.hydrateApprovals);
    const hydrateNotifications = useNotificationsStore((state) => state.hydrateNotifications);
    const setServerUnreadCount = useNotificationsStore((state) => state.setServerUnreadCount);
@@ -71,9 +76,14 @@ export function useWorkspaceEventStream(): void {
       const refresh = () => {
          const families = Array.from(pending);
          pending.clear();
-         if (families.includes('goals')) {
-            void loadWorkspaceGoals(workspaceId).then((goals) => {
-               if (!cancelled) hydrateGoals(goals);
+         if (families.includes('milestones')) {
+            void loadWorkspaceMilestones(workspaceId).then((milestones) => {
+               if (!cancelled) hydrateGoals(milestones);
+            });
+         }
+         if (families.includes('cycles')) {
+            void loadWorkspaceCycles(workspaceId).then((cycles) => {
+               if (!cancelled) hydrateCycles(cycles);
             });
          }
          if (families.includes('projects')) {
@@ -130,7 +140,7 @@ export function useWorkspaceEventStream(): void {
          if (cancelled) return;
          setConnected(false);
          // Whatever happened while the stream was down is not in the stores.
-         scheduleRefresh(['goals', 'approvals', 'inbox', 'projects']);
+         scheduleRefresh(['milestones', 'cycles', 'approvals', 'inbox', 'projects']);
          reconnectTimer = setTimeout(() => {
             if (!cancelled) void consume();
          }, reconnectDelay);
@@ -152,6 +162,7 @@ export function useWorkspaceEventStream(): void {
       user,
       hydrateGoals,
       hydrateProjects,
+      hydrateCycles,
       hydrateApprovals,
       hydrateNotifications,
       setServerUnreadCount,

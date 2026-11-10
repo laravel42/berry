@@ -32,8 +32,8 @@ project did not already say.
   read as an empty plan and exhausted the repair loop.
 - **Compile.** One goal per milestone, in the plan's project. The goal minted
   when the plan opened becomes the first milestone, retitled, so no empty goal
-  is left beside the real ones and `plans.goal_id` keeps pointing at a goal
-  with tasks. `compile.goalIds` lists them in delivery order, first the plan's
+  is left beside the real ones and `plans.milestone_id` keeps pointing at a goal
+  with tasks. `compile.milestoneIds` lists them in delivery order, first the plan's
   own goal. No migration.
 - **Frontend.** The preview groups work under milestone headings, counts say
   "N milestones" when there is more than one, and the schemas accept the new

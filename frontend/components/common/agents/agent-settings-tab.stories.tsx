@@ -57,7 +57,7 @@ export const Gateway: Story = {
       msw.use(...gatewayHandlers);
    },
    play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('radio', { name: /BerryLow/ }));
+      await userEvent.click(await canvas.findByRole('radio', { name: /^Low/ }));
       await waitFor(() => expect(args.onDirtyChange).toHaveBeenLastCalledWith(true));
    },
 };

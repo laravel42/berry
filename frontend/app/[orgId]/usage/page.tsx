@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useState } from 'react';
 
+import { PageKpiHeader } from '@/components/common/page/page-parts';
 import UsageFilters from '@/components/common/usage/usage-filters';
 import UsageSpend from '@/components/common/usage/usage-spend';
 import UsageWork from '@/components/common/usage/usage-work';
@@ -22,7 +23,8 @@ import type { UsageQuery } from '@/lib/usage';
  * (what waits on a person, what is in flight) and whose Runs tab led with
  * failed runs. Most failure causes are Berry's to fix, not the reader's, and a
  * retried run still ends in a finished task; Work counts those, and names only
- * the two causes a person can act on. The `/dashboard` route redirects here.
+ * the two causes a person can act on. `/dashboard` and `/settings/usage`
+ * redirect here.
  */
 const TABS = ['spend', 'work'] as const;
 type Tab = (typeof TABS)[number];
@@ -70,8 +72,9 @@ function UsageScreen() {
    };
 
    const header = (
-      <div className="flex w-full flex-col items-center">
-         <div className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px]">
+      <>
+         <PageKpiHeader label={t('title')} />
+         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
             <Tabs value={tab} onValueChange={(value) => open(value as Tab)}>
                <TabsList aria-label={t('tabs.label')}>
                   {TABS.map((name) => (
@@ -90,11 +93,11 @@ function UsageScreen() {
                onRefresh={state.reload}
             />
          </div>
-      </div>
+      </>
    );
 
    return (
-      <MainLayout header={header} headersNumber={1}>
+      <MainLayout header={header}>
          {tab === 'spend' ? <UsageSpend query={query} onState={onState} /> : null}
          {tab === 'work' ? <UsageWork query={query} onState={onState} /> : null}
       </MainLayout>

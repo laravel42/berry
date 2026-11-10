@@ -20,6 +20,13 @@ import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { IssueContextMenu } from './issue-context-menu';
 import { WORKSPACE_SLUG } from '@/lib/config';
+import { useCyclesStore } from '@/store/cycles-store';
+
+function CycleBadge({ cycleId }: { cycleId: string }) {
+   const name = useCyclesStore((state) => state.getCycleById(cycleId)?.name);
+   if (!name) return null;
+   return <span className="hidden shrink-0 text-muted-foreground sm:inline-block">{name}</span>;
+}
 
 interface IssueLineProps {
    issue: Issue;
@@ -131,6 +138,9 @@ function IssueLineView({
                         {format(new Date(issue.createdAt), 'MMM dd')}
                      </span>
                   )}
+                  {displayProperties.cycle && issue.cycleId ? (
+                     <CycleBadge cycleId={issue.cycleId} />
+                  ) : null}
                   {displayProperties.assignee && (
                      <span className={cn('flex max-w-[14rem] min-w-0 items-center', CONTROL)}>
                         <AssigneeUser

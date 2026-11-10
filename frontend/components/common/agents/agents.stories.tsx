@@ -26,7 +26,7 @@ const meta = {
          filters: [],
          query: '',
          selected: [],
-         columns: ['activity', 'lastActive', 'model'],
+         columns: ['activity', 'lastActive'],
       });
    },
    decorators: [
@@ -66,6 +66,7 @@ export const BulkSelection: Story = {
       await userEvent.click(canvas.getByRole('checkbox', { name: 'Select every agent' }));
       await expect(canvas.getByText('4 selected')).toBeVisible();
       await expect(canvas.getByRole('button', { name: 'Set access' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Set runtime' })).toBeVisible();
    },
 };
 
@@ -97,7 +98,7 @@ export const ByName: Story = {
       useAgentsListStore.setState({
          sortKey: 'name',
          sortDescending: false,
-         columns: ['activity', 'model', 'access'],
+         columns: ['activity', 'access'],
       });
    },
 };

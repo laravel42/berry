@@ -19,12 +19,13 @@ import {
    describePatchFailure,
    listIssueDependencies,
    removeIssueDependency,
-   setIssueGoal,
+   setIssueMilestone,
    type IssueDependencyLists,
 } from '@/lib/issues';
-import { useGoalsStore } from '@/store/goals-store';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { BerryMark } from '@/components/brand/berry-mark';
+import { useShortcut } from '@/components/layout/shortcut-provider';
 import { Ban, CheckIcon, Plus, Target, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -37,32 +38,51 @@ function useOrgId(): string {
    return params?.orgId || WORKSPACE_SLUG;
 }
 
-/** The goal a task serves, with a picker to change or clear it. */
-export function IssueGoalSection({ issue }: { issue: Issue }) {
+/** The project stage a task serves, with a picker to change or clear it. */
+export function IssueMilestoneSection({ issue }: { issue: Issue }) {
    const orgId = useOrgId();
-   const goals = useGoalsStore((state) => state.goals);
+   const milestones = useMilestonesStore((state) => state.milestones);
+   const goalsLoaded = useMilestonesStore((state) => state.loaded);
    const updateIssue = useIssuesStore((state) => state.updateIssue);
    const [open, setOpen] = useState(false);
    const [busy, setBusy] = useState(false);
-   const current = issue.goal ?? null;
-   const known = current ? goals.find((goal) => goal.id === current.id) : undefined;
+   const linked = issue.milestone ?? null;
+   const projectId = issue.project?.id;
+   const projectMilestones = milestones.filter(
+      (milestone) => projectId != null && milestone.projectId === projectId
+   );
+   const known = linked ? milestones.find((milestone) => milestone.id === linked.id) : undefined;
+   // Archive leaves the task's stored link; the milestones list no longer has the
+   // row. Once that list has loaded, a missing stage is gone — do not list it.
+   const current = !goalsLoaded ? linked : known ? { id: known.id, title: known.title } : null;
 
-   const choose = async (goalId: string | null) => {
+   useShortcut('issue.assignMilestone', () => setOpen(true), {
+      enabled: Boolean(projectId),
+   });
+
+   const choose = async (milestoneId: string | null) => {
       setOpen(false);
-      if ((goalId ?? null) === (current?.id ?? null)) return;
-      const next = goalId ? goals.find((goal) => goal.id === goalId) : undefined;
-      const previous = issue.goal;
-      updateIssue(issue.id, { goal: next ? { id: next.id, title: next.title } : null });
+      if ((milestoneId ?? null) === (current?.id ?? null)) return;
+      const next = milestoneId
+         ? projectMilestones.find((milestone) => milestone.id === milestoneId)
+         : undefined;
+      const previous = issue.milestone;
+      updateIssue(issue.id, { milestone: next ? { id: next.id, title: next.title } : null });
       setBusy(true);
       try {
-         await setIssueGoal(issue.id, goalId);
+         await setIssueMilestone(issue.id, milestoneId);
       } catch (error) {
-         updateIssue(issue.id, { goal: previous });
+         updateIssue(issue.id, { milestone: previous });
          toast.error(describePatchFailure(error));
       } finally {
          setBusy(false);
       }
    };
+
+   const href =
+      current && projectId
+         ? `/${orgId}/project/${projectId}/overview?milestone=${current.id}`
+         : null;
 
    const picker = (
       <Popover open={open} onOpenChange={setOpen}>
@@ -71,36 +91,44 @@ export function IssueGoalSection({ issue }: { issue: Issue }) {
                variant="ghost"
                size="icon"
                className="size-6"
-               disabled={busy}
-               aria-label={current ? 'Change goal' : 'Link a goal'}
+               disabled={busy || !projectId}
+               aria-label={current ? 'Change milestone' : 'Link a milestone'}
             >
                <Plus className="size-3.5" />
             </Button>
          </PopoverTrigger>
          <PopoverContent className="w-72 p-0" align="end">
             <Command>
-               <CommandInput placeholder="Search goals…" />
+               <CommandInput placeholder="Search milestones…" />
                <CommandList>
-                  <CommandEmpty>No goal matches.</CommandEmpty>
+                  <CommandEmpty>
+                     {projectId ? 'No milestone matches.' : 'Link the task to a project first.'}
+                  </CommandEmpty>
                   <CommandGroup>
                      {current && (
                         <CommandItem value="__none__" onSelect={() => void choose(null)}>
                            <X className="size-3.5 text-muted-foreground" />
-                           No goal
+                           No milestone
                         </CommandItem>
                      )}
-                     {goals.map((goal) => {
-                        const look = statusLook(GOAL_STATUS, goal.status);
+                     {projectMilestones.map((milestone) => {
+                        const look = statusLook(GOAL_STATUS, milestone.status);
+                        const percent = milestone.progress?.percent;
                         return (
                            <CommandItem
-                              key={goal.id}
-                              value={`${goal.title} ${goal.id}`}
-                              onSelect={() => void choose(goal.id)}
+                              key={milestone.id}
+                              value={`${milestone.title} ${milestone.id}`}
+                              onSelect={() => void choose(milestone.id)}
                               className="flex items-center gap-2"
                            >
                               <BerryMark size="sm" tone={look.tone} state={look.state} />
-                              <span className="min-w-0 flex-1 truncate">{goal.title}</span>
-                              {current?.id === goal.id && <CheckIcon className="size-4" />}
+                              <span className="min-w-0 flex-1 truncate">{milestone.title}</span>
+                              {percent != null ? (
+                                 <span className="tabular-nums text-muted-foreground">
+                                    {percent}%
+                                 </span>
+                              ) : null}
+                              {current?.id === milestone.id && <CheckIcon className="size-4" />}
                            </CommandItem>
                         );
                      })}
@@ -112,10 +140,10 @@ export function IssueGoalSection({ issue }: { issue: Issue }) {
    );
 
    return (
-      <Section title="Goal" action={picker}>
-         {current ? (
+      <Section title="Milestone" action={picker}>
+         {current && href ? (
             <Link
-               href={`/${orgId}/goal/${current.id}/overview`}
+               href={href}
                className="-mx-1.5 flex min-w-0 items-center gap-2 rounded px-1.5 py-1 hover:bg-sidebar/50"
             >
                {known ? (
@@ -128,9 +156,16 @@ export function IssueGoalSection({ issue }: { issue: Issue }) {
                   <Target className="size-3.5 shrink-0 text-muted-foreground" />
                )}
                <span className="truncate">{known?.title ?? current.title}</span>
+               {known?.progress?.percent != null ? (
+                  <span className="ml-auto tabular-nums text-muted-foreground">
+                     {known.progress.percent}%
+                  </span>
+               ) : null}
             </Link>
          ) : (
-            <p className="text-muted-foreground">Serves no goal.</p>
+            <p className="text-muted-foreground">
+               {projectId ? 'Serves no milestone.' : 'Link a project to assign a milestone.'}
+            </p>
          )}
       </Section>
    );

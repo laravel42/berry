@@ -274,6 +274,7 @@ export const queuedTasks: ChatTask[] = [
 
 /** Everything the chat page and floating window read on open. */
 export const chatHandlers = [
+   http.get('*/api/v1/config', () => HttpResponse.json({ capabilities: { voiceAgents: true } })),
    http.get('*/api/v1/agents', () =>
       HttpResponse.json({ nodes: chatAgents, pageInfo: { hasNextPage: false, endCursor: null } })
    ),

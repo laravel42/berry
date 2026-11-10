@@ -6,7 +6,7 @@ Berry is a self-hosted, multi-workspace issue tracker whose assignees can be peo
 
 **Read [AGENTS.md](AGENTS.md) first.** It is the authoritative short guide: hard boundaries, schema gotchas, domain rules, commit conventions. It links to the doc that matches the work (`docs/coding-playbook.md`, `docs/api/gateway-v1.md`, `docs/adr/`, `server-ts/SCOPE.md`, `server-ts/ROUTING.md`, `server-ts/ARCHITECTURE.md`, `frontend/ARCHITECTURE.md`). This file only adds what you need to get oriented quickly.
 
-## Workspaces (pnpm, three packages, no shared toolchain)
+## Workspaces (Bun, three packages, no shared toolchain)
 
 | | `server-ts/` (`@berry/server`) | `frontend/` (`berry-frontend`) | `packages/plugin-sdk/` (`@berry/plugin-sdk`) |
 | --- | --- | --- | --- |
@@ -16,32 +16,34 @@ Berry is a self-hosted, multi-workspace issue tracker whose assignees can be peo
 | Tests | `node --test` | none — lint + build | `node --test` |
 | Zod | v4 | **v4** | — |
 
+Bun 1.4.4 is the package manager (`bun install`, `bun run`; settings in `bunfig.toml` and the root `package.json`); Node still runs the server, Next and the tests. `server-ts` also keeps its own `bun.lock` for the Docker images and the desktop bundle: after changing its dependencies, run `bun run lock:server`.
+
 Never run one workspace's formatter or linter over another. The server enables `erasableSyntaxOnly`, `verbatimModuleSyntax` and `noUncheckedIndexedAccess`. That rules out enums, namespaces and parameter properties, and requires `import type` for type-only imports.
 
 ## Commands (from repo root unless noted)
 
 ```bash
-cp .env.example .env && pnpm install   # local default is PGlite (`pglite:./.berry`)
+cp .env.example .env && bun install   # local default is PGlite (`pglite:./.berry`)
 
-pnpm typecheck:server
-pnpm test:server                 # DB tests self-skip without BERRY_TEST_DATABASE_URL
-pnpm dev:server                  # node --watch, reads ../.env
-pnpm db:migrate                  # needs DATABASE_URL
-pnpm db:seed                     # idempotent dev dataset
-pnpm db:reset                    # development/test database reset
+bun run typecheck:server
+bun run test:server                 # DB tests self-skip without BERRY_TEST_DATABASE_URL
+bun run dev:server                  # node --watch, reads ../.env
+bun run db:migrate                  # needs DATABASE_URL
+bun run db:seed                     # idempotent dev dataset
+bun run db:reset                    # development/test database reset
 
 # single server test file / single test
 cd server-ts && node --test --experimental-strip-types src/runs/dispatcher.test.ts
 cd server-ts && node --test --experimental-strip-types --test-name-pattern='lease' src/runs/dispatcher.test.ts
 
-pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+bun run test:plugin-sdk && bun run typecheck:plugin-sdk
 
-pnpm dev:frontend
-cd frontend && pnpm lint && pnpm build:check   # build:check writes .next-verify; plain `build` corrupts a running `next dev`
+bun run dev:frontend
+cd frontend && bun run lint && bun run build:check   # build:check writes .next-verify; plain `build` corrupts a running `next dev`
 
 # repository checks (Python)
 python3 scripts/check-locale-catalogues.py     # English catalogues well-formed; no extra locales
-pnpm check:models                              # no model SDK imports in server-ts/src outside agents/runtime/
+bun run check:models                              # no model SDK imports in server-ts/src outside agents/runtime/
 ```
 
 To run DB-backed tests, create a schema-only copy of the dev database and point `BERRY_TEST_DATABASE_URL` at it. `server-ts/ROUTING.md` gives the exact commands. Never use the dev database: creating a workspace provisions a protected Orchestrator agent that can't be deleted.
@@ -69,9 +71,10 @@ To run DB-backed tests, create a schema-only copy of the dev database and point 
 - Sign-in is Better Auth at `/api/auth/*` with GitHub only, through a separate OAuth App.
 - `/v1` is the public API for PATs and plugin tokens, backed by `src/public-api/` and `packages/plugin-sdk`.
 - Artifacts go to S3 via `src/storage/`. The default is AWS S3; `S3_ENDPOINT` can point at any S3-compatible store.
-- `GET /api/v1/config` must report only capabilities the process actually has. For example, `agentExecution` is true only when an agent runtime target is configured (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) or the workspace has a connected subscription CLI. `modelGateway` is always false.
-- Models: subscription CLIs only (ADR-0019). ADR-0017 (Kilo/Bedrock) is superseded. Tiers remain as placements for subscription models. Completions fail without a connected model on the agent's tier.
-- Every workspace gets an organization (ADR-0018): the Orchestrator plus seven core roles — Planner, Product Lead, Product Designer, Software Engineer, QA Engineer, Reviewer, DevOps Engineer — and fourteen specialists in the catalogue that an admin adds from Settings → Organization (`src/organization/`). Plan generation runs as the Planner, on the first model of that agent's tier. Each role has a contract, an autonomy level (1–5) that ceilings its tools, delegation/escalation rules and required reviewers. No autonomy level includes a merge tool, and `set_status` never allows `done` or `cancelled` — release is always a human decision.
+- `GET /api/v1/config` must report only capabilities the process actually has. For example, `agentExecution` is true only when an agent runtime target is configured (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) or the workspace has a connected subscription CLI. `modelGateway` is always false. `voiceAgents` is true only when `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are set.
+- Models: agent work runs on the workspace's AI providers (ADR-0019). ADR-0017 (Kilo/Bedrock) is superseded. Tiers remain as placements for those providers' models. The one exception is Berry's own model: with `BERRY_BEDROCK_MODEL` set, chat replies and the product's single calls (`PLATFORM_MODEL_PURPOSES` in `src/runtime/platform-model.ts`) run on that Bedrock model in every workspace, called by the runtime image with the host's AWS credentials, and so does everything the Orchestrator does (triage, routing, a task given to it, and any completion that falls back to running as the Orchestrator). Other agents' work, plans run by a Planner and the review gate stay on the workspace's providers. Other completions fail without a connected model on the agent's tier.
+- **Loops are autopilots** (ADR-0020): product noun Loop, storage and routes `autopilots`. Triggers are cron, webhook, or `event` (outbox topics, answered by `src/autopilots/worker.ts`, exactly once per trigger and event). A Loop's `access_mode` (`recommend` by default) only ever subtracts from its agent's tools, in `organization/enforcement.ts` and the envelope. Loop run state is derived (`autopilots/run-state.ts`); the ledger stays the only writer.
+- Every workspace is given only the Orchestrator, which is locked: routes that edit, copy or archive it answer `409 AGENT_LOCKED` (`refuseLockedAgent` in `src/mounts/shared.ts`). Every other role — 95 in the catalogue, eight per department, including the former core Planner, Product Lead, Product Designer, Software Engineer, QA Engineer, Reviewer and DevOps Engineer — is added from the Agent catalog or Settings → Organization (`src/organization/`). A review owed by a role the workspace does not have is skipped; a person still releases the work. Plan generation runs as the Planner when the workspace has one. Each role has a contract, an autonomy level (1–5) that ceilings its tools, delegation/escalation rules and required reviewers. No autonomy level includes a merge tool, and `set_status` never allows `done` or `cancelled` — release is always a human decision.
 
 **Migrations:** `server-ts/migrations/` are forward-only and SHA-256 checksummed by `src/migrate`. Never edit an applied migration; add a new numbered one.
 
@@ -88,10 +91,10 @@ The request path is `app/[orgId]/…` route → `components/` → `lib/<domain>.
 ## Stale docs to be aware of
 
 Code comments and some historical records still describe the older design:
-- Docker Compose was removed. Code comments that mention "Compose" (for example in `src/config/config.ts` and `src/config/config.test.ts`) describe how env values used to arrive.
+- The old root `docker-compose.yml` that wired the API's env is gone; code comments that mention "Compose" (for example in `src/config/config.ts` and `src/config/config.test.ts`) describe how env values used to arrive. Docker today is the root `compose.yaml` (self-host by default, local development under the `dev` profile; see `deploy/docker/README.md`).
 - `BERRY_RUNTIME_DRIVER` is parsed in `src/config/config.ts`, but the Docker execution driver is not wired: `src/execution/factory.ts` is imported nowhere, and `src/index.ts` picks a runtime target only from the AgentCore ARN or `BERRY_AGENT_RUNTIME_URL` (see `server-ts/sandbox/docker/README.md`).
 - The dated plans and specs in `docs/superpowers/`, `CHANGELOG.md` and the Context/Decision/Consequences bodies of ADRs are history. Each ADR's Status line and "Current state" section say what holds today.
-- Squads/Crew, the Google ADK runtime, OpenRouter, Kilo, and native Bedrock model calls are gone; do not re-add them. Models are subscription CLIs (ADR-0019).
+- Squads/Crew, the Google ADK runtime, OpenRouter, Kilo, and native Bedrock model *tiers* are gone; do not re-add them. Bedrock exists only as Berry's own platform model for chat and the product's single calls (ADR-0019, Current state). Agent work runs on the workspace's providers.
 
 When a doc conflicts with ADR-0014, ADR-0017, `AGENTS.md`, `server-ts/SCOPE.md` or `src/index.ts`, trust the latter.
 

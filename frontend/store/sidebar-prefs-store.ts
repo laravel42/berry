@@ -7,17 +7,16 @@ export type SidebarBadgeStyle = 'count' | 'dot';
 export type SidebarItemKey =
    | 'inbox'
    | 'reviews'
-   | 'chat'
    | 'meetings'
    | 'my-issues'
-   | 'goals'
-   | 'autopilot'
    | 'projects'
+   | 'cycles'
+   | 'loops'
    | 'views'
    | 'agents'
    | 'skills'
-   | 'usage'
-   | 'logs';
+   | 'integrations'
+   | 'usage';
 
 export type SidebarSection = 'personal' | 'workspace' | 'automate' | 'configure';
 
@@ -32,10 +31,18 @@ interface SidebarPrefsState {
     * owner configures the workspace and a member mostly does not.
     */
    manageOpen: boolean | null;
+   /**
+    * Whether Personal and Work are unfolded. Null until the person decides,
+    * and until then both stay open: those sections are the rail itself.
+    */
+   personalOpen: boolean | null;
+   workOpen: boolean | null;
    setBadgeStyle: (style: SidebarBadgeStyle) => void;
    setVisibility: (item: SidebarItemKey, visibility: SidebarVisibility) => void;
    moveItem: (section: SidebarSection, from: number, to: number) => void;
    setManageOpen: (open: boolean) => void;
+   setPersonalOpen: (open: boolean) => void;
+   setWorkOpen: (open: boolean) => void;
 }
 
 /** Owners and admins start with Manage unfolded; everyone else with it folded. */
@@ -51,17 +58,16 @@ export function manageOpenByDefault(role: string | undefined): boolean {
 const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
    'inbox': 'always',
    'reviews': 'always',
-   'chat': 'always',
    'meetings': 'always',
    'my-issues': 'always',
-   'goals': 'always',
-   'autopilot': 'always',
    'projects': 'always',
+   'cycles': 'always',
+   'loops': 'always',
    'views': 'always',
    'agents': 'always',
    'skills': 'always',
+   'integrations': 'always',
    'usage': 'always',
-   'logs': 'always',
 };
 
 /**
@@ -71,21 +77,19 @@ const DEFAULT_VISIBILITY: Record<SidebarItemKey, SidebarVisibility> = {
  */
 const DEFAULT_ORDER: Record<SidebarSection, SidebarItemKey[]> = {
    personal: [],
-   // Goals sits under projects because that is where a goal comes from: it
-   // groups the tasks one plan compiled inside a project. Plans has no rail
-   // entry; a stored `plans` key is dropped by resolveOrder. Approvals and
-   // proposals land in Inbox now, not as their own Work rail entries.
-   workspace: ['projects', 'goals', 'my-issues', 'chat'],
+   // Milestones live on each project, not on the rail. Plans has no rail
+   // entry; a stored `plans` or `milestones` key is dropped by resolveOrder.
+   // Approvals and proposals land in Inbox now, not as their own Work rail entries.
+   workspace: ['projects', 'cycles', 'my-issues', 'loops'],
    automate: [],
-   // No runtimes entry: Runtimes lives in Settings. A stored `agent` key from
-   // before the move is dropped by resolveOrder, which keeps only known keys.
-   // No dashboard entry: it merged into Usage. A stored `dashboard` key is
-   // dropped by resolveOrder like the old `agent` one.
-   configure: ['agents', 'skills', 'autopilot', 'usage', 'logs'],
+   // No runtimes or logs entry: those live in Settings. A stored `agent`,
+   // `logs`, or `dashboard` key is dropped by resolveOrder, which keeps
+   // only known keys.
+   configure: ['agents', 'skills', 'integrations', 'usage'],
 };
 
-/** The key the previous shape was persisted under; read once, when v7 has nothing. */
-const PREVIOUS_STORAGE_KEY = 'sidebar-prefs-v6';
+/** The key the previous shape was persisted under; read once, when v9 has nothing. */
+const PREVIOUS_STORAGE_KEY = 'sidebar-prefs-v8';
 
 /**
  * Stored order, resilient to new items: unknown keys are dropped, missing
@@ -112,11 +116,9 @@ export function resolveOrder(
 }
 
 /**
- * The v3 preferences, when a person had customised them before the rail
- * grew its Automate section. Their visibility and order carry over; the
- * `automate` order is seeded from defaults, and `autopilot` leaves the
- * workspace list through `resolveOrder`, which only keeps a section's own
- * keys.
+ * Older preferences carry over visibility and badge style; order is rebuilt
+ * from defaults so removed rail items (and reordered Manage defaults) do not
+ * stick forever. `resolveOrder` only keeps a section's own keys.
  */
 type StoredPrefs = Omit<Partial<SidebarPrefsState>, 'visibility'> & {
    visibility?: Partial<Record<SidebarItemKey, SidebarVisibility>>;
@@ -130,9 +132,9 @@ function previousPrefs(): StoredPrefs | undefined {
       const parsed = JSON.parse(raw) as { state?: Partial<SidebarPrefsState> };
       const state = parsed.state;
       if (!state) return undefined;
-      // Order is not carried over: the v7 Manage defaults were reordered, and
-      // keeping a v6 order would pin the old one forever. Visibility and badge
-      // style survive the upgrade.
+      // Order is not carried over: Work defaults are Projects, Cycles,
+      // Tasks, Loops, and keeping a prior order would pin the old one forever.
+      // Visibility and badge style survive the upgrade.
       const carried: StoredPrefs = { ...state };
       delete carried.order;
       return carried;
@@ -148,8 +150,12 @@ export const useSidebarPrefsStore = create<SidebarPrefsState>()(
          visibility: DEFAULT_VISIBILITY,
          order: DEFAULT_ORDER,
          manageOpen: null,
+         personalOpen: null,
+         workOpen: null,
          setBadgeStyle: (badgeStyle) => set({ badgeStyle }),
          setManageOpen: (manageOpen) => set({ manageOpen }),
+         setPersonalOpen: (personalOpen) => set({ personalOpen }),
+         setWorkOpen: (workOpen) => set({ workOpen }),
          setVisibility: (item, value) =>
             set((state) => ({ visibility: { ...state.visibility, [item]: value } })),
          moveItem: (section, from, to) =>
@@ -162,7 +168,7 @@ export const useSidebarPrefsStore = create<SidebarPrefsState>()(
             }),
       }),
       {
-         name: 'sidebar-prefs-v7',
+         name: 'sidebar-prefs-v9',
          merge: (persisted, current) => {
             const stored = (persisted as StoredPrefs | undefined) ?? previousPrefs();
             const mergedOrder = { ...current.order, ...stored?.order };

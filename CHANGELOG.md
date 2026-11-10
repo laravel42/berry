@@ -18,6 +18,19 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Added
 
+- Loops (ADR-0020): autopilots that also answer events inside Berry, served on `/api/v1/autopilots` and at `/loops` in the web app. Event triggers (`kind: "event"`) name one of 13 outbox-backed event types with up to eight `conditions`; `LoopWorker` (`server-ts/src/autopilots/worker.ts`) follows `outbox_events` through `autopilot_event_cursor`, writes `autopilot_event_receipts` in the cursor's transaction, and fires once per `(trigger_id, trigger_event_id)`. New Loop policy columns: `access_mode` (`recommend` caps tools in the agent-tools allowlist and the envelope and drops repository permissions to `read_repository`), `concurrency_policy`, `max_turns`, `max_duration_minutes` (overdue runs are cancelled through `RunLedger.markCancelled`), `max_chain_depth` and `allow_agent_events`; run records gain `trigger_event_id`, `parent_autopilot_run_id`, `depth`, `retry_of`, `trigger_payload` and `timed_out_at` (migration `257_loops`). Existing autopilots keep `act` and `allow`. New routes: `/runs/{runId}`, `/runs/{runId}/retry`, `/runs/{runId}/cancel`, `/receipts`, `/duplicate`, `/templates`, `/events`, `/validate-trigger`, `/draft` and `/activity`; `/runs` is cursor-paginated and each run carries a derived `state`. The workspace stream carries `autopilot.run.updated`. `/autopilots` and `/autopilot/:id` redirect to `/loops` and `/loop/:id`.
+- Source control lists Bitbucket after GitHub and GitLab, without a Connect button. The catalog file is `server-ts/src/integrations/catalog/bitbucket.json`.
+- Members can talk to a workspace agent by voice. The chat page opens a LiveKit session modal (`BarVisualizer`, `VoiceAssistantControlBar`). `POST /api/v1/voice/token` mints a 10-minute join token (identity is the member id; the Berry role, member name, instructions and recent chat go in dispatch metadata). `GET /api/v1/config` reports `voiceAgents` only when `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are set. The worker is `pnpm dev:voice` (`LIVEKIT_AGENT_NAME`, default `berry-voice`) on LiveKit Inference, with AssemblyAI streaming STT so a spoken (or typed) turn gets a reply. Talk prefers a real microphone over a virtual device. A server without LiveKit answers `422 VOICE_UNAVAILABLE`. The floating Agents window stays text-only.
+- Settings → Plugins lists the plugins that ship in `plugins/` (Customer.io) so they can be installed from the page. `GET /api/v1/plugins/{workspaceId}/catalog` returns them.
+- `GET /v1/self` lets a plugin token read its own config and secrets. An agent run calls the plugin's approved MCP tools at the address saved on the installation, and sends `Berry-Api-Url` so the plugin can read those values back. Personal tokens receive `403 PLUGIN_TOKEN_REQUIRED`. `PATCH` on an installation accepts `baseUrl`.
+- Customer.io, Gmail, GitHub, and catalog MCP hosts that advertise dynamic client registration connect with MCP OAuth. Berry discovers the authorization server from protected-resource metadata when the MCP host publishes it, then from origin well-known documents, and keeps an issuer path so hosts such as `https://github.com/login/oauth` resolve. It registers a public PKCE client only when that server names a `registration_endpoint`. When it does not, Connect uses this deployment's `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` (`client_secret_post` + PKCE, redirect URI `GET /api/v1/plugins/oauth/callback`). Extra authorize query fields come from `mcp.authorize` on the plugin, not from a host name. The access token is sealed as `API_KEY` and a refresh token as `REFRESH_TOKEN` when the plugin declares that secret. A plugin manifest can set `mcp.offer` to `all` and `mcp.auth` to `oauth`. Requested scopes are the ones that host advertises, when they fit the manifest. Gmail's scopes are the Google Workspace URLs the MCP resource advertises. GitHub's scopes are the ones that resource lists for repository work.
+- A plugin config field may set `name` as its settings title and `type` to `array` with `options`. The saved value is the one option the admin picks. A secret field's `name` is the title; its `key` is still the sealed name.
+- A bundled plugin with a Dockerfile may omit `port`. Berry assigns the listen port when it starts the container and publishes a free host port.
+- Hosted MCP plugins under `plugins/` for the public services in the catalog. Each one proxies that service's MCP server and offers every tool it lists. A `{placeholder}` in the server URL is filled from the string setting of the same name; underscores and hyphens match. The PostHog server URL is `https://mcp.posthog.com/mcp?mode=tools`, so Settings and an agent run receive that server's full tool catalog. Catalog preview includes `available`. Connect-ready OAuth plugins and the open Firecrawl and OpenAI Developers hosts are available; the rest stay listed last, show as Unavailable, and `POST /api/v1/plugins/{workspaceId}/installations` answers `422 PLUGIN_UNAVAILABLE`.
+- Settings → Plugins lists the tools its MCP server offers on the plugin detail. `GET /api/v1/plugins/{workspaceId}/catalog/{key}/tools` asks that server. A server that requires a bearer says so until an API key is saved. The list is capped at 20rem and scrolls.
+- When that tools request sends a saved API key and the MCP server refuses it, the fold says the key was rejected and includes the server's reason. A server that signs in with OAuth says an API key cannot list its tools until Connect finishes `POST /api/v1/plugins/{workspaceId}/installations/{id}/oauth`. The provider returns the browser to `GET /api/v1/plugins/oauth/callback`, which is authorised by a one-use PKCE state row.
+- A new task assigned to an agent picks installed plugins from the create bar Connect control. Each choice is stored as `[@Name](mention://plugin/<id>)` on the description so the run can attach those tools. The task editor hides those links. A task that names no plugin receives none. Typing `@` does not open the list.
+
 - A goal's actions sit on the three-dot button at the top-right of its page:
   open it in a new tab, copy its link, or archive it.
 - Create a goal from a project. The project header and the Goals block on the
@@ -309,7 +322,14 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Changed
 
-- Reviews sits in Personal, above Agent, instead of in Work.
+- Usage sits on the Manage rail under Connect at `/{orgId}/usage`. `/{orgId}/settings/usage` and `/{orgId}/dashboard` redirect there. Runtimes and Logs stay in Settings.
+- Source control shows GitHub's first sentence only, hides Connect on GitLab and Bitbucket, and puts the Bitbucket card last.
+- Settings → Integrations is labelled Source control. Plugins is Connect on the main rail, under Autopilots. `/{orgId}/settings/plugins` redirects there.
+- Connect uses the same page header and filter bar as Autopilots. Each plugin is a card with its brand mark, a larger name, a three-line description, and status. Opening an installed plugin shows its detail and tools in a drawer, without access, install source, settings, or stored-data rows. Clicking an available plugin opens the install dialog. All, Installed, and Available filter the grid, with installed plugins first. Autopilot start-from templates use the same cards, without a heading above them.
+- A finished agent run posts one comment, its report. The handoff stays a file on the task and is omitted from that comment's file list, from the review Files tree, and from `delivery.producedFiles` on `GET /api/v1/reviews`. The Files tab is omitted when that listing is empty. `post_comment` on the task being worked is refused, so the run cannot add a second comment. Cut, rename and delete of `.handoffs/` and `.git` are refused on that tree, as they are on the file tools; `POST /api/v1/reviews/{runId}/delete` answers `422 PATH_PROTECTED`.
+- The file preview header has a Download button beside Document and Source. It saves the file the agent produced.
+- A task comment stays open through a short report. "Read the rest" appears once the comment is longer than that.
+- Reviews sits in Personal instead of in Work. Agent is not on the rail.
 - Agent chat can see the workspace. The chat envelope carries an open-work
   snapshot (tasks, plans, goals, projects) so a summary does not spend the run
   listing, and a chat turn is not told to call `list_run_tools` first.
@@ -385,6 +405,8 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Removed
 
+- Settings → Plugins no longer installs a plugin from a URL or an uploaded `berry-plugin.json`. Plugins that ship with Berry stay in the list.
+- The new-task dialog no longer has Create another. Creating a task closes the dialog.
 - PGlite (`@electric-sql/pglite`, `@electric-sql/pglite-socket`, `DATABASE_URL=pglite:<dir>`).
   The server and the desktop window talk only to host Postgres. `pnpm package:desktop` no
   longer patches pglite-socket.
@@ -428,6 +450,9 @@ and Temporal — all removed on 2026-08-28; see the `Removed` section.
 
 ### Fixed
 
+- A task's Goal section no longer lists a goal that has been archived. The leftover `{ id, title }` on the issue is ignored once the goals list has loaded and that row is gone.
+- Agent chat no longer stays on "thinking" after Kimi or Kiro's CLI child exits. The ACP client fails the turn when that process is gone, even if its stdout pipe never closes or `exit` never fires, so the reply (or the failure line) lands instead of waiting out the two-hour deadline. A boardless chat turn that gets no ACP answer in 90 seconds fails the same way.
+- Settings → Plugins shows a one-line summary for each MCP tool. A description that is an agent prompt, such as PostHog's `exec` skill instructions, is not printed in that list.
 - Creating a project from Agent chat wrote the row and then left the Projects
   page empty. `ProjectRepository` now records `project.created`,
   `project.updated` and `project.archived` on the workspace stream, and the

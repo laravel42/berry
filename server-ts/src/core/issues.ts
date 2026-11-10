@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { toRFC3339, type Queryable, type Sql } from '../db/pool.ts';
-import { refreshGoalsForIssue } from './goal-status.ts';
+import { refreshMilestonesForIssue } from './milestone-status.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import { structJSON } from '../http/canonical-json.ts';
@@ -16,7 +16,7 @@ import type { Scope } from './boards.ts';
 
 const ISSUE_COLUMNS = `i.id, i.board_id, w.id AS workspace_id, b.slug AS board_slug,
    w.settings->>'issuePrefix' AS issue_prefix, i.number, i.title, i.description,
-   i.status::text AS status, i.priority::text AS priority, i.sort_order, i.due_date,
+   i.status::text AS status, i.priority::text AS priority, i.sort_order, i.start_date, i.due_date,
    i.assignee_type::text AS assignee_type, i.assignee_id,
    COALESCE(assignee_user.name, assignee_agent.name) AS assignee_name,
    COALESCE(assignee_user.avatar_url, assignee_agent.avatar_url) AS assignee_avatar_url,
@@ -24,7 +24,7 @@ const ISSUE_COLUMNS = `i.id, i.board_id, w.id AS workspace_id, b.slug AS board_s
    project.id AS project_id, project.name AS project_name,
    i.created_by, creator.name AS creator_name, creator.avatar_url AS creator_avatar_url,
    i.created_at, i.updated_at,
-   i.parent_id, i.stage, i.status_id, i.auto_gate,
+   i.parent_id, i.stage, i.status_id, i.auto_gate, i.cycle_id,
    (SELECT count(*) FROM issues AS child
      WHERE child.parent_id = i.id AND child.deleted_at IS NULL)::int AS child_total,
    (SELECT count(*) FROM issues AS child
@@ -79,6 +79,8 @@ export interface Issue {
    status: string;
    priority: string;
    sortOrder: number;
+   /** When work is planned to start; never after `dueDate`. */
+   startDate: string | null;
    dueDate: string | null;
    assignee: ActorRef | null;
    activeRunId: string | null;
@@ -97,6 +99,8 @@ export interface Issue {
     * without a person. Set from the plan at compile, and switchable per task.
     */
    autoGate: boolean;
+   /** Workspace cycle this issue is scheduled in, when any. */
+   cycleId: string | null;
    childProgress: { total: number; done: number };
 }
 
@@ -108,7 +112,7 @@ export interface IssueDependencyRef {
 }
 
 export interface IssueRelations {
-   goal: { id: string; title: string } | null;
+   milestone: { id: string; title: string } | null;
    dependsOn: IssueDependencyRef[];
    blocks: IssueDependencyRef[];
 }
@@ -148,12 +152,18 @@ export interface IssuePatch {
    statusId?: string | null;
    priority?: string;
    sortOrder?: number;
+   /** Set or clear the start; absent leaves it alone. */
+   startDateSet?: boolean;
+   startDate?: string | null;
    dueDateSet: boolean;
    dueDate?: string | null;
    assigneeSet: boolean;
    assignee?: AssigneeInput | null;
    projectSet: boolean;
    project?: string | null;
+   /** Set or clear the cycle; absent leaves it alone. */
+   cycleSet?: boolean;
+   cycleId?: string | null;
    /** AutoGate on or off; undefined leaves it alone. */
    autoGate?: boolean;
 }
@@ -175,6 +185,14 @@ export class ApprovalRequired extends Error {
    constructor() {
       super('approval required');
       this.name = 'ApprovalRequired';
+   }
+}
+
+/** A start after the due date: the row's check refused it. */
+export class StartAfterDue extends Error {
+   constructor() {
+      super('start date after due date');
+      this.name = 'StartAfterDue';
    }
 }
 
@@ -394,6 +412,7 @@ export class IssueRepository {
       status: string;
       priority: string;
       sortOrder: number;
+      startDate?: string | null;
       dueDate: string | null;
       assignee: AssigneeInput | null;
       project: string | null;
@@ -429,12 +448,12 @@ export class IssueRepository {
          await tx`
             INSERT INTO issues (
                id, board_id, number, title, description, status, priority,
-               sort_order, due_date, assignee_type, assignee_id, created_by,
+               sort_order, start_date, due_date, assignee_type, assignee_id, created_by,
                auto_gate, created_at, updated_at
             ) VALUES (
                ${id}, ${params.boardId}, ${number}, ${params.title}, ${params.description},
                ${params.status}::issue_status, ${params.priority}::issue_priority,
-               ${params.sortOrder}, ${params.dueDate},
+               ${params.sortOrder}, ${params.startDate ?? null}, ${params.dueDate},
                ${params.assignee?.type ?? null}::assignee_type, ${params.assignee?.id ?? null},
                ${params.createdBy}, ${params.autoGate ?? false}, ${now}, ${now}
             )`.catch(classifyWrite);
@@ -539,9 +558,11 @@ export class IssueRepository {
                priority = CASE WHEN ${patch.priority !== undefined} THEN ${patch.priority ?? null}::issue_priority ELSE priority END,
                sort_order = CASE WHEN ${patch.sortOrder !== undefined} THEN ${patch.sortOrder ?? null}::integer ELSE sort_order END,
                auto_gate = CASE WHEN ${patch.autoGate !== undefined} THEN ${patch.autoGate ?? false}::boolean ELSE auto_gate END,
+               start_date = CASE WHEN ${patch.startDateSet === true} THEN ${patch.startDate ?? null}::timestamptz ELSE start_date END,
                due_date = CASE WHEN ${patch.dueDateSet} THEN ${patch.dueDate ?? null}::timestamptz ELSE due_date END,
                assignee_type = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.type ?? null}::assignee_type ELSE assignee_type END,
                assignee_id = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.id ?? null}::uuid ELSE assignee_id END,
+               cycle_id = CASE WHEN ${patch.cycleSet === true} THEN ${patch.cycleId ?? null}::uuid ELSE cycle_id END,
                review_rejections = review_rejections + ${rejectsReview ? 1 : 0},
                updated_at = ${now}
              WHERE id = ${params.issueId}`.catch(classifyWrite);
@@ -570,6 +591,16 @@ export class IssueRepository {
          if (patch.projectSet) {
             await setIssueProject(tx, params.issueId, patch.project ?? null, params.actorId);
          }
+         if (patch.cycleSet && patch.cycleId) {
+            const [scope] = await tx`
+               SELECT i.id
+                 FROM issues AS i
+                 JOIN boards AS b ON b.id = i.board_id
+                 JOIN cycles AS c ON c.id = ${patch.cycleId}::uuid AND c.deleted_at IS NULL
+                WHERE i.id = ${params.issueId}
+                  AND c.workspace_id = b.workspace_id`;
+            if (!scope) throw new NotFound();
+         }
 
          const issue = await issueById(tx, params.issueId, false);
          const { changed, previousStatus } = patchChanges(patch, currentStatus);
@@ -582,7 +613,7 @@ export class IssueRepository {
             occurredAt: now,
          });
          if (patch.status !== undefined && patch.status !== currentStatus) {
-            await refreshGoalsForIssue(tx, params.issueId, now);
+            await refreshMilestonesForIssue(tx, params.issueId, now);
          }
          return { issue, events };
       });
@@ -703,7 +734,7 @@ export class IssueRepository {
    }
 
    /**
-    * Goal, and both directions of the dependency graph.
+    * Milestone, and both directions of the dependency graph.
     *
     * Each edge is described from both ends in one row, because a page that
     * contains both issues of an edge needs the blocker on the dependent's
@@ -712,18 +743,18 @@ export class IssueRepository {
     */
    async loadRelations(issueIds: string[]): Promise<Map<string, IssueRelations>> {
       const result = new Map<string, IssueRelations>(
-         issueIds.map((id) => [id, { goal: null, dependsOn: [], blocks: [] }])
+         issueIds.map((id) => [id, { milestone: null, dependsOn: [], blocks: [] }])
       );
       if (issueIds.length === 0) return result;
 
-      const goals = await this.sql`
+      const milestones = await this.sql`
          SELECT link.issue_id, goal.id, goal.title
-           FROM goal_issues AS link
-           JOIN goals AS goal ON goal.id = link.goal_id AND goal.deleted_at IS NULL
+           FROM milestone_issues AS link
+           JOIN milestones AS goal ON goal.id = link.milestone_id AND goal.deleted_at IS NULL
           WHERE link.issue_id = ANY(${issueIds}::uuid[])`;
-      for (const row of goals) {
+      for (const row of milestones) {
          const relations = result.get(row.issue_id as string);
-         if (relations) relations.goal = { id: row.id as string, title: row.title as string };
+         if (relations) relations.milestone = { id: row.id as string, title: row.title as string };
       }
 
       const edges = await this.sql`
@@ -875,6 +906,7 @@ function toIssue(row: Record<string, unknown>): Issue {
       status: dbStatusToApi(row.status as string),
       priority: row.priority as string,
       sortOrder: row.sort_order as number,
+      startDate: row.start_date ? toRFC3339(row.start_date as string) : null,
       dueDate: row.due_date ? toRFC3339(row.due_date as string) : null,
       assignee:
          assigneeType && row.assignee_id
@@ -903,6 +935,7 @@ function toIssue(row: Record<string, unknown>): Issue {
       stage: row.stage === null || row.stage === undefined ? null : Number(row.stage),
       statusId: (row.status_id as string | null) ?? null,
       autoGate: row.auto_gate === true,
+      cycleId: (row.cycle_id as string | null) ?? null,
       childProgress: { total: Number(row.child_total ?? 0), done: Number(row.child_done ?? 0) },
    };
 }
@@ -1008,9 +1041,11 @@ function patchChanges(
    }
    if (patch.priority !== undefined) changed.push('priority');
    if (patch.sortOrder !== undefined) changed.push('sortOrder');
+   if (patch.startDateSet) changed.push('startDate');
    if (patch.dueDateSet) changed.push('dueDate');
    if (patch.assigneeSet) changed.push('assignee');
    if (patch.projectSet) changed.push('project');
+   if (patch.cycleSet) changed.push('cycle');
    if (patch.autoGate !== undefined) changed.push('autoGate');
    return { changed, previousStatus };
 }
@@ -1027,6 +1062,7 @@ function serializeIssueEvent(issue: Issue): Record<string, unknown> {
       status: issue.status,
       priority: issue.priority,
       sortOrder: issue.sortOrder,
+      startDate: issue.startDate,
       dueDate: issue.dueDate,
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
@@ -1034,6 +1070,7 @@ function serializeIssueEvent(issue: Issue): Record<string, unknown> {
       // Carried so realtime readers keep the switch right: a client that
       // parsed an event without it read every task as AutoGate off.
       autoGate: issue.autoGate,
+      cycleId: issue.cycleId,
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
@@ -1051,6 +1088,8 @@ function classifyWrite(error: unknown): never {
    if (code === '23503') throw new NotFound();
    if (code === '23505' || code === '23P01') throw new Conflict();
    if (code === '23001') throw new ApprovalRequired();
+   const constraint = (error as { constraint_name?: string })?.constraint_name;
+   if (code === '23514' && constraint === 'issues_start_before_due_ck') throw new StartAfterDue();
    throw error;
 }
 

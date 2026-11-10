@@ -17,19 +17,18 @@ import {
    useSidebarPrefsStore,
 } from '@/store/sidebar-prefs-store';
 import {
-   BookOpen,
+   Bot,
    Box,
+   Blocks,
+   Atom,
+   RotateCw,
+   ChartColumn,
    Check,
    ChevronDown,
-   Coins,
-   FolderKanban,
+   Folders,
    GripVertical,
+   Lightbulb,
    LucideIcon,
-   MessageSquare,
-   ScrollText,
-   Sparkles,
-   Target,
-   Timer,
 } from 'lucide-react';
 import { Fragment, useRef, useState, type PointerEvent } from 'react';
 
@@ -42,18 +41,17 @@ interface ItemConfig {
 }
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
-   { key: 'my-issues', label: 'Tasks', icon: FolderKanban },
-   { key: 'chat', label: 'Agent', icon: MessageSquare },
-   { key: 'goals', label: 'Goals', icon: Target },
    { key: 'projects', label: 'Projects', icon: Box },
+   { key: 'cycles', label: 'Cycles', icon: RotateCw },
+   { key: 'my-issues', label: 'Tasks', icon: Folders },
+   { key: 'loops', label: 'Loops', icon: Atom },
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [
-   { key: 'agents', label: 'Agents', icon: Sparkles },
-   { key: 'skills', label: 'Skills', icon: BookOpen },
-   { key: 'autopilot', label: 'Autopilots', icon: Timer },
-   { key: 'usage', label: 'Usage', icon: Coins },
-   { key: 'logs', label: 'Logs', icon: ScrollText },
+   { key: 'agents', label: 'Agents', icon: Bot },
+   { key: 'skills', label: 'Skills', icon: Lightbulb },
+   { key: 'integrations', label: 'Connect', icon: Blocks },
+   { key: 'usage', label: 'Usage', icon: ChartColumn },
 ];
 
 const VISIBILITY_LABELS: Record<SidebarVisibility, string> = {

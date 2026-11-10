@@ -30,7 +30,7 @@ Work tracking:
 - `/api/v1/boards` — boards, including board runs
 - `/api/v1/issues` — issues plus comments, relations, attachments, artifacts (and `POST …/artifacts/preview` for a site-preview token), runs, and tracking routes (quick, batch, batch-delete, assignee-frequency, activity, children, labels, metadata, properties, reactions, subscribers, status, move, quick-actions)
 - `/api/v1/comments` — comments, including comment tracking
-- `/api/v1/goals`, `/api/v1/projects`, `/api/v1/plans`
+- `/api/v1/milestones`, `/api/v1/cycles`, `/api/v1/projects`, `/api/v1/plans`
 - `/api/v1/reviews` — review queue and run diffs
 - `/api/v1/approvals`, `/api/v1/inbox`, `/api/v1/pins`
 - `/api/v1/catalogs`, `/api/v1/search`, `/api/v1/views`
@@ -51,13 +51,14 @@ Agents and runs:
 - `/api/v1/autopilots`
 - `/api/webhooks/autopilots/:token` — public, signed autopilot webhook deliveries
 - `/api/v1/conversations` — chat
+- `/api/v1/voice` — LiveKit join token for a member talking to a workspace agent
 - `/api/v1/editor` — editor AI
 
 Integrations, plugins and usage:
 
 - `/api/v1/integrations` — includes the GitHub App manifest flow
 - `/api/v1/github`, `/api/v1/gitlab` (workspace switches for the integrations drawer), `/api/v1/webhooks`
-- `/api/v1/plugins`
+- `/api/v1/plugins` — includes sessionless `GET /api/v1/plugins/oauth/callback`
 - `/api/v1/usage`, `/api/v1/dashboard`
 - `/api/v1/logs` — every model call (`kind: 'completion'` runs): system prompt, JSON schema, prompt and response
 
@@ -151,10 +152,10 @@ pg_dump -h 127.0.0.1 -U <user> --schema-only --no-owner --no-privileges berry \
   | psql -h 127.0.0.1 -U <user> -d berry_test -q
 
 BERRY_TEST_DATABASE_URL='postgres://<user>@127.0.0.1:5432/berry_test?sslmode=disable' \
-  pnpm test:server
+  bun run test:server
 ```
 
-Without the variable the suite skips these tests and still passes, so `pnpm
+Without the variable the suite skips these tests and still passes, so `bun run
 test:server` works on a machine with no database running.
 
 ## History

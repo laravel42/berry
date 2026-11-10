@@ -53,3 +53,123 @@ describe('API token model lists', () => {
       assert.deepEqual(models, [{ id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' }]);
    });
 });
+
+describe('LM Studio model lists', () => {
+   const base = 'http://localhost:1234/v1';
+
+   test('reads context length and capabilities from the native model list', async () => {
+      let url = '';
+      let authorization: string | null = 'unset';
+      const models = await listApiTokenModels(
+         'lmstudio',
+         null,
+         async (input, init) => {
+            url = input;
+            authorization = new Headers(init.headers).get('authorization');
+            return json(200, {
+               models: [
+                  {
+                     type: 'llm',
+                     key: 'qwen3.8-27b',
+                     display_name: 'Qwen3.8 27B',
+                     max_context_length: 262144,
+                     capabilities: {
+                        vision: true,
+                        trained_for_tool_use: true,
+                        reasoning: { allowed_options: ['off', 'on'], default: 'on' },
+                     },
+                  },
+                  {
+                     type: 'llm',
+                     key: 'deepseek-r1-0528-qwen3-8b',
+                     display_name: 'DeepSeek R1',
+                     max_context_length: 131072,
+                     capabilities: { vision: false, trained_for_tool_use: false },
+                  },
+                  { type: 'embedding', key: 'text-embedding-nomic-embed-text-v1.5', display_name: 'Embed' },
+               ],
+            });
+         },
+         base
+      );
+      assert.equal(url, 'http://localhost:1234/api/v1/models');
+      assert.equal(authorization, null);
+      assert.deepEqual(models, [
+         {
+            id: 'deepseek-r1-0528-qwen3-8b',
+            name: 'DeepSeek R1',
+            maxContextLength: 131072,
+            capabilities: { vision: false, trainedForToolUse: false },
+         },
+         {
+            id: 'qwen3.8-27b',
+            name: 'Qwen3.8 27B',
+            maxContextLength: 262144,
+            capabilities: {
+               vision: true,
+               trainedForToolUse: true,
+               reasoning: { allowedOptions: ['off', 'on'], default: 'on' },
+            },
+         },
+      ]);
+   });
+
+   test('falls back to the OpenAI-compatible list when the native list is missing', async () => {
+      const urls: string[] = [];
+      const models = await listApiTokenModels(
+         'lmstudio',
+         null,
+         async (input) => {
+            urls.push(input);
+            if (input.endsWith('/api/v1/models')) return json(404, { error: 'not found' });
+            return json(200, {
+               data: [
+                  { id: 'qwen/qwen3-coder-30b', object: 'model' },
+                  { id: 'text-embedding-nomic-embed-text-v1.5', object: 'model' },
+                  { id: 'google/gemma-3-12b', object: 'model' },
+               ],
+            });
+         },
+         base
+      );
+      assert.deepEqual(urls, ['http://localhost:1234/api/v1/models', `${base}/models`]);
+      assert.deepEqual(models.map((model) => model.id), ['google/gemma-3-12b', 'qwen/qwen3-coder-30b']);
+   });
+
+   test('sends the token as a bearer header when one is pasted', async () => {
+      let authorization = '';
+      await listApiTokenModels(
+         'lmstudio',
+         'lm-token',
+         async (_url, init) => {
+            authorization = new Headers(init.headers).get('authorization') ?? '';
+            return json(200, {
+               models: [{ type: 'llm', key: 'google/gemma-3-12b', display_name: 'Gemma 3 12B' }],
+            });
+         },
+         base
+      );
+      assert.equal(authorization, 'Bearer lm-token');
+   });
+
+   test('says how to fix an unreachable server, a refused token and an empty list', async () => {
+      await assert.rejects(
+         () => listApiTokenModels('lmstudio', null, async () => { throw new TypeError('fetch failed'); }, base),
+         (error: unknown) => {
+            assert.ok(error instanceof ApiTokenError);
+            assert.equal(error.code, 'AI_RUNTIME_AUTH_UNAVAILABLE');
+            assert.match(error.message, /localhost:1234/);
+            assert.match(error.message, /lms server start/);
+            return true;
+         }
+      );
+      await assert.rejects(
+         () => listApiTokenModels('lmstudio', null, async () => json(401, { error: 'unauthorized' }), base),
+         (error: unknown) => error instanceof ApiTokenError && error.code === 'AI_RUNTIME_AUTH_FAILED' && /API token/.test(error.message)
+      );
+      await assert.rejects(
+         () => listApiTokenModels('lmstudio', null, async () => json(200, { data: [{ id: 'text-embedding-bge' }] }), base),
+         (error: unknown) => error instanceof ApiTokenError && /Download a model/.test(error.message)
+      );
+   });
+});

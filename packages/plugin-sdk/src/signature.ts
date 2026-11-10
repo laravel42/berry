@@ -2,6 +2,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const SIGNATURE_HEADER = 'Berry-Signature';
 
+/** Berry sends its own API origin on each call, so a plugin does not keep that URL in a file. */
+export const API_URL_HEADER = 'Berry-Api-Url';
+
 /** Checks `t=<seconds>,v1=<hex>` over the exact body bytes, within a replay window. */
 export function verifySignature(input: {
    secret: string;

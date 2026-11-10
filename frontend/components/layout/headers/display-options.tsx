@@ -44,6 +44,7 @@ const DEFAULT_CARD_PROPERTIES: Record<DisplayPropertyKey, boolean> = {
    assignee: true,
    labels: true,
    created: true,
+   cycle: false,
 };
 
 function cardPropertiesMatchDefault(
@@ -117,6 +118,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       manual: t('manual'),
       status: t('status'),
       priority: t('priority'),
+      startDate: t('startDate'),
       dueDate: t('dueDate'),
       created: t('created'),
       updated: t('updated'),
@@ -129,9 +131,9 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
       <Popover>
          <PopoverTrigger asChild>
             <Button
-               className="relative border-muted-foreground/15"
+               className={cn('relative', !iconOnly && 'border-muted-foreground/15')}
                size="xs"
-               variant="outline"
+               variant={iconOnly ? 'track' : 'outline'}
                aria-label={iconOnly ? t('label') : undefined}
                title={iconOnly ? t('label') : undefined}
             >
@@ -145,7 +147,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                )}
             </Button>
          </PopoverTrigger>
-         <PopoverContent className="w-80 p-0" align="end">
+         <PopoverContent className="w-80 p-0" align="start">
             <div className={cn('flex items-center justify-between gap-2 px-3 pt-3 pb-3', touchRow)}>
                <span className="flex items-center gap-1.5 text-muted-foreground">
                   <ArrowUpDown className="size-3.5" aria-hidden="true" />

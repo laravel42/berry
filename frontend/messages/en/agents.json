@@ -2,9 +2,56 @@
    "header": {
       "title": "Agents",
       "newAgent": "New agent",
+      "catalog": "Agent catalog",
       "search": "Search agents"
    },
    "roster": {
       "neverRan": "Never ran"
+   },
+   "catalog": {
+      "title": "Agent catalog",
+      "description": "Specialists for software and for everyday work: marketing, sales, support, hiring, finance, legal, research, training and operations. Add one when you have work in its field.",
+      "adminOnly": "Only workspace owners and admins can add agents.",
+      "search": "Search roles and departments",
+      "loading": "Loading…",
+      "empty": "No role matches this view.",
+      "add": "Add",
+      "adding": "Adding…",
+      "added": "{name} added",
+      "failed": "The catalog could not be loaded.",
+      "statusAdded": "Added",
+      "filter": {
+         "all": "All",
+         "added": "Added",
+         "available": "Available"
+      },
+      "columns": {
+         "role": "Role",
+         "tier": "Tier"
+      },
+      "filters": {
+         "department": "Department",
+         "allDepartments": "All departments",
+         "searchDepartments": "Search departments",
+         "departmentsSelected": "{count, plural, one {# department} other {# departments}}",
+         "noDepartments": "No departments",
+         "status": "Status",
+         "tier": "Tier",
+         "autonomy": "Autonomy level",
+         "columns": "Columns"
+      },
+      "row": {
+         "menu": "Role actions",
+         "details": "View details",
+         "add": "Add {name}"
+      },
+      "bulk": {
+         "selected": "{count, plural, one {# role selected} other {# roles selected}}",
+         "add": "{count, plural, one {Add # role} other {Add # roles}}",
+         "added": "{count, plural, one {# role added} other {# roles added}}",
+         "clear": "Clear",
+         "select": "Select {name}",
+         "selectAll": "Select every role that can be added"
+      }
    }
 }

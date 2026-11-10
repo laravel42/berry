@@ -1,7 +1,8 @@
 'use client';
 
-import { Plus } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { LibraryBig, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -25,7 +26,6 @@ import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import SkillDetailHeader from '@/components/layout/headers/skills/detail-header';
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
 import { BerryApiError } from '@/lib/api';
 import { loadSkillLabels, type SkillCatalogueLabel } from '@/lib/skill-labels';
 import { listSkills, type Skill } from '@/lib/skills';
@@ -63,6 +63,7 @@ function SkillsScreen() {
    const t = useTranslations('areas.skills');
    const router = useRouter();
    const params = useSearchParams();
+   const { orgId } = useParams<{ orgId: string }>();
    const view = params.get('view');
    const role = useSessionStore((state) => state.workspace?.role);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
@@ -74,7 +75,6 @@ function SkillsScreen() {
 
    const [query, setQuery] = useState('');
    const [scope, setScope] = useState<SkillScope>('all');
-   const [archivedTouched, setArchivedTouched] = useState(seed.archived !== null);
    const [criteria, setCriteria] = useState<SkillCriteria>(DEFAULT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
    const [live, setLive] = useState<Skill[] | null>(seed.live);
@@ -89,12 +89,13 @@ function SkillsScreen() {
    // The server answers the search; the filters, sort and columns are the
    // reader's own view of that answer, matched here from the list payload.
    // An empty query is fetched immediately so returning to Skills is not
-   // held for the typeahead debounce.
+   // held for the typeahead debounce. Like Agents, the page lists what the
+   // workspace uses: skills an agent carries. The rest are in the catalogue.
    useEffect(() => {
       let cancelled = false;
       const term = query.trim();
       const run = () => {
-         void listSkills(term ? { q: term } : {})
+         void listSkills(term ? { q: term, inUse: true } : { inUse: true })
             .then((found) => {
                if (cancelled) return;
                setLive(found);
@@ -110,24 +111,24 @@ function SkillsScreen() {
                if (cancelled || scope !== 'all') return;
                setError(failure instanceof BerryApiError ? failure.message : t('loadFailed'));
             });
-         if (archivedTouched) {
-            void listSkills({ ...(term ? { q: term } : {}), archived: true })
-               .then((found) => {
-                  if (cancelled) return;
-                  setArchived(found);
-                  if (!term) {
-                     setArchivedTotal(found.length);
-                     skillsCache.workspaceId = workspaceId;
-                     skillsCache.archived = found;
-                     skillsCache.archivedTotal = found.length;
-                  }
-                  if (scope === 'archived') setError(null);
-               })
-               .catch((failure: unknown) => {
-                  if (cancelled || scope !== 'archived') return;
-                  setError(failure instanceof BerryApiError ? failure.message : t('loadFailed'));
-               });
-         }
+         // Archived is loaded with the live list so the tab can show a count
+         // before anyone opens it.
+         void listSkills({ ...(term ? { q: term } : {}), archived: true })
+            .then((found) => {
+               if (cancelled) return;
+               setArchived(found);
+               if (!term) {
+                  setArchivedTotal(found.length);
+                  skillsCache.workspaceId = workspaceId;
+                  skillsCache.archived = found;
+                  skillsCache.archivedTotal = found.length;
+               }
+               if (scope === 'archived') setError(null);
+            })
+            .catch((failure: unknown) => {
+               if (cancelled || scope !== 'archived') return;
+               setError(failure instanceof BerryApiError ? failure.message : t('loadFailed'));
+            });
       };
       if (!term) {
          run();
@@ -140,7 +141,7 @@ function SkillsScreen() {
          cancelled = true;
          clearTimeout(timer);
       };
-   }, [archivedTouched, query, revision, scope, t, workspaceId]);
+   }, [query, revision, scope, t, workspaceId]);
 
    const skills = scope === 'archived' ? archived : live;
 
@@ -207,13 +208,16 @@ function SkillsScreen() {
    const header = (
       <>
          <PageKpiHeader label={t('title')}>
-            <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={t('search')}
-               aria-label={t('search')}
-            />
+            <Button
+               variant="soft"
+               className="shrink-0 border border-[#ccc]/40 !bg-black !text-[#cdcdcd] shadow-xs hover:!bg-[#1a1a1a] hover:!text-[#cdcdcd]"
+               asChild
+            >
+               <Link href={`/${orgId}/skill-catalog`}>
+                  <LibraryBig className="size-4" aria-hidden />
+                  {t('catalogButton')}
+               </Link>
+            </Button>
             {canEdit ? (
                <Button className="shrink-0" onClick={() => setCreating(true)}>
                   <Plus className="size-4" aria-hidden />
@@ -222,14 +226,13 @@ function SkillsScreen() {
             ) : null}
          </PageKpiHeader>
          <SkillsFilters
-            criteria={criteria}
-            onChange={setCriteria}
             filter={filter}
+            query={query}
+            onQueryChange={setQuery}
             scope={scope}
             onScopeChange={(next) => {
                setScope(next);
                setFilters([]);
-               if (next === 'archived') setArchivedTouched(true);
             }}
             counts={{ all: total ?? 0, archived: archivedTotal }}
          />

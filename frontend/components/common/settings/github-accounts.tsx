@@ -146,8 +146,7 @@ export function GitHubAccountsList({
                   description={describeReach(account)}
                   trailing={
                      <Button
-                        size="xs"
-                        variant="secondary"
+                        variant="soft"
                         disabled={busy !== null}
                         onClick={() => setConfirming(account)}
                      >
@@ -166,8 +165,7 @@ export function GitHubAccountsList({
          {!error && (
             <div className="px-4 pb-3 pt-1">
                <Button
-                  size="xs"
-                  variant={optional ? 'ghost' : 'secondary'}
+                  variant={optional ? 'quiet' : 'soft'}
                   disabled={busy !== null}
                   onClick={() => void add()}
                >

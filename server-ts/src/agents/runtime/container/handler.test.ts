@@ -568,6 +568,24 @@ const PROCESS_RUNTIME = {
    credential: { type: 'oauth' as const, token: 'codex-cli', accountId: null, accountName: null },
 };
 
+const GEMINI_RUNTIME = {
+   id: 'gemini',
+   executionMode: 'direct_inference' as const,
+   provider: 'Google Gemini',
+   billing: 'api_billing' as const,
+   model: 'gemini-2.5-flash',
+   credential: { type: 'api_key' as const, token: 'secret', accountId: null, accountName: 'API token' },
+};
+
+test('an API-token runtime uses the native loop instead of a CLI in the image', async () => {
+   const { run } = harness([say('from gemini')]);
+   const events = await run(envelope({ runtime: GEMINI_RUNTIME }));
+   assert.equal(events.at(-1)?.type, 'task.completed');
+   const completed = events.at(-1);
+   assert.ok(completed?.type === 'task.completed');
+   assert.equal(completed.result.text, 'from gemini');
+});
+
 test('an agent process is promised no step budget it does not count, and is offered only what it can call', async () => {
    const seen: { run: AgentProcessRun | null } = { run: null };
    const { run } = harness([], { adapters: new RuntimeAdapterRegistry([processAdapter(seen)]) });

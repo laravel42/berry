@@ -145,7 +145,7 @@ export function RuntimeSelectionControl({
                   <>
                      <DropdownMenuSeparator />
                      <p className="max-w-64 px-2 py-1.5 text-muted-foreground">
-                        Connect a subscription in Settings → AI Runtimes to use it here.
+                        Connect a subscription in Settings → AI providers to use it here.
                      </p>
                   </>
                ) : null}

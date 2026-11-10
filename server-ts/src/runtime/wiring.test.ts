@@ -52,7 +52,13 @@ test('the composition root gives the agent layer the real queue and completion e
 test('autopilots fire through the runtime task queue, on schedule, webhook and by hand', () => {
    assert.equal(autopilotEnqueue, enqueueTask);
    assert.match(root, /fireAutopilot\(\{ sql, issues, enqueue: autopilotEnqueue \}, input\)/);
-   assert.match(root, /autopilotMounts\(\{ sessions, sql, autopilots, fire: fireAutopilotNow, idempotency \}\)/);
+   assert.match(root, /autopilotMounts\(\{\s*sessions,\s*sql,\s*autopilots,\s*fire: fireAutopilotNow,\s*idempotency,/);
+   // Loops (ADR-0020): retries go through fire.ts, cancels through the
+   // ledger, and event triggers are answered by the worker beside the schedule.
+   assert.match(root, /retry: \(input\) => retryAutopilotRun\(fireDeps, input\)/);
+   assert.match(root, /cancelRun: \(runId\) => loopLedger\.markCancelled\(runId\)/);
+   assert.match(root, /new LoopWorker\(\{\s*sql,\s*fire: fireAutopilotNow,/);
+   assert.match(root, /loopWorker\.stop\(\)/);
    assert.match(root, /autopilotWebhookMounts\(\{ autopilots, fire: fireAutopilotNow, logger \}\)/);
    // Scheduler concurrency and slot delivery are exercised against a real
    // database in runs/scheduler.test.ts. Do not pin a conditional source

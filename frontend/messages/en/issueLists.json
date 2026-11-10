@@ -31,6 +31,7 @@
       "title": "Title",
       "created": "Created",
       "updated": "Updated",
+      "startDate": "Start date",
       "dueDate": "Due date",
       "none": "None",
       "subIssues": "Show sub-tasks",
@@ -206,7 +207,8 @@
       "layout": {
          "label": "Layout",
          "list": "List",
-         "board": "Board"
+         "board": "Board",
+         "timeline": "Timeline"
       },
       "kpi": {
          "running": "Running",

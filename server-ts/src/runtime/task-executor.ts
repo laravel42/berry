@@ -23,6 +23,8 @@ import { scheduleReview } from '../runs/followups.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
+import { hostFor, singleHost, type RuntimeHosts } from './runtimes.ts';
+import { isApiTokenRuntime } from './ai-runtime-catalog.ts';
 
 export type UsageRecorder = (
    sql: Sql,
@@ -61,6 +63,8 @@ export interface RuntimeTaskExecutorOptions {
    builder: EnvelopeBuilder;
    /** The deployment's runtime when a task names none. Null means tasks fail as unconfigured. */
    defaultTarget: RuntimeTarget | null;
+   /** Every host the deployment runs, for agents bound to one. Absent means `defaultTarget` alone. */
+   hosts?: RuntimeHosts;
    /** Kiro runs here, on the workstation, instead of inside the runtime container. */
    workstation?: WorkstationKiro;
    recordUsage: UsageRecorder;
@@ -182,6 +186,10 @@ export class RuntimeTaskExecutor implements Executor {
    readonly #ledger: RunLedger;
    readonly #memory: RunMemory;
 
+   #hosts(): RuntimeHosts {
+      return this.#o.hosts ?? singleHost(this.#o.defaultTarget);
+   }
+
    constructor(options: RuntimeTaskExecutorOptions) {
       this.#o = options;
       this.#ledger = options.ledger ?? new RunLedger({ sql: options.sql });
@@ -227,12 +235,12 @@ export class RuntimeTaskExecutor implements Executor {
 
       const onWorkstation = runsOnWorkstation(task.aiRuntimeId);
       const target =
-         (await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget)) ??
+         (await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#hosts())) ??
          (onWorkstation ? WORKSTATION_TARGET : null);
       if (!target) {
          return this.#fail(task, recorder, usage, { code: 'RUNTIME_UNCONFIGURED', message: 'No agent runtime is configured for this workspace.', retryable: false });
       }
-      if (task.aiRuntimeId) {
+      if (task.aiRuntimeId && !isApiTokenRuntime(task.aiRuntimeId)) {
          const workstation = this.#o.workstation;
          const control = this.#o.transport.control;
          if (onWorkstation && !workstation) {
@@ -394,7 +402,7 @@ export class RuntimeTaskExecutor implements Executor {
       if (!row || row.status !== 'running' || row.kind !== 'agent' || !row.runtime_session_id || !row.runtime_resume) return null;
       const task = await loadTask(sql, runId);
       if (runsOnWorkstation(task.aiRuntimeId)) return null;
-      const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#o.defaultTarget);
+      const target = await resolveTarget(sql, task.workspaceId, task.runtimeId, this.#hosts());
       if (!target) return null;
       const session = row.runtime_session_id;
       const recorder: TaskRecorder = task.issueId ? ledgerRecorder(this.#ledger, runId, true) : directRecorder(sql, runId, this.#ledger);
@@ -617,42 +625,12 @@ export class RuntimeTaskExecutor implements Executor {
                occurredAt, newId: this.#o.newId ?? randomUUID,
                runId: task.runId,
             }).catch(() => null);
-            if (task.kind === 'agent') {
-               await this.#attachHandoff(task, summary, plan, result.delivery, opened?.pull_request_number ?? null, occurredAt);
-            }
          }
       }
       return { runId: task.runId, status: 'succeeded', summary, usage, result };
    }
 
-   /**
-    * Attaches this task's `.handoffs` note to the task this run finished.
-    *
-    * Every agent task, not one project: the next task that waits on this one
-    * reads the comment instead of scanning the files this run produced.
-    */
-   async #attachHandoff(
-      task: TaskRow,
-      summary: string,
-      plan: Awaited<ReturnType<EnvelopeBuilder['build']>>['delivery'],
-      delivery: TaskResult['delivery'] | null | undefined,
-      pullRequest: number | null,
-      occurredAt: string
-   ): Promise<void> {
-      if (!task.issueId || isHandoffDocument(summary)) return;
-      const text = await this.#handoffText(task, summary, plan, delivery, pullRequest);
-      if (!text) return;
-      await postRunResult(this.#o.sql, {
-         issueId: task.issueId,
-         agentId: task.agentId,
-         text,
-         cut: false,
-         occurredAt,
-         newId: this.#o.newId ?? randomUUID,
-      }).catch(() => null);
-   }
-
-   /** The handoff for this run, or null when the task cannot be named. */
+   /** The handoff file for this run, or null when the task cannot be named. */
    async #handoffText(
       task: TaskRow,
       summary: string,
@@ -824,22 +802,30 @@ async function claimDirect(sql: Sql, runId: string): Promise<null> {
    return null;
 }
 
+/**
+ * The target a task runs on: its runtime row's, else the default host. A
+ * platform row stands for one of the deployment's hosts; one whose host is not
+ * configured here runs on the default instead of not at all.
+ */
 export async function resolveTarget(
    sql: Sql,
    workspaceId: string,
    runtimeId: string | null,
-   fallback: RuntimeTarget | null
+   hosts: RuntimeHosts
 ): Promise<RuntimeTarget | null> {
+   const fallback = hosts.default;
    if (!runtimeId) return fallback;
    // `agents.runtime_id` is a plain FK; a runtime of another workspace is never used.
    const [row] = await sql`
       SELECT id, kind, driver, arn, qualifier, region, endpoint_url, status FROM agent_runtimes
        WHERE id = ${runtimeId} AND workspace_id = ${workspaceId}`;
    if (!row || row.status === 'disabled') return fallback;
-   // The platform row names no target of its own: it is the configured default.
-   if (row.kind === 'platform' || (!row.arn && !row.endpoint_url)) {
-      return fallback ? { ...fallback, id: row.id as string } : null;
+   // A platform row names no target of its own: it is that host as configured.
+   if (row.kind === 'platform') {
+      const host = hostFor(hosts, row.driver as RuntimeTarget['driver']) ?? fallback;
+      return host ? { ...host, id: row.id as string } : null;
    }
+   if (!row.arn && !row.endpoint_url) return fallback ? { ...fallback, id: row.id as string } : null;
    return {
       id: row.id as string,
       driver: row.driver as RuntimeTarget['driver'],

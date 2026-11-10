@@ -1,0 +1,5 @@
+# The marketing site installs on its own, outside the root workspace.
+
+[install]
+# A version must have been public for a day before it is installed.
+minimumReleaseAge = 86400

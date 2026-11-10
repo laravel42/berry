@@ -3,6 +3,7 @@ import type { Dispatch, RunLedger } from '../runs/ledger.ts';
 import type { ExecutionSession } from '../execution/driver.ts';
 import type { ConnectionRepository } from '../integrations/connections.ts';
 import { GitHubError, type GitHubClient, type PullRequest } from '../integrations/github.ts';
+import { GitLabClient } from '../integrations/gitlab.ts';
 import { branchName, checkout, parseRepository, type Checkout } from './checkout.ts';
 import { commitAndPush } from './delivery.ts';
 import { coAuthorTrailer } from '../scm/commit-trailer.ts';
@@ -113,6 +114,35 @@ export async function prepareRepository(
    input.permissions.require('read_repository');
    input.permissions.require('create_branches');
 
+   if (repository.provider === 'gitlab') {
+      if (!deps.connections) {
+         throw new GitHubError('no GitLab credential is configured for this deployment', 503, 'reconnect');
+      }
+      const token = await deps.connections.token(input.dispatch.workspaceId, 'gitlab');
+      const remote = await new GitLabClient({ token }).resolveRepository(repository.fullName);
+      const issue = await loadIssue(deps.sql, input.dispatch.issueId);
+      const result = await checkout({
+         session: await input.session(),
+         repository: repository.fullName,
+         provider: 'gitlab',
+         branch: branchName(input.agentName, issue.reference, issue.title),
+         token,
+         baseBranch: remote.defaultBranch,
+      });
+      await deps.ledger.appendRepositoryReady(input.dispatch.runId, {
+         repository: repository.fullName,
+         branch: result.branch,
+         baseCommit: result.baseCommit,
+      });
+      return {
+         repository,
+         checkout: result,
+         defaultBranch: remote.defaultBranch,
+         issue,
+         permissions: input.permissions,
+      };
+   }
+
    const { owner, name } = parseRepository(repository.fullName);
    // The owner decides which installation mints the token: a workspace can
    // reach a personal account and an organisation at once, and an installation
@@ -178,6 +208,11 @@ export async function deliverRepository(
    }
 ): Promise<void> {
    const { dispatch, prepared, summary } = input;
+   // Merge-request delivery for GitLab is not wired yet. The checkout still
+   // runs so the agent can work in the tree; pushing and opening an MR is a
+   // later change.
+   if (prepared.repository.provider === 'gitlab') return;
+
    const { token } = await runCredential(
       deps,
       dispatch.workspaceId,

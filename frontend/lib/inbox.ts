@@ -25,7 +25,7 @@ const inboxSchema = z.object({
    archived: z.boolean(),
    createdAt: z.string(),
    approvalId: z.string().nullish(),
-   goalId: z.string().nullish(),
+   milestoneId: z.string().nullish(),
    planId: z.string().nullish(),
    /** Whatever the projection recorded about the event; shape varies by event. */
    details: z.record(z.string(), z.unknown()).nullish(),
@@ -78,8 +78,8 @@ function notificationType(item: ApiInboxItem): NotificationType {
       return 'approval';
    }
    if (item.planId || event.startsWith('plan.')) return 'plan';
-   if (item.goalId && !item.issueId) return 'goal';
-   if (event.startsWith('goal.')) return 'goal';
+   if (item.milestoneId && !item.issueId) return 'milestone';
+   if (event.startsWith('milestone.') || event.startsWith('goal.')) return 'milestone';
    if (event.includes('review')) return 'reviewRequested';
    if (event.includes('reaction') || category === 'reactions') return 'reaction';
    if (event.includes('mention') || category === 'mentions') return 'mention';
@@ -185,7 +185,7 @@ function toInboxItem(item: ApiInboxItem, actor: User): InboxItem {
       commentBody: detailString(details, ['commentBody', 'comment', 'excerpt']) ?? null,
       prompt: detailString(details, ['prompt', 'instructions', 'originalPrompt']) ?? null,
       approval: item.approvalId ? { id: item.approvalId } : undefined,
-      goal: item.goalId ? { id: item.goalId } : undefined,
+      goal: item.milestoneId ? { id: item.milestoneId } : undefined,
       plan: item.planId ? { id: item.planId } : undefined,
    };
 }

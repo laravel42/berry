@@ -1,3 +1,4 @@
+import { platformModelFor } from './platform-model.ts';
 import { z } from 'zod';
 import type { Sql } from '../db/pool.ts';
 import type { RunMemory } from '../agentcore/memory.ts';
@@ -10,6 +11,7 @@ import { buildMessage, lastRejection } from '../agents/prompt.ts';
 import { repositoryForIssue } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
+import { ceilPermissions, ceilTools, ceilTurns, loopPolicyForRun } from '../autopilots/policy.ts';
 import type { Dispatch } from '../runs/ledger.ts';
 import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type McpServerRef, type RepoPlan, type TaskEnvelope, type TranscriptMessage } from './envelope.ts';
 import { runtimeSessionIdFor, sessionKeyFor } from './session-id.ts';
@@ -17,6 +19,8 @@ import { buildTranscript } from './transcript.ts';
 import { findMerge, mergePrompt, planMerge, type MergePlan } from './merge-plan.ts';
 import { envelopeSkill, loadAgentExtensions, type EnvelopeSkill, type ExtensionDeps } from '../agents/extensions.ts';
 import { pluginMcpServers } from '../plugins/mcp.ts';
+import { parseMentions } from '../work/mentions.ts';
+import type { PluginContainers } from '../plugins/containers.ts';
 import type { PluginRepository } from '../plugins/repository.ts';
 import type { PluginRuntimeStore } from '../plugins/runtime-store.ts';
 import { parseContract } from '../organization/contract.ts';
@@ -164,6 +168,8 @@ export interface TaskRow {
 }
 
 export interface AgentConfig {
+   /** The workspace's Orchestrator, which runs on Berry's platform model. */
+   orchestrator?: boolean;
    maxTurns?: number;
    maxOutputTokens?: number;
    id: string;
@@ -226,7 +232,7 @@ export interface EnvelopeDeps {
     * (workstream G). `ttlMs` bounds the plugin token minted into each
     * envelope. Absent: an agent carries no plugin tools.
     */
-   plugins?: { plugins: PluginRepository; runtime: PluginRuntimeStore; ttlMs: number } | undefined;
+   plugins?: { plugins: PluginRepository; runtime: PluginRuntimeStore; ttlMs: number; containers?: PluginContainers | null } | undefined;
    /** Servers left out for want of a gateway, by name only. */
    onSkipped?: ((names: string[]) => void) | undefined;
    /** Where a failure that does not stop the run is reported. */
@@ -254,7 +260,11 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       kind: row.kind as TaskRow['kind'],
       source: row.source as string,
       prompt: (row.prompt as string | null) ?? null,
-      repository: typeof namedRepository === 'string' && /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(namedRepository) ? namedRepository : null,
+      repository:
+         typeof namedRepository === 'string' &&
+         /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)+$/.test(namedRepository)
+            ? namedRepository
+            : null,
       fresh: typeof origin === 'object' && origin !== null && (origin as { fresh?: unknown }).fresh === true,
       completionSpec: (row.completion_spec as CompletionSpec | null) ?? null,
       runtimeId: (row.runtime_id as string | null) ?? null,
@@ -297,7 +307,7 @@ export class EnvelopeBuilder {
       tier: Tier | null;
    }> {
       const { task } = input;
-      const agent = await this.#agent(task.agentId);
+      const agent = await this.#underLoopPolicy(task.runId, await this.#agent(task.agentId));
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
       const runtime = await this.#runtime(task);
       const baseSessionKey = sessionKeyFor({
@@ -310,9 +320,22 @@ export class EnvelopeBuilder {
       const sessionKey = runtime && task.aiRuntimeConnectionId
          ? `${baseSessionKey}:connection:${task.aiRuntimeConnectionId}`
          : baseSessionKey;
+      // Chat and the product's own single calls run on the model Berry
+      // provides, when the deployment has one and no provider was chosen.
+      const platform = runtime
+         ? null
+         : platformModelFor({
+              kind: task.kind,
+              purpose: task.completionSpec?.purpose,
+              chatSessionId: task.chatSessionId,
+              issueId: task.issueId,
+              orchestrator: agent.orchestrator === true,
+           });
       const { model, tier, fallback } = runtime
          ? { model: runtime.model, tier: null, fallback: null }
-         : await this.#model(task, agent, profile.model);
+         : platform
+           ? { model: platform.model, tier: null, fallback: null }
+           : await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -323,12 +346,13 @@ export class EnvelopeBuilder {
               )
             : null;
       if (extensions && extensions.skipped.length > 0) this.#deps.onSkipped?.(extensions.skipped);
-      const mcpServers = await this.#mcpServers(task, extensions?.mcpServers ?? []);
+      const attached = await this.#mcpServers(task, extensions?.mcpServers ?? []);
       const instructions = agent.instructions;
 
       const base = {
          runId: task.runId,
          ...(runtime ? { runtime } : {}),
+         ...(platform ? { platformModel: platform } : {}),
          sessionKey,
          runtimeSessionId: runtimeSessionIdFor(sessionKey),
          agent: {
@@ -339,7 +363,7 @@ export class EnvelopeBuilder {
             // EnvelopeSkill and EnvelopeMcpServer are SkillRef and McpServerRef
             // field for field: no mapping, and tsc refuses a drift.
             skills: extensions?.skills ?? [],
-            mcpServers,
+            mcpServers: attached.servers,
             permissions: agent.permissions,
             tools: agent.tools,
             maxTokens: this.#deps.maxTokens ?? null,
@@ -457,6 +481,7 @@ export class EnvelopeBuilder {
                   ...(repo?.readOnly ? { repositoryReadOnly: true } : {}),
                   ...(empty ? { repositoryEmpty: true } : {}),
                   skills: (extensions?.skills ?? []).map((skill) => ({ name: skill.name, description: skillDescription(skill) })),
+                  ...(attached.plugins.length > 0 ? { plugins: attached.plugins } : {}),
                   ...(repo?.merge
                      ? { merge: mergePrompt({ baseBranch: repo.baseBranch, branch: repo.branch, conflicts: repo.merge.conflicts }) }
                      : {}),
@@ -486,32 +511,48 @@ export class EnvelopeBuilder {
    }
 
    /**
-    * The agent's own servers, then its workspace's approved plugin servers.
+    * The agent's own servers, then the plugins this task named.
     *
     * Plugin tokens are minted here and only here, straight into the envelope
     * — the one place secrets are opened (spec §11) — and only for an agent
-    * task: a completion is one model call and gets none. Each plugin server
-    * carries its approved tools as `allowedTools`, which the runtime enforces.
-    * A plugin whose server name an agent's own server already uses is left
-    * out rather than shadowing it.
+    * task: a completion is one model call and gets none. An issue task
+    * carries the plugins its description mentions, and each of those offers
+    * every tool its MCP server lists (or the tools an admin approved, when
+    * the plugin names them). A chat names no task, so it keeps every enabled
+    * plugin. A plugin whose server name an agent's own server already uses
+    * is left out rather than shadowing it.
     */
-   async #mcpServers(task: TaskRow, own: McpServerRef[]): Promise<McpServerRef[]> {
+   async #mcpServers(task: TaskRow, own: McpServerRef[]): Promise<{
+      servers: McpServerRef[];
+      plugins: { name: string; server: string }[];
+   }> {
       const plugins = this.#deps.plugins;
-      if (task.kind !== 'agent' || !plugins) return own;
+      if (task.kind !== 'agent' || !plugins) return { servers: own, plugins: [] };
+      let named: Set<string> | undefined;
+      if (task.issueId) {
+         const [row] = await this.#deps.sql`SELECT description FROM issues WHERE id = ${task.issueId}`;
+         named = new Set(parseMentions((row?.description as string | null) ?? '').plugins);
+      }
       const taken = new Set(own.map((server) => server.name));
-      const fromPlugins = await pluginMcpServers(plugins, task.workspaceId, plugins.ttlMs);
-      return [
-         ...own,
-         ...fromPlugins
-            .filter((server) => !taken.has(server.name))
-            .map((server) => ({
+      const fromPlugins = (await pluginMcpServers(
+         { ...plugins, apiUrl: this.#deps.publicUrl },
+         task.workspaceId,
+         plugins.ttlMs,
+         named
+      )).filter((server) => !taken.has(server.name));
+      return {
+         servers: [
+            ...own,
+            ...fromPlugins.map((server) => ({
                name: server.name,
                url: server.url,
                transport: server.transport,
                headers: server.headers,
                allowedTools: server.allowedTools,
             })),
-      ];
+         ],
+         plugins: fromPlugins.map((server) => ({ name: server.title, server: server.name })),
+      };
    }
 
    /** The issue context `claimDispatch` reads, without the claim: building an envelope changes no run state. */
@@ -520,7 +561,7 @@ export class EnvelopeBuilder {
          SELECT r.id, r.issue_id, r.board_id, r.agent_id,
                 i.title, i.description, r.instructions, r.request_id, r.traceparent,
                 b.workspace_id,
-                COALESCE(project.github_repo_full_name, '') AS repository,
+                COALESCE(project.gitlab_project_path, project.github_repo_full_name, '') AS repository,
                 berry_issue_identifier(b.workspace_id, i.number) AS identifier
            FROM runs AS r
            JOIN issues AS i ON i.id = r.issue_id
@@ -558,10 +599,10 @@ export class EnvelopeBuilder {
             false
          );
       }
-      if (definition.executionMode !== 'agent_process') {
+      if (definition.executionMode !== 'agent_process' && definition.executionMode !== 'direct_inference') {
          throw new AiRuntimeEnvelopeError(
             'AI_RUNTIME_UNAVAILABLE',
-            `${definition.name} is connected with an API token. Agent runs use a CLI runtime.`,
+            `${definition.name} cannot run this task.`,
             false
          );
       }
@@ -587,6 +628,13 @@ export class EnvelopeBuilder {
             `${definition.name} could not use your account. Reconnect it and run the task again.`,
             false,
             { cause }
+         );
+      }
+      if (definition.executionMode === 'direct_inference' && credential.type !== 'api_key') {
+         throw new AiRuntimeEnvelopeError(
+            'AI_RUNTIME_AUTH_REQUIRED',
+            `Reconnect ${definition.name} with an API token before running this task.`,
+            false
          );
       }
       if (task.aiRuntimeId === 'claude' && (credential.type !== 'oauth' || credential.token !== CLAUDE_CLI_LOGIN)) {
@@ -700,9 +748,30 @@ export class EnvelopeBuilder {
       return { skills, prompt };
    }
 
+   /**
+    * The agent as a Loop's run may use it. Tools and turns come down to the
+    * Loop's mode and budget; permissions too, because they decide whether
+    * the checkout is writable and whether a branch or pull request is
+    * delivered — a recommend-mode run keeps only `read_repository`. The
+    * agent-tools mount enforces the same ceiling on every call; this keeps
+    * the agent from being told about tools it would be refused.
+    */
+   async #underLoopPolicy(runId: string, agent: AgentConfig): Promise<AgentConfig> {
+      const loop = await loopPolicyForRun(this.#deps.sql, runId);
+      if (!loop) return agent;
+      const maxTurns = ceilTurns(agent.maxTurns, loop.maxTurns);
+      const { maxTurns: _agentTurns, ...rest } = agent;
+      return {
+         ...rest,
+         ...(maxTurns !== undefined ? { maxTurns } : {}),
+         tools: ceilTools(agent.tools, loop.accessMode),
+         permissions: ceilPermissions(agent.permissions, loop.accessMode),
+      };
+   }
+
    async #agent(agentId: string): Promise<AgentConfig> {
       const [row] = await this.#deps.sql`
-         SELECT id, name, instructions, model_name, model_provider, model_tier, fallback_model, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
+         SELECT id, name, instructions, model_name, model_provider, model_tier, fallback_model, permissions, runtime_profile_id, role_key, role_contract, manifest_limits, protected
            FROM agents WHERE id = ${agentId} AND archived_at IS NULL`;
       if (!row) throw new Error(`agent ${agentId} does not exist`);
       const name = row.name as string;
@@ -717,6 +786,7 @@ export class EnvelopeBuilder {
          ...(turns.length ? { maxTurns: Math.min(...turns) } : {}),
          ...(output.length ? { maxOutputTokens: Math.min(...output) } : {}),
          id: row.id as string,
+         orchestrator: row.protected === true,
          name,
          instructions:
             ((row.instructions as string | null) ?? '').trim() ||
@@ -857,9 +927,10 @@ export class EnvelopeBuilder {
     * The handoff posted on each task this one waits for, and on the tasks
     * those wait for.
     *
-    * The comment is the copy the next prompt carries. A file saved only in
-    * object storage is unread when that store is down, and the next agent
-    * would inventory the repository instead. The earliest handoff comes
+    * The run's comment is the copy the next prompt carries. An older note
+    * whose body starts with `.handoffs/` or `HANDOFF.md` still counts. A file
+    * saved only in object storage is unread when that store is down, and the
+    * next agent would inventory the repository instead. The earliest handoff comes
     * first, so the foundation is read before the task that sits on it.
     */
    async #handoffs(issueId: string): Promise<BlockerHandoff[]> {
@@ -888,7 +959,7 @@ export class EnvelopeBuilder {
                    SELECT body FROM comments
                     WHERE issue_id = blocker.id
                       AND parent_id IS NULL
-                      AND (body LIKE '.handoffs/%' OR body LIKE 'HANDOFF.md%')
+                      AND (body LIKE '.handoffs/%' OR body LIKE 'HANDOFF.md%' OR run_id IS NOT NULL)
                     ORDER BY created_at DESC
                     LIMIT 1
                 ) AS handoff ON true
@@ -905,15 +976,22 @@ export class EnvelopeBuilder {
    /** Spec 2.2: the envelope carries the project resources (same rows as `read_project_resources`). */
    async #projectResources(issueId: string, workspaceId: string): Promise<TaskEnvelope['task']['projectResources']> {
       const rows = await this.#deps.sql`
-         SELECT p.name, p.description, p.github_repo_full_name AS repository
+         SELECT p.name, p.description,
+                p.github_repo_full_name, p.gitlab_project_path
            FROM issue_project_links AS link
            JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
           WHERE link.issue_id = ${issueId} AND p.workspace_id = ${workspaceId}`;
-      return rows.map((row) => ({
-         title: row.name as string,
-         url: row.repository ? `https://github.com/${row.repository as string}` : null,
-         content: (row.description as string | null) ?? null,
-      }));
+      return rows.map((row) => {
+         const gitlab = row.gitlab_project_path as string | null;
+         const github = row.github_repo_full_name as string | null;
+         const repository = gitlab || github;
+         const host = gitlab ? 'https://gitlab.com' : 'https://github.com';
+         return {
+            title: row.name as string,
+            url: repository ? `${host}/${repository}` : null,
+            content: (row.description as string | null) ?? null,
+         };
+      });
    }
 
    /**

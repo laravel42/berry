@@ -9,6 +9,8 @@
  *   - `oauth` — authorized through this deployment's own OAuth App, or
  *     (for GitHub) a person's sign-in token. Provider client secrets stay
  *     in Berry, sealed.
+ *   - `access_token` — a person pastes a host access token (PAT). Sealed the
+ *     same way; no OAuth App in the environment.
  *
  * A file cannot invent another way. The loader refuses an `include` this
  * process does not implement, so a catalogue entry cannot offer a Connect
@@ -23,7 +25,7 @@ import { z } from 'zod';
 export type ToolEffect = 'read' | 'write' | 'external_side_effect' | 'destructive';
 
 /** The ways this build knows how to include an integration. */
-export const INCLUSION_METHODS = ['built-in', 'oauth'] as const;
+export const INCLUSION_METHODS = ['built-in', 'oauth', 'access_token'] as const;
 export type InclusionMethod = (typeof INCLUSION_METHODS)[number];
 
 export interface ProviderTool {

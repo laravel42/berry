@@ -1,105 +1,114 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, waitFor, within } from 'storybook/test';
+import { expect } from 'storybook/test';
+
 import ModelTiersSettings from './model-tiers-settings';
-import { memberWorkspace, seedSession } from './stories-fixtures';
+import { seedSession } from './stories-fixtures';
 
-/** `GET /api/v1/runtimes/catalog`, shaped as `AiRuntimeDefinition` requires. */
-const connectedCatalog = {
-   nodes: [
-      {
-         id: 'rt-kiro',
-         name: 'Kiro',
-         publisher: 'Kiro',
-         product: 'Kiro',
-         description: '',
-         executionMode: 'agent_process',
-         provider: 'kiro',
-         billing: 'subscription',
-         billingDetail: '',
-         subscriptionAccess: 'supported',
-         connectionMethods: [],
-         platforms: [],
-         localProcess: true,
-         installation: '',
-         defaultModel: 'claude-haiku',
-         capabilities: {
-            modelDiscovery: 'supported',
-            streaming: 'supported',
-            tools: 'supported',
-            sessions: 'supported',
-            cancellation: 'supported',
-            usage: 'supported',
-         },
-         availability: 'available',
-         unavailableReason: null,
-         officialSources: [],
-         connection: {
-            id: 'conn-1',
-            runtimeId: 'rt-kiro',
-            status: 'connected',
-            authMethod: 'cli',
-            accountId: null,
-            accountName: null,
-            metadata: {
-               models: [
-                  { id: 'claude-haiku', name: 'Claude Haiku 4.5' },
-                  { id: 'claude-opus', name: 'Claude Opus 5' },
-                  { id: 'claude-sonnet', name: 'Claude Sonnet 4.6' },
-               ],
-            },
-            connectedAt: '2026-09-01T00:00:00Z',
-            disconnectedAt: null,
-            lastCheckedAt: null,
-            lastError: null,
-         },
-      },
-   ],
-   preference: { runtimeId: null, modelId: null },
+const capabilities = {
+   modelDiscovery: 'supported',
+   streaming: 'supported',
+   tools: 'supported',
+   sessions: 'supported',
+   cancellation: 'supported',
+   usage: 'supported',
 };
 
-const noRuntimeCatalog = { nodes: [], preference: { runtimeId: null, modelId: null } };
-
-const tierNames = {
-   berry_max: 'BerryMax',
-   berry_xhigh: 'BerryXHigh',
-   berry_high: 'BerryHigh',
-   berry_mid: 'BerryMid',
-   berry_low: 'BerryLow',
-};
-
-/** One model already placed on BerryMid; every other tier is empty. */
-const tierModels = {
-   source: 'workspace' as const,
-   tiers: {
-      berry_max: [],
-      berry_xhigh: [],
-      berry_high: [],
-      berry_mid: ['rt-kiro/claude-haiku'],
-      berry_low: [],
+/** A connected subscription runtime offering `models`. */
+const connected = (
+   id: string,
+   name: string,
+   models: {
+      id: string;
+      name: string;
+      maxContextLength?: number;
+      capabilities?: {
+         vision: boolean;
+         trainedForToolUse: boolean;
+         reasoning?: { allowedOptions: Array<'off' | 'on'>; default: 'off' | 'on' } | null;
+      };
+   }[]
+) => ({
+   id,
+   name,
+   publisher: name,
+   product: name,
+   description: '',
+   executionMode: 'agent_process',
+   provider: id,
+   billing: 'subscription',
+   billingDetail: '',
+   subscriptionAccess: 'supported',
+   connectionMethods: [],
+   platforms: ['macos'],
+   localProcess: true,
+   installation: '',
+   defaultModel: null,
+   capabilities,
+   availability: 'available',
+   installed: true,
+   unavailableReason: null,
+   officialSources: [],
+   connection: {
+      id: `conn-${id}`,
+      runtimeId: id,
+      status: 'connected',
+      authMethod: 'cli',
+      accountId: null,
+      accountName: null,
+      metadata: { models },
+      connectedAt: '2026-10-01T10:00:00Z',
+      disconnectedAt: null,
+      lastCheckedAt: null,
+      lastError: null,
    },
-   names: tierNames,
-};
+});
 
 const meta = {
    component: ModelTiersSettings,
-   tags: ['ai-generated', 'needs-work'],
-   decorators: [
-      (Story) => (
-         <div className="w-[700px]">
-            <Story />
-         </div>
-      ),
-   ],
+   tags: ['ai-generated'],
    beforeEach: ({ msw }) => {
       seedSession();
       msw.use(
-         http.get('*/api/v1/runtimes/catalog', () => HttpResponse.json(connectedCatalog)),
-         http.get('*/api/v1/runtimes/tier-models', () => HttpResponse.json(tierModels)),
-         http.put('*/api/v1/runtimes/tier-models', async ({ request }) => {
-            const body = (await request.json()) as { placement: Record<string, string[]> };
-            return HttpResponse.json({ source: 'workspace', tiers: body.placement });
-         })
+         http.get('*/api/v1/runtimes/catalog', () =>
+            HttpResponse.json({
+               nodes: [
+                  connected('codex', 'Codex CLI', [
+                     {
+                        id: 'gpt-6.1-sol',
+                        name: 'GPT-6.1-Sol',
+                        maxContextLength: 262144,
+                        capabilities: {
+                           vision: true,
+                           trainedForToolUse: true,
+                           reasoning: { allowedOptions: ['off', 'on'], default: 'on' },
+                        },
+                     },
+                  ]),
+                  connected('kiro', 'Kiro CLI', [{ id: 'auto', name: 'Automatic' }]),
+               ],
+               preference: { runtimeId: null, modelId: null },
+            })
+         ),
+         http.get('*/api/v1/runtimes/tier-models', () =>
+            HttpResponse.json({
+               source: 'workspace',
+               tiers: {
+                  berry_max: ['codex/gpt-6.1-sol'],
+                  berry_xhigh: [],
+                  berry_high: ['kiro/auto', 'codex/gpt-6.1-sol'],
+                  berry_mid: ['kiro/auto', 'codex/gpt-6.1-sol'],
+                  berry_low: [],
+               },
+               names: {
+                  berry_max: 'Development',
+                  berry_xhigh: 'Design',
+                  berry_high: 'Reasoning',
+                  berry_mid: 'Review',
+                  berry_low: 'Plan',
+               },
+            })
+         )
       );
    },
 } satisfies Meta<typeof ModelTiersSettings>;
@@ -107,50 +116,15 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** No subscription runtime connected: Berry says what to do instead of a placement UI. */
-export const NoRuntimeConnected: Story = {
-   beforeEach: ({ msw }) => {
-      msw.use(http.get('*/api/v1/runtimes/catalog', () => HttpResponse.json(noRuntimeCatalog)));
-   },
+/** Five tiers, two of them empty; each lists its models first choice first. */
+export const Tiers: Story = {
    play: async ({ canvas }) => {
+      await expect(await canvas.findByDisplayValue('Reasoning')).toBeVisible();
+      await expect(canvas.getAllByText(/262,144 context/).length).toBeGreaterThan(0);
+      await expect(canvas.queryAllByText(/Vision/)).toHaveLength(0);
+      await expect(canvas.queryAllByText(/Reasoning off, on, default on/)).toHaveLength(0);
       await expect(
-         await canvas.findByText(/Connect a subscription AI runtime in Settings/)
-      ).toBeVisible();
-   },
-};
-
-/** The model already placed on BerryMid shows under its tier, with its runtime. */
-export const PlacedModelShows: Story = {
-   play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Claude Haiku 4.5')).toBeVisible();
-      await expect(canvas.getByText('Kiro')).toBeVisible();
-   },
-};
-
-/** Adding a model to a tier saves the new order; the save indicator confirms it. */
-export const AddModelToTier: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      // Wait for the placement to load: the add control stays disabled until then.
-      await canvas.findByText('Claude Haiku 4.5');
-      const tierNameInput = canvas.getByDisplayValue('BerryMid');
-      const row = tierNameInput.closest('[data-column-tint]') as HTMLElement;
-      await userEvent.click(within(row).getByRole('button', { name: 'Add model' }));
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('option', { name: /Claude Opus 5/ }));
-      await expect(await canvas.findByText('Claude Opus 5')).toBeVisible();
-      await waitFor(() => expect(canvas.getByText('Saved')).toBeVisible());
-   },
-};
-
-/** A member sees the placements, named as fixed chips, with no edit controls. */
-export const ReadOnlyMember: Story = {
-   beforeEach: () => {
-      seedSession(memberWorkspace);
-   },
-   play: async ({ canvas }) => {
-      await expect(await canvas.findByText('Claude Haiku 4.5')).toBeVisible();
-      await expect(canvas.getByText('BerryMid')).toBeVisible();
-      await expect(canvas.queryByRole('button', { name: 'Add model' })).toBeNull();
-      await expect(canvas.queryByDisplayValue('BerryMid')).toBeNull();
+         canvas.getAllByText('No models yet. Tasks in this tier use the workspace default.')
+      ).toHaveLength(2);
    },
 };

@@ -102,9 +102,9 @@ export const mcpServerRefSchema = z.object({
    headers: z.record(z.string(), z.string()),
    /**
     * Server-side tool names the agent may use; null exposes every tool the
-    * server lists (a server the workspace registered itself). A plugin's
-    * server always carries its admin-approved list, and nothing else of it
-    * reaches the agent.
+    * server lists. That is a server the workspace registered itself, or a
+    * plugin that connects to an MCP server and offers all of its tools. A
+    * plugin that names its tools carries only the ones an admin approved.
     */
    allowedTools: z.array(z.string().min(1)).nullable(),
 });
@@ -114,6 +114,12 @@ const runtimeCredentialSchema = z.object({
    token: z.string().min(1),
    accountId: z.string().nullable(),
    accountName: z.string().nullable(),
+   /**
+    * Where a self-hosted OpenAI-compatible server answers, such as an LM
+    * Studio `/v1` base URL. Absent for providers with a fixed endpoint.
+    * Not a secret.
+    */
+   baseUrl: z.url({ protocol: /^https?$/ }).max(2048).optional(),
 });
 
 export const taskEnvelopeSchema = z.object({
@@ -132,6 +138,19 @@ export const taskEnvelopeSchema = z.object({
          /** Provider agent profile, such as `kiro_default`. Absent uses the CLI default. */
          agent: z.string().min(1).max(80).nullable().optional(),
          credential: runtimeCredentialSchema,
+      })
+      .nullable()
+      .optional(),
+   /**
+    * The model Berry provides (src/runtime/platform-model.ts), for chat and
+    * the product's own single calls. The runtime calls it with the host's
+    * own AWS credentials; nothing secret travels here. Absent otherwise.
+    */
+   platformModel: z
+      .object({
+         provider: z.literal('bedrock'),
+         model: z.string().min(1).max(300),
+         region: z.string().min(1).max(40),
       })
       .nullable()
       .optional(),
@@ -273,6 +292,12 @@ export const CURSOR_CLI_LOGIN = 'cursor-cli';
  * Berry does not store or read that credential. The value is not a secret.
  */
 export const QODER_CLI_LOGIN = 'qoder-cli';
+
+/**
+ * Marks an LM Studio connection whose server has authentication off. The
+ * runtime sends no Authorization header. The value is not a secret.
+ */
+export const LMSTUDIO_NO_TOKEN = 'lmstudio-no-token';
 
 const REDACTED = '[redacted]';
 

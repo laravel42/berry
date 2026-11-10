@@ -38,10 +38,12 @@ import {
 } from '@/lib/chat';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
+import { useVoiceAgentsAvailable } from '@/hooks/use-voice-agents';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
+import { VoiceSessionModal } from './voice-session-modal';
 import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
@@ -100,6 +102,8 @@ export function Chat() {
    const [renaming, setRenaming] = useState(false);
    const [title, setTitle] = useState('');
    const [deleting, setDeleting] = useState(false);
+   const [voiceOpen, setVoiceOpen] = useState(false);
+   const voiceAvailable = useVoiceAgentsAvailable();
 
    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const pendingRenames = useRef(new Map<string, PendingRename>());
@@ -670,7 +674,7 @@ export function Chat() {
             {error ? (
                <p
                   role="alert"
-                  className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-[var(--shell-accent)]"
+                  className="mx-auto w-full max-w-3xl flex-none px-6 pb-2 text-primary"
                >
                   {error}
                </p>
@@ -699,7 +703,20 @@ export function Chat() {
                {...(activeId ? { conversationId: activeId } : {})}
                {...(activeAgent ? { agent: activeAgent } : {})}
                answering={stage !== null}
+               onVoice={
+                  voiceAvailable && workspaceId && activeAgent ? () => setVoiceOpen(true) : null
+               }
             />
+            {workspaceId && activeAgent ? (
+               <VoiceSessionModal
+                  open={voiceOpen}
+                  onOpenChange={setVoiceOpen}
+                  workspaceId={workspaceId}
+                  agentId={activeAgent.id}
+                  agentName={activeAgent.name}
+                  conversationId={activeId}
+               />
+            ) : null}
          </section>
       </div>
    );

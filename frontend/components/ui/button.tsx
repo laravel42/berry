@@ -2,8 +2,6 @@ import * as React from 'react';
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 
-import { cn } from '@/lib/utils';
-
 /**
  * Buttons under the "Ledger" redesign: pilled, bold, and the filled primary a
  * gradient rather than a flat berry. `gate` is the review gate, the one action
@@ -20,16 +18,16 @@ const buttonVariants = cva(
    {
       variants: {
          variant: {
-            default:
+            'default':
                'bg-linear-to-b from-pri-a to-pri-b border border-pri-a text-primary-foreground shadow-xs hover:brightness-110',
-            destructive:
+            'destructive':
                'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
-            outline:
+            'outline':
                'border border-input bg-card shadow-xs hover:bg-secondary hover:text-accent-foreground',
-            secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
-            ghost: 'hover:bg-muted hover:text-accent-foreground',
-            link: 'text-primary-text underline-offset-4 hover:underline',
-            gate: 'bg-gate text-gate-foreground shadow-xs hover:brightness-110',
+            'secondary': 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
+            'ghost': 'hover:bg-muted hover:text-accent-foreground',
+            'link': 'text-primary-text underline-offset-4 hover:underline',
+            'gate': 'bg-gate text-gate-foreground shadow-xs hover:brightness-110',
             /* A secondary control inviting an AI action — "Create with
                agent", "AI Workflow", "Fix with AI" — never the primary
                action on a screen, which already carries the gradient fill
@@ -41,7 +39,18 @@ const buttonVariants = cva(
                callers needing more room pass a `size`, not a one-off
                className override that would have to out-specify
                `size`'s own `has-[>svg]` padding split. */
-            ai: 'spark border-0',
+            'ai': 'spark border-0',
+            /** Settings secondary: a filled neutral control. */
+            'soft':
+               'bg-settings-control text-foreground hover:bg-settings-control-hover disabled:opacity-100 disabled:text-subtle-foreground',
+            /** Settings destructive: neutral fill, danger ink (Revoke, Delete). */
+            'soft-destructive':
+               'bg-settings-control text-status-danger hover:bg-settings-control-hover disabled:opacity-100 disabled:text-subtle-foreground',
+            /** Settings ghost: muted ink, fills on hover. */
+            'quiet': 'text-muted-foreground hover:bg-settings-control hover:text-foreground',
+            /** Filled track, same as the shell "Back to app" control. */
+            'track':
+               '!h-[30px] !rounded-[7px] border-0 bg-segment-track px-2 text-[var(--shell-text-muted)] shadow-none hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] data-[state=open]:!bg-[var(--brand-hairline)] data-[state=open]:!text-[var(--shell-text)]',
          },
          size: {
             default: 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
@@ -66,6 +75,8 @@ const buttonVariants = cva(
    }
 );
 
+type ButtonVariantProps = VariantProps<typeof buttonVariants>;
+
 function Button({
    className,
    variant,
@@ -73,7 +84,7 @@ function Button({
    asChild = false,
    ...props
 }: React.ComponentProps<'button'> &
-   VariantProps<typeof buttonVariants> & {
+   ButtonVariantProps & {
       asChild?: boolean;
    }) {
    const Comp = asChild ? Slot : 'button';
@@ -81,10 +92,14 @@ function Button({
    return (
       <Comp
          data-slot="button"
-         className={cn(buttonVariants({ variant, size }), className)}
+         className={buttonVariants({ variant, size, className })}
          {...props}
       />
    );
 }
+
+/** Pressed fill for `variant="track"`. */
+export const trackButtonPressedClass =
+   '!bg-[var(--brand-hairline)] !text-[var(--shell-text)] hover:!bg-[var(--brand-hairline)] hover:!text-[var(--shell-text)]';
 
 export { Button, buttonVariants };

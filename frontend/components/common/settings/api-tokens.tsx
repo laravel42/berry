@@ -1,7 +1,7 @@
 'use client';
 
 import { format, parseISO } from 'date-fns';
-import { KeyRound, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -9,22 +9,7 @@ import { toast } from 'sonner';
 import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-   Dialog,
-   DialogContent,
-   DialogDescription,
-   DialogFooter,
-   DialogHeader,
-   DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import {
-   Select,
-   SelectContent,
-   SelectItem,
-   SelectTrigger,
-   SelectValue,
-} from '@/components/ui/select';
 import {
    API_SCOPES,
    createToken,
@@ -32,7 +17,16 @@ import {
    revokeToken,
    type PersonalToken,
 } from '@/lib/settings';
-import { SettingsCard, SettingsRow, SettingsSection, SettingsShell } from './shared';
+import { cn } from '@/lib/utils';
+import {
+   SelectMenu,
+   SettingsCard,
+   SettingsEmpty,
+   SettingsFooter,
+   SettingsRow,
+   SettingsSection,
+   SettingsShell,
+} from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /** The expiry choices, as the select's values. `never` carries no expiry. */
@@ -54,11 +48,9 @@ const EXPIRY_LABEL: Record<Expiry, 'expiry30' | 'expiry90' | 'expiry365' | 'expi
  * dismissed it in one click. A key with no expiry is the default that ages
  * worst, so the choice is offered and ninety days is what it opens on.
  *
- * The secret appears exactly once — the server keeps a hash — so the dialog
- * that shows it cannot be dismissed by clicking away or pressing Escape, and
- * "Done" waits until someone says they have stored it. That is a deliberate
- * piece of friction: every other way out of that dialog loses the key and
- * gives no sign that anything was lost.
+ * The secret appears exactly once — the server keeps a hash — in a card above
+ * the list. It stays until the next key is created or that key is revoked;
+ * leaving the page loses it, as the card says.
  */
 export default function ApiTokens() {
    const t = useTranslations('workspaceAdmin.tokens');
@@ -72,7 +64,7 @@ export default function ApiTokens() {
 
    /** Shown once. The server keeps a hash, so this is the only time it exists. */
    const [secret, setSecret] = useState<string | null>(null);
-   const [stored, setStored] = useState(false);
+   const [copied, setCopied] = useState(false);
    const [revoking, setRevoking] = useState<PersonalToken | null>(null);
 
    const create = async () => {
@@ -90,7 +82,7 @@ export default function ApiTokens() {
          setScopes(null);
          setExpiry('90');
          if (issued) {
-            setStored(false);
+            setCopied(false);
             setSecret(issued);
          } else {
             // An idempotent replay: the key exists, but its secret is gone for
@@ -108,6 +100,7 @@ export default function ApiTokens() {
       if (!revoking) return;
       const rest = (tokens.value ?? []).filter((entry) => entry.id !== revoking.id);
       const ok = await tokens.mutate(rest, () => revokeToken(revoking.id));
+      if (ok) setSecret(null);
       // `mutate` rolled back and said why; the dialog stays for another go.
       if (!ok) throw new Error('The key could not be revoked.');
    };
@@ -129,25 +122,54 @@ export default function ApiTokens() {
       ].join(' · ');
    };
 
+   const scopeHint =
+      scopes === null
+         ? t('scopesFullHint')
+         : scopes.length === 0
+           ? t('scopesNoneHint')
+           : t('scopesLimitedHint', { scopes: scopes.join(', ') });
+
+   const copySecret = () => {
+      void navigator.clipboard?.writeText(secret ?? '');
+      setCopied(true);
+   };
+
    return (
       <SettingsShell title={t('title')} description={t('subtitle')}>
          <SettingsSection title={t('listTitle')} description={tokens.error ?? undefined}>
+            {/* The only copy of the key: shown here, above the list, until the
+                next key is made or this one is revoked. */}
+            {secret !== null ? (
+               <div className="flex flex-col gap-2.5 rounded-[10px] bg-settings-group px-4 py-3.5">
+                  <div className="flex flex-col gap-0.5">
+                     <span className="font-medium">{t('secretTitle')}</span>
+                     <span data-settings-type="caption" className="text-subtle-foreground">
+                        {t('secretBody')}
+                     </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                     <code className="flex h-[30px] min-w-0 flex-1 items-center overflow-hidden rounded-[7px] bg-settings-field-sunken px-2.5 font-mono text-ellipsis whitespace-nowrap text-foreground">
+                        {secret}
+                     </code>
+                     <Button variant="soft" onClick={copySecret}>
+                        {copied ? t('copiedLabel') : t('copy')}
+                     </Button>
+                  </div>
+               </div>
+            ) : null}
             <SettingsCard>
-               {tokens.loading ? <SettingsRow title={t('loading')} /> : null}
+               {tokens.loading ? <SettingsEmpty title={t('loading')} /> : null}
                {!tokens.loading && (tokens.value ?? []).length === 0 ? (
-                  <SettingsRow title={t('empty')} />
+                  <SettingsEmpty title={t('empty')} />
                ) : null}
                {(tokens.value ?? []).map((token) => (
                   <SettingsRow
                      key={token.id}
-                     icon={<KeyRound className="size-4" />}
                      title={token.name}
                      description={describe(token)}
                      trailing={
                         <Button
-                           size="xs"
-                           variant="ghost"
-                           className="text-status-danger hover:text-status-danger"
+                           variant="soft-destructive"
                            disabled={tokens.saving}
                            onClick={() => setRevoking(token)}
                         >
@@ -165,10 +187,11 @@ export default function ApiTokens() {
                   title={t('name')}
                   trailing={
                      <Input
+                        variant="settings"
                         value={name}
                         aria-label={t('name')}
                         placeholder={t('namePlaceholder')}
-                        className="h-8 w-52"
+                        className="w-[220px]"
                         onChange={(event) => setName(event.target.value)}
                         onKeyDown={(event) => {
                            if (event.key === 'Enter') void create();
@@ -180,43 +203,39 @@ export default function ApiTokens() {
                   title={t('expiry')}
                   description={t('expiryDescription')}
                   trailing={
-                     <Select value={expiry} onValueChange={(next) => setExpiry(next as Expiry)}>
-                        <SelectTrigger className="h-8 w-44" aria-label={t('expiry')}>
-                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                           {EXPIRIES.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                 {t(EXPIRY_LABEL[option])}
-                              </SelectItem>
-                           ))}
-                        </SelectContent>
-                     </Select>
+                     <SelectMenu
+                        aria-label={t('expiry')}
+                        options={[...EXPIRIES]}
+                        labels={Object.fromEntries(
+                           EXPIRIES.map((option) => [option, t(EXPIRY_LABEL[option])])
+                        )}
+                        value={expiry}
+                        onChange={(next) => setExpiry(next as Expiry)}
+                     />
                   }
                />
-               <SettingsRow
-                  title={t('scopes')}
-                  description={
-                     scopes === null
-                        ? t('scopesFullHint')
-                        : scopes.length === 0
-                          ? t('scopesNoneHint')
-                          : t('scopesLimitedHint')
-                  }
-               >
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
-                     <label className="flex items-center gap-2">
+               <SettingsRow title={t('scopes')} description={scopeHint}>
+                  <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-x-4 gap-y-2.5">
+                     <label className="flex cursor-pointer items-center gap-2">
                         <Checkbox
+                           variant="settings"
                            checked={scopes === null}
                            onCheckedChange={(checked) => setScopes(checked === true ? null : [])}
                         />
                         {t('scopeFull')}
                      </label>
                      {API_SCOPES.map((scope) => (
-                        <label key={scope} className="flex items-center gap-2">
+                        <label
+                           key={scope}
+                           className={cn(
+                              'flex cursor-pointer items-center gap-2',
+                              scopes === null && 'cursor-default text-muted-foreground'
+                           )}
+                        >
                            {/* Full access includes every scope, so they read as ticked
                                (and fixed) until Full is cleared. */}
                            <Checkbox
+                              variant="settings"
                               disabled={scopes === null}
                               checked={scopes === null || scopes.includes(scope)}
                               onCheckedChange={(checked) =>
@@ -231,68 +250,20 @@ export default function ApiTokens() {
                      ))}
                   </div>
                </SettingsRow>
-               <SettingsRow
-                  title=""
-                  trailing={
-                     <Button
-                        size="xs"
-                        disabled={creating || name.trim() === '' || scopes?.length === 0}
-                        onClick={() => void create()}
-                     >
-                        {creating ? (
-                           <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
-                        ) : (
-                           t('create')
-                        )}
-                     </Button>
-                  }
-               />
+               <SettingsFooter>
+                  <Button
+                     disabled={creating || name.trim() === '' || scopes?.length === 0}
+                     onClick={() => void create()}
+                  >
+                     {creating ? (
+                        <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" />
+                     ) : (
+                        t('create')
+                     )}
+                  </Button>
+               </SettingsFooter>
             </SettingsCard>
          </SettingsSection>
-
-         {/* The only copy of the key. Clicking away would lose it silently, so
-             this dialog closes one way: by saying it has been stored. */}
-         <Dialog open={secret !== null} onOpenChange={() => undefined}>
-            <DialogContent
-               onEscapeKeyDown={(event) => event.preventDefault()}
-               onInteractOutside={(event) => event.preventDefault()}
-            >
-               <DialogHeader>
-                  <DialogTitle>{t('secretTitle')}</DialogTitle>
-                  <DialogDescription>{t('secretBody')}</DialogDescription>
-               </DialogHeader>
-               <code className="block rounded-md border bg-container px-3 py-2 font-mono break-all text-muted-foreground">
-                  {secret}
-               </code>
-               <label className="flex items-center gap-2">
-                  <Checkbox
-                     checked={stored}
-                     onCheckedChange={(checked) => setStored(checked === true)}
-                  />
-                  {t('stored')}
-               </label>
-               <DialogFooter>
-                  <Button
-                     variant="secondary"
-                     onClick={() => {
-                        void navigator.clipboard?.writeText(secret ?? '');
-                        toast.success(t('copied'));
-                     }}
-                  >
-                     {t('copy')}
-                  </Button>
-                  <Button
-                     disabled={!stored}
-                     onClick={() => {
-                        setSecret(null);
-                        setStored(false);
-                     }}
-                  >
-                     {t('done')}
-                  </Button>
-               </DialogFooter>
-            </DialogContent>
-         </Dialog>
 
          <ConfirmAction
             open={revoking !== null}

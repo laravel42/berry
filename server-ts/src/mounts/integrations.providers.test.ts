@@ -18,6 +18,7 @@ import { sealerFromKey } from '../integrations/sealing.ts';
 import { APP_SEALING_KEY } from '../test-support/github-app.ts';
 import { deleteWorkspaceBoards } from '../test-support/boards.ts';
 import { deleteWorkspaceAgents } from '../test-support/protected-agents.ts';
+import { GitHubSettingsRepository } from '../scm/github-settings.ts';
 import { integrationMounts, type IntegrationsOptions } from './integrations.ts';
 
 /**
@@ -187,6 +188,7 @@ describe(
 
          const connectionSealer = sealerFromKey(APP_SEALING_KEY);
          const connections = new ConnectionRepository({ sql, sealer: connectionSealer });
+         const githubSettings = new GitHubSettingsRepository(sql);
          const userAccess = new GitHubUserAccess({
             sql,
             authSecret: AUTH_SECRET,
@@ -212,6 +214,8 @@ describe(
                   githubApp,
                   appSlug: null,
                   userAccess,
+                  githubSettings,
+                  sql,
                   publicUrl: 'http://localhost:4000',
                   appUrl: 'http://localhost:3000',
                   completeAgentCoreAuthorization: null,
@@ -329,6 +333,54 @@ describe(
          assert.equal(github!.connected, false);
          assert.equal(github!.source, null);
          assert.ok(github!.tools.every((tool) => tool.allowed === false));
+      });
+
+      test('Disconnect clears a sign-in-only GitHub link without wiping the login token', async () => {
+         const settings = new GitHubSettingsRepository(sql);
+         const before = await providersOf(signedInApp, signedInToken);
+         assert.equal(before.providers.find((provider) => provider.id === 'github')!.connected, true);
+
+         try {
+            const response = await signedInApp.request('/api/v1/integrations/connections/github', {
+               method: 'DELETE',
+               headers: { authorization: `Bearer ${signedInToken}` },
+            });
+            assert.equal(response.status, 204);
+
+            const after = await providersOf(signedInApp, signedInToken);
+            const github = after.providers.find((provider) => provider.id === 'github');
+            assert.equal(github!.connected, false);
+            assert.equal(github!.source, null);
+            assert.ok(github!.tools.every((tool) => tool.allowed !== true));
+
+            // The sign-in token stays: another workspace may still need it, and
+            // Connect turns this workspace's switch back on rather than re-OAuth.
+            const [account] = await sql<Array<{ access_token: string | null }>>`
+               SELECT access_token FROM auth_accounts
+                WHERE user_id = ${signedInUserId} AND provider_id = 'github'`;
+            assert.ok(account?.access_token && account.access_token.length > 0);
+         } finally {
+            await sql.begin(async (tx) => {
+               await settings.update(signedInWorkspaceId, { enabled: true }, signedInUserId, tx);
+            });
+         }
+      });
+
+      test('a workspace with GitHub switched off does not read as connected', async () => {
+         const settings = new GitHubSettingsRepository(sql);
+         await sql.begin(async (tx) => {
+            await settings.update(signedInWorkspaceId, { enabled: false }, signedInUserId, tx);
+         });
+         try {
+            const body = await providersOf(signedInApp, signedInToken);
+            const github = body.providers.find((provider) => provider.id === 'github');
+            assert.equal(github!.connected, false);
+            assert.equal(github!.source, null);
+         } finally {
+            await sql.begin(async (tx) => {
+               await settings.update(signedInWorkspaceId, { enabled: true }, signedInUserId, tx);
+            });
+         }
       });
 
       test('a refused sign-in token marks the integration for reconnect', async () => {

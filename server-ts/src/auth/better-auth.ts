@@ -1,15 +1,25 @@
 import { randomUUID } from 'node:crypto';
 
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
-import { testUtils, type TestHelpers } from 'better-auth/plugins';
+import { magicLink, testUtils, twoFactor, type TestHelpers } from 'better-auth/plugins';
 import type { Pool } from 'pg';
 
+import {
+   createConsoleMailer,
+   createSmtpMailer,
+   magicLinkMail,
+   resetPasswordMail,
+   twoFactorOtpMail,
+   type Mailer,
+} from '../mail/mailer.ts';
+import type { AuthMailConfig } from '../config/config.ts';
+
 /**
- * Sign-in: Better Auth with GitHub, plus email and password registration.
+ * Sign-in: Better Auth with GitHub, email/password, magic link and 2FA.
  *
  * Better Auth's user model *is* `users`, so an account keeps the id every
  * workspace, issue and token already points at. Its own state — sessions,
- * linked accounts, OAuth state — lives in the auth_* tables from migration 150.
+ * linked accounts, OAuth state and 2FA secrets — lives in the auth_* tables.
  *
  * It talks to Postgres through a small `pg` pool rather than the server's
  * postgres.js client because its Kysely adapter speaks `pg`; the pool is sized
@@ -30,9 +40,13 @@ export interface BerryAuthOptions {
    sessionTtlMs: number;
    /** Enables Better Auth's testUtils plugin: dev-login and tests only. */
    testUtils?: boolean;
+   /** Outbound mail. Null disables magic link and password reset. */
+   mail?: AuthMailConfig | null;
 }
 
 const MIN_PASSWORD_LENGTH = 12;
+const MAGIC_LINK_TTL_SECONDS = 15 * 60;
+const RESET_TOKEN_TTL_SECONDS = 15 * 60;
 
 /** The route path Better Auth puts on the endpoint context for email sign-up. */
 function endpointPath(context: unknown): string {
@@ -78,7 +92,86 @@ export function githubProfileToUser(
    };
 }
 
+export function createMailer(config: AuthMailConfig | null | undefined): Mailer | null {
+   if (!config) return null;
+   if (config.smtp === null) return createConsoleMailer(config.from);
+   if (typeof config.smtp === 'string') {
+      return createSmtpMailer({ from: config.from, transport: config.smtp });
+   }
+   const { host, port, user, pass, secure } = config.smtp;
+   return createSmtpMailer({
+      from: config.from,
+      transport: {
+         host,
+         port,
+         secure,
+         ...(user ? { auth: { user, pass: pass ?? '' } } : {}),
+      },
+   });
+}
+
 export function createBerryAuth(options: BerryAuthOptions) {
+   const mailer = createMailer(options.mail ?? null);
+   const plugins: BetterAuthPlugin[] = [];
+
+   if (mailer) {
+      plugins.push(
+         magicLink({
+            expiresIn: MAGIC_LINK_TTL_SECONDS,
+            // Existing accounts only: registration is the email/password form.
+            disableSignUp: true,
+            storeToken: 'hashed',
+            sendMagicLink: async ({ email, url }) => {
+               const body = magicLinkMail(url);
+               await mailer.send({ to: email, ...body });
+            },
+         }) as unknown as BetterAuthPlugin
+      );
+   }
+
+   plugins.push(
+      twoFactor({
+         issuer: 'Berry',
+         twoFactorTable: 'auth_two_factors',
+         trustDeviceMaxAge: 30 * 24 * 60 * 60,
+         schema: {
+            user: {
+               fields: {
+                  twoFactorEnabled: 'two_factor_enabled',
+               },
+            },
+            twoFactor: {
+               fields: {
+                  userId: 'user_id',
+                  backupCodes: 'backup_codes',
+                  failedVerificationCount: 'failed_verification_count',
+                  lockedUntil: 'locked_until',
+               },
+            },
+         },
+         ...(mailer
+            ? {
+                 otpOptions: {
+                    async sendOTP({
+                       user,
+                       otp,
+                    }: {
+                       user: { email: string };
+                       otp: string;
+                    }) {
+                       const body = twoFactorOtpMail(otp);
+                       await mailer.send({ to: user.email, ...body });
+                    },
+                 },
+              }
+            : {}),
+      }) as unknown as BetterAuthPlugin
+   );
+
+   if (options.testUtils) {
+      plugins.push(testUtils() as unknown as BetterAuthPlugin);
+   }
+
    return betterAuth({
       appName: 'Berry',
       baseURL: options.baseUrl,
@@ -86,12 +179,26 @@ export function createBerryAuth(options: BerryAuthOptions) {
       secret: options.secret,
       trustedOrigins: options.trustedOrigins,
       database: options.pool,
-      // Registration does not send mail. A new account is unverified and can
-      // sign in immediately; GitHub sign-up still requires a verified address.
       emailAndPassword: {
          enabled: true,
          minPasswordLength: MIN_PASSWORD_LENGTH,
          maxPasswordLength: 256,
+         resetPasswordTokenExpiresIn: RESET_TOKEN_TTL_SECONDS,
+         ...(mailer
+            ? {
+                 sendResetPassword: async ({
+                    user,
+                    url,
+                 }: {
+                    user: { email: string };
+                    url: string;
+                    token: string;
+                 }) => {
+                    const body = resetPasswordMail(url);
+                    await mailer.send({ to: user.email, ...body });
+                 },
+              }
+            : {}),
       },
       socialProviders: options.github
          ? {
@@ -113,6 +220,15 @@ export function createBerryAuth(options: BerryAuthOptions) {
             createdAt: 'created_at',
             updatedAt: 'updated_at',
          },
+         additionalFields: {
+            twoFactorEnabled: {
+               type: 'boolean',
+               required: false,
+               defaultValue: false,
+               input: false,
+               fieldName: 'two_factor_enabled',
+            },
+         },
          changeEmail: { enabled: false },
          deleteUser: { enabled: false },
       },
@@ -121,9 +237,9 @@ export function createBerryAuth(options: BerryAuthOptions) {
             create: {
                // Better Auth has no "verified email only" switch for social
                // sign-up. Email registration is the /sign-up/email route and
-               // arrives unverified, because there is no mailer. Every other
-               // create, including a new GitHub user, still needs a verified
-               // address. Returning false aborts the create.
+               // arrives unverified when there is no verification mailer.
+               // Every other create, including a new GitHub user, still needs
+               // a verified address. Returning false aborts the create.
                before: async (user, context) => {
                   if (endpointPath(context) === '/sign-up/email') {
                      const name = typeof user.name === 'string' ? user.name.trim() : '';
@@ -171,7 +287,8 @@ export function createBerryAuth(options: BerryAuthOptions) {
             trustedProviders: [],
             allowDifferentEmails: false,
             // Email registration creates an unverified user, because there is
-            // no mailer. Linking still requires GitHub's verified address.
+            // no verification mailer by default. Linking still requires
+            // GitHub's verified address.
             requireLocalEmailVerified: false,
          },
       },
@@ -185,10 +302,13 @@ export function createBerryAuth(options: BerryAuthOptions) {
       },
       advanced: {
          cookiePrefix: SESSION_COOKIE_PREFIX,
-         // users.id and every auth_* id are uuid columns. A generator rather
-         // than 'uuid': in this Better Auth version 'uuid' means "the database
-         // supplies it", and only users.id has a default; the auth_* tables
-         // take the id they are given.
+         // users.id and auth_sessions / auth_accounts / auth_two_factors ids
+         // are uuid columns. auth_verifications.id is text: Better Auth's
+         // reserveVerificationValue writes a SHA-256 base64url primary key
+         // when a magic link promotes an unverified account. A generator
+         // rather than 'uuid': in this Better Auth version 'uuid' means "the
+         // database supplies it", and only users.id has a default; the
+         // auth_* tables take the id they are given.
          database: { generateId: () => randomUUID() },
          // The address a session records (Settings › Security › Sessions).
          // The browser reaches the API through the web app's proxy, and often
@@ -197,10 +317,10 @@ export function createBerryAuth(options: BerryAuthOptions) {
          // is the person. Without them only a single-value header counts.
          ipAddress: { trustedProxies: options.trustedProxies ?? [] },
       },
-      // Cast: the plugin's own declared type does not satisfy BetterAuthPlugin
-      // under exactOptionalPropertyTypes (its init() may return undefined
-      // options). It is the library's plugin, used as the library documents.
-      plugins: options.testUtils ? [testUtils() as unknown as BetterAuthPlugin] : [],
+      // Cast: plugin declared types do not always satisfy BetterAuthPlugin
+      // under exactOptionalPropertyTypes. They are the library's plugins,
+      // used as the library documents.
+      plugins,
    });
 }
 

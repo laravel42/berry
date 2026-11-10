@@ -15,7 +15,7 @@ import {
    WorkspaceSlug,
 } from './ids.ts';
 import { loadPackedSkills, upsertPackedSkills } from './skills.ts';
-import { bindRolePackSkills, ensureCapabilitySkills } from './deploy.ts';
+import { bindRolePackSkills } from './deploy.ts';
 
 /**
  * The local development dataset.
@@ -53,7 +53,6 @@ export async function apply(
       for (const workspace of workspaces) {
          await ensureOrganizationAgents(tx, workspace.id as string);
          await bindRolePackSkills(tx, workspace.id as string);
-         await ensureCapabilitySkills(tx, workspace.id as string, now);
       }
       if (options.demoWork ?? true) {
          await upsertProjects(tx, now);
@@ -200,11 +199,9 @@ async function upsertLabels(tx: Sql, now: string): Promise<void> {
 }
 
 /**
- * The AgentCore deep-skills pack, into every workspace that exists.
- *
- * Creation does not install these — they are a development catalogue, the way
- * the demo projects are. The pack is committed next to this seeder so a machine
- * without the original zip still gets the same 100 skills.
+ * The committed skill packs, into every workspace that exists: the AgentCore
+ * software skills and the work skills beyond software. They are committed next
+ * to this seeder so every machine gets the same catalogue.
  */
 async function upsertSkills(tx: Sql, now: string): Promise<void> {
    const skills = loadPackedSkills();

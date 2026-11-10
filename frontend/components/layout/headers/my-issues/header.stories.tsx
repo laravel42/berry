@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useIssuesStore } from '@/store/issues-store';
-import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
 import { issues, seedSession, shellHandlers, workspaceRoute } from '../../stories-fixtures';
 import Header from './header';
@@ -24,7 +23,6 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedSession('admin');
       useIssuesStore.getState().hydrateIssues(issues);
-      useRightPanelStore.setState({ openPanel: null });
       useCreateIssueStore.setState({ isOpen: false });
       useSearchStore.setState({ isSearchOpen: false, searchQuery: '' });
       msw.use(...shellHandlers);
@@ -48,13 +46,6 @@ export const Viewer: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.queryByRole('button', { name: 'New task' })).toBeNull();
-   },
-};
-
-/** Insights open: its toggle reads as pressed (desktop only). */
-export const InsightsOpen: Story = {
-   beforeEach: () => {
-      useRightPanelStore.setState({ openPanel: 'insights' });
    },
 };
 

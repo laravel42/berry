@@ -75,14 +75,16 @@ const issueSchema = z.object({
    status: z.string(),
    priority: z.string(),
    sortOrder: z.number(),
+   startDate: z.string().nullish(),
    dueDate: z.string().nullish(),
    assignee: actorRefSchema.nullish(),
    activeRunId: z.string().nullish(),
    project: z.object({ id: z.string(), name: z.string() }).nullish(),
+   cycleId: z.string().nullish(),
    createdBy: actorRefSchema.nullish(),
    createdAt: z.string(),
    updatedAt: z.string(),
-   goal: z.object({ id: z.string(), title: z.string() }).nullish(),
+   milestone: z.object({ id: z.string(), title: z.string() }).nullish(),
    dependsOn: z.array(dependencyRefSchema).default([]),
    blocks: z.array(dependencyRefSchema).default([]),
    parentId: z.string().nullish(),
@@ -125,7 +127,10 @@ export type IssuePatchBody = {
    sortOrder?: number;
    description?: string | null;
    assignee?: { type: 'user' | 'agent'; id: string } | null;
-   goalId?: string | null;
+   milestoneId?: string | null;
+   cycleId?: string | null;
+   /** An ISO date, or null to clear it. A calendar day (`YYYY-MM-DD`) is noon UTC. */
+   startDate?: string | null;
    /** An ISO date, or null to clear it. A calendar day (`YYYY-MM-DD`) is noon UTC. */
    dueDate?: string | null;
 };
@@ -146,8 +151,9 @@ function apiDueDate(value: string): string {
  * (a 409 on an illegal transition) until the next refresh.
  */
 export async function patchBoardIssue(issueId: string, patch: IssuePatchBody): Promise<void> {
-   const body =
-      typeof patch.dueDate === 'string' ? { ...patch, dueDate: apiDueDate(patch.dueDate) } : patch;
+   const body = { ...patch };
+   if (typeof body.startDate === 'string') body.startDate = apiDueDate(body.startDate);
+   if (typeof body.dueDate === 'string') body.dueDate = apiDueDate(body.dueDate);
    await apiFetch(`/api/v1/issues/${issueId}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
@@ -171,8 +177,8 @@ export function describePatchFailure(error: unknown): string {
       if (error.code === 'APPROVAL_REQUIRED') {
          return 'An approval is pending. The task moves to To do once it is granted.';
       }
-      if (error.code === 'GOAL_NOT_FOUND') {
-         return 'That goal is not in this workspace.';
+      if (error.code === 'MILESTONE_NOT_FOUND') {
+         return 'That milestone is not in this workspace.';
       }
       if (error.code === 'VALIDATION_FAILED') {
          const details = error.details as { fields?: { message?: string }[] } | null;
@@ -217,7 +223,7 @@ export function toUiIssue(apiIssue: ApiIssue): Issue | undefined {
       priority: uiPriority,
       labels: [],
       createdAt: apiIssue.createdAt,
-      cycleId: '',
+      cycleId: apiIssue.cycleId ?? '',
       rank: rankFromSortOrder(apiIssue.sortOrder),
       sortOrder: apiIssue.sortOrder,
    };
@@ -233,13 +239,16 @@ export function toUiIssue(apiIssue: ApiIssue): Issue | undefined {
       issue.project = known ?? placeholderProject(apiIssue.project.id, apiIssue.project.name);
    }
 
+   if (apiIssue.startDate) {
+      issue.startDate = apiIssue.startDate;
+   }
    if (apiIssue.dueDate) {
       issue.dueDate = apiIssue.dueDate;
    }
    if (apiIssue.activeRunId) {
       issue.activeRunId = apiIssue.activeRunId;
    }
-   issue.goal = apiIssue.goal ?? null;
+   issue.milestone = apiIssue.milestone ?? null;
    issue.dependsOn = apiIssue.dependsOn;
    issue.blocks = apiIssue.blocks;
    issue.parentId = apiIssue.parentId ?? null;
@@ -330,6 +339,8 @@ export async function createBoardIssue(input: {
    assignee?: { type: 'user' | 'agent'; id: string };
    projectId?: string;
    /** ISO date. The create modal offers it; the board's quick add does not. */
+   startDate?: string;
+   /** ISO date. The create modal offers it; the board's quick add does not. */
    dueDate?: string;
 }): Promise<Issue> {
    const body: Record<string, unknown> = {
@@ -338,6 +349,9 @@ export async function createBoardIssue(input: {
       status: apiStatusFromUi(input.statusId),
       priority: apiPriorityFromUi(input.priorityId),
    };
+   if (input.startDate) {
+      body.startDate = apiDueDate(input.startDate);
+   }
    if (input.dueDate) {
       body.dueDate = apiDueDate(input.dueDate);
    }
@@ -435,17 +449,20 @@ export async function setIssueAutoGate(issueRef: string, autoGate: boolean): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Goal and dependencies
+// Milestone and dependencies
 
 /**
  * Link a task to a goal, or unlink it with null. Raised rather than
  * swallowed for the same reason as the project link above. Throws
- * `GOAL_NOT_FOUND` for a goal outside the workspace.
+ * `MILESTONE_NOT_FOUND` for a goal outside the workspace.
  */
-export async function setIssueGoal(issueRef: string, goalId: string | null): Promise<void> {
+export async function setIssueMilestone(
+   issueRef: string,
+   milestoneId: string | null
+): Promise<void> {
    await apiFetch(`/api/v1/issues/${encodeURIComponent(issueRef)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ goalId }),
+      body: JSON.stringify({ milestoneId }),
    });
 }
 

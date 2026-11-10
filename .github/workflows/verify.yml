@@ -40,13 +40,15 @@ jobs:
          - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
            with:
               node-version: 22
-         - run: npm install --global pnpm@12.5.1
-         - run: pnpm install --frozen-lockfile --ignore-scripts
-         - run: pnpm db:migrate
-         - run: pnpm typecheck:server
-         - run: pnpm test:server
-         - run: pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
-         - run: pnpm check:models
+         - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+           with:
+              bun-version: 1.4.4
+         - run: bun install --frozen-lockfile --ignore-scripts
+         - run: bun run db:migrate
+         - run: bun run typecheck:server
+         - run: bun run test:server
+         - run: bun run test:plugin-sdk && bun run typecheck:plugin-sdk
+         - run: bun run check:models
          - run: python3 scripts/check-locale-catalogues.py
 
    frontend:
@@ -59,9 +61,14 @@ jobs:
          - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
            with:
               node-version: 22
-         - run: npm install --global pnpm@12.5.1
-         - run: pnpm install --frozen-lockfile --ignore-scripts
-         - run: pnpm lint
+         - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+           with:
+              bun-version: 1.4.4
+         - run: bun install --frozen-lockfile --ignore-scripts
+         # The build renders the marketing site first, from its own install.
+         - run: bun install --frozen-lockfile --ignore-scripts
+           working-directory: apps/web
+         - run: bun run lint
            working-directory: frontend
-         - run: pnpm build:check
+         - run: bun run build:check
            working-directory: frontend

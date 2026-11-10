@@ -41,7 +41,7 @@ delegation rules and required reviewers — see
 
 ## Repository shape
 
-One Git repo, five pnpm workspace packages: `frontend`, `server-ts`,
+One Git repo, five Bun workspace packages: `frontend`, `server-ts`,
 `packages/plugin-sdk`, `apps/mobile`, and `apps/desktop`. They do **not** share a formatter, lint
 config, or validation workflow. Know which workspace you are in before you
 write code. Never run one workspace's tools over another.
@@ -52,8 +52,13 @@ write code. Never run one workspace's tools over another.
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 | Paths | relative, `.ts` extensions kept | `@/*` → frontend root | relative, `.ts` extensions kept |
 | Format + lint | none configured; match surrounding style | Prettier **3-space**, single quotes + ESLint | match server |
-| Tests | `node --test` | `pnpm test` (stories in Chromium) | `node --test` |
+| Tests | `node --test` | none — lint + build | `node --test` |
 | Validation | Zod v4 | Zod v4 (`package.json` pins `^4.6.5`) | — |
+
+Installable plugins live in `plugins/`, one workspace package each. They are
+the services an agent calls while executing a task. `plugins/customerio`
+connects to the Customer.io MCP server. `packages/plugin-sdk/examples/` stays the SDK sample
+manifest, not a running plugin.
 
 `apps/desktop` (`@berry/desktop`) is an Electron window onto the web UI.
 With no `BERRY_DESKTOP_URL` it starts the server itself on `127.0.0.1:4173`
@@ -62,8 +67,8 @@ against PGlite in the app data directory, or a `postgres://` `DATABASE_URL` /
 IAM auth is `DATABASE_IAM_AUTH=true` (tokens minted per connection; not a static
 URL password; not used with `pglite:`). Artifacts go under
 `<userData>/artifacts`, and the web app is served on `127.0.0.1:4174`.
-`pnpm dev:desktop` walks to this checkout and runs `next dev`.
-`pnpm package:desktop` copies `@berry/server` and the Next standalone build
+`bun run dev:desktop` walks to this checkout and runs `next dev`.
+`bun run package:desktop` copies `@berry/server` and the Next standalone build
 into Electron `extraResources` (`Resources/berry`) with a Node binary, so the
 `.app` does not need the git repo. A bundled start merges a login-shell
 `PATH` onto the GUI default so subscription CLIs on Homebrew are visible.
@@ -73,8 +78,9 @@ existing server instead. Navigation stays on that origin plus GitHub sign-in.
 Also in the repo: `docs/` and `scripts/` (Python repository checks). Local
 development uses PGlite (`DATABASE_URL=pglite:./.berry`). Host PostgreSQL 16
 and object storage remain for a shared or remote database, with
-subscription CLIs or a native compute host. Optional Docker development and
-Dokploy stacks live in `deploy/local/` and `deploy/dokploy/`. ECS Fargate for
+subscription CLIs or a native compute host. Docker is one root `compose.yaml`:
+self-host/Dokploy by default, local development under the `dev` profile
+(`deploy/docker/`). ECS Fargate for
 the control plane (existing Aurora with IAM auth, no Docker socket) is
 `deploy/aws/cloudformation/`. The CDK app in `deploy/aws` remains the one-EC2
 Docker host for previews and in-process sessions.
@@ -144,21 +150,27 @@ served over HTTP). The runtime's lifecycle stream is written to the run ledger.
 The runtime calls Berry's tools back at `/api/v1/agent-tools` with a
 task-scoped token. There is no other external worker.
 
-**Models are subscription CLIs only**
+**Models are subscription CLIs, or a pasted API token on the compute host**
 ([ADR-0019](docs/adr/0019-subscription-ai-runtimes.md);
 [ADR-0017](docs/adr/0017-kilo-gateway-model-tiers.md) is superseded). There is
 no native Bedrock or Kilo path. Agent runs and completions need a connected
-subscription AI runtime. This is separate from the AgentCore/HTTP compute
+AI runtime: a workstation CLI, an OpenAI / xAI / Anthropic / Gemini API
+token, or an LM Studio server address (token optional). The token is sealed
+in Berry and opened only into the task envelope; the runtime image calls the
+provider, or LM Studio's OpenAI-compatible `/v1`, with `fetch` under
+`src/agents/runtime/`. LM Studio is called from the compute host, so that
+host must reach the address; `src/runtime/lmstudio-endpoint.ts` refuses
+link-local and cloud-metadata addresses. This is separate from the AgentCore/HTTP compute
 host. The connection id is snapshotted on the run. Resolution order is the
 task override, then the project's runtime, then the person's preference, then
 the first connected model on the agent's tier, then that person's newest
 connection, then the workspace's newest connection. A failed or disconnected
-subscription does not fall back to a native model. `berry-native` is refused.
+runtime does not fall back to a native model. `berry-native` is refused.
 A completion runs as the Orchestrator (or the named role) and uses the first
 connected model on that agent's selected tier; with none placed, it fails.
-Kiro, Claude Code, and Codex are the connectable runtimes, each a CLI on the
+Kiro, Claude Code, and Codex are the connectable subscription CLIs on the
 workstation (`kiro-cli acp --agent-engine=v3`, `claude`, or `codex`), not a
-container Berry runs. Settings → Model tiers places subscription models on
+container Berry runs. Settings → Model tiers places models on
 BerryMax, BerryXHigh, BerryHigh, BerryMid and BerryLow; the same model may sit
 on more than one tier. Products that are not yet connectable are omitted
 from Settings until their adapter ships. See [docs/ai-runtimes.md](docs/ai-runtimes.md).
@@ -184,7 +196,7 @@ does, and never touch `.git` or `.handoffs/`. Agents can `propose_work` and
 `done`, and never through a merge tool.
 
 Chat has no task of its own; the envelope carries an open-work snapshot.
-`list_tasks`, `list_plans`, `list_goals`, `list_projects` and `read_task` fill
+`list_tasks`, `list_plans`, `list_milestones`, `list_projects` and `read_task` fill
 in what that snapshot does not. Replies are markdown (headings, lists, tables),
 parsed to elements — never raw HTML.
 
@@ -201,8 +213,10 @@ exists.
 capabilities this process actually has — for example, `agentExecution` is true
 only when a runtime target (an AgentCore ARN or `BERRY_AGENT_RUNTIME_URL`) is
 configured or the requested workspace has a connected subscription CLI;
-`modelGateway` is always false. A capability reported true that the
-server cannot deliver is worse than one reported false.
+`modelGateway` is always false; `voiceAgents` is true only when
+`LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are set. A
+capability reported true that the server cannot deliver is worse than one
+reported false.
 
 **Frontend is wired to the API** through `lib/api.ts` (`apiUrl` / `apiFetch`).
 Do not reintroduce demo/mock datasets. `NEXT_PUBLIC_BERRY_API_URL` empty means
@@ -241,34 +255,33 @@ record what is in scope.
 
 ```bash
 # Setup (from repo root; local default is PGlite)
-cp .env.example .env && pnpm install
+cp .env.example .env && bun install
 
 # Repository checks
 python3 scripts/check-no-model-in-server.py
 python3 scripts/check-locale-catalogues.py
 
 # Server
-pnpm typecheck:server
-pnpm test:server
-pnpm db:migrate         # needs DATABASE_URL
-pnpm db:seed            # development dataset; idempotent
-pnpm dev:server
+bun run typecheck:server
+bun run test:server
+bun run db:migrate         # needs DATABASE_URL
+bun run db:seed            # development dataset; idempotent
+bun run dev:server
 
-# Plugin SDK
-pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+# Plugin SDK and installable plugins (plugins/)
+bun run test:plugin-sdk && bun run typecheck:plugin-sdk
+bun run test:plugins && bun run typecheck:plugins
 
 # Frontend
-cd frontend && pnpm lint && pnpm build:check
-pnpm test:frontend          # story suite; takes a path to narrow it
-pnpm storybook              # browse the same stories on :6006
+cd frontend && bun run lint && bun run build:check
 ```
 
-`pnpm build` in `frontend/` and `next dev` share `.next/`, so a build while the
-dev server runs corrupts its manifests. Use `pnpm build:check`, which writes to
+`bun run build` in `frontend/` and `next dev` share `.next/`, so a build while the
+dev server runs corrupts its manifests. Use `bun run build:check`, which writes to
 `.next-verify` instead.
 
 Database-backed server tests self-skip when `BERRY_TEST_DATABASE_URL` is unset,
-so a fresh `pnpm test:server` stays green offline. Keep it that way. Never
+so a fresh `bun run test:server` stays green offline. Keep it that way. Never
 point it at your everyday development database: creating a workspace
 provisions a protected Orchestrator agent that cannot be deleted.
 
@@ -281,8 +294,8 @@ type(scope): imperative summary (BERR-NN)
 - Scopes: `server-ts`, `frontend`, or omit for docs-only.
 - One issue per branch and PR.
 
-Definition of done: server typecheck and tests; frontend lint + `build:check`,
-the stories for what you touched, and a manual check of the changed view. No secrets or `.env` files.
+Definition of done: server typecheck and tests; frontend lint + `build:check`
+and a manual check of the changed view. No secrets or `.env` files.
 
 ## Domain reminders
 

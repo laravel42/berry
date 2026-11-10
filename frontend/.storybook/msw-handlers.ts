@@ -14,7 +14,7 @@ export const pendingApproval = {
    title: 'Start BERR-42: migrate project health to the database',
    description:
       'The health chip has only ever lived in the browser. This task adds a column and a migration.',
-   goalId: null,
+   milestoneId: null,
    planId: null,
    issueId: 'issue-42',
    issue: { id: 'issue-42', identifier: 'BERR-42', title: 'Persist project health' },

@@ -9,7 +9,7 @@ import type { RepositoryRef } from './provider.ts';
  * The mounts call the two verbs here and nothing else. Everything about how a
  * goal becomes a milestone — which repository, what a `draft` status means as
  * a milestone state, what happens when the project has no repository — lives
- * behind them, so the goal-creation route stays a route about goals.
+ * behind them, so the goal-creation route stays a route about milestones.
  *
  * Nothing here throws. Failing to mirror a goal is not a reason to fail
  * creating one, and the outcome is recorded on the object's link where an
@@ -30,16 +30,16 @@ export class ScmSync {
     * Mirrors a goal as a milestone in its project's repository.
     *
     * A goal with no project is left alone rather than failed. A milestone
-    * lives inside a repository, and Berry's goals are workspace-scoped with a
-    * nullable project — so for some goals there is genuinely nowhere to put
+    * lives inside a repository, and Berry's milestones are workspace-scoped with a
+    * nullable project — so for some milestones there is genuinely nowhere to put
     * one, and inventing a home would be worse than having none.
     */
-   async goalCreated(goalId: string): Promise<void> {
+   async goalCreated(milestoneId: string): Promise<void> {
       const [row] = await this.#sql`
-         SELECT goal.id, goal.workspace_id, goal.project_id, goal.title, goal.description,
-                goal.status
-           FROM goals AS goal
-          WHERE goal.id = ${goalId} AND goal.deleted_at IS NULL`;
+         SELECT milestone.id, milestone.workspace_id, milestone.project_id, milestone.title, milestone.description,
+                milestone.status
+           FROM milestones AS milestone
+          WHERE milestone.id = ${milestoneId} AND goal.deleted_at IS NULL`;
       if (!row) return;
 
       const projectId = row.project_id as string | null;
@@ -49,7 +49,7 @@ export class ScmSync {
 
       await this.#scm.milestone({
          workspaceId: row.workspace_id as string,
-         milestoneId: goalId,
+         milestoneId: milestoneId,
          repo,
          title: row.title as string,
          description: (row.description as string | null) ?? null,
@@ -58,20 +58,20 @@ export class ScmSync {
    }
 
    /** Pushes a goal's title, description and state to its milestone. */
-   async goalUpdated(goalId: string): Promise<void> {
-      const link = await this.#scm.linkFor('milestone', goalId);
+   async goalUpdated(milestoneId: string): Promise<void> {
+      const link = await this.#scm.linkFor('milestone', milestoneId);
       if (!link?.externalId || link.status !== 'synced') return;
 
       const [row] = await this.#sql`
          SELECT workspace_id, project_id, title, description, status
-           FROM goals WHERE id = ${goalId} AND deleted_at IS NULL`;
+           FROM milestones WHERE id = ${milestoneId} AND deleted_at IS NULL`;
       if (!row?.project_id) return;
       const repo = await this.repositoryFor(row.project_id as string);
       if (!repo) return;
 
       await this.#scm.milestone({
          workspaceId: row.workspace_id as string,
-         milestoneId: goalId,
+         milestoneId: milestoneId,
          repo,
          title: row.title as string,
          description: (row.description as string | null) ?? null,
@@ -90,8 +90,8 @@ export class ScmSync {
       const context = await this.#issueContext(issueId);
       if (!context) return;
 
-      const goalLink = context.goalId
-         ? await this.#scm.linkFor('milestone', context.goalId)
+      const goalLink = context.milestoneId
+         ? await this.#scm.linkFor('milestone', context.milestoneId)
          : null;
 
       await this.#scm.issue({
@@ -110,8 +110,8 @@ export class ScmSync {
       const context = await this.#issueContext(issueId);
       if (!context) return;
 
-      const goalLink = context.goalId
-         ? await this.#scm.linkFor('milestone', context.goalId)
+      const goalLink = context.milestoneId
+         ? await this.#scm.linkFor('milestone', context.milestoneId)
          : null;
 
       await this.#scm.pushIssue({
@@ -159,14 +159,14 @@ export class ScmSync {
       title: string;
       description: string | null;
       status: string;
-      goalId: string | null;
+      milestoneId: string | null;
       labels: string[];
    } | null> {
       const [row] = await this.#sql`
          SELECT issue.id, issue.title, issue.description, issue.status::text AS status,
                 board.workspace_id,
                 link.project_id,
-                goal.goal_id,
+                goal.milestone_id,
                 coalesce(
                    (SELECT array_agg(label.name ORDER BY label.name)
                       FROM issue_label_memberships AS membership
@@ -177,7 +177,7 @@ export class ScmSync {
            FROM issues AS issue
            JOIN boards AS board ON board.id = issue.board_id
            LEFT JOIN issue_project_links AS link ON link.issue_id = issue.id
-           LEFT JOIN goal_issues AS goal ON goal.issue_id = issue.id
+           LEFT JOIN milestone_issues AS goal ON goal.issue_id = issue.id
           WHERE issue.id = ${issueId} AND issue.deleted_at IS NULL`;
       if (!row?.project_id) return null;
 
@@ -190,7 +190,7 @@ export class ScmSync {
          title: row.title as string,
          description: (row.description as string | null) ?? null,
          status: row.status as string,
-         goalId: (row.goal_id as string | null) ?? null,
+         milestoneId: (row.milestone_id as string | null) ?? null,
          labels: (row.labels as string[] | null) ?? [],
       };
    }

@@ -31,6 +31,11 @@ export interface Capabilities {
    /** Model calls go through a gateway with Berry tiers (ADR-0017): the UI shows tiers, not a model picker. */
    modelGateway?: boolean;
    /**
+    * Members can open a LiveKit voice room with a workspace agent. True only
+    * when this process has LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET.
+    */
+   voiceAgents?: boolean;
+   /**
     * Whether a person can sign in with GitHub: the OAuth App from
     * BERRY_AUTH_GITHUB_* is configured. A function is accepted for a value that
     * has to be asked on each read.
@@ -45,6 +50,12 @@ export interface Capabilities {
     * when Better Auth is serving.
     */
    emailRegistration?: boolean;
+   /** Magic-link sign-in when outbound mail is configured. */
+   magicLink?: boolean;
+   /** Forgot-password when outbound mail is configured. */
+   passwordReset?: boolean;
+   /** TOTP / OTP second factor is available on this deployment. */
+   twoFactor?: boolean;
 }
 
 export interface PlatformOptions {
@@ -177,12 +188,16 @@ function configRoute(
             valkey: capabilities.valkey,
             planner: await readProbe(capabilities.planner, request),
             modelGateway: capabilities.modelGateway ?? false,
+            voiceAgents: capabilities.voiceAgents ?? false,
             githubSignIn:
                typeof capabilities.githubSignIn === 'function'
                   ? await capabilities.githubSignIn()
                   : capabilities.githubSignIn,
             passwordlessLogin: capabilities.passwordlessLogin ?? false,
             emailRegistration: capabilities.emailRegistration ?? false,
+            magicLink: capabilities.magicLink ?? false,
+            passwordReset: capabilities.passwordReset ?? false,
+            twoFactor: capabilities.twoFactor ?? false,
          },
       });
    });

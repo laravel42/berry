@@ -71,7 +71,7 @@ test('only users, workspaces, agents, skills and autopilots survive', () => {
       assert.match(table, families, `${table} is kept but belongs to none of the five`);
    }
    // Work never survives, whatever the lists say.
-   for (const table of ['projects', 'goals', 'issues', 'runs', 'plans', 'conversations', 'outbox_events']) {
+   for (const table of ['projects', 'milestones', 'issues', 'runs', 'plans', 'conversations', 'outbox_events']) {
       assert.ok(!KEPT_TABLES.has(table), `${table} must not be kept`);
       assert.ok(EMPTIED_TABLES.includes(table), `${table} must be emptied`);
    }

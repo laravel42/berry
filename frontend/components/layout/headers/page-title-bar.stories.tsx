@@ -7,7 +7,7 @@ import { PageTitleBar } from './page-title-bar';
 const meta = {
    component: PageTitleBar,
    parameters: { layout: 'fullscreen' },
-   args: { title: 'Goals' },
+   args: { title: 'Milestones' },
 } satisfies Meta<typeof PageTitleBar>;
 
 export default meta;
@@ -16,7 +16,7 @@ type Story = StoryObj<typeof meta>;
 /** A title alone: the page's one h1. */
 export const TitleOnly: Story = {
    play: async ({ canvas }) => {
-      await expect(canvas.getByRole('heading', { level: 1, name: 'Goals' })).toBeVisible();
+      await expect(canvas.getByRole('heading', { level: 1, name: 'Milestones' })).toBeVisible();
    },
 };
 

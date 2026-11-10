@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { expect } from 'storybook/test';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useShellStore } from '@/store/shell-store';
+import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { inboxItems, workspaceRoute } from '../stories-fixtures';
 import { ShellPersonal } from './shell-personal';
 
@@ -18,6 +19,7 @@ const meta = {
       ),
    ],
    beforeEach: () => {
+      useSidebarPrefsStore.setState(useSidebarPrefsStore.getInitialState());
       useNotificationsStore.setState({ notifications: inboxItems, serverUnreadCount: null });
       useShellStore.setState({ chatUnread: 2 });
    },
@@ -33,9 +35,8 @@ export const OnInbox: Story = {
          'page'
       );
       await expect(canvas.getByText('Inbox, 3 unread')).toBeInTheDocument();
-      await expect(canvas.getByText('Agent, 2 unread')).toBeInTheDocument();
-      const links = canvas.getAllByRole('link').map((link) => link.getAttribute('href'));
-      expect(links.indexOf('/elian/reviews')).toBeLessThan(links.indexOf('/elian/chat'));
+      await expect(canvas.queryByRole('link', { name: /^Agent/ })).toBeNull();
+      await expect(canvas.getByRole('link', { name: /^Reviews/ })).toBeVisible();
    },
 };
 
@@ -47,7 +48,7 @@ export const ServerCountOnly: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByText('99+')).toBeInTheDocument();
-      await expect(canvas.queryByText(/^Agent, /)).toBeNull();
+      await expect(canvas.queryByRole('link', { name: /^Agent/ })).toBeNull();
    },
 };
 

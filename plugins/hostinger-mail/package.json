@@ -1,0 +1,20 @@
+{
+   "name": "@berry/plugin-hostinger-mail",
+   "private": true,
+   "type": "module",
+   "version": "1.0.0",
+   "description": "Hostinger Mail plugin. Hostinger Mail.",
+   "scripts": {
+      "start": "node --experimental-strip-types server.ts",
+      "test": "node --test --experimental-strip-types mcp.test.ts",
+      "typecheck": "tsc --noEmit"
+   },
+   "dependencies": {
+      "@berry/plugin-sdk": "workspace:*"
+   },
+   "devDependencies": {
+      "@types/node": "^26.4.0",
+      "typescript": "^7.0.2"
+   },
+   "license": "AGPL-3.0-only"
+}

@@ -1,0 +1,40 @@
+{
+   "id": "gitea",
+   "name": "Gitea",
+   "description": "Self-hosted or Cloud. Lightweight, fast and low resource usage. Agents will check repositories out, branch and open pull requests there.",
+   "include": "access_token",
+   "scopes": [
+      "read:repository",
+      "write:repository"
+   ],
+   "tools": [
+      {
+         "name": "gitea.read_repository",
+         "description": "Permission to read repository contents, if this connection grants it later.",
+         "effect": "read",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitea.create_branch",
+         "description": "Permission to create a branch, if this connection grants it later.",
+         "effect": "write",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitea.open_pull_request",
+         "description": "Permission to propose changes for review, if this connection grants it later.",
+         "effect": "external_side_effect",
+         "requiresApproval": false,
+         "enabledByDefault": true
+      },
+      {
+         "name": "gitea.merge_pull_request",
+         "description": "Permission to integrate proposed changes without a review, if this connection grants it later.",
+         "effect": "destructive",
+         "requiresApproval": true,
+         "enabledByDefault": false
+      }
+   ]
+}

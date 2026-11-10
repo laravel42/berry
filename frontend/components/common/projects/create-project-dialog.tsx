@@ -13,8 +13,14 @@ import {
    projectCreateStatusOptions,
 } from '@/components/common/projects/create-project/project-status-options';
 import { LeadPicker, leadCandidates } from '@/components/common/projects/lead-picker';
+import {
+   memberCandidates,
+   MembersChipContent,
+   MembersPicker,
+} from '@/components/common/projects/members-picker';
 import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import {
    Dialog,
    DialogContent,
@@ -24,7 +30,6 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { SparkIcon } from '@/components/ui/spark-icon';
 import { priorities } from '@/data/priorities';
 import type { Status } from '@/data/status';
 import type { User } from '@/data/users';
@@ -36,14 +41,16 @@ import {
    type ProjectDraftFields,
    type ProjectDraftPatch,
 } from '@/lib/editor-ai';
-import { createWorkspaceProject } from '@/lib/projects';
+import { createWorkspaceProject, generateProjectMilestones } from '@/lib/projects';
+import type { Milestone } from '@/lib/milestones';
 import { cn } from '@/lib/utils';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useMembersStore } from '@/store/members-store';
+import { useMilestonesStore } from '@/store/milestones-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, isValid, parseISO } from 'date-fns';
-import { ChevronRight, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronRight, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -54,10 +61,13 @@ interface ProjectFormState {
    priority: (typeof priorities)[number];
    /** Absent until someone is chosen. */
    lead?: User;
+   /** People on the project; empty until someone is chosen. */
+   members: User[];
    startDate?: Date;
    targetDate?: Date;
-   /** owner/name, or undefined for a project that delivers nowhere yet. */
+   /** owner/name or GitLab path, or undefined for a project that delivers nowhere yet. */
    githubRepo?: string;
+   gitlabRepo?: string;
 }
 
 function toIsoDate(date?: Date): string | undefined {
@@ -106,6 +116,7 @@ function applyDraftPatch(form: ProjectFormState, patch: ProjectDraftPatch): Proj
 export function CreateProjectDialog() {
    const workspace = useSessionStore((state) => state.workspace);
    const addProject = useProjectsStore((state) => state.addProject);
+   const upsertMilestone = useMilestonesStore((state) => state.upsertMilestone);
    const { isOpen, defaultStatus, closeModal } = useCreateProjectStore();
    const [pending, setPending] = useState(false);
    // Folded away by default: the form is the product, the assistant an offer.
@@ -117,6 +128,7 @@ export function CreateProjectDialog() {
          description: '',
          status: defaultStatus ?? defaultProjectCreateStatus.status,
          priority: priorities.find((entry) => entry.id === 'no-priority')!,
+         members: [],
       }),
       [defaultStatus]
    );
@@ -156,6 +168,7 @@ export function CreateProjectDialog() {
             startDate: toIsoDate(form.startDate),
             targetDate: toIsoDate(form.targetDate),
             githubRepo: form.githubRepo,
+            gitlabRepo: form.gitlabRepo,
             lead: form.lead ?? null,
          });
          addProject({
@@ -166,6 +179,41 @@ export function CreateProjectDialog() {
          });
          toast.success('Project created');
          closeModal();
+         const brief = form.description.trim();
+         if (brief) {
+            void generateProjectMilestones(project.id)
+               .then((nodes) => {
+                  for (const node of nodes) {
+                     const milestone: Milestone = {
+                        id: node.id,
+                        workspaceId: node.workspaceId,
+                        projectId: node.projectId,
+                        title: node.title,
+                        description: node.description,
+                        status: 'planned',
+                        targetDate: node.targetDate,
+                        sortOrder: node.sortOrder,
+                        createdAt: node.createdAt,
+                        updatedAt: node.updatedAt,
+                     };
+                     upsertMilestone(milestone);
+                  }
+                  if (nodes.length > 0) {
+                     toast.success(
+                        nodes.length === 1
+                           ? 'Generated 1 milestone'
+                           : `Generated ${nodes.length} milestones`
+                     );
+                  }
+               })
+               .catch((error) => {
+                  toast.error(
+                     error instanceof BerryApiError
+                        ? error.message
+                        : 'Could not generate milestones'
+                  );
+               });
+         }
       } catch (error) {
          toast.error(error instanceof BerryApiError ? error.message : 'Could not create project');
       } finally {
@@ -201,15 +249,6 @@ export function CreateProjectDialog() {
                         <div className="flex shrink-0 items-center gap-1">
                            <Button
                               type="button"
-                              variant="ai"
-                              size="md"
-                              onClick={() => setAssistant(true)}
-                           >
-                              <SparkIcon className="size-3.5" />
-                              Create with agent
-                           </Button>
-                           <Button
-                              type="button"
                               variant="ghost"
                               size="icon"
                               className="size-8"
@@ -237,6 +276,7 @@ export function CreateProjectDialog() {
                      <Input
                         id="create-project-name"
                         data-heading="h1"
+                        data-create-title
                         autoFocus
                         plain
                         className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none placeholder:text-placeholder"
@@ -272,11 +312,20 @@ export function CreateProjectDialog() {
                               ) : (
                                  <>
                                     <UserIcon className="size-3.5" />
-                                    <span>Project lead</span>
+                                    <span>Lead</span>
                                  </>
                               )}
                            </PickerChipButton>
                         </LeadPicker>
+                        <MembersPicker
+                           value={form.members}
+                           candidates={memberCandidates(members)}
+                           onChange={(next) => setForm({ ...form, members: next })}
+                        >
+                           <PickerChipButton aria-label="Members">
+                              <MembersChipContent members={form.members} />
+                           </PickerChipButton>
+                        </MembersPicker>
                         <ProjectDateSelector
                            label="Start"
                            date={form.startDate}
@@ -293,13 +342,22 @@ export function CreateProjectDialog() {
                          width cap makes a long repository name truncate instead
                          of wrapping the property row. */}
                         <RepositoryPicker
-                           value={form.githubRepo}
+                           value={form.gitlabRepo ?? form.githubRepo}
+                           valueProvider={
+                              form.gitlabRepo ? 'gitlab' : form.githubRepo ? 'github' : undefined
+                           }
                            placeholder="Repository"
                            variant="secondary"
                            size="xs"
                            className="max-w-56"
-                           onSelect={(githubRepo) =>
-                              setForm({ ...form, githubRepo: githubRepo ?? undefined })
+                           onSelect={(choice) =>
+                              setForm({
+                                 ...form,
+                                 githubRepo:
+                                    choice?.provider === 'github' ? choice.fullName : undefined,
+                                 gitlabRepo:
+                                    choice?.provider === 'gitlab' ? choice.fullName : undefined,
+                              })
                            }
                         />
                      </div>
@@ -307,7 +365,10 @@ export function CreateProjectDialog() {
                      <label htmlFor="create-project-description" className="sr-only">
                         Description
                      </label>
-                     <div className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4">
+                     <div
+                        className="mt-5 min-h-40 flex-1 border-t border-border/60 pt-4"
+                        data-create-description
+                     >
                         <TiptapAiEditor
                            value={form.description}
                            onChange={(description) => setForm({ ...form, description })}
@@ -320,7 +381,25 @@ export function CreateProjectDialog() {
                   </div>
 
                   <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
-                     <Button type="submit" disabled={pending || !form.name.trim()}>
+                     {/* Open, the assistant panel is the agent; the button would only repeat it. */}
+                     {assistant ? null : (
+                        <Button
+                           type="button"
+                           variant="ai"
+                           size="md"
+                           className="mr-auto"
+                           onClick={() => setAssistant(true)}
+                        >
+                           <SparkIcon className="size-3.5" />
+                           Create with agent
+                        </Button>
+                     )}
+                     <Button
+                        type="submit"
+                        className="shrink-0"
+                        disabled={pending || !form.name.trim()}
+                     >
+                        <Check className="size-4" aria-hidden />
                         {pending ? 'Creating…' : 'Create project'}
                      </Button>
                   </DialogFooter>

@@ -247,6 +247,42 @@ describe('/api/v1/organization', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
       assert.equal(fixed?.customized, false);
    });
 
+   test('the Orchestrator is locked: no route edits or removes it', async () => {
+      const orchestrator = await agentIdFor('orchestrator');
+      const edits: Array<[string, string, unknown]> = [
+         ['PUT', `/api/v1/agents/${orchestrator}/config`, { description: 'Edited.' }],
+         ['PUT', `/api/v1/agents/${orchestrator}/permissions`, { permissions: [] }],
+         ['PUT', `/api/v1/agents/${orchestrator}/contract`, { contract: {} }],
+      ];
+      for (const [method, path, body] of edits) {
+         const response = await call(path, { method, body: JSON.stringify(body) });
+         assert.equal(response.status, 409, path);
+         assert.equal(((await response.json()) as { error: { code: string } }).error.code, 'AGENT_LOCKED', path);
+      }
+      assert.equal((await call(`/api/v1/agents/${orchestrator}`, { method: 'DELETE' })).status, 409);
+      const [row] = await sql`SELECT description, archived_at FROM agents WHERE id = ${orchestrator}`;
+      assert.notEqual(row?.description, 'Edited.');
+      assert.equal(row?.archived_at, null);
+   });
+
+   test('one catalogue role reads in full, with the names it refers to', async () => {
+      const response = await call('/api/v1/organization/roles/legal-assistant');
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as {
+         contract: { id: string; mission: string; responsibilities: string[]; never: string[] };
+         names: Record<string, string>;
+         core: boolean;
+         agentId: string | null;
+      };
+      assert.equal(body.contract.id, 'legal-assistant');
+      assert.ok(body.contract.responsibilities.length > 0);
+      assert.ok(body.contract.never.length > 0);
+      assert.equal(body.core, false);
+      assert.equal(body.names['research-analyst'], 'Research Analyst');
+      assert.equal(body.names.human, undefined);
+      assert.equal((await call('/api/v1/organization/roles/no-such-role')).status, 404);
+   });
+
    test('a non-admin member is refused the contract write and the role reset', async () => {
       const agentId = await agentIdFor('ux-researcher');
       const contract = { ...catalogRole('ux-researcher')!, mission: 'Different mission entirely.' };

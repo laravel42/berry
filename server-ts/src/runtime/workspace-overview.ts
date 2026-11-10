@@ -13,7 +13,7 @@ export interface WorkspaceOverview {
       project: string | null;
    }>;
    plans: Array<{ title: string; status: string }>;
-   goals: Array<{ title: string; status: string }>;
+   milestones: Array<{ title: string; status: string }>;
    projects: Array<{ name: string; status: string }>;
    truncated: boolean;
 }
@@ -25,7 +25,7 @@ export interface WorkspaceOverview {
 export function chatWorkspaceNote(overview: WorkspaceOverview): string {
    return (
       `${formatWorkspaceOverview(overview)}\n` +
-      'Answer from that snapshot. Call list_tasks, list_plans, list_goals, list_projects or read_task ' +
+      'Answer from that snapshot. Call list_tasks, list_plans, list_milestones, list_projects or read_task ' +
       'only if you need a filter, another page, or a full task. Do not list the workspace before answering. ' +
       'To create a project, call create_project. Do not say you created one until that tool succeeds. ' +
       'Write markdown (headings, lists, tables). Do not emit HTML.'
@@ -34,8 +34,8 @@ export function chatWorkspaceNote(overview: WorkspaceOverview): string {
 
 export function formatWorkspaceOverview(overview: WorkspaceOverview): string {
    const sections: string[] = [];
-   if (overview.tasks.length === 0 && overview.plans.length === 0 && overview.goals.length === 0 && overview.projects.length === 0) {
-      return 'The workspace right now has no open tasks, plans, goals or projects.';
+   if (overview.tasks.length === 0 && overview.plans.length === 0 && overview.milestones.length === 0 && overview.projects.length === 0) {
+      return 'The workspace right now has no open tasks, plans, milestones or projects.';
    }
    if (overview.tasks.length > 0) {
       sections.push(
@@ -59,13 +59,13 @@ export function formatWorkspaceOverview(overview: WorkspaceOverview): string {
    } else {
       sections.push('Plans: none.');
    }
-   if (overview.goals.length > 0) {
+   if (overview.milestones.length > 0) {
       sections.push(
-         `Goals (${overview.goals.length}):\n` +
-            overview.goals.map((goal) => `- ${oneLine(goal.title)} (${goal.status})`).join('\n')
+         `Milestones (${overview.milestones.length}):\n` +
+            overview.milestones.map((goal) => `- ${oneLine(goal.title)} (${goal.status})`).join('\n')
       );
    } else {
-      sections.push('Goals: none open.');
+      sections.push('Milestones: none open.');
    }
    if (overview.projects.length > 0) {
       sections.push(
@@ -104,7 +104,7 @@ export async function loadWorkspaceOverview(sql: Sql, workspaceId: string): Prom
          SELECT COALESCE(NULLIF(p.ir->'goal'->>'title', ''), g.title, left(p.source_prompt, 120), 'Untitled plan') AS title,
                 p.status
            FROM plans AS p
-           LEFT JOIN goals AS g ON g.id = p.goal_id
+           LEFT JOIN milestones AS g ON g.id = p.milestone_id
           WHERE p.workspace_id = ${workspaceId}
             AND p.deleted_at IS NULL
             AND p.archived_at IS NULL
@@ -112,7 +112,7 @@ export async function loadWorkspaceOverview(sql: Sql, workspaceId: string): Prom
           LIMIT ${SNAPSHOT + 1}`,
       sql`
          SELECT title, status
-           FROM goals
+           FROM milestones
           WHERE workspace_id = ${workspaceId}
             AND deleted_at IS NULL
             AND status NOT IN ('completed', 'cancelled')
@@ -129,7 +129,7 @@ export async function loadWorkspaceOverview(sql: Sql, workspaceId: string): Prom
       rows.length > SNAPSHOT ? { page: rows.slice(0, SNAPSHOT), extra: true } : { page: rows, extra: false };
    const tasks = clip(taskRows);
    const plans = clip(planRows);
-   const goals = clip(goalRows);
+   const milestones = clip(goalRows);
    const projects = clip(projectRows);
    return {
       tasks: tasks.page.map((row) => ({
@@ -140,9 +140,9 @@ export async function loadWorkspaceOverview(sql: Sql, workspaceId: string): Prom
          project: (row.project as string | null) ?? null,
       })),
       plans: plans.page.map((row) => ({ title: String(row.title), status: String(row.status) })),
-      goals: goals.page.map((row) => ({ title: String(row.title), status: String(row.status) })),
+      milestones: milestones.page.map((row) => ({ title: String(row.title), status: String(row.status) })),
       projects: projects.page.map((row) => ({ name: String(row.name), status: String(row.status) })),
-      truncated: tasks.extra || plans.extra || goals.extra || projects.extra,
+      truncated: tasks.extra || plans.extra || milestones.extra || projects.extra,
    };
 }
 

@@ -11,6 +11,7 @@ import {
    rdsRegionFromHostname,
    type DatabaseIamAuth,
 } from '../db/rds-iam.ts';
+import { CLOUDFLARE_EMAIL_SMTP } from '../mail/mailer.ts';
 
 export interface Config {
    appEnv: string;
@@ -56,6 +57,13 @@ export interface Config {
     */
    execution: ExecutionConfig | null;
    agentCore: AgentCoreConfig | null;
+   /** Agent runs on Lambda MicroVMs, one VM per session. Null when no image is named. */
+   microvm: MicrovmConfig | null;
+   /**
+    * The light Amazon Bedrock model Berry provides to every workspace for chat
+    * and the product's own single calls. Null when `BERRY_BEDROCK_MODEL` is unset.
+    */
+   bedrock: { model: string; region: string } | null;
    agentCoreGateway: AgentCoreGatewayConfig | null;
    /** AgentCore Identity's GitHub credential, usable without a gateway. */
    agentCoreGitCredential: AgentCoreGitCredentialConfig | null;
@@ -80,6 +88,12 @@ export interface Config {
     * button that leads to a redirect loop.
     */
    integrations: IntegrationsConfig;
+   /**
+    * LiveKit Cloud or a self-hosted LiveKit server. Null until URL, API key
+    * and API secret are all set. The browser never sees those credentials;
+    * `POST /api/v1/voice/token` mints a short-lived room token instead.
+    */
+   livekit: LivekitConfig | null;
    /**
     * Berry's own git server, when the deployment runs one.
     *
@@ -164,6 +178,21 @@ export interface AgentCoreGitCredentialConfig {
    returnUrl: string | null;
 }
 
+export interface MicrovmConfig {
+   region: string;
+   /** The MicroVM image the runtime was built into (`...:microvm-image:<name>`). */
+   imageArn: string;
+   /** A `major.minor` version; null runs the image's active version. */
+   imageVersion: string | null;
+   executionRoleArn: string | null;
+   /** No traffic for this long suspends a VM (at least 60 s). */
+   idleSeconds: number;
+   /** A suspended VM is terminated after this long. */
+   suspendedSeconds: number;
+   logGroup: string | null;
+   credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null;
+}
+
 export interface AgentCoreConfig {
    region: string;
    /**
@@ -216,6 +245,13 @@ export interface StorageConfig {
 export interface IntegrationsConfig {
    github: { clientId: string; clientSecret: string } | null;
    /**
+    * Google Cloud OAuth client for MCP servers that use Google's
+    * authorization server and do not advertise dynamic client
+    * registration. One per deployment; every workspace uses it. Null
+    * until both halves are set.
+    */
+   googleOAuth: { clientId: string; clientSecret: string } | null;
+   /**
     * This server's own public origin — where the provider sends the browser
     * back. Not derivable from a request: behind a proxy the request's own
     * host is the proxy's, and a redirect_uri that does not match the one
@@ -224,6 +260,18 @@ export interface IntegrationsConfig {
    publicUrl: string | null;
    /** Where the browser lands afterwards. The frontend, when it is separate. */
    appUrl: string | null;
+}
+
+/** LiveKit Cloud or a self-hosted LiveKit server, for voice with an agent. */
+export interface LivekitConfig {
+   url: string;
+   apiKey: string;
+   apiSecret: string;
+   /**
+    * The LiveKit agent worker to dispatch when a member opens a voice room.
+    * Defaults to berry-voice when LIVEKIT_AGENT_NAME is unset.
+    */
+   agentName: string;
 }
 
 /** Sign-in: Better Auth sessions, GitHub via a GitHub OAuth App. */
@@ -254,6 +302,21 @@ export interface AuthConfig {
    githubAppSlug: string | null;
    /** Development-only known-email login (dev-login route + testUtils plugin). */
    devLogin: boolean;
+   /**
+    * Outbound mail for magic links, password reset and 2FA OTP. Null means
+    * those flows are not advertised (except a console sink in development).
+    */
+   mail: AuthMailConfig | null;
+}
+
+export interface AuthMailConfig {
+   from: string;
+   /**
+    * SMTP URL (`smtp://` / `smtps://`) or host settings. Null is the console
+    * sink used in development when no SMTP is configured. Cloudflare Email
+    * Sending is the host form with `smtp.mx.cloudflare.net:465`.
+    */
+   smtp: string | { host: string; port: number; user?: string; pass?: string; secure: boolean } | null;
 }
 
 /** Planner and run bounds. Not a model credential: those live on a subscription runtime. */
@@ -393,6 +456,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
    const appEnv = (env.APP_ENV ?? 'development').trim();
    const authConfig = auth(env, appEnv, problems);
    const databaseIamAuth = iamDatabaseAuth(env, databaseUrl, problems);
+   const integrationsConfig = integrations(env, problems);
+   const livekitConfig = livekit(env, problems);
 
    if (problems.length > 0) throw new ConfigError(problems);
 
@@ -419,6 +484,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       // would accept a token nothing can present.
       execution: executionConfig,
       agentCore: agentCore(env),
+      microvm: microvm(env),
+      bedrock: bedrock(env),
       agentCoreGateway: agentCoreGateway(env),
       agentCoreGitCredential: agentCoreGitCredential(env),
       githubProvider: (env.GITHUB_PROVIDER ?? 'agentcore').trim() === 'legacy' ? 'legacy' : 'agentcore',
@@ -426,7 +493,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       // between restarts and strand every credential already stored.
       integrationKey: (env.INTEGRATION_ENCRYPTION_KEY ?? '').trim() || null,
       pluginsAllowPrivateNetwork: (env.BERRY_PLUGINS_ALLOW_PRIVATE_NETWORK ?? '').trim() === '1',
-      integrations: integrations(env),
+      integrations: integrationsConfig,
+      livekit: livekitConfig,
       git: git(env),
    };
 }
@@ -473,11 +541,13 @@ function execution(env: NodeJS.ProcessEnv, problems: string[]): ExecutionConfig 
  *
  * Only the bucket is required. Credentials may be absent on purpose — the AWS
  * SDK then uses the workload's credential chain, which is how this runs
- * outside development.
+ * outside development. A development or test process with neither a bucket
+ * nor `BERRY_STORAGE_DIR` keeps files in a directory beside the local
+ * database, so an attachment has somewhere to land.
  */
 function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
    const maxBytes = positiveInt(env.STORAGE_MAX_BYTES, 25 * 1024 * 1024);
-   const directory = (env.BERRY_STORAGE_DIR ?? '').trim();
+   const directory = (env.BERRY_STORAGE_DIR ?? '').trim() || localArtifactDirectory(env);
    if (directory) {
       return {
          bucket: '',
@@ -508,6 +578,24 @@ function storage(env: NodeJS.ProcessEnv): StorageConfig | null {
 }
 
 /**
+ * Where a local process keeps files when nobody named a bucket or a directory.
+ *
+ * Production stays without storage until it is configured: a forgotten bucket
+ * must not start writing into the container. The directory sits next to a
+ * PGlite database (`pglite:./.berry` → `./.berry/artifacts`) and otherwise
+ * under `.berry/artifacts`, resolved from the server's working directory.
+ */
+function localArtifactDirectory(env: NodeJS.ProcessEnv): string {
+   const development = ['development', 'test'].includes((env.APP_ENV ?? '').trim().toLowerCase());
+   if (!development || (env.S3_BUCKET ?? '').trim()) return '';
+   const database = (env.DATABASE_URL ?? '').trim();
+   if (database.startsWith('pglite:')) {
+      return `${database.slice('pglite:'.length).replace(/\/$/, '')}/artifacts`;
+   }
+   return '.berry/artifacts';
+}
+
+/**
  * Planner and run bounds. Always present: they do not need a model provider.
  */
 function agents(env: NodeJS.ProcessEnv): AgentConfig {
@@ -528,6 +616,61 @@ function agents(env: NodeJS.ProcessEnv): AgentConfig {
  * with half its settings is a substrate that fails at the first command, and
  * the factory says so by name rather than discovering it at run time.
  */
+/** The platform Bedrock model. The runtime image holds the AWS credentials, not this server. */
+function bedrock(env: NodeJS.ProcessEnv): { model: string; region: string } | null {
+   const model = (env.BERRY_BEDROCK_MODEL ?? '').trim();
+   if (!model) return null;
+   const region = (env.BERRY_BEDROCK_REGION?.trim() || env.AWS_REGION?.trim() || 'us-east-1').trim();
+   return { model, region };
+}
+
+/**
+ * Lambda MicroVMs for agent runs. Null unless an image is named. Credentials
+ * fall back to AgentCore's pair (same account, same kind of caller), then to
+ * the AWS default chain. `||` for the same reason as there: Compose passes an
+ * unset variable as an empty string.
+ */
+function microvm(env: NodeJS.ProcessEnv): MicrovmConfig | null {
+   const imageArn = (env.BERRY_MICROVM_IMAGE_ARN ?? '').trim();
+   if (!imageArn) return null;
+   const region = (
+      env.BERRY_MICROVM_REGION?.trim() ||
+      env.BERRY_AGENTCORE_REGION?.trim() ||
+      env.AWS_REGION?.trim() ||
+      // An image ARN names its region: arn:aws:lambda:<region>:<account>:microvm-image:<name>.
+      imageArn.split(':')[3] ||
+      ''
+   ).trim();
+   const accessKeyId = (
+      env.BERRY_MICROVM_ACCESS_KEY_ID?.trim() ||
+      env.BERRY_AGENTCORE_ACCESS_KEY_ID?.trim() ||
+      ''
+   ).trim();
+   const secretAccessKey = (
+      env.BERRY_MICROVM_SECRET_ACCESS_KEY?.trim() ||
+      env.BERRY_AGENTCORE_SECRET_ACCESS_KEY?.trim() ||
+      ''
+   ).trim();
+   const sessionToken = (
+      env.BERRY_MICROVM_SESSION_TOKEN?.trim() ||
+      env.BERRY_AGENTCORE_SESSION_TOKEN?.trim() ||
+      ''
+   ).trim();
+   return {
+      region,
+      imageArn,
+      imageVersion: (env.BERRY_MICROVM_IMAGE_VERSION ?? '').trim() || null,
+      executionRoleArn: (env.BERRY_MICROVM_EXECUTION_ROLE_ARN ?? '').trim() || null,
+      idleSeconds: Math.max(60, positiveInt(env.BERRY_MICROVM_IDLE_SECONDS, 900)),
+      suspendedSeconds: positiveInt(env.BERRY_MICROVM_SUSPENDED_SECONDS, 3600),
+      logGroup: (env.BERRY_MICROVM_LOG_GROUP ?? '').trim() || null,
+      credentials:
+         accessKeyId && secretAccessKey
+            ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }
+            : null,
+   };
+}
+
 function agentCore(env: NodeJS.ProcessEnv): AgentCoreConfig | null {
    const region = (
       env.BERRY_AGENTCORE_REGION ??
@@ -637,16 +780,51 @@ function agentCoreGateway(env: NodeJS.ProcessEnv): AgentCoreGatewayConfig | null
    };
 }
 
-function integrations(env: NodeJS.ProcessEnv): IntegrationsConfig {
+function integrations(env: NodeJS.ProcessEnv, problems: string[]): IntegrationsConfig {
    const clientId = (env.GITHUB_CLIENT_ID ?? '').trim();
    const clientSecret = (env.GITHUB_CLIENT_SECRET ?? '').trim();
+   const googleId = (env.GOOGLE_OAUTH_CLIENT_ID ?? '').trim();
+   const googleSecret = (env.GOOGLE_OAUTH_CLIENT_SECRET ?? '').trim();
+   if (googleId && !googleSecret) {
+      problems.push('GOOGLE_OAUTH_CLIENT_SECRET is required with GOOGLE_OAUTH_CLIENT_ID');
+   }
+   if (googleSecret && !googleId) {
+      problems.push('GOOGLE_OAUTH_CLIENT_ID is required with GOOGLE_OAUTH_CLIENT_SECRET');
+   }
    return {
       // Both or neither: half a credential cannot complete an exchange, and
       // reporting the provider as configured would promise that it can.
       github: clientId && clientSecret ? { clientId, clientSecret } : null,
+      googleOAuth: googleId && googleSecret ? { clientId: googleId, clientSecret: googleSecret } : null,
       publicUrl: origin(env.BERRY_PUBLIC_URL),
       appUrl: origin(env.BERRY_APP_URL),
    };
+}
+
+/**
+ * Voice rooms. URL, API key and API secret are all or none: a half-set
+ * LiveKit client cannot mint a token, and reporting voice as configured
+ * would promise a Connect that cannot start.
+ */
+function livekit(env: NodeJS.ProcessEnv, problems: string[]): LivekitConfig | null {
+   const url = (env.LIVEKIT_URL ?? '').trim();
+   const apiKey = (env.LIVEKIT_API_KEY ?? '').trim();
+   const apiSecret = (env.LIVEKIT_API_SECRET ?? '').trim();
+   const agentName = (env.LIVEKIT_AGENT_NAME ?? '').trim() || 'berry-voice';
+   const any = Boolean(url || apiKey || apiSecret);
+   const all = Boolean(url && apiKey && apiSecret);
+   if (any && !all) {
+      if (!url) problems.push('LIVEKIT_URL is required with LIVEKIT_API_KEY and LIVEKIT_API_SECRET');
+      if (!apiKey) problems.push('LIVEKIT_API_KEY is required with LIVEKIT_URL and LIVEKIT_API_SECRET');
+      if (!apiSecret) problems.push('LIVEKIT_API_SECRET is required with LIVEKIT_URL and LIVEKIT_API_KEY');
+      return null;
+   }
+   if (!all) return null;
+   if (!/^wss?:\/\//i.test(url) && !/^https?:\/\//i.test(url)) {
+      problems.push('LIVEKIT_URL must be a ws://, wss://, http:// or https:// origin');
+      return null;
+   }
+   return { url, apiKey, apiSecret, agentName };
 }
 
 /**
@@ -687,7 +865,11 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
    if (clientSecret && !clientId) {
       problems.push('BERRY_AUTH_GITHUB_CLIENT_ID is required with BERRY_AUTH_GITHUB_CLIENT_SECRET');
    }
-   const github = clientId && clientSecret ? { clientId, clientSecret } : null;
+   // `BERRY_AUTH_GITHUB_ENABLED=false` turns GitHub sign-in off with its
+   // credentials still set: the provider is not registered, the config says
+   // so, and the sign-in screens offer email only.
+   const githubEnabled = boolean(env.BERRY_AUTH_GITHUB_ENABLED, true);
+   const github = githubEnabled && clientId && clientSecret ? { clientId, clientSecret } : null;
 
    if (github && !explicit && !development) {
       problems.push('BERRY_AUTH_SECRET is required when GitHub sign-in is configured');
@@ -705,7 +887,9 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
 
    const appUrl = origin(env.BERRY_APP_URL);
    const publicUrl = origin(env.BERRY_PUBLIC_URL);
-   const baseUrl = appUrl ?? publicUrl ?? (development ? 'http://localhost:3100' : null);
+   // The API public URL is not a browser origin. In development the app is
+   // localhost:3000 unless BERRY_APP_URL says otherwise.
+   const baseUrl = appUrl ?? (development ? 'http://localhost:3000' : publicUrl);
    // A browser reaching the app by another name — a LAN address on a phone, a
    // tunnel in front of a local stack — sends that origin, and Better Auth
    // refuses a sign-in from an origin it was not told about. Naming them is an
@@ -748,7 +932,86 @@ function auth(env: NodeJS.ProcessEnv, _appEnv: string, problems: string[]): Auth
       github,
       githubAppSlug: slug === '' ? null : slug,
       devLogin: development && boolean(env.AUTH_ALLOW_PASSWORDLESS_LOGIN, true),
+      mail: authMail(env, development, problems),
    };
+}
+
+/**
+ * Outbound mail. SMTP wins when set; otherwise development gets a console
+ * sink so magic-link and reset flows can be exercised locally. Production
+ * with no SMTP returns null — those capabilities stay off rather than
+ * logging links that nobody receives.
+ *
+ * `BERRY_MAIL_PROVIDER=cloudflare` fills Cloudflare Email Sending's
+ * authenticated SMTP endpoint (`smtp.mx.cloudflare.net:465`). The password
+ * is a Cloudflare API token with Email Sending: Edit; the username defaults
+ * to the literal `api_token`. An explicit `BERRY_SMTP_URL` or
+ * `BERRY_SMTP_HOST` still wins when set.
+ */
+function authMail(
+   env: NodeJS.ProcessEnv,
+   development: boolean,
+   problems: string[]
+): AuthMailConfig | null {
+   const from = (env.BERRY_MAIL_FROM ?? '').trim() || 'Berry <noreply@localhost>';
+   const smtpUrl = (env.BERRY_SMTP_URL ?? env.SMTP_URL ?? '').trim();
+   if (smtpUrl) {
+      try {
+         // Validate early: Better Auth would only fail on the first send.
+         void new URL(smtpUrl);
+      } catch {
+         problems.push('BERRY_SMTP_URL must be an smtp:// or smtps:// URL');
+         return null;
+      }
+      return { from, smtp: smtpUrl };
+   }
+   const host = (env.BERRY_SMTP_HOST ?? '').trim();
+   if (host) {
+      const portRaw = (env.BERRY_SMTP_PORT ?? '587').trim();
+      const port = Number(portRaw);
+      if (!Number.isInteger(port) || port < 1 || port > 65535) {
+         problems.push('BERRY_SMTP_PORT must be an integer between 1 and 65535');
+         return null;
+      }
+      const user = (env.BERRY_SMTP_USER ?? '').trim();
+      const pass = env.BERRY_SMTP_PASS ?? '';
+      return {
+         from,
+         smtp: {
+            host,
+            port,
+            secure: boolean(env.BERRY_SMTP_SECURE, port === 465),
+            ...(user ? { user, pass } : {}),
+         },
+      };
+   }
+   const provider = (env.BERRY_MAIL_PROVIDER ?? '').trim().toLowerCase();
+   if (provider === 'cloudflare') {
+      // Cloudflare Email Sending SMTP: port 465 / implicit TLS only.
+      const pass = (env.BERRY_SMTP_PASS ?? env.CF_API_TOKEN ?? '').trim();
+      if (!pass) {
+         problems.push(
+            'BERRY_MAIL_PROVIDER=cloudflare needs BERRY_SMTP_PASS (Cloudflare API token with Email Sending: Edit)'
+         );
+         return null;
+      }
+      const user = (env.BERRY_SMTP_USER ?? '').trim() || CLOUDFLARE_EMAIL_SMTP.user;
+      return {
+         from,
+         smtp: {
+            host: CLOUDFLARE_EMAIL_SMTP.host,
+            port: CLOUDFLARE_EMAIL_SMTP.port,
+            secure: CLOUDFLARE_EMAIL_SMTP.secure,
+            user,
+            pass,
+         },
+      };
+   }
+   if (provider !== '' && provider !== 'smtp') {
+      problems.push('BERRY_MAIL_PROVIDER must be cloudflare, smtp, or empty');
+      return null;
+   }
+   return development ? { from, smtp: null } : null;
 }
 
 /** An IPv4/IPv6 address, optionally with a /prefix that fits its family. */

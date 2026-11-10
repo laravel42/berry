@@ -3,7 +3,7 @@
 import { SavedViewsBar } from '@/components/common/views/saved-views-bar';
 import { DisplayOptions } from '@/components/layout/headers/display-options';
 import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trigger';
-import { Button } from '@/components/ui/button';
+import { Button, trackButtonPressedClass } from '@/components/ui/button';
 import { filterIssuesForView, filterProjectsForView } from '@/data/views';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
@@ -38,13 +38,11 @@ export default function Header() {
                   <IssueFilterTrigger iconOnly />
                   <Button
                      size="xs"
-                     variant="outline"
+                     variant="track"
                      aria-label={'Insights'}
                      title={'Insights'}
-                     className={cn(
-                        'border-muted-foreground/15 px-2',
-                        openPanel === 'insights' && 'bg-secondary hover:bg-secondary/80'
-                     )}
+                     aria-pressed={openPanel === 'insights'}
+                     className={cn(openPanel === 'insights' && trackButtonPressedClass)}
                      onClick={() => togglePanel('insights')}
                   >
                      <BarChart3 className="size-4" aria-hidden="true" />

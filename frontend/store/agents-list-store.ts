@@ -15,13 +15,13 @@ export type AgentsScope = 'all' | 'archived';
 
 export type AgentsSortKey = 'activity' | 'name' | 'runs' | 'created';
 
-export type AgentColumn = 'activity' | 'lastActive' | 'model' | 'access';
+export type AgentColumn = 'activity' | 'lastActive' | 'access';
 
 /** Every column the picker offers, in the order the table lays them out. */
-export const AGENT_COLUMNS: AgentColumn[] = ['activity', 'lastActive', 'model', 'access'];
+export const AGENT_COLUMNS: AgentColumn[] = ['activity', 'lastActive', 'access'];
 
 /** The columns a fresh workspace sees. */
-const DEFAULT_COLUMNS: AgentColumn[] = ['activity', 'lastActive', 'model'];
+const DEFAULT_COLUMNS: AgentColumn[] = ['activity', 'lastActive'];
 
 interface AgentsListState {
    scope: AgentsScope;

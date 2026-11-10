@@ -1,0 +1,1 @@
+-- Auth overlays are not reversed.

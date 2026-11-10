@@ -2,7 +2,7 @@
 
 import { Copy } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -21,10 +21,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import EventTriggerEditor, {
+   ConditionsSummary,
+   conditionsComplete,
+} from '@/components/common/loops/event-trigger-editor';
+import type { Project } from '@/data/projects';
 import { absoluteApiUrl } from '@/lib/api';
 import {
    addCronTrigger,
+   addEventTrigger,
    addWebhookTrigger,
+   EMPTY_CONDITIONS,
+   type Conditions,
+   type LoopEventType,
    deleteTrigger,
    describeAutopilotFailure,
    rotateWebhook,
@@ -34,6 +43,8 @@ import {
    type WebhookSecrets,
 } from '@/lib/autopilots';
 import { localTimezone } from '@/lib/cron-schedule';
+import { loadWorkspaceProjects } from '@/lib/projects';
+import { useSessionStore } from '@/store/session-store';
 
 import ScheduleEditor from './schedule-editor';
 
@@ -64,7 +75,7 @@ export function SecretsNotice({
    secrets: WebhookSecrets;
    onDismiss: () => void;
 }) {
-   const t = useTranslations('areas.autopilots.triggers');
+   const t = useTranslations('loops.triggers');
    const [shown, setShown] = useState(false);
    const endpoint = absoluteApiUrl(secrets.ingressPath);
    const mask = (value: string) => (shown ? value : '•'.repeat(Math.min(32, value.length)));
@@ -120,23 +131,30 @@ export function SecretsNotice({
    );
 }
 
-function TriggerRow({
+export function TriggerRow({
    autopilotId,
    trigger,
    canEdit,
    onChanged,
    onSecrets,
+   projects,
 }: {
    autopilotId: string;
    trigger: AutopilotTrigger;
    canEdit: boolean;
    onChanged: () => void;
    onSecrets: (secrets: WebhookSecrets) => void;
+   projects: Project[];
 }) {
-   const t = useTranslations('areas.autopilots.triggers');
+   const t = useTranslations('loops.triggers');
+   const tEvent = useTranslations('loops.eventTrigger');
    const tc = useTranslations('common.confirm');
    const [rotating, setRotating] = useState(false);
    const [removing, setRemoving] = useState(false);
+   const [editing, setEditing] = useState<{
+      eventType: LoopEventType;
+      conditions: Conditions;
+   } | null>(null);
 
    const remove = async () => {
       try {
@@ -158,7 +176,7 @@ function TriggerRow({
    };
 
    return (
-      <div className="flex flex-wrap items-center gap-3 border-b py-3">
+      <div className="flex flex-wrap items-center gap-3 border-t border-border/60 px-4 py-3">
          <Switch
             checked={trigger.enabled}
             disabled={!canEdit}
@@ -179,6 +197,47 @@ function TriggerRow({
                         : t('notScheduled')}
                   </div>
                </>
+            ) : trigger.kind === 'event' && trigger.eventType ? (
+               editing ? (
+                  <div className="grid max-w-2xl gap-3 rounded-md border p-3">
+                     <EventTriggerEditor
+                        eventType={editing.eventType}
+                        conditions={editing.conditions}
+                        projects={projects}
+                        onChange={setEditing}
+                     />
+                     <div className="flex gap-2">
+                        <Button
+                           type="button"
+                           size="xs"
+                           disabled={!conditionsComplete(editing.conditions)}
+                           onClick={() =>
+                              void act(async () => {
+                                 await updateTrigger(autopilotId, trigger.id, editing);
+                                 setEditing(null);
+                              })
+                           }
+                        >
+                           {t('save')}
+                        </Button>
+                        <Button
+                           type="button"
+                           size="xs"
+                           variant="ghost"
+                           onClick={() => setEditing(null)}
+                        >
+                           {t('cancel')}
+                        </Button>
+                     </div>
+                  </div>
+               ) : (
+                  <>
+                     <div className="font-medium">{tEvent(`events.${trigger.eventType}`)}</div>
+                     <div className="text-muted-foreground">
+                        <ConditionsSummary conditions={trigger.conditions} projects={projects} />
+                     </div>
+                  </>
+               )
             ) : (
                <>
                   <div className="font-medium">
@@ -193,6 +252,21 @@ function TriggerRow({
                </>
             )}
          </div>
+         {canEdit && trigger.kind === 'event' && trigger.eventType && !editing ? (
+            <Button
+               type="button"
+               size="xs"
+               variant="outline"
+               onClick={() =>
+                  setEditing({
+                     eventType: trigger.eventType ?? 'issue.created',
+                     conditions: trigger.conditions,
+                  })
+               }
+            >
+               {t('edit')}
+            </Button>
+         ) : null}
          {canEdit && trigger.kind === 'webhook' ? (
             <Button type="button" size="xs" variant="outline" onClick={() => setRotating(true)}>
                {t('rotate')}
@@ -241,11 +315,33 @@ function TriggerRow({
    );
 }
 
-/** What makes this autopilot run, and what it would take to change that. */
-export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
-   const t = useTranslations('areas.autopilots.triggers');
-   const [secrets, setSecrets] = useState<WebhookSecrets | null>(null);
-   const [adding, setAdding] = useState<'cron' | 'webhook' | null>(null);
+export type AddableTrigger = 'cron' | 'event' | 'webhook';
+
+/**
+ * Adding one trigger of a kind: its own fields and its own button, because a
+ * trigger is created on the server the moment it is added — it does not wait
+ * for the Loop's Save.
+ */
+export function AddTriggerForm({
+   autopilotId,
+   kind,
+   projects,
+   onAdded,
+   onCancel,
+   onSecrets,
+}: {
+   autopilotId: string;
+   kind: AddableTrigger;
+   projects: Project[];
+   onAdded: () => void;
+   onCancel: () => void;
+   onSecrets: (secrets: WebhookSecrets) => void;
+}) {
+   const t = useTranslations('loops.triggers');
+   const [eventDraft, setEventDraft] = useState<{
+      eventType: LoopEventType;
+      conditions: Conditions;
+   }>({ eventType: 'issue.created', conditions: EMPTY_CONDITIONS });
    const [schedule, setSchedule] = useState({
       expression: '0 9 * * 1-5',
       timezone: localTimezone(),
@@ -253,12 +349,24 @@ export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
    const [filters, setFilters] = useState('');
    const [busy, setBusy] = useState(false);
 
-   const addSchedule = async () => {
+   const add = async () => {
       setBusy(true);
       try {
-         await addCronTrigger(autopilot.id, schedule);
-         setAdding(null);
-         onChanged();
+         if (kind === 'cron') {
+            await addCronTrigger(autopilotId, schedule);
+         } else if (kind === 'event') {
+            await addEventTrigger(autopilotId, eventDraft);
+         } else {
+            const made = await addWebhookTrigger(
+               autopilotId,
+               filters
+                  .split(',')
+                  .map((name) => name.trim())
+                  .filter((name) => name !== '')
+            );
+            onSecrets(made.secrets);
+         }
+         onAdded();
       } catch (failure) {
          toast.error(describeAutopilotFailure(failure));
       } finally {
@@ -266,26 +374,78 @@ export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
       }
    };
 
-   const addWebhook = async () => {
-      setBusy(true);
-      try {
-         const made = await addWebhookTrigger(
-            autopilot.id,
-            filters
-               .split(',')
-               .map((name) => name.trim())
-               .filter((name) => name !== '')
-         );
-         setFilters('');
-         setAdding(null);
-         setSecrets(made.secrets);
-         onChanged();
-      } catch (failure) {
-         toast.error(describeAutopilotFailure(failure));
-      } finally {
-         setBusy(false);
-      }
-   };
+   const label =
+      kind === 'cron' ? t('addSchedule') : kind === 'event' ? t('addEvent') : t('addWebhook');
+
+   return (
+      <div className="grid gap-3">
+         {kind === 'event' ? (
+            <EventTriggerEditor
+               eventType={eventDraft.eventType}
+               conditions={eventDraft.conditions}
+               projects={projects}
+               onChange={setEventDraft}
+            />
+         ) : kind === 'cron' ? (
+            <ScheduleEditor
+               expression={schedule.expression}
+               timezone={schedule.timezone}
+               onChange={setSchedule}
+            />
+         ) : (
+            <div className="grid gap-2">
+               <Label htmlFor="webhook-filters">{t('filters')}</Label>
+               <Input
+                  id="webhook-filters"
+                  value={filters}
+                  onChange={(event) => setFilters(event.target.value)}
+               />
+               <p className="text-muted-foreground">{t('filtersHint')}</p>
+            </div>
+         )}
+         <div className="flex gap-2">
+            <Button
+               type="button"
+               size="xs"
+               disabled={busy || (kind === 'event' && !conditionsComplete(eventDraft.conditions))}
+               onClick={() => void add()}
+            >
+               {label}
+            </Button>
+            <Button type="button" size="xs" variant="ghost" onClick={onCancel}>
+               {t('cancel')}
+            </Button>
+         </div>
+      </div>
+   );
+}
+
+/** Projects of this workspace, for event conditions; empty until they load. */
+export function useWorkspaceProjects(): Project[] {
+   const [projects, setProjects] = useState<Project[]>([]);
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
+   useEffect(() => {
+      if (!workspaceId) return;
+      let cancelled = false;
+      void loadWorkspaceProjects(workspaceId).then(
+         (found) => {
+            if (!cancelled) setProjects(found);
+         },
+         () => undefined
+      );
+      return () => {
+         cancelled = true;
+      };
+   }, [workspaceId]);
+   return projects;
+}
+
+/** What makes this autopilot run, and what it would take to change that. */
+export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
+   const t = useTranslations('loops.triggers');
+   const [secrets, setSecrets] = useState<WebhookSecrets | null>(null);
+   const [adding, setAdding] = useState<AddableTrigger | null>(null);
+   const projects = useWorkspaceProjects();
 
    return (
       <div className="grid gap-4 px-6 py-4">
@@ -306,6 +466,7 @@ export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
                         setSecrets(next);
                         onChanged();
                      }}
+                     projects={projects}
                   />
                ))
             )}
@@ -326,64 +487,32 @@ export default function TriggersTab({ autopilot, canEdit, onChanged }: Props) {
                      type="button"
                      size="xs"
                      variant="secondary"
+                     onClick={() => setAdding('event')}
+                  >
+                     {t('addEvent')}
+                  </Button>
+                  <Button
+                     type="button"
+                     size="xs"
+                     variant="secondary"
                      onClick={() => setAdding('webhook')}
                   >
                      {t('addWebhook')}
                   </Button>
                </div>
-            ) : adding === 'cron' ? (
-               <div className="grid max-w-2xl gap-3 rounded-md border p-4">
-                  <ScheduleEditor
-                     expression={schedule.expression}
-                     timezone={schedule.timezone}
-                     onChange={setSchedule}
-                  />
-                  <div className="flex gap-2">
-                     <Button
-                        type="button"
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => void addSchedule()}
-                     >
-                        {t('addSchedule')}
-                     </Button>
-                     <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setAdding(null)}
-                     >
-                        {t('cancel')}
-                     </Button>
-                  </div>
-               </div>
             ) : (
-               <div className="grid max-w-2xl gap-2 rounded-md border p-4">
-                  <Label htmlFor="webhook-filters">{t('filters')}</Label>
-                  <Input
-                     id="webhook-filters"
-                     value={filters}
-                     onChange={(event) => setFilters(event.target.value)}
+               <div className="max-w-2xl rounded-md border p-4">
+                  <AddTriggerForm
+                     autopilotId={autopilot.id}
+                     kind={adding}
+                     projects={projects}
+                     onAdded={() => {
+                        setAdding(null);
+                        onChanged();
+                     }}
+                     onCancel={() => setAdding(null)}
+                     onSecrets={setSecrets}
                   />
-                  <p className="text-muted-foreground">{t('filtersHint')}</p>
-                  <div className="flex gap-2">
-                     <Button
-                        type="button"
-                        size="xs"
-                        disabled={busy}
-                        onClick={() => void addWebhook()}
-                     >
-                        {t('addWebhook')}
-                     </Button>
-                     <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => setAdding(null)}
-                     >
-                        {t('cancel')}
-                     </Button>
-                  </div>
                </div>
             )
          ) : null}

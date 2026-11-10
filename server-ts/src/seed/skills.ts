@@ -1,18 +1,35 @@
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Sql } from '../db/pool.ts';
-import { skillsFromPack, type PackedSkill } from './skill-pack.ts';
+import { skillsFromFiles, SOFTWARE_PACK_SOURCE, WORK_PACK_SOURCE, type PackedSkill } from './skill-pack.ts';
 
-const PACK = join(dirname(fileURLToPath(import.meta.url)), 'data', 'berry-agentcore-deep-skills-100.zip');
+const DATA = join(dirname(fileURLToPath(import.meta.url)), 'data');
+export const SOFTWARE_PACK = join(DATA, 'berry-software-skills');
+export const WORK_PACK = join(DATA, 'berry-work-skills');
 
-/** Load the committed AgentCore deep-skills pack from disk. */
-export function loadPackedSkills(path: string = PACK): PackedSkill[] {
-   return skillsFromPack(readFileSync(path));
+/**
+ * Every committed pack: eight skills for each catalogue role, software roles
+ * in one pack and the specialists beyond software in the other. Names are
+ * unique across both, which the pack tests hold.
+ */
+export function loadPackedSkills(): PackedSkill[] {
+   return [...loadSkillFolder(SOFTWARE_PACK, SOFTWARE_PACK_SOURCE), ...loadSkillFolder(WORK_PACK, WORK_PACK_SOURCE)];
+}
+
+/** A pack committed as plain folders: `manifest.json` and `<name>/SKILL.md`. */
+export function loadSkillFolder(root: string, source: string): PackedSkill[] {
+   const byPath = new Map<string, string>();
+   for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const full = join(entry.parentPath, entry.name);
+      byPath.set(relative(root, full).split(sep).join('/'), readFileSync(full, 'utf8'));
+   }
+   return skillsFromFiles(byPath, source);
 }
 
 /**
- * The 100 AgentCore deep skills, into every workspace that exists.
+ * The committed packs' skills, into one workspace.
  *
  * Idempotent on `(workspace_id, name)`: a second seed refreshes the copy the
  * pack currently holds rather than creating a duplicate catalogue.
@@ -31,7 +48,7 @@ export async function upsertPackedSkills(
             source_kind, source_url, imported_at, created_by, created_at, updated_at
          ) VALUES (
             ${workspaceId}, ${skill.name}, ${skill.description}, ${skill.content}, ${skill.labels},
-            'zip', 'seed://berry-agentcore-deep-skills-100', ${now}, ${createdBy}, ${now}, ${now}
+            'zip', ${skill.source}, ${now}, ${createdBy}, ${now}, ${now}
          )
          ON CONFLICT (workspace_id, name) WHERE archived_at IS NULL DO UPDATE SET
             description = EXCLUDED.description,

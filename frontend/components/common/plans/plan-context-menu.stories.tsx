@@ -11,7 +11,7 @@ const plan: PlanSummary = {
    title: 'Persist project health and weekly updates',
    projectId: 'proj-health',
    projectName: 'Persist project health',
-   goalId: null,
+   milestoneId: null,
    generation: { status: 'succeeded', error: null, stage: 'finalize' },
    validationStatus: 'valid',
    compileStatus: 'idle',

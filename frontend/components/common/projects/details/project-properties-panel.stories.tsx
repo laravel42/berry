@@ -53,8 +53,7 @@ export const Full: Story = {
       await expect(canvas.getByText('3 members')).toBeVisible();
       await expect(canvas.getByRole('heading', { name: 'Progress' })).toBeVisible();
       await expect(canvas.getByText(/moved health to on track/)).toBeVisible();
-      // Milestones are gone from projects.
-      await expect(canvas.queryByText('Milestones')).not.toBeInTheDocument();
+      await expect(canvas.getByText('Milestones')).toBeVisible();
    },
 };
 

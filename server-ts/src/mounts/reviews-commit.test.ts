@@ -129,6 +129,27 @@ test('a deletion is one commit on the pull request’s branch, conditional on th
    assert.match(String(written[0]!.message), /^Remove the unused route\n\nCo-authored-by: Ada Lovelace <ada@example.test>/);
 });
 
+test('a deletion under .handoffs or inside .git is refused', async () => {
+   const { remove, written } = app();
+   for (const path of ['.handoffs/BER-1 - task', '.git/config', 'vendor/.git/HEAD']) {
+      const response = await remove({ path, sha: SHA });
+      assert.equal(response.status, 422, path);
+      assert.equal(((await response.json()) as { error: { code: string } }).error.code, 'PATH_PROTECTED');
+   }
+   assert.equal(written.length, 0);
+});
+
+test('a write inside .git is refused; a handoff file can still be edited', async () => {
+   const { commit, written } = app();
+   const git = await commit({ ...edit, path: '.git/config' });
+   assert.equal(git.status, 422);
+   assert.equal(((await git.json()) as { error: { code: string } }).error.code, 'PATH_PROTECTED');
+   const handoff = await commit({ ...edit, path: '.handoffs/BER-1 - task' });
+   assert.equal(handoff.status, 201);
+   assert.equal(written.length, 1);
+   assert.equal(written[0]!.path, '.handoffs/BER-1 - task');
+});
+
 test('a deletion is refused the same way an edit is, and a missing blob is not a path', async () => {
    const gone = await app({ conflict: true }).remove({ path: 'server/src/app.ts', sha: SHA });
    assert.equal(gone.status, 409);

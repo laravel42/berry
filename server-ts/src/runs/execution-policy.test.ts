@@ -20,14 +20,23 @@ test('subscription-only execution refuses native work instead of leaving it queu
    assert.equal(taskExecutionAllowed('unknown'), false);
 });
 
-test('a native compute host admits native work and known workstation runtimes only', () => {
+test('a native compute host admits native work, workstation CLIs, and API-token runtimes', () => {
    configureTaskExecution({ nativeExecution: true, workstationKeys: WORKSTATION_RUNTIME_KEYS });
    assert.equal(taskExecutionAllowed(null), true);
    for (const key of ['kiro', 'claude', 'codex', 'cursor', 'kimi', 'grok', 'qoder']) {
       assert.equal(taskExecutionAllowed(key), true);
    }
+   for (const key of ['openai', 'xai', 'anthropic', 'gemini']) {
+      assert.equal(taskExecutionAllowed(key), true);
+   }
    assert.equal(taskExecutionAllowed('unknown'), false);
    assert.equal(taskExecutionAllowed('opencode'), false);
+});
+
+test('without a compute host an API-token runtime is not executable', () => {
+   configureTaskExecution({ nativeExecution: false, workstationKeys: WORKSTATION_RUNTIME_KEYS });
+   assert.equal(taskExecutionAllowed('gemini'), false);
+   assert.equal(taskExecutionAllowed('openai'), false);
 });
 
 test('an execution capability names one workspace, never every workspace', () => {

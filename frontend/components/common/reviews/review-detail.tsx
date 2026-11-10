@@ -5,8 +5,8 @@ import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueArtifacts } from '@/components/common/issues/details/issue-artifacts';
 import { EnvironmentPreview } from '@/components/common/issues/details/environment-preview';
 import { SitePreview } from '@/components/common/issues/details/site-preview';
-import { loadIssueArtifacts, siteEntry } from '@/lib/attachments';
-import { loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
+import { isHandoffPath, loadIssueArtifacts, siteEntry } from '@/lib/attachments';
+import { loadRepositoryTree, loadReviews, preloadReviewDiff, type ReviewItem } from '@/lib/reviews';
 import { loadPreviewEnvironment } from '@/lib/preview-environment';
 import { useSessionStore } from '@/store/session-store';
 import { ArrowLeft } from 'lucide-react';
@@ -67,6 +67,8 @@ export function ReviewDetail({
    const [hasEnvironment, setHasEnvironment] = useState(false);
    // The end of the tab bar, as an element a section can render its own buttons into.
    const [toolbarSlot, setToolbarSlot] = useState<HTMLDivElement | null>(null);
+   /** Files the Files tab would list, after `.handoffs` is omitted. */
+   const [listedFiles, setListedFiles] = useState(0);
 
    useEffect(() => {
       setActive(section);
@@ -86,15 +88,39 @@ export function ReviewDetail({
    }, [load]);
 
    const issueRef = item?.issue.identifier;
+   const runId = item?.run.id;
+   const hasRepository = item?.pullRequest != null;
    useEffect(() => {
-      if (!issueRef) return;
+      setListedFiles(0);
+   }, [reviewId]);
+   useEffect(() => {
+      if (!issueRef || !runId) return;
       let cancelled = false;
       loadIssueArtifacts(issueRef)
          .then((artifacts) => {
             if (cancelled) return;
             setHasSite(siteEntry(artifacts) !== null);
+            if (!hasRepository) {
+               setListedFiles(
+                  artifacts.filter((file) => file.runId === runId && !isHandoffPath(file.path))
+                     .length
+               );
+            }
          })
-         .catch(() => !cancelled && setHasSite(false));
+         .catch(() => {
+            if (cancelled) return;
+            setHasSite(false);
+            if (!hasRepository) setListedFiles(0);
+         });
+      if (hasRepository) {
+         loadRepositoryTree(runId)
+            .then((tree) => {
+               if (!cancelled) {
+                  setListedFiles(tree.files.filter((file) => !isHandoffPath(file.path)).length);
+               }
+            })
+            .catch(() => !cancelled && setListedFiles(0));
+      }
       loadPreviewEnvironment(issueRef)
          .then(
             (environment) =>
@@ -104,7 +130,7 @@ export function ReviewDetail({
       return () => {
          cancelled = true;
       };
-   }, [issueRef]);
+   }, [hasRepository, issueRef, runId]);
 
    // The diff too, so the Diff tab opens on it instead of on "Loading".
    const diffRun = item?.pullRequest ? item.run.id : null;
@@ -131,14 +157,11 @@ export function ReviewDetail({
       );
    }
 
-   const hasFiles = item.delivery.producedFiles > 0;
-   // A pull request has a repository to browse at its branch, and that is what
-   // the tab shows: the agent's saved files are in it once committed. A task with
-   // no pull request shows the files saved on it instead.
-   const hasRepository = item.pullRequest !== null;
-   const showFiles = hasFiles || hasRepository;
+   // The repository at the branch under review, or the files saved on the task.
+   // Hidden when that listing is empty — `.handoffs` does not count.
+   const showFiles = listedFiles > 0;
    // Verdicts exist only where AutoGate asked agents to review, a diff only
-   // where a pull request was opened, and files only when the run produced
+   // where a pull request was opened, and files only when the listing has
    // some; a task without one has no such tab, and an old link opens overview.
    const shown: ReviewSection =
       (active === 'guide' && !item.issue.autoGate) ||

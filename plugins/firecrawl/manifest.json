@@ -1,0 +1,17 @@
+{
+   "schemaVersion": 1,
+   "key": "firecrawl",
+   "name": "Firecrawl",
+   "version": "1.0.0",
+   "description": "Searches the web and extracts page content. An agent can open a URL and pull the text it needs into the task.",
+   "scopes": [],
+   "config": [],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://mcp.firecrawl.dev/v2/mcp"
+      }
+   }
+}

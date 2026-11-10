@@ -14,6 +14,8 @@ import type { Mount } from '../http/registry.ts';
 import type { IssueMutationEvent, IssueRepository } from '../core/issues.ts';
 import type { WorkTrackingHooks } from '../work/hooks.ts';
 import type { CommentTriggers } from '../agents/triggers.ts';
+import type { AttachmentRepository } from '../core/attachments.ts';
+import type { ObjectStore } from '../storage/storage.ts';
 import {
    InvalidParent,
    RevisionConflict,
@@ -48,6 +50,9 @@ export interface CommentOptions {
    hooks?: Pick<WorkTrackingHooks, 'afterCommentCreate'> | undefined;
    /** Mentions and replies that start agent runs. Absent: a comment starts nothing. */
    triggers?: CommentTriggers | undefined;
+   /** Files on a comment, so deleting the comment can drop their bytes too. */
+   attachments?: AttachmentRepository | undefined;
+   storage?: ObjectStore | null | undefined;
 }
 
 export function commentMounts(options: CommentOptions): Mount[] {
@@ -104,6 +109,9 @@ export function commentMounts(options: CommentOptions): Mount[] {
       const scope = await comments
          .authorize(context.get('user').id, commentId, 'comments.write')
          .catch(rethrow);
+      const fileKeys = options.attachments
+         ? await options.attachments.storageKeysForComment(commentId).catch(() => [])
+         : [];
       const event = await comments
          .delete({
             commentId,
@@ -112,6 +120,9 @@ export function commentMounts(options: CommentOptions): Mount[] {
             deletedAt: clock().toISOString(),
          })
          .catch(rethrowMutation('delete'));
+      if (options.storage) {
+         for (const key of fileKeys) await options.storage.delete(key).catch(() => undefined);
+      }
       await publish(options, [event]);
       return new Response(null, { status: 204 });
    });

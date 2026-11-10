@@ -19,10 +19,14 @@ import type { ExecutionSession } from '../execution/driver.ts';
  * which is why the command below is safe to record in full.
  */
 
+export type CheckoutProvider = 'github' | 'gitlab';
+
 export interface CheckoutOptions {
    session: ExecutionSession;
-   /** `owner/name`, as GitHub spells it. */
+   /** GitHub `owner/name` or GitLab `path_with_namespace`. */
    repository: string;
+   /** Host that owns the repository. Defaults to GitHub. */
+   provider?: CheckoutProvider;
    /** The branch the run's work goes on. */
    branch: string;
    /** Opened for this call only. Never stored, never logged, never in a command. */
@@ -65,19 +69,33 @@ const DEFAULT_DEPTH = 1;
  * Written as a one-line shell function rather than a file on disk: a file
  * would outlive the exec that created it and sit in the workspace where the
  * agent could read it.
+ *
+ * GitHub App / PAT clones use `x-access-token`; GitLab PATs use `oauth2`.
  */
 export const CREDENTIAL_HELPER = `!f() { echo username=x-access-token; echo "password=$${TOKEN_VARIABLE}"; }; f`;
+export const GITLAB_CREDENTIAL_HELPER = `!f() { echo username=oauth2; echo "password=$${TOKEN_VARIABLE}"; }; f`;
 
 export async function checkout(options: CheckoutOptions): Promise<Checkout> {
-   const repository = parseRepository(options.repository);
-   const directory = options.directory ?? repository.name;
+   const provider = options.provider ?? 'github';
+   const directory =
+      options.directory ??
+      (provider === 'gitlab'
+         ? parseGitLabPath(options.repository).name
+         : parseRepository(options.repository).name);
    const depth = options.depth ?? DEFAULT_DEPTH;
 
    // The token reaches git through this and nothing else. It is scoped to each
    // exec below, so it is gone the moment the command returns.
    const env = { [TOKEN_VARIABLE]: options.token };
 
-   const url = `https://github.com/${repository.owner}/${repository.name}.git`;
+   const url =
+      provider === 'gitlab'
+         ? `https://gitlab.com/${parseGitLabPath(options.repository).path}.git`
+         : (() => {
+              const repository = parseRepository(options.repository);
+              return `https://github.com/${repository.owner}/${repository.name}.git`;
+           })();
+   const helper = provider === 'gitlab' ? GITLAB_CREDENTIAL_HELPER : CREDENTIAL_HELPER;
    const branchArgs = options.baseBranch ? ` --branch ${shellQuote(options.baseBranch)}` : '';
 
    // A session is addressed by its run, so a retried request reaches the
@@ -93,7 +111,7 @@ export async function checkout(options: CheckoutOptions): Promise<Checkout> {
 
    await run(
       options.session,
-      `git -c credential.helper=${shellQuote(CREDENTIAL_HELPER)} clone --depth ${depth}${branchArgs} ${shellQuote(url)} ${shellQuote(directory)}`,
+      `git -c credential.helper=${shellQuote(helper)} clone --depth ${depth}${branchArgs} ${shellQuote(url)} ${shellQuote(directory)}`,
       { env },
       'clone the repository'
    );
@@ -156,6 +174,19 @@ export function parseRepository(fullName: string): { owner: string; name: string
       throw new CheckoutFailed(`"${fullName}" is not an owner/name repository`, 0);
    }
    return { owner: match[1]!, name: match[2]!.replace(/\.git$/, '') };
+}
+
+/**
+ * GitLab `path_with_namespace`, validated (may be nested: group/sub/project).
+ */
+export function parseGitLabPath(pathWithNamespace: string): { path: string; name: string } {
+   const trimmed = pathWithNamespace.trim().replace(/\.git$/, '');
+   const match = /^[A-Za-z0-9._-]{1,100}(\/[A-Za-z0-9._-]{1,100})+$/.exec(trimmed);
+   if (!match) {
+      throw new CheckoutFailed(`"${pathWithNamespace}" is not a GitLab path_with_namespace`, 0);
+   }
+   const name = trimmed.split('/').at(-1)!;
+   return { path: trimmed, name };
 }
 
 /**

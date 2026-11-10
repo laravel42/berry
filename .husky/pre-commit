@@ -1,1 +1,2 @@
-pnpm --filter berry-frontend exec lint-staged
+# Formats and lints what is staged, with the web app's lint-staged config.
+cd frontend && bun x lint-staged

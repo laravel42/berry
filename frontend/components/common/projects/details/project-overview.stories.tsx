@@ -9,7 +9,7 @@ import {
    apiProject,
    apiProjectUpdates,
    apiRepositories,
-   goalActive,
+   milestoneActive,
    projectHealth,
    projectInbox,
    projectPatchHandler,
@@ -78,8 +78,8 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByText(/Updates API is merged/)).toBeVisible();
-      await expect(canvas.getByText(goalActive.title)).toBeVisible();
-      await expect(canvas.getByRole('button', { name: 'New goal' })).toBeVisible();
+      await expect(canvas.getByText(milestoneActive.title)).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'New milestone' })).toBeVisible();
    },
 };
 

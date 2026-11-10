@@ -45,7 +45,7 @@ export function PlanContextMenu({
    children: ReactNode;
    onChanged: () => void;
 }) {
-   const t = useTranslations('goals.plans.menu');
+   const t = useTranslations('milestones.plans.menu');
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const pins = usePinsStore((state) => state.pins);
    const addPin = usePinsStore((state) => state.add);

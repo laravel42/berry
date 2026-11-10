@@ -37,7 +37,7 @@ type Story = StoryObj<typeof meta>;
 /** A delivery leads with Approve, which asks first and names what "done" means. */
 export const ApproveADelivery: Story = {
    play: async ({ args, canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Approve' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'Accept' }));
       const body = within(canvasElement.ownerDocument.body);
       const dialog = within(await body.findByRole('alertdialog', { name: 'Mark BERR-101 done?' }));
       await expect(dialog.getByText(/Approving merges the pull request on GitHub/)).toBeVisible();
@@ -55,14 +55,14 @@ export const ApproveADelivery: Story = {
    },
 };
 
-/** Nothing was delivered, so Reject leads, and it will not go without a note. */
+/** Nothing was delivered, so Decline leads, and it will not go without a note. */
 export const SendBackNeedsANote: Story = {
    args: { item: stoppedReview },
    play: async ({ args, canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Reject' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'Decline' }));
       const body = within(canvasElement.ownerDocument.body);
-      const dialog = within(await body.findByRole('dialog', { name: 'Reject with a note' }));
-      await userEvent.click(dialog.getByRole('button', { name: 'Reject' }));
+      const dialog = within(await body.findByRole('dialog', { name: 'Decline with a note' }));
+      await userEvent.click(dialog.getByRole('button', { name: 'Decline' }));
       await expect(dialog.getByRole('alert')).toHaveTextContent(
          'Add a note so the agent knows what to change.'
       );
@@ -71,7 +71,7 @@ export const SendBackNeedsANote: Story = {
       await expect(note).toHaveAttribute('aria-invalid', 'true');
 
       await userEvent.type(note, 'Approvals belong on the inbox page; move them there.');
-      await userEvent.click(dialog.getByRole('button', { name: 'Reject' }));
+      await userEvent.click(dialog.getByRole('button', { name: 'Decline' }));
       await waitFor(() =>
          expect(args.onDecided).toHaveBeenCalledWith(
             expect.objectContaining({ decision: 'send-back' })
@@ -99,7 +99,7 @@ export const DecisionFails: Story = {
       );
    },
    play: async ({ canvas, canvasElement, userEvent }) => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Approve' }));
+      await userEvent.click(canvas.getByRole('button', { name: 'Accept' }));
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('button', { name: 'Mark done' }));
       await expect(await canvas.findByRole('button', { name: 'Try again' })).toBeVisible();

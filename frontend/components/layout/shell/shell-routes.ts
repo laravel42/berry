@@ -15,11 +15,12 @@ export type ShellRoute =
    | 'chat'
    | 'inbox'
    | 'projects'
+   | 'cycles'
+   | 'loops'
    | 'plans'
-   | 'goals'
    | 'members'
    | 'skills'
-   | 'autopilots'
+   | 'integrations'
    | 'usage'
    | 'logs';
 
@@ -28,14 +29,15 @@ export type ShellLabelKey =
    | 'tasks'
    | 'chat'
    | 'reviews'
-   | 'goals'
    | 'projects'
+   | 'cycles'
+   | 'loops'
    | 'plans'
    | 'runtimes'
    | 'agents'
    | 'analytics'
    | 'skills'
-   | 'autopilots'
+   | 'integrations'
    | 'usage'
    | 'logs';
 
@@ -84,6 +86,25 @@ export interface ShellRouteDef {
 
 const WORK: ShellRouteDef[] = [
    {
+      id: 'projects',
+      label: 'projects',
+      labelKey: 'projects',
+      href: '/projects',
+      match: ['/project/'],
+      prefsKey: 'projects',
+      icon: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />',
+   },
+   {
+      id: 'cycles',
+      label: 'cycles',
+      labelKey: 'cycles',
+      href: '/cycles',
+      match: ['/cycle/'],
+      prefsKey: 'cycles',
+      // A calendar page with one week marked: a cycle is a stretch of days.
+      icon: '<path d="M4 6h16v14H4zM4 10h16M9 3v5M15 3v5M8 15h8" />',
+   },
+   {
       // The workspace's tasks, every one. Personal's "My tasks" opens the
       // same page on its assigned tab, and the shell lights whichever of the
       // two the URL names rather than both.
@@ -93,25 +114,18 @@ const WORK: ShellRouteDef[] = [
       href: '/tasks',
       match: ['/issue/'],
       prefsKey: 'my-issues',
-      icon: '<path d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z" />',
+      // Lucide Folders — stacked double folder.
+      icon: '<path d="M20 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5a1.5 1.5 0 0 1 1.2.6l.6.8a1.5 1.5 0 0 0 1.2.6z" /><path d="M3 8.268a2 2 0 0 0-1 1.738V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.732-1" />',
    },
    {
-      id: 'goals',
-      label: 'goals',
-      labelKey: 'goals',
-      href: '/goals',
-      match: ['/goal/'],
-      prefsKey: 'goals',
-      icon: '<circle cx="12" cy="12" r="8.5" /><circle cx="12" cy="12" r="4.5" /><circle cx="12" cy="12" r="1" />',
-   },
-   {
-      id: 'projects',
-      label: 'projects',
-      labelKey: 'projects',
-      href: '/projects',
-      match: ['/project/'],
-      prefsKey: 'projects',
-      icon: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />',
+      id: 'loops',
+      label: 'loops',
+      labelKey: 'loops',
+      href: '/loops',
+      match: ['/loop/'],
+      prefsKey: 'loops',
+      // Lucide Atom.
+      icon: '<circle cx="12" cy="12" r="1" /><path d="M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z" /><path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z" />',
    },
 ];
 
@@ -119,7 +133,7 @@ const WORK: ShellRouteDef[] = [
 // and label their tabs, and are reached from the command palette.
 const OFF_RAIL: ShellRouteDef[] = [
    {
-      // Waiting on you, so Personal renders this above Agent rather than in Work.
+      // Waiting on you, so Personal renders this rather than Work.
       id: 'reviews',
       label: 'reviews',
       labelKey: 'reviews',
@@ -137,10 +151,18 @@ const OFF_RAIL: ShellRouteDef[] = [
       match: ['/plan/'],
       icon: '<path d="M8 4h8M8 4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2" /><path d="M9.5 10l1.5 1.5 3-3M9.5 15.5h5" />',
    },
+   {
+      // Every model call Berry made: the structured prompt it sent and what
+      // came back. Settings, because it is where a person goes to debug.
+      id: 'logs',
+      label: 'logs',
+      labelKey: 'logs',
+      href: '/settings/logs',
+      icon: '<path d="M6 4h9l3 3v13H6z" /><path d="M9 10h6M9 13h6M9 16h4" />',
+   },
 ];
 
-// Runtimes is not a rail destination: it lives in Settings (Workspace →
-// Runtimes, /settings/runtimes), beside the other workspace configuration.
+// Runtimes and Logs stay in Settings. Usage sits on the rail under Connect.
 const MANAGE: ShellRouteDef[] = [
    {
       id: 'members',
@@ -148,7 +170,8 @@ const MANAGE: ShellRouteDef[] = [
       labelKey: 'agents',
       href: '/agents',
       prefsKey: 'agents',
-      icon: '<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z" /><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9z" />',
+      // Lucide Cpu — same glyph run tabs use for a runtime without a logo.
+      icon: '<path d="M12 20v2" /><path d="M12 2v2" /><path d="M17 20v2" /><path d="M17 2v2" /><path d="M2 12h2" /><path d="M2 17h2" /><path d="M2 7h2" /><path d="M20 12h2" /><path d="M20 17h2" /><path d="M20 7h2" /><path d="M7 20v2" /><path d="M7 2v2" /><rect x="4" y="4" width="16" height="16" rx="2" /><rect x="8" y="8" width="8" height="8" rx="1" />',
    },
    {
       id: 'skills',
@@ -157,34 +180,28 @@ const MANAGE: ShellRouteDef[] = [
       href: '/skills',
       match: ['/skills/'],
       prefsKey: 'skills',
-      icon: '<path d="M5 4h10a4 4 0 014 4v12H9a4 4 0 01-4-4z" /><path d="M9 8h6M9 12h6" />',
+      // Lucide Lightbulb.
+      icon: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5" /><path d="M9 18h6M10 22h4" />',
    },
    {
-      id: 'autopilots',
-      label: 'autopilots',
-      labelKey: 'autopilots',
-      href: '/autopilots',
-      match: ['/autopilot/'],
-      prefsKey: 'autopilot',
-      icon: '<circle cx="12" cy="13" r="7.5" /><path d="M12 9v4l2.5 2.5" /><path d="M9.5 3h5" />',
+      id: 'integrations',
+      label: 'integrations',
+      labelKey: 'integrations',
+      href: '/integrations',
+      match: ['/settings/plugins'],
+      prefsKey: 'integrations',
+      // Lucide Blocks — same glyph Settings uses for integrations.
+      icon: '<path d="M10 22V7a1 1 0 0 0-1-1H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5a1 1 0 0 0-1-1H2" /><rect x="14" y="2" width="8" height="8" rx="1" />',
    },
    {
       id: 'usage',
       label: 'usage',
       labelKey: 'usage',
       href: '/usage',
+      match: ['/settings/usage'],
       prefsKey: 'usage',
-      icon: '<circle cx="12" cy="12" r="8.5" /><path d="M12 7v10M9.5 9.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.7c0 2.6-5 1.3-5 4 0 1.1 1 1.8 2.5 1.8s2.5-.5 2.5-1.5" />',
-   },
-   {
-      // Every model call Berry made: the structured prompt it sent and what
-      // came back. Last, because it is where a person goes to debug, not to work.
-      id: 'logs',
-      label: 'logs',
-      labelKey: 'logs',
-      href: '/logs',
-      prefsKey: 'logs',
-      icon: '<path d="M6 4h9l3 3v13H6z" /><path d="M9 10h6M9 13h6M9 16h4" />',
+      // Lucide ChartColumn — vertical bar chart.
+      icon: '<path d="M3 3v16a2 2 0 0 0 2 2h16" /><path d="M18 17V9M13 17V5M8 17v-3" />',
    },
 ];
 
@@ -228,7 +245,7 @@ export function shellRoute(id: string): ShellRouteDef | undefined {
  *
  * Longest match wins so `/projects/abc` resolves to `projects` rather than
  * matching a shorter unrelated prefix, and a detail path such as
- * `/goal/abc/overview` lights up its list item through `match` rather than
+ * `/milestone/abc/overview` lights up its list item through `match` rather than
  * through a bare `pathname.includes`, which would hand any path containing
  * a shorter route's name to the wrong item.
  */

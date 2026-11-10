@@ -55,6 +55,20 @@ test('development gets a stable fallback secret so a fresh checkout can sign in'
    assert.equal(first.auth.secret, second.auth.secret);
 });
 
+test('development without a bucket stores files beside the local database', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      DATABASE_URL: 'pglite:./.berry',
+   });
+   assert.equal(config.storage?.directory, './.berry/artifacts');
+});
+
+test('production without a bucket holds no files', () => {
+   const config = loadConfig({ ...BASE_ENV, APP_ENV: 'production' });
+   assert.equal(config.storage, null);
+});
+
 test('an unset APP_ENV gets neither the fallback secret nor dev login', () => {
    const config = loadConfig({ ...BASE_ENV, AUTH_ALLOW_PASSWORDLESS_LOGIN: 'true' });
    assert.equal(config.auth.secret, null);
@@ -177,6 +191,92 @@ test('sign-in credentials are separate from the integrations GitHub credential',
       clientId: 'integration-id',
       clientSecret: 'integration-secret',
    });
+   assert.equal(config.integrations.googleOAuth, null);
+});
+
+test('BERRY_AUTH_GITHUB_ENABLED=false turns GitHub sign-in off with its credentials set', () => {
+   const env = {
+      ...BASE_ENV,
+      BERRY_AUTH_SECRET: 'x'.repeat(32),
+      BERRY_AUTH_GITHUB_CLIENT_ID: 'signin-id',
+      BERRY_AUTH_GITHUB_CLIENT_SECRET: 'signin-secret',
+   };
+   assert.equal(loadConfig({ ...env, BERRY_AUTH_GITHUB_ENABLED: 'false' }).auth.github, null);
+   // Unset or empty (Compose passes an unset variable as '') keeps it on.
+   assert.notEqual(loadConfig({ ...env, BERRY_AUTH_GITHUB_ENABLED: '' }).auth.github, null);
+   assert.notEqual(loadConfig(env).auth.github, null);
+});
+
+test('half a Google OAuth client is refused at boot', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            GOOGLE_OAUTH_CLIENT_ID: 'google-client',
+         }),
+      (error: unknown) =>
+         error instanceof ConfigError && /GOOGLE_OAUTH_CLIENT_SECRET/.test(error.message)
+   );
+});
+
+test('half a LiveKit client is refused at boot', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            LIVEKIT_URL: 'wss://voice.example.livekit.cloud',
+            LIVEKIT_API_KEY: 'APItest',
+         }),
+      (error: unknown) => error instanceof ConfigError && /LIVEKIT_API_SECRET/.test(error.message)
+   );
+});
+
+test('a LiveKit client without LIVEKIT_AGENT_NAME dispatches berry-voice', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      LIVEKIT_URL: 'wss://voice.example.livekit.cloud',
+      LIVEKIT_API_KEY: 'APItest',
+      LIVEKIT_API_SECRET: 'secret-for-tests-only',
+   });
+   assert.equal(config.livekit?.agentName, 'berry-voice');
+});
+
+test('a LiveKit client is one voice host for the deployment', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      LIVEKIT_URL: 'wss://voice.example.livekit.cloud',
+      LIVEKIT_API_KEY: 'APItest',
+      LIVEKIT_API_SECRET: 'secret-for-tests-only',
+      LIVEKIT_AGENT_NAME: 'berry-voice',
+   });
+   assert.deepEqual(config.livekit, {
+      url: 'wss://voice.example.livekit.cloud',
+      apiKey: 'APItest',
+      apiSecret: 'secret-for-tests-only',
+      agentName: 'berry-voice',
+   });
+});
+
+test('a Google OAuth client is one registered client for the deployment', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      GOOGLE_OAUTH_CLIENT_ID: 'google-client',
+      GOOGLE_OAUTH_CLIENT_SECRET: 'google-secret',
+   });
+   assert.deepEqual(config.integrations.googleOAuth, {
+      clientId: 'google-client',
+      clientSecret: 'google-secret',
+   });
+});
+
+test('development does not treat the API public URL as the app origin', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      BERRY_PUBLIC_URL: 'http://localhost:4000',
+   });
+   assert.equal(config.auth.baseUrl, 'http://localhost:3000');
+   assert.equal(config.integrations.publicUrl, 'http://localhost:4000');
 });
 
 test('the auth base URL is the app origin, and both origins are trusted', () => {
@@ -235,6 +335,63 @@ test('the runtime reaches Berry at its own address, not the browser one', () => 
    });
    assert.equal(config.runtime.callbackUrl, 'http://berry-api:4000');
    assert.equal(loadConfig({ ...BASE_ENV }).runtime.callbackUrl, null);
+});
+
+test('Cloudflare mail provider fills authenticated SMTP on port 465', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'production',
+      BERRY_AUTH_SECRET: 'x'.repeat(32),
+      BERRY_MAIL_PROVIDER: 'cloudflare',
+      BERRY_MAIL_FROM: 'Berry <noreply@example.com>',
+      BERRY_SMTP_PASS: 'cf-api-token',
+   });
+   assert.deepEqual(config.auth.mail, {
+      from: 'Berry <noreply@example.com>',
+      smtp: {
+         host: 'smtp.mx.cloudflare.net',
+         port: 465,
+         secure: true,
+         user: 'api_token',
+         pass: 'cf-api-token',
+      },
+   });
+});
+
+test('Cloudflare mail provider refuses to boot without an SMTP password', () => {
+   assert.throws(
+      () =>
+         loadConfig({
+            ...BASE_ENV,
+            APP_ENV: 'production',
+            BERRY_AUTH_SECRET: 'x'.repeat(32),
+            BERRY_MAIL_PROVIDER: 'cloudflare',
+         }),
+      (error: unknown) =>
+         error instanceof ConfigError && /BERRY_SMTP_PASS|cloudflare/.test(error.message)
+   );
+});
+
+test('an explicit SMTP host still wins over the Cloudflare mail provider', () => {
+   const config = loadConfig({
+      ...BASE_ENV,
+      APP_ENV: 'development',
+      BERRY_MAIL_PROVIDER: 'cloudflare',
+      BERRY_SMTP_HOST: 'smtp.example.com',
+      BERRY_SMTP_PORT: '587',
+      BERRY_SMTP_USER: 'mailer',
+      BERRY_SMTP_PASS: 'secret',
+   });
+   assert.deepEqual(config.auth.mail, {
+      from: 'Berry <noreply@localhost>',
+      smtp: {
+         host: 'smtp.example.com',
+         port: 587,
+         secure: false,
+         user: 'mailer',
+         pass: 'secret',
+      },
+   });
 });
 
 test('dev login needs both the flag and a development environment', () => {

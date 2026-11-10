@@ -7,6 +7,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { Issue } from '@/data/issues';
 import { Project } from '@/data/projects';
+import { WORKSPACE_SLUG } from '@/lib/config';
+import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsDisplayStore } from '@/store/projects-display-store';
 import { useProjectsStore } from '@/store/projects-store';
@@ -27,8 +29,7 @@ import { HealthPopover } from './health-popover';
 import { LeadPicker, leadCandidates } from './lead-picker';
 import { StatusWithPercent } from './status-with-percent';
 import { DatePicker } from './date-picker';
-import { openContextMenuOnClick, ProjectContextMenuContent } from './project-context-menu';
-import { cn } from '@/lib/utils';
+import { ProjectContextMenuContent } from './project-context-menu';
 
 interface ProjectLineProps {
    project: Project;
@@ -39,6 +40,13 @@ interface ProjectLineProps {
 
 const countIssues = (issues: Issue[], projectId: string) =>
    issues.filter((issue) => issue.project?.id === projectId).length;
+
+/**
+ * Controls sit above the link that covers the row, so a click on a picker
+ * changes that field rather than opening the project. `z-[1]` clears the
+ * link overlay; `z-10` would also paint over the sticky list header.
+ */
+const CONTROL = 'relative z-[1]';
 
 export default function ProjectLine({ project, selected, onToggleSelected }: ProjectLineProps) {
    const { orgId } = useParams<{ orgId: string }>();
@@ -53,6 +61,8 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
    const { displayProperties } = useProjectsDisplayStore();
    const issueCount = useMemo(() => countIssues(issues, project.id), [issues, project.id]);
 
+   const href = `/${orgId ?? WORKSPACE_SLUG}/project/${project.id}/overview`;
+
    return (
       <ContextMenu>
          <ContextMenuTrigger asChild>
@@ -61,11 +71,10 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                   'group relative flex w-full items-center border-b border-border/45 px-6 py-3 transition-colors',
                   'hover:bg-accent/45 focus-within:bg-accent/45'
                )}
-               onClick={openContextMenuOnClick}
             >
                {onToggleSelected ? (
                   <span
-                     className={cn(PROJECT_SELECT_SLOT, 'relative z-10')}
+                     className={cn(PROJECT_SELECT_SLOT, CONTROL)}
                      onClick={(event) => event.stopPropagation()}
                      role="presentation"
                   >
@@ -77,14 +86,9 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                   </span>
                ) : null}
 
-               <div
-                  className={cn(
-                     PROJECT_NAME_SLOT,
-                     'relative z-10 flex items-center gap-2 pointer-events-none'
-                  )}
-               >
+               <div className={cn(PROJECT_NAME_SLOT, 'flex items-center gap-2')}>
                   {displayProperties.priority ? (
-                     <span className="relative z-10 shrink-0 pointer-events-auto">
+                     <span className={cn('shrink-0', CONTROL)}>
                         <PriorityPicker
                            variant="icon"
                            priority={project.priority}
@@ -92,31 +96,25 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                         />
                      </span>
                   ) : null}
-                  <div className="flex min-w-0 flex-col items-start overflow-hidden">
-                     <Link
-                        href={`/${orgId}/project/${project.id}/overview`}
-                        className="relative z-10 w-full truncate font-medium transition-colors pointer-events-auto group-hover:text-foreground"
-                     >
-                        {project.name}
-                     </Link>
-                  </div>
+                  {/* The link covers the whole row through its pseudo-element:
+                      the name and empty space are one target. Controls above
+                      are lifted over it. */}
+                  <Link
+                     href={href}
+                     className="min-w-0 flex-1 truncate font-medium outline-none transition-colors before:absolute before:inset-0 before:rounded-sm group-hover:text-foreground focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                  >
+                     {project.name}
+                  </Link>
                </div>
 
                <div className="ml-auto flex min-w-0 items-center">
                   {displayProperties.health && (
-                     <div
-                        className={cn(PROJECT_COLUMN.health, 'relative z-10 pointer-events-auto')}
-                     >
+                     <div className={cn(PROJECT_COLUMN.health, CONTROL)}>
                         <HealthPopover project={project} />
                      </div>
                   )}
                   {displayProperties.lead && (
-                     <div
-                        className={cn(
-                           PROJECT_COLUMN.lead,
-                           'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
-                        )}
-                     >
+                     <div className={cn(PROJECT_COLUMN.lead, CONTROL, 'min-w-0 overflow-hidden')}>
                         <LeadPicker
                            lead={project.lead}
                            candidates={leadCandidates(members, project.lead)}
@@ -154,7 +152,8 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                      <div
                         className={cn(
                            PROJECT_COLUMN.targetDate,
-                           'relative z-10 min-w-0 overflow-hidden pointer-events-auto'
+                           CONTROL,
+                           'min-w-0 overflow-hidden'
                         )}
                      >
                         <DatePicker
@@ -173,16 +172,14 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                         className={cn(
                            PROJECT_COLUMN.issues,
                            PROJECT_CELL_PAD,
-                           'relative z-10 pointer-events-none tabular-nums text-muted-foreground'
+                           'tabular-nums text-muted-foreground'
                         )}
                      >
                         {issueCount}
                      </div>
                   )}
                   {displayProperties.status && (
-                     <div
-                        className={cn(PROJECT_COLUMN.status, 'relative z-10 pointer-events-auto')}
-                     >
+                     <div className={cn(PROJECT_COLUMN.status, CONTROL)}>
                         <StatusWithPercent
                            status={project.status}
                            percentComplete={project.percentComplete}

@@ -167,7 +167,7 @@ export interface OwnedResource {
 const OWNED_TABLES: ReadonlySet<string> = new Set<string>([
    'boards',
    'projects',
-   'goals',
+   'milestones',
    'saved_issue_views',
    'issue_labels',
    'skill_labels',

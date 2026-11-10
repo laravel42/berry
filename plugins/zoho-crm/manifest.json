@@ -1,0 +1,39 @@
+{
+   "schemaVersion": 1,
+   "key": "zoho-crm",
+   "name": "Zoho CRM",
+   "version": "1.0.0",
+   "description": "Leads, contacts, and deals in Zoho CRM. An agent can look up a record and update the fields the task names.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "GENERATED_SERVER_HOST",
+         "name": "Server host",
+         "label": "Server host",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "SERVER_ID",
+         "name": "Server id",
+         "label": "Server id",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "API Key",
+         "label": "Bearer token for the MCP server",
+         "type": "secret",
+         "required": true
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "default": "https://{generated-server-host}/mcp/{server-id}/message"
+      }
+   }
+}

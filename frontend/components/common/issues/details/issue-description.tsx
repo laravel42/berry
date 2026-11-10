@@ -4,13 +4,18 @@ import {
    attachmentObjectUrl,
    isImageAttachment,
    loadIssueAttachments,
+   onCommentFilesRemoved,
+   onIssueAttachment,
    uploadIssueAttachment,
    type ApiAttachment,
 } from '@/lib/attachments';
+import { keepPluginMentions, stripPluginMentions } from '@/lib/plugins';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
+import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
-import { ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Check, Copy, ImageIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -44,6 +49,24 @@ export function IssueDescription({
    const [images, setImages] = useState<ViewerImage[]>([]);
    const [dragging, setDragging] = useState(false);
    const [viewerAt, setViewerAt] = useState<number | null>(null);
+   const [copied, setCopied] = useState(false);
+
+   // What a person reads: the text without the plugin links the editor hides.
+   const readable = stripPluginMentions(description).trim();
+
+   const copyDescription = () => {
+      if (!readable) {
+         toast.message(t('nothingToCopy'));
+         return;
+      }
+      void navigator.clipboard.writeText(readable).then(
+         () => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1200);
+         },
+         () => toast.error(t('copyFailed'))
+      );
+   };
    const urls = useRef<string[]>([]);
 
    useEffect(() => {
@@ -58,6 +81,30 @@ export function IssueDescription({
          cancelled = true;
       };
    }, [issueRef]);
+
+   useEffect(() => {
+      return onIssueAttachment((ref, attachment) => {
+         if (ref !== issueRef) return;
+         setAttachments((current) => [
+            attachment,
+            ...current.filter((entry) => entry.id !== attachment.id),
+         ]);
+      });
+   }, [issueRef]);
+
+   useEffect(() => {
+      return onCommentFilesRemoved((commentIds, attachmentIds) => {
+         const goneComments = new Set(commentIds);
+         const goneFiles = new Set(attachmentIds);
+         setAttachments((current) =>
+            current.filter(
+               (entry) =>
+                  !goneFiles.has(entry.id) &&
+                  (!entry.commentId || !goneComments.has(entry.commentId))
+            )
+         );
+      });
+   }, []);
 
    // Blob URLs are made once per image and revoked when this unmounts; each
    // one holds the whole file, so leaking them leaks the pictures.
@@ -98,11 +145,7 @@ export function IssueDescription({
          if (list.length === 0) return;
          try {
             for (const file of list) {
-               const saved = await uploadIssueAttachment(issueRef, file);
-               setAttachments((current) => [
-                  saved,
-                  ...current.filter((entry) => entry.id !== saved.id),
-               ]);
+               await uploadIssueAttachment(issueRef, file);
             }
          } catch (cause) {
             toast.error(cause instanceof Error ? cause.message : t('uploadFailed'));
@@ -124,23 +167,46 @@ export function IssueDescription({
                setDragging(false);
                void upload(event.dataTransfer.files);
             }}
+            data-detail-description
             className={cn(
                'rounded-sm border border-transparent transition-colors',
                dragging && 'border-dashed border-status-info bg-status-info/5'
             )}
          >
-            <TiptapAiEditor
-               value={description}
-               onChange={() => undefined}
-               onBlur={(markdown) => {
-                  if (markdown.trim() === description.trim()) return;
-                  updateIssueDescription(issueId, markdown);
-               }}
-               placeholder={dragging ? t('dropHere') : 'Add description…'}
-               aria-label="Task description"
-               className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin"
-               aiAssist={false}
-            />
+            <CollapsibleDescription>
+               <TiptapAiEditor
+                  value={stripPluginMentions(description)}
+                  onChange={() => undefined}
+                  onBlur={(markdown) => {
+                     const next = keepPluginMentions(markdown, description);
+                     if (next.trim() === description.trim()) return;
+                     updateIssueDescription(issueId, next);
+                  }}
+                  placeholder={dragging ? t('dropHere') : 'Add description…'}
+                  aria-label="Task description"
+                  className="min-h-24 [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold [&_.ProseMirror>:last-child]:!mb-0"
+                  aiAssist={false}
+                  formatting
+               />
+            </CollapsibleDescription>
+         </div>
+         <div className="-mt-0.5 flex justify-end">
+            <Button
+               type="button"
+               variant="ghost"
+               size="icon"
+               className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
+               aria-label={t('copy')}
+               title={t('copy')}
+               disabled={!readable}
+               onClick={copyDescription}
+            >
+               {copied ? (
+                  <Check className="size-3.5" aria-hidden />
+               ) : (
+                  <Copy className="size-3.5" aria-hidden />
+               )}
+            </Button>
          </div>
 
          {images.length > 0 ? (

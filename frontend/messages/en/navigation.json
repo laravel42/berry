@@ -52,7 +52,7 @@
       "members": "People",
       "newIssue": "New task",
       "newProject": "New project",
-      "newGoal": "New goal",
+      "newMilestone": "New milestone",
       "copyLink": "Copy link",
       "copyIdentifier": "Copy task ID",
       "foldComments": "Fold all comments",
@@ -88,6 +88,7 @@
       "problemFixed": "{action} already uses that, and cannot be moved.",
       "actions": {
          "createIssue": "Create a task",
+         "assignMilestone": "Assign a milestone",
          "toggleSidebar": "Show or hide the sidebar",
          "toggleRightSidebar": "Show or hide the right sidebar",
          "toggleFloatingChat": "Show or hide the floating chat",
@@ -100,13 +101,15 @@
          "goToInbox": "Go to the inbox",
          "goToChat": "Go to Agent",
          "goToProjects": "Go to projects",
-         "goToGoals": "Go to goals",
+         "goToCycles": "Go to cycles",
+         "goToLoops": "Go to loops",
          "goToReviews": "Go to reviews",
          "goToApprovals": "Go to the inbox (approvals)",
          "goToViews": "Go to views",
          "goToAgents": "Go to agents",
-         "goToRuntimes": "Go to runtimes",
-         "goToSettings": "Go to settings"
+         "goToRuntimes": "Go to AI providers",
+         "goToSettings": "Go to settings",
+         "newLoop": "New loop"
       },
       "fixedActions": {
          "commandPalette": "Open the command palette",

@@ -3,23 +3,23 @@ Read `AGENTS.md` and the matching architecture documentation. The product server
 
 ## Server checks
 ```sh
-pnpm typecheck:server
-pnpm test:server
+bun run typecheck:server
+bun run test:server
 python3 scripts/check-no-model-in-server.py
 ```
 Database tests skip when `BERRY_TEST_DATABASE_URL` is absent. Set it only to a dedicated test database. The [Route map](routing.html) includes database test setup.
 
 ## Frontend checks
 ```sh
-pnpm --dir frontend lint
-pnpm --dir frontend build:check
+bun run --cwd frontend lint
+bun run --cwd frontend build:check
 ```
 The verification build uses `.next-verify`, avoiding the running development server's `.next` directory. Verify changed views manually.
 
 ## Plugin SDK checks
 ```sh
-pnpm test:plugin-sdk
-pnpm typecheck:plugin-sdk
+bun run test:plugin-sdk
+bun run typecheck:plugin-sdk
 ```
 
 ## Documentation changes

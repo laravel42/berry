@@ -58,6 +58,7 @@ const BUILT_IN_COLUMNS = [
    'assignee',
    'project',
    'labels',
+   'startDate',
    'dueDate',
    'created',
    'updated',
@@ -89,8 +90,13 @@ function readLayout(): StoredLayout | null {
       if (!raw) return null;
       const parsed = JSON.parse(raw) as Partial<StoredLayout>;
       if (!Array.isArray(parsed.order)) return null;
+      const order = parsed.order as Column[];
+      // Layouts saved before the start column existed: put it where it belongs,
+      // just before the due date, rather than at the end.
+      const due = order.indexOf('dueDate');
+      if (due >= 0 && !order.includes('startDate')) order.splice(due, 0, 'startDate');
       return {
-         order: parsed.order as Column[],
+         order,
          hidden: Array.isArray(parsed.hidden) ? (parsed.hidden as Column[]) : [],
          calculation:
             parsed.calculation === 'sum' || parsed.calculation === 'average'
@@ -200,22 +206,28 @@ function TitleCell({
    );
 }
 
-function DueDateCell({ issue }: { issue: Issue }) {
+/** The start or due day. Each bounds the other, so a start never falls after the due date. */
+function DateCell({ issue, field }: { issue: Issue; field: 'startDate' | 'dueDate' }) {
    const updateIssue = useIssuesStore((state) => state.updateIssue);
+   const start = issue.startDate?.slice(0, 10);
+   const due = issue.dueDate?.slice(0, 10);
 
    return (
       <input
          type="date"
          className="w-full bg-transparent outline-none"
-         value={issue.dueDate?.slice(0, 10) ?? ''}
+         value={(field === 'startDate' ? start : due) ?? ''}
+         min={field === 'dueDate' ? start : undefined}
+         max={field === 'startDate' ? due : undefined}
          onChange={(event) => {
+            // Noon UTC, the instant every other date picker stores for a day.
             const next = event.target.value
-               ? new Date(event.target.value).toISOString()
+               ? new Date(`${event.target.value}T12:00:00.000Z`).toISOString()
                : undefined;
-            const previous = issue.dueDate;
-            updateIssue(issue.id, { dueDate: next });
-            void patchBoardIssue(issue.id, { dueDate: next ?? null }).catch((cause: unknown) => {
-               updateIssue(issue.id, { dueDate: previous });
+            const previous = issue[field];
+            updateIssue(issue.id, { [field]: next });
+            void patchBoardIssue(issue.id, { [field]: next ?? null }).catch((cause: unknown) => {
+               updateIssue(issue.id, { [field]: previous });
                toast.error(describePatchFailure(cause));
             });
          }}
@@ -477,6 +489,7 @@ export function IssueTable({
          assignee: t('display.assignee'),
          project: t('display.project'),
          labels: 'Labels',
+         startDate: t('display.startDate'),
          dueDate: t('display.dueDate'),
          created: t('display.created'),
          updated: t('display.updated'),
@@ -615,8 +628,10 @@ export function IssueTable({
             return <ProjectCell issue={issue} />;
          case 'labels':
             return <LabelsCell issue={issue} />;
+         case 'startDate':
+            return <DateCell issue={issue} field="startDate" />;
          case 'dueDate':
-            return <DueDateCell issue={issue} />;
+            return <DateCell issue={issue} field="dueDate" />;
          case 'created':
             return <span className="truncate">{issue.createdAt.slice(0, 10)}</span>;
          case 'updated':

@@ -81,16 +81,26 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Admin: Story = {
-   play: async ({ canvas }) => {
+   play: async ({ canvas, userEvent }) => {
       await expect(canvas.getByRole('link', { name: 'Tasks' })).toHaveAttribute(
          'aria-current',
          'page'
       );
-      // Owners and admins start with Manage open.
+      // Owners and admins start with Manage open. Personal and Work start
+      // open for everyone, and fold the same way Manage does.
       await expect(canvas.getByRole('button', { name: 'Manage' })).toHaveAttribute(
          'aria-expanded',
          'true'
       );
+      await expect(canvas.getByRole('button', { name: 'Personal' })).toHaveAttribute(
+         'aria-expanded',
+         'true'
+      );
+      const work = canvas.getByRole('button', { name: 'Work' });
+      await expect(work).toHaveAttribute('aria-expanded', 'true');
+      await userEvent.click(work);
+      await expect(work).toHaveAttribute('aria-expanded', 'false');
+      await expect(canvas.queryByRole('link', { name: 'Tasks' })).toBeNull();
       // Pins arrive from GET /api/v1/pins.
       await expect(await canvas.findByText('Berry Server')).toBeVisible();
    },
@@ -107,6 +117,7 @@ export const Member: Story = {
       await userEvent.click(fold);
       await expect(fold).toHaveAttribute('aria-expanded', 'true');
       await expect(canvas.getByRole('link', { name: 'Skills' })).toBeVisible();
+      await expect(canvas.getByRole('link', { name: 'Connect' })).toBeVisible();
    },
 };
 
@@ -122,12 +133,12 @@ export const WithBadges: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByText('2 reviews waiting')).toBeInTheDocument();
       await expect(canvas.getByText('Inbox, 3 unread')).toBeInTheDocument();
-      await expect(canvas.getByText('Agent, 4 unread')).toBeInTheDocument();
+      await expect(canvas.queryByRole('link', { name: /^Agent/ })).toBeNull();
       await expect(canvas.getByRole('link', { name: /^Reviews/ })).toHaveAttribute(
          'aria-current',
          'page'
       );
-      const personal = canvas.getByRole('link', { name: /^Agent/ }).closest('ul');
+      const personal = canvas.getByRole('link', { name: /^Reviews/ }).closest('ul');
       expect(personal?.querySelector('a[href="/elian/reviews"]')).not.toBeNull();
    },
 };

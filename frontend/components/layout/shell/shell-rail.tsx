@@ -3,8 +3,7 @@
 import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { ChevronRight, X } from 'lucide-react';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { X } from 'lucide-react';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -23,11 +22,13 @@ import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
-import { ShellIcon, ShellNavIcon, BerryMark, shellNavRow } from './shell-icon';
+import { BerryWordmark } from '@/components/brand/berry-mark';
+import { ShellIcon, ShellNavIcon, shellNavRow } from './shell-icon';
 import { WorkspaceMenuItems } from './workspace-menu';
 import { ShellRailSettings } from './shell-rail-settings';
 import { ShellPins } from './shell-pins';
 import { ShellPersonal } from './shell-personal';
+import { ShellSectionFold } from './shell-section-fold';
 
 /** A workspace route the user can pin or hide. */
 type PinnableRoute = ShellRouteDef & { prefsKey: SidebarItemKey };
@@ -55,10 +56,9 @@ interface ShellRailProps {
  * they do everywhere else — the prototype used div+onClick, which silently
  * removes all three.
  *
- * One element, two shapes. At `lg` and above it is a 218px column in the
- * shell's grid (262px while it is showing settings), collapsible via the
- * shortcut and the expand control when folded. Below `lg` it is a 260px
- * overlay (312px in settings) that slides in from the left edge over the
+ * One element, two shapes. At `lg` and above it is a 232px column in the
+ * shell's grid, collapsible via the shortcut and the expand control when
+ * folded. Below `lg` it is a 312px overlay that slides in from the left edge over the
  * page, closed until the strip's menu button opens it. The switch is made
  * in CSS (`lg:` classes) so the server's render and the first paint agree;
  * the breakpoint hook only governs behaviour that CSS cannot express, such
@@ -74,7 +74,8 @@ export function ShellRail({
    ref,
 }: ShellRailProps) {
    const t = useTranslations('shell');
-   const { visibility, order, manageOpen, setManageOpen } = useSidebarPrefsStore();
+   const { visibility, order, manageOpen, workOpen, setManageOpen, setWorkOpen } =
+      useSidebarPrefsStore();
    const role = useSessionStore((state) => state.workspace?.role);
    const isMobile = useIsMobile();
    // A run that has not reached a terminal status is still going, which is what
@@ -151,7 +152,7 @@ export function ShellRail({
          className={[
             'flex flex-col overflow-y-auto bg-[var(--shell-rail)]',
             'fixed inset-y-0 left-0 z-50 max-w-[85vw] border-r border-[var(--shell-line)]',
-            settingsMode ? 'w-[312px] lg:w-[262px]' : 'w-[260px] lg:w-[218px]',
+            'w-[312px] lg:w-[232px]',
             'duration-200 ease-out motion-reduce:transition-none',
             overlayOpen
                ? 'visible translate-x-0 transition-transform'
@@ -169,7 +170,7 @@ export function ShellRail({
              chevrons-up-down glyph reads as a switcher everywhere else in the
              product, and settings and log out have no other home. The rail
              folds via the sidebar shortcut; the expand control restores it. */}
-               <div className="flex items-center gap-1 px-3 pt-3">
+               <div className="flex items-center gap-1 px-3 pt-2">
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
                         <button
@@ -177,21 +178,7 @@ export function ShellRail({
                            aria-label={t('rail.workspaceMenu')}
                            className="group/ws flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded px-3 py-2.5 text-left transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] data-[state=open]:bg-[var(--shell-hover)] data-[state=open]:text-[var(--shell-text)]"
                         >
-                           {/* The lockup keeps the official mark-to-word gap of
-                               its own, so the button's gap is left to space the
-                               chevron. Same ratios as BerryWordmark, which this
-                               cannot use directly: the rail stays dark whatever
-                               the theme is doing, so its colours come from
-                               --shell-* rather than --lockup-ink. */}
-                           <span
-                              data-wordmark="md"
-                              className="inline-flex items-center gap-[0.297em] leading-none"
-                           >
-                              <BerryMark size={26} />
-                              <span className="font-display tracking-[-0.025em] text-[var(--shell-text)]">
-                                 Berry<span className="text-[var(--shell-accent)]">.</span>
-                              </span>
-                           </span>
+                           <BerryWordmark size="md" href={null} />
                            <svg
                               width="18"
                               height="18"
@@ -264,59 +251,29 @@ export function ShellRail({
                      </ul>
                   );
 
-                  if (section.headingKey !== 'manage' || heading === null) {
-                     return (
-                        <div key={section.heading ?? 'primary'}>
-                           {heading ? (
-                              <div
-                                 data-heading="label"
-                                 className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
-                              >
-                                 {heading}
-                              </div>
-                           ) : null}
-                           {list}
-                        </div>
-                     );
+                  if (heading === null) {
+                     return <div key="primary">{list}</div>;
                   }
 
-                  // Manage folds. Owners and admins start with it open, since
-                  // they are the ones who configure the workspace; anyone
-                  // else starts with it closed, unless the page they are on
-                  // lives inside it. A choice, once made, is kept. Before
-                  // mount the stored choice is unknown, so the role decides.
+                  // Manage starts open for owners and admins, and for anyone
+                  // whose current page lives inside it, until they choose.
+                  // Work starts open. A choice, once made, is kept. Before
+                  // mount the stored choice is unknown, so the default shows.
                   const activeInside = shown.some((route) => route.id === active);
-                  const expanded = mounted
+                  const manageExpanded = mounted
                      ? (manageOpen ?? (manageOpenByDefault(role) || activeInside))
                      : manageOpenByDefault(role) || activeInside;
+                  const workExpanded = mounted ? (workOpen ?? true) : true;
+                  const expanded = section.headingKey === 'manage' ? manageExpanded : workExpanded;
                   return (
-                     <Collapsible
+                     <ShellSectionFold
                         key={section.heading}
+                        heading={heading}
                         open={expanded}
-                        onOpenChange={setManageOpen}
+                        onOpenChange={section.headingKey === 'manage' ? setManageOpen : setWorkOpen}
                      >
-                        <div className="px-3 pt-2 lg:pt-[11px]">
-                           <CollapsibleTrigger asChild>
-                              {/* Radix supplies aria-expanded and aria-controls; the
-                                  visible word is the name, so it never changes
-                                  under a screen reader as it opens and closes. */}
-                              <button
-                                 type="button"
-                                 data-heading="label"
-                                 className="group/fold flex min-h-11 w-full cursor-pointer items-center gap-1 rounded px-3 py-[7px] text-left text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text-muted)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:min-h-0"
-                              >
-                                 {heading}
-                                 <ChevronRight
-                                    size={12}
-                                    strokeWidth={1.8}
-                                    aria-hidden="true"
-                                    className="transition-transform group-data-[state=open]/fold:rotate-90 motion-reduce:transition-none"
-                                 />
-                              </button>
-                           </CollapsibleTrigger>
-                        </div>
-                        <CollapsibleContent>{list}</CollapsibleContent>
-                     </Collapsible>
+                        {list}
+                     </ShellSectionFold>
                   );
                })}
             </>

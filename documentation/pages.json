@@ -34,6 +34,12 @@
     "section": "2. Planning and automation"
   },
   {
+    "slug": "loops",
+    "title": "Loops",
+    "group": "Using Berry",
+    "description": "Let an agent do recurring work on a schedule or when something happens, with you in control of what it may change."
+  },
+  {
     "slug": "agents",
     "title": "Agents and chat",
     "group": "Using Berry",

@@ -18,6 +18,7 @@ export const ORDERING_KEYS = [
    'manual',
    'status',
    'priority',
+   'startDate',
    'dueDate',
    'created',
    'updated',
@@ -67,6 +68,8 @@ function compareIssues(a: Issue, b: Issue, ordering: OrderingKey): number {
          return a.sortOrder - b.sortOrder || a.rank.localeCompare(b.rank);
       case 'status':
          return (STATUS_ORDER.get(a.status.id) ?? 99) - (STATUS_ORDER.get(b.status.id) ?? 99);
+      case 'startDate':
+         return time(a.startDate) - time(b.startDate);
       case 'dueDate':
          return time(a.dueDate) - time(b.dueDate);
       case 'created':

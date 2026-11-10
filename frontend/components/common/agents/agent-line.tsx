@@ -18,7 +18,6 @@ import { colorForAgent } from '@/lib/agent-color';
 import { cn } from '@/lib/utils';
 import { useAgentAvatarSrc, type Agent, type AgentRoster } from '@/lib/agents';
 import type { AgentColumn } from '@/store/agents-list-store';
-import { AgentModelChip } from './agent-model-chip';
 import { AgentRowFields } from './agent-row-fields';
 import { AgentSparkline } from './agent-sparkline';
 import { AgentWorkloadChip } from './agent-workload-chip';
@@ -44,7 +43,6 @@ interface AgentLineProps {
 export const COLUMN_WIDTH: Record<AgentColumn, string> = {
    activity: 'w-24',
    lastActive: 'w-28',
-   model: 'w-40',
    access: 'w-28',
 };
 
@@ -52,7 +50,6 @@ export const COLUMN_WIDTH: Record<AgentColumn, string> = {
 export const COLUMN_BREAKPOINT: Partial<Record<AgentColumn, string>> = {
    activity: 'hidden md:flex',
    lastActive: 'hidden lg:flex',
-   model: 'hidden xl:flex',
    access: 'hidden 2xl:flex',
 };
 
@@ -136,9 +133,12 @@ export default function AgentLine({
                }}
             >
                <Checkbox
-                  checked={selected}
+                  checked={selected && !isProtected}
+                  // Bulk changes never reach the Orchestrator, which nobody edits.
+                  disabled={isProtected}
                   onCheckedChange={() => onToggleSelected(agent.id)}
                   aria-label={t('select', { name: agent.name })}
+                  title={isProtected ? t('protectedAgent') : undefined}
                   className="shrink-0"
                />
 
@@ -207,10 +207,6 @@ export default function AgentLine({
                   </span>
                </Cell>
 
-               <Cell column="model" columns={columns} className="justify-end">
-                  <AgentModelChip agent={agent} className="max-w-full truncate" />
-               </Cell>
-
                <Cell column="access" columns={columns} className="justify-end">
                   <span className="truncate">{accessLabel}</span>
                </Cell>
@@ -222,9 +218,11 @@ export default function AgentLine({
             <ContextMenuItem onSelect={() => window.open(href, '_blank', 'noopener')}>
                <ExternalLink className="size-4" /> {t('menuOpenNewTab')}
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => actions.onDuplicate(agent)}>
-               <Copy className="size-4" /> {t('menuDuplicate')}
-            </ContextMenuItem>
+            {isProtected ? null : (
+               <ContextMenuItem onSelect={() => actions.onDuplicate(agent)}>
+                  <Copy className="size-4" /> {t('menuDuplicate')}
+               </ContextMenuItem>
+            )}
             <ContextMenuSeparator />
             {archived ? (
                <ContextMenuItem onSelect={() => actions.onRestore(agent)}>

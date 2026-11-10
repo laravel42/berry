@@ -1,25 +1,21 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+
 import { RiGithubFill } from '@remixicon/react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import type { FormEvent } from 'react';
 
 import { AuthCard } from '@/components/auth/auth-card';
 import {
-   PasswordField,
-   passwordMeetsRules,
-   passwordRules,
-} from '@/components/common/password-field';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-   devLogin,
-   fetchSignInOptions,
-   registerWithEmail,
-   signInWithEmail,
-   signInWithGitHub,
-} from '@/lib/auth';
+   AuthField,
+   AuthFieldGroup,
+   AuthPrimaryButton,
+   AuthSecondaryButton,
+} from '@/components/auth/auth-fields';
+import { AuthFlow, type AuthStep } from '@/components/auth/auth-flow';
+import { devLogin, fetchSignInOptions, signInWithGitHub, type SignInOptions } from '@/lib/auth';
 import { useSessionStore } from '@/store/session-store';
 
 /**
@@ -31,118 +27,20 @@ const ERROR_MESSAGES: Record<string, string> = {
    account_not_linked:
       'Your GitHub account could not be linked. Make sure its primary email is verified on GitHub.',
    email_not_verified: 'Verify your primary email on GitHub, then try again.',
-   // Better Auth's code when the create hook refuses an unverified address.
    unable_to_create_user: 'Verify your primary email on GitHub, then try again.',
    access_denied: 'GitHub sign-in was cancelled.',
+   // Better Auth sets `error` on errorCallbackURL (replacing our magic_link
+   // hint) when /magic-link/verify fails after the email click.
+   magic_link: 'That sign-in link could not be used. Request a new one.',
+   INVALID_TOKEN: 'That sign-in link could not be used. Request a new one.',
+   new_user_signup_disabled: 'That sign-in link could not be used. Request a new one.',
 };
-const GENERIC_ERROR = 'We could not sign you in with GitHub. Please try again.';
+const GENERIC_GITHUB_ERROR = 'We could not sign you in with GitHub. Please try again.';
 
-function PasswordlessSignIn() {
-   const router = useRouter();
-   const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
-   const [email, setEmail] = useState('');
-   const [pending, setPending] = useState(false);
-   const [error, setError] = useState<string | null>(null);
-
-   const submit = async (event: FormEvent) => {
-      event.preventDefault();
-      setError(null);
-      setPending(true);
-      try {
-         await devLogin(email);
-         await hydrateFromStorage();
-         router.push('/');
-      } catch {
-         setError('That email is not an account on this server.');
-         setPending(false);
-      }
-   };
-
-   return (
-      <AuthCard
-         title="Sign in to Berry"
-         description="Sign in with the email of an account on this server."
-      >
-         <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
-            <div className="grid gap-1.5 text-left">
-               <Label htmlFor="sign-in-email">Email</Label>
-               <Input
-                  id="sign-in-email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-               />
-            </div>
-            <Button
-               type="submit"
-               size="lg"
-               className="w-full"
-               disabled={pending || email.trim() === ''}
-            >
-               {pending ? 'Signing in…' : 'Continue'}
-            </Button>
-            {error ? (
-               <p role="alert" className="text-status-danger">
-                  {error}
-               </p>
-            ) : null}
-         </form>
-      </AuthCard>
-   );
-}
-
-/**
- * What GitHub is actually being asked for, stated before it is granted. These
- * are the scopes the server really requests, in
- * `server-ts/src/auth/better-auth.ts`; keep the two in step in the same commit.
- */
-function GitHubScopeNote() {
-   return (
-      <p className="text-subtle-foreground text-left leading-relaxed">
-         Berry asks GitHub for{' '}
-         <b data-identifier className="text-muted-foreground">
-            repo
-         </b>
-         ,{' '}
-         <b data-identifier className="text-muted-foreground">
-            workflow
-         </b>{' '}
-         and{' '}
-         <b data-identifier className="text-muted-foreground">
-            read:org
-         </b>
-         , plus your profile and email.{' '}
-         <b data-identifier className="text-muted-foreground">
-            repo
-         </b>{' '}
-         is read and write access to every repository on the account, private ones included — Berry
-         needs it to push branches and open pull requests for you.
-      </p>
-   );
-}
-
-function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
-   const params = useSearchParams();
-   const returned = params.get('error');
+function GitHubOnly({ returnedError }: { returnedError: string | null }) {
    const [available, setAvailable] = useState<boolean | null>(null);
    const [pending, setPending] = useState(false);
-   const [error, setError] = useState<string | null>(
-      returned ? (ERROR_MESSAGES[returned] ?? GENERIC_ERROR) : null
-   );
-
-   const start = async () => {
-      setError(null);
-      setPending(true);
-      try {
-         // On success the browser navigates to GitHub; nothing after this runs.
-         await signInWithGitHub();
-      } catch {
-         setError(GENERIC_ERROR);
-         setPending(false);
-      }
-   };
+   const [error, setError] = useState<string | null>(returnedError);
 
    useEffect(() => {
       let cancelled = false;
@@ -158,56 +56,29 @@ function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
       };
    }, []);
 
-   useEffect(() => {
-      if (params.get('github') !== '1') return;
-      let cancelled = false;
-      setPending(true);
-      void signInWithGitHub().catch(() => {
-         if (!cancelled) {
-            setError(GENERIC_ERROR);
-            setPending(false);
-         }
-      });
-      return () => {
-         cancelled = true;
-      };
-   }, [params]);
-
    return (
       <AuthCard
          title="Sign in to Berry"
-         description="Berry uses your GitHub account. Signing up and signing in are the same step."
-         footer={
-            <div className="grid max-w-[44ch] justify-items-center gap-3 text-center">
-               {onUseEmail ? (
-                  <button
-                     type="button"
-                     className="underline-offset-4 hover:underline"
-                     onClick={onUseEmail}
-                  >
-                     Use email instead
-                  </button>
-               ) : null}
-               <p className="text-subtle-foreground leading-relaxed">
-                  By continuing you agree to the terms and the privacy notice.
-               </p>
-            </div>
-         }
+         description="Welcome back. Continue with the GitHub account your team uses."
+         error={error}
       >
-         <div className="grid gap-4">
-            <Button
-               type="button"
-               size="lg"
-               className="w-full"
-               onClick={() => void start()}
-               disabled={pending || available !== true}
+         <div className="flex flex-col gap-3.5">
+            <AuthPrimaryButton
+               ready={available === true && !pending}
+               onClick={() => {
+                  setPending(true);
+                  setError(null);
+                  void signInWithGitHub().catch(() => {
+                     setError(GENERIC_GITHUB_ERROR);
+                     setPending(false);
+                  });
+               }}
             >
                <RiGithubFill aria-hidden className="size-4" />
                {pending ? 'Opening GitHub…' : 'Continue with GitHub'}
-            </Button>
-            <GitHubScopeNote />
+            </AuthPrimaryButton>
             {available === false ? (
-               <div role="status" className="grid gap-1.5 text-muted-foreground">
+               <div role="status" className="grid gap-1.5 text-[var(--brand-ash)]">
                   <p>
                      Sign-in is not set up on this server. An administrator needs to add GitHub
                      sign-in credentials.
@@ -219,134 +90,71 @@ function GitHubSignIn({ onUseEmail }: { onUseEmail?: () => void }) {
                   </p>
                </div>
             ) : null}
-            {error ? (
-               <p role="alert" className="text-status-danger">
-                  {error}
-               </p>
-            ) : null}
          </div>
       </AuthCard>
    );
 }
 
-function EmailRegistration({ onBack }: { onBack?: () => void }) {
+/** `github`: whether the server offers GitHub sign-in (`BERRY_AUTH_GITHUB_ENABLED`). */
+function PasswordlessSignIn({ github }: { github: boolean }) {
    const router = useRouter();
    const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
-   const [mode, setMode] = useState<'register' | 'sign-in'>('register');
-   const [name, setName] = useState('');
    const [email, setEmail] = useState('');
-   const [password, setPassword] = useState('');
    const [pending, setPending] = useState(false);
    const [error, setError] = useState<string | null>(null);
-   const registering = mode === 'register';
+   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
 
    const submit = async (event: FormEvent) => {
       event.preventDefault();
+      if (!emailOk) {
+         setError('Enter a valid email address.');
+         return;
+      }
       setError(null);
       setPending(true);
       try {
-         if (registering) {
-            await registerWithEmail({ name, email, password });
-         } else {
-            await signInWithEmail(email, password);
-         }
+         await devLogin(email);
          await hydrateFromStorage();
          router.push('/');
-      } catch (caught) {
-         setError(caught instanceof Error ? caught.message : 'Could not sign in');
+      } catch {
+         setError('That email is not an account on this server.');
          setPending(false);
       }
    };
 
    return (
-      <AuthCard
-         title={registering ? 'Create your account' : 'Sign in to Berry'}
-         description={
-            registering
-               ? 'This account is stored in the database on this server.'
-               : 'Sign in with the email and password you registered.'
-         }
-         footer={
-            <div className="grid gap-2">
-               <button
-                  type="button"
-                  className="underline-offset-4 hover:underline"
-                  onClick={() => {
-                     setMode(registering ? 'sign-in' : 'register');
-                     setError(null);
-                  }}
-               >
-                  {registering ? 'Already have an account? Sign in' : 'Need an account? Register'}
-               </button>
-               {onBack ? (
-                  <button
-                     type="button"
-                     className="underline-offset-4 hover:underline"
-                     onClick={onBack}
-                  >
-                     Continue with GitHub
-                  </button>
-               ) : null}
-            </div>
-         }
-      >
-         <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
-            {registering ? (
-               <div className="grid gap-1.5 text-left">
-                  <Label htmlFor="register-name">Name</Label>
-                  <Input
-                     id="register-name"
-                     autoComplete="name"
-                     required
-                     maxLength={80}
-                     value={name}
-                     onChange={(event) => setName(event.target.value)}
-                  />
-               </div>
-            ) : null}
-            <div className="grid gap-1.5 text-left">
-               <Label htmlFor="register-email">Email</Label>
-               <Input
-                  id="register-email"
+      <AuthCard title="Sign in to Berry" description="Welcome back." error={error}>
+         <form className="flex flex-col gap-3.5" onSubmit={(event) => void submit(event)}>
+            <AuthFieldGroup label="Email" htmlFor="sign-in-email">
+               <AuthField
+                  id="sign-in-email"
                   type="email"
                   autoComplete="email"
                   required
+                  placeholder="you@company.com"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  invalid={error !== null}
+                  onChange={(event) => {
+                     setEmail(event.target.value);
+                     setError(null);
+                  }}
                />
-            </div>
-            <div className="grid gap-1.5 text-left">
-               <Label htmlFor="register-password">Password</Label>
-               <PasswordField
-                  id="register-password"
-                  autoComplete={registering ? 'new-password' : 'current-password'}
-                  required
-                  minLength={12}
-                  maxLength={256}
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  // Only while creating one. Signing in, the password already
-                  // exists and its rules are not the user's problem.
-                  rules={registering ? passwordRules : undefined}
-               />
-            </div>
-            <Button
-               type="submit"
-               size="lg"
-               className="w-full"
-               disabled={
-                  pending ||
-                  email.trim() === '' ||
-                  !passwordMeetsRules(password) ||
-                  (registering && name.trim() === '')
-               }
-            >
-               {pending ? 'Working…' : registering ? 'Create account' : 'Sign in'}
-            </Button>
-            {error ? (
-               <p role="alert" className="text-status-danger">
-                  {error}
-               </p>
+            </AuthFieldGroup>
+            <AuthPrimaryButton type="submit" ready={emailOk && !pending}>
+               {pending ? 'Signing in…' : 'Continue'}
+            </AuthPrimaryButton>
+            {github ? (
+               <AuthSecondaryButton
+                  inverted
+                  disabled={pending}
+                  onClick={() => {
+                     setPending(true);
+                     void signInWithGitHub().catch(() => setPending(false));
+                  }}
+               >
+                  <RiGithubFill aria-hidden className="size-4" />
+                  Continue with GitHub
+               </AuthSecondaryButton>
             ) : null}
          </form>
       </AuthCard>
@@ -354,28 +162,37 @@ function EmailRegistration({ onBack }: { onBack?: () => void }) {
 }
 
 function SignInContent() {
-   const [options, setOptions] = useState<{
-      github: boolean;
-      passwordless: boolean;
-      emailRegistration: boolean;
-   } | null>(null);
-   const [forceEmail, setForceEmail] = useState(false);
+   const params = useSearchParams();
+   const returned = params.get('error');
+   const returnedError = returned ? (ERROR_MESSAGES[returned] ?? GENERIC_GITHUB_ERROR) : null;
+   const stepParam = params.get('step');
+   const initialStep: AuthStep =
+      stepParam === 'twofa'
+         ? 'twofa'
+         : stepParam === 'forgot'
+           ? 'forgot'
+           : stepParam === 'signup'
+             ? 'signup'
+             : 'signin';
+   const [options, setOptions] = useState<SignInOptions | null>(null);
 
    useEffect(() => {
       let cancelled = false;
       fetchSignInOptions()
          .then((next) => {
-            if (!cancelled) {
-               setOptions({
-                  github: next.github,
-                  passwordless: next.passwordless,
-                  emailRegistration: next.emailRegistration,
-               });
-            }
+            if (!cancelled) setOptions(next);
          })
          .catch(() => {
             if (!cancelled) {
-               setOptions({ github: false, passwordless: false, emailRegistration: false });
+               setOptions({
+                  github: false,
+                  passwordless: false,
+                  emailRegistration: false,
+                  magicLink: false,
+                  passwordReset: false,
+                  twoFactor: false,
+                  signInOrigin: null,
+               });
             }
          });
       return () => {
@@ -383,25 +200,33 @@ function SignInContent() {
       };
    }, []);
 
-   if (options === null) return null;
-   if (options.github && !forceEmail) {
-      return (
-         <GitHubSignIn
-            onUseEmail={options.emailRegistration ? () => setForceEmail(true) : undefined}
-         />
-      );
+   useEffect(() => {
+      if (params.get('github') !== '1') return;
+      void signInWithGitHub().catch(() => undefined);
+   }, [params]);
+
+   if (options === null) {
+      return <div className="min-h-svh bg-[var(--brand-void)]" />;
    }
-   if (options.emailRegistration) {
-      return <EmailRegistration onBack={options.github ? () => setForceEmail(false) : undefined} />;
+
+   // Full email auth surface whenever registration, magic link or reset is on.
+   // GitHub rides along as a secondary when configured.
+   if (
+      options.emailRegistration ||
+      options.magicLink ||
+      options.passwordReset ||
+      initialStep === 'twofa'
+   ) {
+      return <AuthFlow options={options} initialStep={initialStep} returnedError={returnedError} />;
    }
-   if (options.passwordless) return <PasswordlessSignIn />;
-   return <GitHubSignIn />;
+   if (options.passwordless) return <PasswordlessSignIn github={options.github} />;
+   return <GitHubOnly returnedError={returnedError} />;
 }
 
 /** `useSearchParams` needs a Suspense boundary for the page to prerender. */
 export default function SignInPage() {
    return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<div className="min-h-svh bg-[var(--brand-void)]" />}>
          <SignInContent />
       </Suspense>
    );

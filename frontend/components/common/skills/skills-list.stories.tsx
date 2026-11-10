@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, within } from 'storybook/test';
+import { expect, fn } from 'storybook/test';
 import { liveAgents, skills } from '@/components/common/agents/stories-fixtures';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 import SkillsList from './skills-list';
@@ -65,7 +65,7 @@ export const LabelAccordion: Story = {
 /** Every column on, sorted by how many agents carry each skill, one row open. */
 export const AllColumns: Story = {
    args: {
-      criteria: { sort: 'usage', columns: ['agents', 'files', 'creator', 'updated'] },
+      criteria: { sort: 'usage', columns: ['agents', 'creator', 'updated'] },
       openId: 'skill-design-tokens',
    },
 };
@@ -80,29 +80,12 @@ export const Selection: Story = {
    },
 };
 
-export const RowMenu: Story = {
-   play: async ({ canvas, canvasElement, userEvent }) => {
-      const name = canvas.getByRole('button', { name: /^conventional-commits/ });
-      const row = name.parentElement;
-      if (!row) throw new Error('missing skill row');
-      await userEvent.click(within(row).getByRole('button', { name: 'Skill actions' }));
-      const body = within(canvasElement.ownerDocument.body);
-      // Only a GitHub import can be updated from its source; the first row is one.
-      await expect(
-         await body.findByRole('menuitem', { name: 'Update from source' })
-      ).not.toHaveAttribute('aria-disabled');
-   },
-};
-
-/** A member reads the catalogue: no checkboxes, a lock instead of a menu. */
+/** A member reads the catalogue: no checkboxes or row menus. */
 export const ReadOnly: Story = {
    args: { canEdit: false },
    play: async ({ canvas }) => {
       await expect(canvas.queryByRole('checkbox')).toBeNull();
-      // Four skills, two of them listed under a second label.
-      await expect(canvas.getAllByLabelText('Your role cannot change the catalogue')).toHaveLength(
-         6
-      );
+      await expect(canvas.queryByRole('button', { name: 'Skill actions' })).toBeNull();
    },
 };
 

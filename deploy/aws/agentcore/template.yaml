@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Berry agent runs on Amazon Bedrock AgentCore Runtime. The image repository,
+  the role the runtime runs as, and an IAM user whose key lets a Berry server
+  outside AWS invoke the runtime. The key is stored in Secrets Manager, never
+  in an output. The runtime itself is published by
+  server-ts/sandbox/agentcore/deploy.sh, which deploy/aws/agentcore/setup.sh runs.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Parameters:
+  RepositoryName:
+    Type: String
+    Default: bedrock-agentcore-berry-sandbox
+    Description: ECR repository the runtime image is pushed to.
+  CreateRepository:
+    Type: String
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+    Description: false reuses a repository of that name that already exists outside this stack.
+  InvokerUserName:
+    Type: String
+    Default: berry-agentcore-invoker
+    Description: IAM user the Berry server signs AgentCore calls with.
+  InvokerSecretName:
+    Type: String
+    Default: berry/agentcore-invoker
+    Description: Secrets Manager secret that holds the invoker access key.
+
+Conditions:
+  MakeRepository: !Equals [!Ref CreateRepository, 'true']
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Condition: MakeRepository
+    # Images already pushed are what running runtimes boot from.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Runtime images pushed by deploy.sh; AgentCore pulls them through the execution role.
+        must: Name must match REPO in server-ts/sandbox/agentcore/deploy.sh.
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      ImageTagMutability: IMMUTABLE
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules":[{"rulePriority":1,"description":"Keep the last 20 images","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}
+
+  # The identity the runtime's containers run as: pull the image, write logs,
+  # traces and metrics. Berry's tools are reached over HTTPS with a task token,
+  # so the role needs nothing of Berry's.
+  RuntimeExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Berry AgentCore Runtime execution role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*'
+      Policies:
+        - PolicyName: berry-agentcore-runtime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: PullImage
+                Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                Resource: !If
+                  - MakeRepository
+                  - !GetAtt Repository.Arn
+                  - !Sub 'arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${RepositoryName}'
+              - Sid: EcrToken
+                Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: '*'
+              - Sid: Logs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:DescribeLogStreams
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/runtimes/*'
+              - Sid: LogGroups
+                Effect: Allow
+                Action: logs:DescribeLogGroups
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:*'
+              - Sid: LogEvents
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/runtimes/*:log-stream:*'
+              - Sid: Traces
+                Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: '*'
+              - Sid: Metrics
+                Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    cloudwatch:namespace: bedrock-agentcore
+              - Sid: WorkloadIdentity
+                Effect: Allow
+                Action:
+                  - bedrock-agentcore:GetWorkloadAccessToken
+                  - bedrock-agentcore:GetWorkloadAccessTokenForJWT
+                  - bedrock-agentcore:GetWorkloadAccessTokenForUserId
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default'
+                  - !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/*'
+
+              - Sid: PlatformModel
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:inference-profile/*'
+
+  # What the Berry server may do: start, follow and stop sessions on its
+  # runtimes, and keep cross-run memory. Nothing else in the account.
+  InvokerUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Ref InvokerUserName
+      Policies:
+        - PolicyName: berry-agentcore-invoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Runtime
+                Effect: Allow
+                Action:
+                  - bedrock-agentcore:InvokeAgentRuntime
+                  - bedrock-agentcore:InvokeAgentRuntimeCommand
+                  - bedrock-agentcore:StopRuntimeSession
+                  - bedrock-agentcore:GetAgentRuntime
+                Resource: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:runtime/*'
+              - Sid: Memory
+                Effect: Allow
+                Action:
+                  - bedrock-agentcore:CreateEvent
+                  - bedrock-agentcore:ListEvents
+                Resource: !Sub 'arn:${AWS::Partition}:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:memory/*'
+
+  InvokerKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref InvokerUser
+
+  InvokerSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref InvokerSecretName
+      Description: Access key the Berry server signs AgentCore calls with
+      SecretString: !Sub '{"BERRY_AGENTCORE_ACCESS_KEY_ID":"${InvokerKey}","BERRY_AGENTCORE_SECRET_ACCESS_KEY":"${InvokerKey.SecretAccessKey}"}'
+
+Outputs:
+  RepositoryName:
+    Value: !Ref RepositoryName
+  RuntimeExecutionRoleArn:
+    Value: !GetAtt RuntimeExecutionRole.Arn
+  InvokerSecretArn:
+    Value: !Ref InvokerSecret

@@ -3,44 +3,145 @@
 import type { ReactNode } from 'react';
 
 import { BerryWordmark } from '@/components/brand/berry-mark';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BrandThemeCanvas, BrandThemeFooter } from '@/components/brand/theme-canvas';
+import { cn } from '@/lib/utils';
 
 interface AuthCardProps {
    title: string;
-   description?: string;
+   /** Supporting line under the title. May include emphasis. */
+   description?: ReactNode;
    children: ReactNode;
-   /** Rendered under the card (e.g. the cross-link to the other auth screen). */
+   /** Cross-link under the card body (legacy callers). Prefer `topAction`. */
    footer?: ReactNode;
+   /** Right-side header action, e.g. "No account? Sign up". */
+   topAction?: ReactNode;
+   /** Shows a Back control above the title. */
+   onBack?: () => void;
+   /** Banner inside the card. */
+   error?: string | null;
+   /** Signup-style progress: filled through `current` of `total`. */
+   steps?: { total: number; current: number };
+   className?: string;
 }
 
 /**
- * Centered auth scaffold shared by sign-in. It matches the boot
- * screen's language — `bg-background`, the Berry mark up top — so moving from
- * "loading" to "sign in" does not feel like a different app. The page keeps its
- * own form logic; this only owns the frame.
- *
- * Geometry is the redesign's `.authpage` / `.authcol` / `.authcard`: a 470px
- * column centred in the viewport, the lockup above the card, and the card at
- * R20 with 24px padding. See docs/redesign/ledger-plan.md §4.
+ * Auth scaffold for sign-in, registration and onboarding. Matches the Berry
+ * Auth canvas: void canvas, soft grid, wordmark in the header, one centred
+ * panel, and a quiet legal footer.
  */
-export function AuthCard({ title, description, children, footer }: AuthCardProps) {
+export function AuthCard({
+   title,
+   description,
+   children,
+   footer,
+   topAction,
+   onBack,
+   error,
+   steps,
+   className,
+}: AuthCardProps) {
    return (
-      <div className="flex min-h-full flex-col items-center justify-center gap-5 bg-background px-5 py-10">
-         <BerryWordmark size="lg" />
-         <Card className="w-full max-w-[470px]">
-            <CardHeader className="text-center">
-               <CardTitle>
-                  <h1 data-auth-title>{title}</h1>
-               </CardTitle>
-               {description ? (
-                  <CardDescription className="text-balance leading-relaxed">
-                     {description}
-                  </CardDescription>
+      <BrandThemeCanvas className={className}>
+         <div className="flex min-h-full flex-1 flex-col px-8 py-7">
+            <header className="flex items-center gap-2.5">
+               <BerryWordmark size="md" />
+               {topAction ? (
+                  <div
+                     data-auth-top
+                     className="ml-auto flex shrink-0 items-center gap-2 whitespace-nowrap text-[var(--brand-slate)]"
+                  >
+                     {topAction}
+                  </div>
                ) : null}
-            </CardHeader>
-            <CardContent>{children}</CardContent>
-         </Card>
-         {footer ? <div className="text-muted-foreground">{footer}</div> : null}
-      </div>
+            </header>
+
+            <div className="flex flex-1 items-center justify-center py-10">
+               <div
+                  className={cn(
+                     'flex w-full max-w-[400px] flex-col gap-7 rounded-2xl border border-[#1f1f23]',
+                     'bg-[color-mix(in_oklab,var(--brand-void)_85%,transparent)] p-8 backdrop-blur-[2px]'
+                  )}
+               >
+                  <div className="flex flex-col gap-2 text-center">
+                     {onBack ? (
+                        <button
+                           type="button"
+                           onClick={onBack}
+                           className="mb-2 inline-flex items-center gap-1.5 self-start text-[var(--brand-ash)] transition-colors hover:text-[var(--brand-chalk)]"
+                        >
+                           <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              aria-hidden
+                           >
+                              <path d="M15 6l-6 6 6 6" />
+                           </svg>
+                           Back
+                        </button>
+                     ) : null}
+                     <h1
+                        data-heading="display"
+                        className="m-0 leading-[1.2] font-semibold tracking-[-0.025em] text-pretty"
+                     >
+                        {title}
+                     </h1>
+                     {description ? (
+                        <p className="m-0 leading-relaxed text-pretty text-[var(--brand-ash)]">
+                           {description}
+                        </p>
+                     ) : null}
+                  </div>
+
+                  {error ? (
+                     <div
+                        role="alert"
+                        className="flex gap-2.5 rounded-[10px] bg-[color-mix(in_oklab,var(--brand-danger)_10%,#19191c)] px-3 py-2.5 leading-normal text-[#f0a49d]"
+                     >
+                        <svg
+                           width="14"
+                           height="14"
+                           viewBox="0 0 24 24"
+                           fill="none"
+                           stroke="currentColor"
+                           strokeWidth="2"
+                           className="mt-0.5 shrink-0"
+                           aria-hidden
+                        >
+                           <circle cx="12" cy="12" r="9" />
+                           <path d="M12 8v5M12 16v.5" />
+                        </svg>
+                        <span>{error}</span>
+                     </div>
+                  ) : null}
+
+                  {children}
+
+                  {footer ? <div className="text-[var(--brand-slate)]">{footer}</div> : null}
+
+                  {steps && steps.total > 0 ? (
+                     <div className="flex gap-1.5" aria-hidden>
+                        {Array.from({ length: steps.total }, (_, index) => (
+                           <span
+                              key={index}
+                              className={cn(
+                                 'h-0.5 flex-1 rounded-sm',
+                                 index <= steps.current
+                                    ? 'bg-[#e3b341]'
+                                    : 'bg-[var(--brand-hairline)]'
+                              )}
+                           />
+                        ))}
+                     </div>
+                  ) : null}
+               </div>
+            </div>
+
+            <BrandThemeFooter />
+         </div>
+      </BrandThemeCanvas>
    );
 }

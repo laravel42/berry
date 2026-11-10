@@ -6,13 +6,20 @@
 - **Related:** [ADR-0009](0009-typescript-product-server.md) (TypeScript product
   server), `server-ts/migrations/038_goals_as_derived_groups.up.sql`
 
-## Current state (2026-09-14)
+## Current state (2026-11-05)
 
-- Implemented: `/api/v1/goals` and `src/core/goals.ts` are live, and goals
-  are read-only groupings derived from a project's tasks, as decided here.
-- Milestones (referenced by `mounts/goals.ts`, `mounts/issues.ts` and
-  migration 010) are a related, separate concept from the goal itself; this
-  ADR does not describe them in detail.
+- The product entity this ADR called a **goal** is now a **milestone**
+  (`/api/v1/milestones`, `src/core/milestones.ts`, table `milestones`).
+- **Superseded for UX:** milestones are authored **project stages** (name,
+  optional description, optional target date, manual `sort_order`) with
+  **progress percent** from linked issues (migration 250). They live under the
+  project, not a workspace rail. Coarse `status` remains for SCM open/closed.
+- Plan IR still says `milestones`; Start Plan writes those rows (with sort
+  order) and they become editable stages afterward. SCM links keep
+  `berry_type = 'milestone'`.
+- Historical name: migration 020 created `goals`; migration 249 renamed the
+  tables and columns. Pre-206 project-level `milestones` tables were unused and
+  dropped; do not confuse them with this entity.
 
 ## Context
 
@@ -23,7 +30,7 @@ which one they are supposed to make, and the answer has never been written down.
 
 The confusion is not only conceptual. Goals are mostly not authored at all — they
 accumulate. A goal is minted when a plan is **generated**, and the duplicate
-guard in `PlanRepository.create` sits inside `if (input.goalId)`, so a generation
+guard in `PlanRepository.create` sits inside `if (input.milestoneId)`, so a generation
 that names no goal mints a fresh one every time. Reword a prompt and try again
 and you have two goals. Abandon the plan and the goal stays.
 
@@ -75,8 +82,8 @@ goal's tasks must all sit in that same project. This is the constraint that make
 "which repository" have one answer, whichever path asks.
 
 **It is read-only.** Nothing writes a goal's title, description or membership
-after compile. `POST /api/v1/goals`, `PATCH /api/v1/goals/:id` and the two
-`:goalId/issues/:issueRef` routes go. `source` and `source_prompt` go with them:
+after compile. `POST /api/v1/milestones`, `PATCH /api/v1/milestones/:id` and the two
+`:milestoneId/issues/:issueRef` routes go. `source` and `source_prompt` go with them:
 every goal is now made the same way, and the prompt belongs to the plan.
 `DELETE` stays — an obsolete grouping should be retirable.
 
@@ -100,7 +107,7 @@ wire, the database and any future reader cannot disagree about it.
 **Where the recomputation runs.** In application code, inside the same
 transaction that changes a task's status or a goal's membership — not in a
 trigger. A trigger would have to rebuild the goal event envelope in PL/pgSQL,
-duplicating `serializeGoal`; calling the function from the transaction keeps
+duplicating `serializeMilestone`; calling the function from the transaction keeps
 event emission on the existing path and still means no caller *authors* a status.
 
 ## Consequences
@@ -116,7 +123,7 @@ event emission on the existing path and still means no caller *authors* a status
 ### Negative
 
 - The goal write routes and their tests are deleted; any client calling them
-  breaks. The frontend's `goalStatusSchema` narrows from six values to four.
+  breaks. The frontend's `milestoneStatusSchema` narrows from six values to four.
 - Every goal currently in the database is retired. Nothing is lost — all eight
   group zero tasks — but the rows disappear from the UI.
 - A goal can no longer be renamed. If a compile produces a poor title, the fix
@@ -142,13 +149,13 @@ event emission on the existing path and still means no caller *authors* a status
   plan has a single milestone), and generating without compiling produces
   none. See `docs/superpowers/specs/2026-09-09-plan-milestones-design.md`.
 - Completing every task in a goal moves it to Done and sets `completed_at`,
-  emitting `goal.completed` on the workspace stream.
+  emitting `milestone.completed` on the workspace stream.
 
 ## Follow-up
 
 - Delete the goal write routes and their handlers.
 - Move goal creation from `PlanRepository.create` to compile.
-- Narrow the frontend's `goalStatusSchema` and remove the status-transition
+- Narrow the frontend's `milestoneStatusSchema` and remove the status-transition
   controls in `frontend/lib/goals.ts`.
 - Record the goals/projects distinction in `PRODUCT.md`, which does not yet
   state it.

@@ -22,10 +22,20 @@ import type {
    ProjectUpdate,
    ResourcePatch,
 } from '../core/projects.ts';
+import type { MilestoneRepository } from '../core/milestones.ts';
+import type { IssueRepository } from '../core/issues.ts';
+import {
+   ProjectMilestoneGenerator,
+} from '../projects/generate-milestones.ts';
+import { ProjectMilestoneTaskGenerator } from '../projects/generate-tasks.ts';
+import { EditorAssistUnavailable } from '../editor/assist.ts';
+import { defaultBoardId } from '../work/batch.ts';
+import { serializeIssue } from './issues.ts';
 import type { ScmProvisioning } from '../scm/provisioning.ts';
 import type { ScmLink } from '../scm/links.ts';
 import type { ScmWorkspaces } from '../scm/workspaces.ts';
 import { ConnectionUnavailable, type ConnectionRepository } from '../integrations/connections.ts';
+import { GitLabClient, GitLabError, GITLAB_PROJECT_PATH } from '../integrations/gitlab.ts';
 import { GitHubClient, GitHubError } from '../integrations/github.ts';
 import type { Logger } from '../observability/log.ts';
 import type { Mount } from '../http/registry.ts';
@@ -41,9 +51,8 @@ import {
 /**
  * `/api/v1/projects`.
  *
- * `POST /:projectId/generated-issues` is deliberately absent. It decomposes a
- * project into issues with an agent, and what it should mean now that agents
- * run in-process is its own decision. See SCOPE.md.
+ * `POST /:projectId/generated-issues` stays absent (SCOPE.md). Task breakdown
+ * for milestones that already exist is `POST /:projectId/generate-tasks`.
  */
 
 const STATUSES = new Set(['planned', 'active', 'paused', 'completed', 'cancelled']);
@@ -78,6 +87,7 @@ const PROJECT_BODY_FIELDS = new Set([
    'startDate',
    'targetDate',
    'githubRepo',
+   'gitlabRepo',
    'lead',
 ]);
 const RESOURCE_BODY_FIELDS = new Set(['kind', 'url', 'label', 'description', 'sortOrder']);
@@ -105,8 +115,25 @@ export interface ProjectOptions {
    connections: ConnectionRepository | null;
    /** Opens that token. Null when this deployment has no GitHub connection. */
    githubToken: ((workspaceId: string) => Promise<string>) | null;
+   /**
+    * Opens the workspace GitLab access token. Null when this deployment cannot
+    * seal credentials (no INTEGRATION_ENCRYPTION_KEY / connections store).
+    */
+   gitlabToken: ((workspaceId: string) => Promise<string>) | null;
    logger: Logger;
    sql: Sql;
+   /**
+    * Propose and create milestones from the project brief. Absent when this
+    * deployment cannot run completions.
+    */
+   milestoneGenerator?: ProjectMilestoneGenerator | null;
+   /**
+    * Propose and create board tasks under the project's milestones. Absent
+    * when this deployment cannot run completions or create issues.
+    */
+   taskGenerator?: ProjectMilestoneTaskGenerator | null;
+   milestones?: MilestoneRepository | null;
+   issues?: IssueRepository | null;
 }
 
 export function projectMounts(options: ProjectOptions): Mount[] {
@@ -152,10 +179,14 @@ export function projectMounts(options: ProjectOptions): Mount[] {
 
       // Berry stores the repository id alongside the name, so a linked project
       // resolves the pair through the provider before the row is written; a
-      // project with no repository stores neither.
-      const repository =
+      // project with no repository stores neither. At most one SCM is linked.
+      const github =
          input.githubRepo !== null
             ? await resolveRepository(options, input.workspaceId, input.githubRepo, userId)
+            : null;
+      const gitlab =
+         input.gitlabRepo !== null
+            ? await resolveGitLabRepository(options, input.workspaceId, input.gitlabRepo)
             : null;
 
       const created = await projects
@@ -168,8 +199,10 @@ export function projectMounts(options: ProjectOptions): Mount[] {
             health: input.health,
             startDate: input.startDate,
             targetDate: input.targetDate,
-            githubRepoId: repository?.githubRepoId ?? null,
-            githubRepoFullName: repository?.githubRepoFullName ?? null,
+            githubRepoId: github?.githubRepoId ?? null,
+            githubRepoFullName: github?.githubRepoFullName ?? null,
+            gitlabProjectId: gitlab?.gitlabProjectId ?? null,
+            gitlabProjectPath: gitlab?.gitlabProjectPath ?? null,
             createdBy: userId,
             lead: input.lead,
          })
@@ -193,6 +226,181 @@ export function projectMounts(options: ProjectOptions): Mount[] {
       const { workspaceId, projectId } = await scopeOf(context, projects, 'product.read');
       const found = await projects.get(workspaceId, projectId).catch(rethrow);
       return json(serializeProject(found, await options.scm?.linkFor('project', found.id)));
+   });
+
+   /**
+    * Orchestrator completion: turn the project's brief into milestones
+    * (`{ title, date }`) using adapted project skills, then file them.
+    */
+   route.post('/:projectId/generate-milestones', async (context) => {
+      const generator = options.milestoneGenerator ?? null;
+      const milestones = options.milestones ?? null;
+      if (!generator || !milestones) {
+         throw new ApiError(503, 'EDITOR_UNAVAILABLE', 'Milestone generation is not configured.');
+      }
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const project = await projects.get(workspaceId, projectId).catch(rethrow);
+      const description = (project.description ?? '').trim();
+      if (description === '') {
+         return json({ nodes: [] });
+      }
+
+      const controller = new AbortController();
+      context.req.raw.signal.addEventListener('abort', () => controller.abort(), { once: true });
+
+      let proposed;
+      try {
+         proposed = await generator.propose({
+            workspaceId,
+            projectName: project.name,
+            description,
+            startDate: project.startDate,
+            targetDate: project.targetDate,
+            signal: controller.signal,
+         });
+      } catch (error) {
+         if (error instanceof EditorAssistUnavailable) {
+            throw new ApiError(
+               503,
+               'EDITOR_UNAVAILABLE',
+               `Milestone generation could not complete: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+
+      const nodes: Record<string, unknown>[] = [];
+      for (const entry of proposed) {
+         const created = await milestones
+            .create({
+               workspaceId,
+               projectId,
+               title: entry.title,
+               description: null,
+               targetDate: entry.date,
+               createdBy: userId,
+               createdAt: new Date().toISOString(),
+            })
+            .catch(rethrow);
+         nodes.push({
+            id: created.goal.id,
+            workspaceId: created.goal.workspaceId,
+            projectId: created.goal.projectId,
+            title: created.goal.title,
+            description: created.goal.description,
+            status: created.goal.status,
+            targetDate: created.goal.targetDate,
+            sortOrder: created.goal.sortOrder,
+            createdAt: created.goal.createdAt,
+            updatedAt: created.goal.updatedAt,
+         });
+      }
+      return json({ nodes }, 201);
+   });
+
+   /**
+    * Orchestrator completion: break each existing project milestone into
+    * board tasks and link them. Does not invent milestones.
+    */
+   route.post('/:projectId/generate-tasks', async (context) => {
+      const generator = options.taskGenerator ?? null;
+      const milestones = options.milestones ?? null;
+      const issues = options.issues ?? null;
+      if (!generator || !milestones || !issues) {
+         throw new ApiError(503, 'EDITOR_UNAVAILABLE', 'Task generation is not configured.');
+      }
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const project = await projects.get(workspaceId, projectId).catch(rethrow);
+      const description = (project.description ?? '').trim();
+      if (description === '') {
+         return json({ nodes: [] });
+      }
+
+      const existing = await milestones
+         .list(workspaceId, { query: '', status: null, projectId }, null, 50)
+         .catch(rethrow);
+      if (existing.length === 0) {
+         return json({ nodes: [] });
+      }
+
+      const boardId = await defaultBoardId(options.sql, workspaceId).catch((error: unknown) => {
+         if (error instanceof NotFound) {
+            throw new ApiError(422, 'BOARD_NOT_FOUND', 'This workspace has no board to file tasks on.');
+         }
+         throw error;
+      });
+
+      const controller = new AbortController();
+      context.req.raw.signal.addEventListener('abort', () => controller.abort(), { once: true });
+
+      let proposed;
+      try {
+         proposed = await generator.propose({
+            workspaceId,
+            projectName: project.name,
+            description,
+            milestones: existing.map((goal) => ({
+               id: goal.id,
+               title: goal.title,
+               targetDate: goal.targetDate,
+            })),
+            startDate: project.startDate,
+            targetDate: project.targetDate,
+            signal: controller.signal,
+         });
+      } catch (error) {
+         if (error instanceof EditorAssistUnavailable) {
+            throw new ApiError(
+               503,
+               'EDITOR_UNAVAILABLE',
+               `Task generation could not complete: ${error.message}.`
+            );
+         }
+         throw error;
+      }
+
+      const byId = new Map(existing.map((goal) => [goal.id, goal]));
+      const nodes: Record<string, unknown>[] = [];
+      let sortOrder = 0;
+      for (const entry of proposed) {
+         const goal = byId.get(entry.milestoneId);
+         if (!goal) continue;
+         const dueDate =
+            goal.targetDate !== null && goal.targetDate !== ''
+               ? `${goal.targetDate}T00:00:00.000Z`
+               : null;
+         const created = await issues
+            .create({
+               boardId,
+               title: entry.title,
+               description: entry.description,
+               status: 'todo',
+               priority: entry.priority,
+               sortOrder: sortOrder++,
+               dueDate,
+               assignee: entry.agentId ? { type: 'agent', id: entry.agentId } : null,
+               project: projectId,
+               createdBy: userId,
+            })
+            .catch(rethrow);
+         await milestones
+            .linkIssue({
+               workspaceId,
+               milestoneId: goal.id,
+               issueId: created.issue.id,
+               actorId: userId,
+               now: new Date().toISOString(),
+            })
+            .catch(rethrow);
+         nodes.push(
+            serializeIssue(created.issue, {
+               milestone: { id: goal.id, title: goal.title },
+               dependsOn: [],
+               blocks: [],
+            })
+         );
+      }
+      return json({ nodes }, 201);
    });
 
    const aiRuntimes = new AiRuntimeRepository(options.sql);
@@ -230,6 +438,22 @@ export function projectMounts(options: ProjectOptions): Mount[] {
          );
          patch.githubRepoId = resolved.githubRepoId;
          patch.githubRepoFullName = resolved.githubRepoFullName;
+         // Mutual exclusion: linking GitHub clears any GitLab link.
+         patch.gitlabRepoSet = true;
+         patch.gitlabProjectId = null;
+         patch.gitlabProjectPath = null;
+      }
+      if (patch.gitlabRepoSet && patch.gitlabProjectPath) {
+         const resolved = await resolveGitLabRepository(
+            options,
+            workspaceId,
+            patch.gitlabProjectPath
+         );
+         patch.gitlabProjectId = resolved.gitlabProjectId;
+         patch.gitlabProjectPath = resolved.gitlabProjectPath;
+         patch.githubRepoSet = true;
+         patch.githubRepoId = null;
+         patch.githubRepoFullName = null;
       }
       return json(
          serializeProject(await projects.update(workspaceId, projectId, patch).catch(rethrow))
@@ -378,6 +602,7 @@ interface CreateInput {
    startDate: string | null;
    targetDate: string | null;
    githubRepo: string | null;
+   gitlabRepo: string | null;
    lead: ProjectLead | null;
 }
 
@@ -452,6 +677,26 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       }
    }
 
+   let gitlabRepo: string | null = null;
+   if ('gitlabRepo' in body && body.gitlabRepo !== null) {
+      const trimmed = String(body.gitlabRepo).trim();
+      if (trimmed !== '') {
+         if (!GITLAB_PROJECT_PATH.test(trimmed)) {
+            fields.push(
+               field('/gitlabRepo', 'invalid_string', 'Repository must be a GitLab path_with_namespace.')
+            );
+         } else {
+            gitlabRepo = trimmed;
+         }
+      }
+   }
+
+   if (githubRepo !== null && gitlabRepo !== null) {
+      fields.push(
+         field('/', 'invalid_value', 'A project links to GitHub or GitLab, not both.')
+      );
+   }
+
    const lead = parseLead(body, fields);
 
    assertValid(fields);
@@ -465,6 +710,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       startDate,
       targetDate,
       githubRepo,
+      gitlabRepo,
       lead,
    };
 }
@@ -476,6 +722,7 @@ function parsePatch(body: Record<string, unknown>): ProjectPatch {
       startDateSet: false,
       targetDateSet: false,
       githubRepoSet: false,
+      gitlabRepoSet: false,
       leadSet: false,
    };
    let provided = 0;
@@ -546,6 +793,30 @@ function parsePatch(body: Record<string, unknown>): ProjectPatch {
             patch.githubRepoFullName = trimmed;
          }
       }
+   }
+   if ('gitlabRepo' in body) {
+      provided += 1;
+      patch.gitlabRepoSet = true;
+      if (body.gitlabRepo !== null) {
+         const trimmed = String(body.gitlabRepo).trim();
+         if (!GITLAB_PROJECT_PATH.test(trimmed)) {
+            fields.push(
+               field('/gitlabRepo', 'invalid_string', 'Repository must be a GitLab path_with_namespace.')
+            );
+         } else {
+            patch.gitlabProjectPath = trimmed;
+         }
+      }
+   }
+   if (
+      patch.githubRepoSet &&
+      patch.githubRepoFullName &&
+      patch.gitlabRepoSet &&
+      patch.gitlabProjectPath
+   ) {
+      fields.push(
+         field('/', 'invalid_value', 'A project links to GitHub or GitLab, not both.')
+      );
    }
    if ('lead' in body) {
       provided += 1;
@@ -971,6 +1242,71 @@ export async function resolveRepository(
    return { githubRepoId: String(repository.id), githubRepoFullName: repository.fullName };
 }
 
+/**
+ * Resolves a GitLab `path_with_namespace` to the stored id + path pair.
+ *
+ * Same three outcomes as GitHub resolve: 412 when this deployment cannot open
+ * a token, 422 when the project is missing or unseen, 502 on a transient
+ * provider failure.
+ */
+export async function resolveGitLabRepository(
+   options: Pick<ProjectOptions, 'gitlabToken'>,
+   workspaceId: string,
+   pathWithNamespace: string
+): Promise<{ gitlabProjectId: string; gitlabProjectPath: string }> {
+   if (!options.gitlabToken) {
+      throw new ApiError(
+         412,
+         'INTEGRATIONS_NOT_CONFIGURED',
+         'This deployment cannot resolve GitLab repositories.'
+      );
+   }
+
+   let token: string;
+   try {
+      token = await options.gitlabToken(workspaceId);
+   } catch (error) {
+      if (error instanceof ConnectionUnavailable) {
+         throw new ApiError(
+            409,
+            error.reason === 'missing' ? 'NOT_CONNECTED' : 'CONNECTION_UNUSABLE',
+            error.reason === 'missing'
+               ? 'GitLab is not connected to this workspace.'
+               : `The GitLab connection needs attention: ${error.message}.`
+         );
+      }
+      throw error;
+   }
+
+   let repository;
+   try {
+      repository = await new GitLabClient({ token }).resolveRepository(pathWithNamespace);
+   } catch (error) {
+      if (error instanceof GitLabError) {
+         if (error.status === 404 || error.remedy === 'grant-access') {
+            throw new ApiError(
+               422,
+               'REPOSITORY_UNAVAILABLE',
+               `That repository could not be resolved: ${error.message}`
+            );
+         }
+         if (error.remedy === 'reconnect') {
+            throw new ApiError(
+               409,
+               'CONNECTION_UNUSABLE',
+               `The GitLab connection needs attention: ${error.message}.`
+            );
+         }
+         throw new ApiError(502, 'PROVIDER_ERROR', `GitLab refused the request: ${error.message}`);
+      }
+      throw error;
+   }
+   return {
+      gitlabProjectId: String(repository.id),
+      gitlabProjectPath: repository.fullName,
+   };
+}
+
 function invalidQuery(path: string, message: string): ApiError {
    return new ApiError(400, 'INVALID_REQUEST', 'The request query is invalid.', {
       fields: [field(path, 'invalid', message)],
@@ -1080,6 +1416,7 @@ function serializeProject(project: Project, link?: ScmLink | null): Record<strin
       startDate: project.startDate,
       targetDate: project.targetDate,
       githubRepo: project.githubRepo,
+      gitlabRepo: project.gitlabRepo,
       gitRepo: project.gitRepo,
       // `null` says nobody has decided, which is not the same as a person
       // having decided it is theirs. A client that fills the gap with whoever

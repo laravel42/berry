@@ -40,16 +40,8 @@ const FIXTURE_IMPORT_PATHS = [
       message: 'Placeholder settings pages are hidden, not faked. Build a real settings page instead.',
    },
    {
-      name: '@/data/cycles',
-      message: 'Cycles have no backend and are hidden from navigation.',
-   },
-   {
       name: '@/data/initiatives',
       message: 'Initiatives have no backend and are hidden from navigation.',
-   },
-   {
-      name: '@/components/common/cycles/cycle-icon',
-      message: 'Cycles have no backend and are hidden from navigation.',
    },
    {
       name: '@/data/users',

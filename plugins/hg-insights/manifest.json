@@ -1,0 +1,50 @@
+{
+   "schemaVersion": 1,
+   "key": "hg-insights",
+   "name": "HG Insights",
+   "version": "1.0.0",
+   "description": "Technographic and firmographic data on companies. An agent can see which products a firm uses while it researches an account.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "data",
+            "ai"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with HG Insights.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with HG Insights.",
+         "type": "secret",
+         "required": false
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "data": "https://phoenix.hginsights.com/api/mcp/v2",
+         "ai": "https://phoenix.hginsights.com/api/ai/mcp/v2"
+      },
+      "auth": "oauth",
+      "scopes": [
+         "mcp:read",
+         "mcp:tools",
+         "offline_access"
+      ]
+   }
+}

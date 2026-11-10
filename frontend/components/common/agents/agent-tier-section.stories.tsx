@@ -8,7 +8,7 @@ const meta = {
    component: AgentTierSection,
    tags: ['ai-generated', 'needs-work'],
    args: {
-      // The Frontend Engineer's role runs on BerryMid.
+      // The Frontend Engineer's role runs on Mid.
       agent: gatewayAgent,
       tier: null,
       model: null,
@@ -36,23 +36,23 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** On the role's tier: BerryMid is selected and Recommended. */
+/** On the role's tier: Mid is selected and Recommended. */
 export const RoleDefault: Story = {
    play: async ({ args, canvas, userEvent }) => {
-      await expect(await canvas.findByRole('radio', { name: /BerryMid/ })).toHaveAttribute(
+      await expect(await canvas.findByRole('radio', { name: /^Mid/ })).toHaveAttribute(
          'aria-checked',
          'true'
       );
-      await userEvent.click(canvas.getByRole('radio', { name: /BerryMax/ }));
+      await userEvent.click(canvas.getByRole('radio', { name: /^Max/ }));
       await expect(args.onTierChange).toHaveBeenCalledWith('berry_max');
    },
 };
 
-/** The agent chose BerryMax; going back to the recommended tier stores null. */
+/** The agent chose Max; going back to the recommended tier stores null. */
 export const OwnTier: Story = {
    args: { tier: 'berry_max' },
    play: async ({ args, canvas, userEvent }) => {
-      await userEvent.click(await canvas.findByRole('radio', { name: /BerryMid/ }));
+      await userEvent.click(await canvas.findByRole('radio', { name: /^Mid/ }));
       await expect(args.onTierChange).toHaveBeenCalledWith(null);
    },
 };
@@ -60,7 +60,7 @@ export const OwnTier: Story = {
 /** Only the three paid tiers are offered: no Free or Auto. */
 export const ThreeTiers: Story = {
    play: async ({ canvas }) => {
-      await expect(await canvas.findByRole('radio', { name: /BerryMax/ })).toBeVisible();
+      await expect(await canvas.findByRole('radio', { name: /^Max/ })).toBeVisible();
       await expect(canvas.getAllByRole('radio')).toHaveLength(3);
       await expect(canvas.queryByText(/BerryFree|BerryAuto/)).not.toBeInTheDocument();
       // Only the tier's name and its models: no share of tasks, no price.

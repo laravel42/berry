@@ -8,7 +8,7 @@ import { ProjectTasksSection } from './project-tasks-section';
 const meta = {
    component: ProjectTasksSection,
    tags: ['ai-generated', 'needs-work'],
-   args: { issues: issuesFor(projectHealth.id) },
+   args: { projectId: projectHealth.id, issues: issuesFor(projectHealth.id) },
    parameters: { nextjs: { navigation: { segments: [['orgId', 'berry']] } } },
    beforeEach: () => {
       seedProjectStores();

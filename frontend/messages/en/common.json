@@ -1,13 +1,17 @@
 {
    "loading": "Loading…",
    "retry": "Try again",
+   "collapsible": {
+      "showMore": "Show more",
+      "showLess": "Show less"
+   },
    "agentPicker": {
       "add": "Add agent",
       "search": "Search agents",
       "empty": "No agents match that."
    },
    "unsavedBar": {
-      "unsaved": "Unsaved: {what}",
+      "unsaved": "Unsaved changes",
       "discard": "Discard",
       "save": "Save",
       "saving": "Saving…"

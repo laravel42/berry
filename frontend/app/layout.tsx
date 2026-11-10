@@ -29,6 +29,14 @@ const inter = localFont({
    display: 'swap',
 });
 
+/** Wordmark lockup only — same face as berry.pm (`apps/web`). */
+const dmSerifDisplay = localFont({
+   src: './fonts/dm-serif-display-400-latin.woff2',
+   variable: '--font-dm-serif-display',
+   weight: '400',
+   display: 'swap',
+});
+
 export const metadata: Metadata = {
    title: {
       template: '%s | Berry',
@@ -59,7 +67,7 @@ export default async function RootLayout({
    return (
       <html
          lang={locale}
-         className={`${inter.variable} ${jetBrainsMono.variable} ${theme === 'dark' ? 'dark' : ''}`}
+         className={`${inter.variable} ${jetBrainsMono.variable} ${dmSerifDisplay.variable} ${theme === 'dark' ? 'dark' : ''}`}
          suppressHydrationWarning
       >
          <body className="antialiased" suppressHydrationWarning>

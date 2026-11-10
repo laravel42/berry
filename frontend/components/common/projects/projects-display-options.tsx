@@ -73,12 +73,16 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
       direction,
       closedProjects,
       showEmptyGroups,
+      showProjectList,
+      showWeekNumbers,
       displayProperties,
       setGrouping,
       setOrdering,
       setDirection,
       setClosedProjects,
       setShowEmptyGroups,
+      setShowProjectList,
+      setShowWeekNumbers,
       toggleDisplayProperty,
       setViewType,
       resetDisplaySettings,
@@ -92,6 +96,8 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
       direction === 'asc' &&
       closedProjects === 'all' &&
       !showEmptyGroups &&
+      showProjectList &&
+      !showWeekNumbers &&
       cardPropertiesMatchDefault(displayProperties);
 
    const reset = () => {
@@ -106,8 +112,8 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
          <PopoverTrigger asChild>
             <Button
                size="xs"
-               variant="outline"
-               className="relative border-muted-foreground/15"
+               variant={iconOnly ? 'track' : 'outline'}
+               className={cn('relative', !iconOnly && 'border-muted-foreground/15')}
                aria-label={iconOnly ? 'Display' : undefined}
                title={iconOnly ? 'Display' : undefined}
             >
@@ -121,7 +127,7 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
                )}
             </Button>
          </PopoverTrigger>
-         <PopoverContent className="w-80 p-0" align="end">
+         <PopoverContent className="w-80 p-0" align="start">
             <div className={cn('flex items-center justify-between gap-2 px-3 pt-3 pb-3', touchRow)}>
                <span className="flex items-center gap-1.5 text-muted-foreground">
                   <ArrowUpDown className="size-3.5" aria-hidden="true" />
@@ -187,6 +193,13 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
 
             {/* What counts as visible */}
             <div className="flex flex-col gap-2.5 border-t px-3 py-3">
+               <span className="font-medium">
+                  {viewType === 'timeline'
+                     ? 'Timeline options'
+                     : viewType === 'board'
+                       ? 'Board options'
+                       : 'List options'}
+               </span>
                <div className={cn('flex items-center justify-between', touchRow)}>
                   <Label
                      htmlFor="show-closed-projects"
@@ -201,19 +214,63 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
                   />
                </div>
 
-               <div className={cn('flex items-center justify-between', touchRow)}>
-                  <Label
-                     htmlFor="show-empty-project-groups"
-                     className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
-                  >
-                     {viewType === 'board' ? 'Show empty columns' : 'Show empty groups'}
-                  </Label>
-                  <Switch
-                     id="show-empty-project-groups"
-                     checked={showEmptyGroups}
-                     onCheckedChange={setShowEmptyGroups}
-                  />
-               </div>
+               {viewType === 'timeline' ? (
+                  <>
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="show-project-list"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
+                        >
+                           Show project list
+                        </Label>
+                        <Switch
+                           id="show-project-list"
+                           checked={showProjectList}
+                           onCheckedChange={setShowProjectList}
+                        />
+                     </div>
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="show-week-numbers"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
+                        >
+                           Show week numbers
+                        </Label>
+                        <Switch
+                           id="show-week-numbers"
+                           checked={showWeekNumbers}
+                           onCheckedChange={setShowWeekNumbers}
+                        />
+                     </div>
+                     <div className={cn('flex items-center justify-between', touchRow)}>
+                        <Label
+                           htmlFor="show-empty-project-groups"
+                           className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
+                        >
+                           Show empty groups
+                        </Label>
+                        <Switch
+                           id="show-empty-project-groups"
+                           checked={showEmptyGroups}
+                           onCheckedChange={setShowEmptyGroups}
+                        />
+                     </div>
+                  </>
+               ) : (
+                  <div className={cn('flex items-center justify-between', touchRow)}>
+                     <Label
+                        htmlFor="show-empty-project-groups"
+                        className="flex-1 font-normal text-muted-foreground max-lg:min-h-11"
+                     >
+                        {viewType === 'board' ? 'Show empty columns' : 'Show empty groups'}
+                     </Label>
+                     <Switch
+                        id="show-empty-project-groups"
+                        checked={showEmptyGroups}
+                        onCheckedChange={setShowEmptyGroups}
+                     />
+                  </div>
+               )}
             </div>
 
             {/* Per-row properties */}

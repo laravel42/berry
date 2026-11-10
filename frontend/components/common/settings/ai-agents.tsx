@@ -50,6 +50,7 @@ export default function AiAgents() {
          <SettingsSection description={agents.error ?? undefined}>
             <div className="mb-3">
                <Input
+                  variant="settings"
                   placeholder={t('filter')}
                   aria-label={t('filter')}
                   value={query}

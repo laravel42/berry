@@ -1,5 +1,6 @@
 'use client';
 
+import { PickerRowIcon } from '@/components/common/pickers/option-picker';
 import { Button } from '@/components/ui/button';
 import {
    Command,
@@ -14,11 +15,16 @@ import type { Project } from '@/data/projects';
 import { BerryApiError } from '@/lib/api';
 import {
    createGitHubRepository,
+   createGitLabRepository,
    loadGitHubRepositories,
+   loadGitLabRepositories,
+   loadGitLabRepositoryOwners,
    loadRepositoryOwners,
    setProjectRepository,
    type GitHubAccess,
    type GitHubRepository,
+   type RepositoryOwner,
+   type ScmProvider,
 } from '@/lib/projects';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,35 +41,54 @@ import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { Check, Loader2, Plus, RefreshCw, X } from 'lucide-react';
-import { RiGithubFill } from '@remixicon/react';
-import { useCallback, useEffect, useState, type ComponentProps } from 'react';
+import { RiGithubFill, RiGitlabFill } from '@remixicon/react';
+import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { toast } from 'sonner';
 
-/** True once this workspace's GitHub connection is usable. Stays false while that is unknown, so the picker does not flash in. */
-function useGitHubConnected(): boolean {
+export type RepositoryChoice = { provider: ScmProvider; fullName: string };
+
+type ListedRepository = GitHubRepository & { provider: ScmProvider };
+
+/** How many repositories the idle picker shows before the person searches. */
+const IDLE_LIST_LIMIT = 20;
+
+/** Which SCM hosts this workspace can list repositories from. */
+function useConnectedScm(): { github: boolean; gitlab: boolean; ready: boolean } {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
-   const [connected, setConnected] = useState(false);
+   const [state, setState] = useState({ github: false, gitlab: false, ready: false });
 
    useEffect(() => {
       if (!workspaceId) {
-         setConnected(false);
+         setState({ github: false, gitlab: false, ready: true });
          return;
       }
       let cancelled = false;
       void loadProviders(workspaceId).then((providers) => {
          if (cancelled) return;
-         setConnected(providers.some((provider) => provider.id === 'github' && provider.connected));
+         setState({
+            github: providers.some((provider) => provider.id === 'github' && provider.connected),
+            gitlab: providers.some((provider) => provider.id === 'gitlab' && provider.connected),
+            ready: true,
+         });
       });
       return () => {
          cancelled = true;
       };
    }, [workspaceId]);
 
-   return connected;
+   return state;
+}
+
+function ScmMark({ provider, className }: { provider: ScmProvider; className?: string }) {
+   return provider === 'gitlab' ? (
+      <RiGitlabFill className={className} />
+   ) : (
+      <RiGithubFill className={className} />
+   );
 }
 
 /**
- * Chooses a GitHub repository, over a plain value.
+ * Chooses a GitHub or GitLab repository, over a plain value.
  *
  * Split from the project-bound wrapper below because the create dialog has no
  * project to update yet — it holds a pending choice until the project exists.
@@ -76,17 +101,20 @@ function useGitHubConnected(): boolean {
  */
 export function RepositoryPicker({
    value,
+   valueProvider,
    onSelect,
    disabled,
    pending = false,
    placeholder = 'Link a repository',
    variant = 'ghost',
    size = 'sm',
-   className = 'w-full px-1.5',
+   className = 'w-full px-0',
    side,
 }: {
    value?: string;
-   onSelect: (fullName: string | null) => void;
+   /** Which host the current value came from; defaults to GitHub when omitted. */
+   valueProvider?: ScmProvider;
+   onSelect: (choice: RepositoryChoice | null) => void;
    disabled?: boolean;
    /** A save in progress. The trigger shows a spinner instead of the mark. */
    pending?: boolean;
@@ -101,13 +129,15 @@ export function RepositoryPicker({
    side?: 'top' | 'bottom';
 }) {
    const [open, setOpen] = useState(false);
-   const [repositories, setRepositories] = useState<GitHubRepository[]>([]);
+   const [repositories, setRepositories] = useState<ListedRepository[]>([]);
    const [access, setAccess] = useState<GitHubAccess | null>(null);
    const [loading, setLoading] = useState(false);
    const [loaded, setLoaded] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
-   const githubConnected = useGitHubConnected();
+   const [query, setQuery] = useState('');
+   const connected = useConnectedScm();
+   const activeProvider: ScmProvider = valueProvider ?? 'github';
 
    // The list is loaded once per opening and kept. Reload stays out of the
    // search row until that request ends, then it is there to fetch again.
@@ -115,9 +145,23 @@ export function RepositoryPicker({
       setLoading(true);
       setError(null);
       try {
-         const listing = await loadGitHubRepositories();
-         setRepositories(listing.repositories);
-         setAccess(listing.access);
+         const listed: ListedRepository[] = [];
+         let githubAccess: GitHubAccess | null = null;
+         if (connected.github) {
+            const listing = await loadGitHubRepositories();
+            githubAccess = listing.access;
+            for (const repository of listing.repositories) {
+               listed.push({ ...repository, provider: 'github' });
+            }
+         }
+         if (connected.gitlab) {
+            const listing = await loadGitLabRepositories();
+            for (const repository of listing.repositories) {
+               listed.push({ ...repository, provider: 'gitlab' });
+            }
+         }
+         setRepositories(listed);
+         setAccess(githubAccess);
       } catch (cause) {
          // An empty list and a list that failed to load look identical, and
          // the fixes are opposite — so the reason is shown, not hidden.
@@ -128,7 +172,7 @@ export function RepositoryPicker({
          setLoading(false);
          setLoaded(true);
       }
-   }, []);
+   }, [connected.github, connected.gitlab]);
 
    useEffect(() => {
       if (open && repositories.length === 0 && !loading && !error) void load();
@@ -136,33 +180,59 @@ export function RepositoryPicker({
       // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [open]);
 
+   // Idle: the first fifty. Searching: every loaded repository that matches,
+   // so a name past the idle window is still reachable by typing.
+   const visibleRepositories = useMemo(() => {
+      const needle = query.trim().toLowerCase();
+      if (needle === '') return repositories.slice(0, IDLE_LIST_LIMIT);
+      return repositories.filter((repository) =>
+         repository.fullName.toLowerCase().includes(needle)
+      );
+   }, [repositories, query]);
+
    const choose = useCallback(
-      (fullName: string | null) => {
+      (choice: RepositoryChoice | null) => {
          setOpen(false);
          setCreating(false);
-         onSelect(fullName);
+         setQuery('');
+         onSelect(choice);
       },
       [onSelect]
    );
 
    const created = useCallback(
-      (repository: GitHubRepository) => {
-         setRepositories((current) => [repository, ...current]);
-         choose(repository.fullName);
+      (repository: GitHubRepository, provider: ScmProvider) => {
+         setRepositories((current) => [{ ...repository, provider }, ...current]);
+         choose({ provider, fullName: repository.fullName });
       },
       [choose]
    );
 
-   // Nothing to link until GitHub is connected: the button would only open a
-   // picker the server refuses.
-   if (!githubConnected) return null;
+   const createProviders = useMemo(() => {
+      const providers: ScmProvider[] = [];
+      if (connected.github) providers.push('github');
+      if (connected.gitlab) providers.push('gitlab');
+      return providers;
+   }, [connected.github, connected.gitlab]);
+
+   // Nothing to link until an SCM is connected: the button would only open a
+   // picker the server refuses. Stay hidden until that is known so the row
+   // does not flash in.
+   if (!connected.ready || (!connected.github && !connected.gitlab)) return null;
 
    // `modal`: the picker also opens inside the create-project dialog, whose
    // scroll lock stops wheel events reaching anything outside it, this
    // popover's list included, which then would not scroll. A modal popover
    // carries its own lock and scrolls on its own.
    return (
-      <Popover open={open} onOpenChange={setOpen} modal>
+      <Popover
+         open={open}
+         onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) setQuery('');
+         }}
+         modal
+      >
          <PopoverTrigger asChild>
             <Button
                variant={variant}
@@ -174,20 +244,38 @@ export function RepositoryPicker({
                )}
                disabled={disabled}
             >
-               {pending ? (
-                  <Loader2
-                     className={cn(
-                        'shrink-0 animate-spin',
-                        size === 'xxs' || size === 'xs' ? 'size-3' : 'size-4'
-                     )}
-                  />
+               {size === 'xxs' || size === 'xs' ? (
+                  pending ? (
+                     <Loader2 className="size-3 shrink-0 animate-spin" />
+                  ) : (
+                     <ScmMark
+                        provider={
+                           value
+                              ? activeProvider
+                              : connected.gitlab && !connected.github
+                                ? 'gitlab'
+                                : 'github'
+                        }
+                        className="size-3 shrink-0 text-muted-foreground"
+                     />
+                  )
                ) : (
-                  <RiGithubFill
-                     className={cn(
-                        'shrink-0 text-muted-foreground',
-                        size === 'xxs' || size === 'xs' ? 'size-3' : 'size-4'
+                  <PickerRowIcon>
+                     {pending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                     ) : (
+                        <ScmMark
+                           provider={
+                              value
+                                 ? activeProvider
+                                 : connected.gitlab && !connected.github
+                                   ? 'gitlab'
+                                   : 'github'
+                           }
+                           className="size-4 text-muted-foreground"
+                        />
                      )}
-                  />
+                  </PickerRowIcon>
                )}
                <span className={value ? 'truncate' : 'truncate text-muted-foreground'}>
                   {value ?? placeholder}
@@ -198,14 +286,17 @@ export function RepositoryPicker({
          <PopoverContent className="w-72 p-0" align="start" side={side}>
             {creating ? (
                <NewRepositoryForm
+                  providers={createProviders}
                   onCreated={created}
                   onCancel={() => setCreating(false)}
-                  onLinkExisting={choose}
+                  onLinkExisting={(choice) => choose(choice)}
                />
             ) : (
-               <Command>
+               <Command shouldFilter={false}>
                   <CommandInput
                      placeholder="Search repositories…"
+                     value={query}
+                     onValueChange={setQuery}
                      trailing={
                         loaded && !loading ? (
                            <Button
@@ -233,26 +324,37 @@ export function RepositoryPicker({
                         <>
                            <CommandEmpty>No repository found.</CommandEmpty>
                            <CommandGroup>
-                              <CommandItem
-                                 value="new repository"
-                                 onSelect={() => setCreating(true)}
-                              >
-                                 <Plus className="size-4" /> New repository…
-                              </CommandItem>
-                              {value ? (
+                              {createProviders.length > 0 && query.trim() === '' ? (
+                                 <CommandItem
+                                    value="new repository"
+                                    onSelect={() => setCreating(true)}
+                                 >
+                                    <Plus className="size-4" /> New repository…
+                                 </CommandItem>
+                              ) : null}
+                              {value && query.trim() === '' ? (
                                  <CommandItem onSelect={() => choose(null)}>
                                     <X className="size-4" /> Unlink
                                  </CommandItem>
                               ) : null}
-                              {repositories.map((repository) => (
+                              {visibleRepositories.map((repository) => (
                                  <CommandItem
-                                    key={repository.id}
-                                    value={repository.fullName}
-                                    onSelect={() => choose(repository.fullName)}
+                                    key={`${repository.provider}:${repository.id}`}
+                                    value={`${repository.provider} ${repository.fullName}`}
+                                    onSelect={() =>
+                                       choose({
+                                          provider: repository.provider,
+                                          fullName: repository.fullName,
+                                       })
+                                    }
                                  >
-                                    <RiGithubFill className="size-4 shrink-0" />
+                                    <ScmMark
+                                       provider={repository.provider}
+                                       className="size-4 shrink-0"
+                                    />
                                     <span className="truncate">{repository.fullName}</span>
-                                    {value === repository.fullName ? (
+                                    {value === repository.fullName &&
+                                    activeProvider === repository.provider ? (
                                        <Check className="ml-auto size-4" />
                                     ) : null}
                                  </CommandItem>
@@ -267,7 +369,8 @@ export function RepositoryPicker({
                    app is installed the list speaks for itself. A list from the
                    person's GitHub sign-in is not that case: sign-in asks for
                    `repo`, so it already includes their private repositories. */}
-                  {access &&
+                  {connected.github &&
+                  access &&
                   !access.installed &&
                   access.source !== 'sign-in' &&
                   access.source !== 'connection' ? (
@@ -289,11 +392,7 @@ export function RepositoryPicker({
                         ) : null}
                      </div>
                   ) : null}
-                  {/* An installed app that cannot write contents lists every
-                   repository and then fails at the push, after a run has
-                   already done the work. Said here so the gap is visible
-                   before a repository is chosen, not after. */}
-                  {access && access.installed && access.canPush === false ? (
+                  {connected.github && access && access.installed && access.canPush === false ? (
                      <div className="border-t px-3 py-2 text-muted-foreground">
                         Read-only access: runs can clone but not push.{' '}
                         {access.manageUrl ? (
@@ -317,34 +416,54 @@ export function RepositoryPicker({
 }
 
 /**
- * Makes a repository as the signed-in person and hands it back to the picker,
- * which links it like any other. The owners offered are the ones GitHub says
- * this person may create under: their account and the organisations that
- * allow it; nothing else is listed, so a refusal at Create is rare.
+ * Makes a repository on the chosen source and hands it back to the picker.
+ *
+ * When more than one SCM is connected, Source picks which host creates it.
+ * Owners are the accounts that host says this credential may create under.
  */
 function NewRepositoryForm({
+   providers,
    onCreated,
    onCancel,
    onLinkExisting,
 }: {
-   onCreated: (repository: GitHubRepository) => void;
+   providers: ScmProvider[];
+   onCreated: (repository: GitHubRepository, provider: ScmProvider) => void;
    onCancel: () => void;
    /** The name is taken: link that repository instead of making one. */
-   onLinkExisting: (fullName: string) => void;
+   onLinkExisting: (choice: RepositoryChoice) => void;
 }) {
+   const [provider, setProvider] = useState<ScmProvider>(providers[0] ?? 'github');
    const [name, setName] = useState('');
-   const [owners, setOwners] = useState<Array<{
-      login: string;
-      type: 'user' | 'organization';
-   }> | null>(null);
+   const [owners, setOwners] = useState<RepositoryOwner[] | null>(null);
    const [ownersError, setOwnersError] = useState<string | null>(null);
+   const [choice, setChoice] = useState('');
+   const owner = choice;
+   const [isPrivate, setIsPrivate] = useState(true);
+   const [pending, setPending] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   // Set when the host says the name is taken: the one refusal with a way out
+   // other than retyping, so it gets its own message and a button.
+   const [exists, setExists] = useState<string | null>(null);
+   const valid = /^[A-Za-z0-9._-]{1,100}$/.test(name.trim()) && owner !== '';
+   const hostLabel = provider === 'gitlab' ? 'GitLab' : 'GitHub';
+
+   useEffect(() => {
+      if (!providers.includes(provider) && providers[0]) setProvider(providers[0]);
+   }, [providers, provider]);
+
    useEffect(() => {
       let cancelled = false;
-      loadRepositoryOwners()
+      setOwners(null);
+      setOwnersError(null);
+      setChoice('');
+      setExists(null);
+      const load = provider === 'gitlab' ? loadGitLabRepositoryOwners() : loadRepositoryOwners();
+      load
          .then((loaded) => {
             if (cancelled) return;
             setOwners(loaded);
-            setChoice((current) => (current === '' ? (loaded[0]?.login ?? '') : current));
+            setChoice(loaded[0]?.login ?? '');
          })
          .catch((cause: unknown) => {
             if (cancelled) return;
@@ -352,22 +471,13 @@ function NewRepositoryForm({
             setOwnersError(
                cause instanceof BerryApiError
                   ? cause.message
-                  : 'Your GitHub accounts could not be read.'
+                  : `Your ${hostLabel} accounts could not be read.`
             );
          });
       return () => {
          cancelled = true;
       };
-   }, []);
-   const [choice, setChoice] = useState('');
-   const owner = choice;
-   const [isPrivate, setIsPrivate] = useState(true);
-   const [pending, setPending] = useState(false);
-   const [error, setError] = useState<string | null>(null);
-   // Set when GitHub says the name is taken: the one refusal with a way out
-   // other than retyping, so it gets its own message and a button.
-   const [exists, setExists] = useState<string | null>(null);
-   const valid = /^[A-Za-z0-9._-]{1,100}$/.test(name.trim()) && owner !== '';
+   }, [provider, hostLabel]);
 
    const submit = async () => {
       if (!valid || pending) return;
@@ -375,13 +485,19 @@ function NewRepositoryForm({
       setError(null);
       setExists(null);
       try {
-         onCreated(
-            await createGitHubRepository({
-               name: name.trim(),
-               owner: owner.trim() || null,
-               private: isPrivate,
-            })
-         );
+         const created =
+            provider === 'gitlab'
+               ? await createGitLabRepository({
+                    name: name.trim(),
+                    owner: owner.trim() || null,
+                    private: isPrivate,
+                 })
+               : await createGitHubRepository({
+                    name: name.trim(),
+                    owner: owner.trim() || null,
+                    private: isPrivate,
+                 });
+         onCreated(created, provider);
       } catch (cause) {
          if (cause instanceof BerryApiError && cause.code === 'REPOSITORY_EXISTS') {
             setExists(`${owner}/${name.trim()}`);
@@ -402,6 +518,23 @@ function NewRepositoryForm({
       // repository. Enter on the name field and the button call submit directly.
       <div className="flex flex-col gap-3 p-3">
          <div className="font-medium">New repository</div>
+         {providers.length > 1 ? (
+            <div className="flex flex-col gap-1.5">
+               <Label htmlFor="new-repository-provider">Source</Label>
+               <Select value={provider} onValueChange={(next) => setProvider(next as ScmProvider)}>
+                  <SelectTrigger id="new-repository-provider" className="w-full">
+                     <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                     {providers.map((candidate) => (
+                        <SelectItem key={candidate} value={candidate}>
+                           {candidate === 'gitlab' ? 'GitLab' : 'GitHub'}
+                        </SelectItem>
+                     ))}
+                  </SelectContent>
+               </Select>
+            </div>
+         ) : null}
          <div className="flex flex-col gap-1.5">
             <Label htmlFor="new-repository-owner">Owner</Label>
             {owners === null ? (
@@ -410,7 +543,8 @@ function NewRepositoryForm({
                </div>
             ) : owners.length === 0 ? (
                <p className="text-muted-foreground">
-                  {ownersError ?? 'GitHub lists no account you may create a repository under.'}
+                  {ownersError ??
+                     `${hostLabel} lists no account you may create a repository under.`}
                </p>
             ) : (
                <Select value={choice} onValueChange={setChoice}>
@@ -461,15 +595,15 @@ function NewRepositoryForm({
          {exists ? (
             <div className="flex flex-col gap-2 rounded-md border border-status-warning/40 bg-status-warning/10 p-2.5">
                <p>
-                  <span className="font-medium">{exists}</span> already exists on GitHub. Choose
-                  another name, or link it as it is.
+                  <span className="font-medium">{exists}</span> already exists on {hostLabel}.
+                  Choose another name, or link it as it is.
                </p>
                <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   className="self-start"
-                  onClick={() => onLinkExisting(exists)}
+                  onClick={() => onLinkExisting({ provider, fullName: exists })}
                >
                   Link {exists}
                </Button>
@@ -495,7 +629,7 @@ function NewRepositoryForm({
 }
 
 /**
- * The picker bound to an existing project, saving as soon as a choice is made.
+ * The project-bound wrapper: choosing a repository saves it on the project.
  *
  * The local change is rolled back if the request fails, because a repository
  * that looks linked and is not is the failure this whole path exists to avoid.
@@ -503,17 +637,30 @@ function NewRepositoryForm({
 export function RepositorySelector({ project }: { project: Project }) {
    const updateProject = useProjectsStore((state) => state.updateProject);
    const [saving, setSaving] = useState(false);
+   const value = project.gitlabRepo ?? project.githubRepo;
+   const valueProvider: ScmProvider | undefined = project.gitlabRepo
+      ? 'gitlab'
+      : project.githubRepo
+        ? 'github'
+        : undefined;
 
    const save = useCallback(
-      async (fullName: string | null) => {
-         const previous = project.githubRepo;
+      async (choice: RepositoryChoice | null) => {
+         const previousGithub = project.githubRepo;
+         const previousGitlab = project.gitlabRepo;
          setSaving(true);
-         updateProject(project.id, { githubRepo: fullName ?? undefined });
+         updateProject(project.id, {
+            githubRepo: choice?.provider === 'github' ? choice.fullName : undefined,
+            gitlabRepo: choice?.provider === 'gitlab' ? choice.fullName : undefined,
+         });
          try {
-            await setProjectRepository(project.id, fullName);
-            toast.success(fullName ? `Linked to ${fullName}` : 'Repository unlinked');
+            await setProjectRepository(project.id, choice);
+            toast.success(choice ? `Linked to ${choice.fullName}` : 'Repository unlinked');
          } catch (cause) {
-            updateProject(project.id, { githubRepo: previous });
+            updateProject(project.id, {
+               githubRepo: previousGithub,
+               gitlabRepo: previousGitlab,
+            });
             toast.error(
                cause instanceof BerryApiError
                   ? cause.message
@@ -523,13 +670,14 @@ export function RepositorySelector({ project }: { project: Project }) {
             setSaving(false);
          }
       },
-      [project.id, project.githubRepo, updateProject]
+      [project.id, project.githubRepo, project.gitlabRepo, updateProject]
    );
 
    return (
       <RepositoryPicker
-         value={project.githubRepo}
-         onSelect={(fullName) => void save(fullName)}
+         value={value}
+         valueProvider={valueProvider}
+         onSelect={(choice) => void save(choice)}
          disabled={saving}
          pending={saving}
       />

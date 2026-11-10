@@ -27,6 +27,13 @@ import { useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { LABEL_PALETTE } from './label-palette';
+import {
+   SettingsCard,
+   SettingsEmpty,
+   SettingsIconButton,
+   SettingsSearch,
+   SettingsShell,
+} from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
 /**
@@ -111,51 +118,49 @@ export default function SkillLabelsSettings() {
    };
 
    return (
-      <div className="h-full w-full overflow-y-auto">
-         <div className="mx-auto max-w-5xl px-6 py-10 pb-20">
-            <h1 className="mb-1 font-medium">{t('title')}</h1>
-            <p className="mb-6 text-muted-foreground">{t('lead')}</p>
-
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+      <SettingsShell wide compact title={t('title')} description={t('lead')}>
+         <div className="flex flex-wrap items-center gap-2.5">
+            <SettingsSearch
+               className="min-w-[180px]"
+               placeholder={t('filter')}
+               value={query}
+               onChange={setQuery}
+            />
+            <div className="flex shrink-0 items-center gap-2">
                <Input
-                  placeholder={t('filter')}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  className="h-8 w-64"
+                  variant="settings"
+                  placeholder={t('newLabel')}
+                  aria-label={t('newLabel')}
+                  value={name}
+                  disabled={!workspaceId}
+                  className="w-[180px]"
+                  onChange={(event) => setName(event.target.value)}
+                  onKeyDown={(event) => {
+                     if (event.key === 'Enter') void create();
+                  }}
                />
-               <div className="flex items-center gap-2">
-                  <Input
-                     placeholder={t('newLabel')}
-                     value={name}
-                     disabled={!workspaceId}
-                     className="h-8 w-48"
-                     onChange={(event) => setName(event.target.value)}
-                     onKeyDown={(event) => {
-                        if (event.key === 'Enter') void create();
-                     }}
-                  />
-                  <Button
-                     size="xs"
-                     disabled={creating || name.trim() === ''}
-                     onClick={() => void create()}
-                  >
-                     {creating ? <Loader2 className="size-3.5 animate-spin" /> : t('create')}
-                  </Button>
-               </div>
+               <Button disabled={creating || name.trim() === ''} onClick={() => void create()}>
+                  {creating ? <Loader2 className="size-3.5 animate-spin" /> : t('create')}
+               </Button>
             </div>
+         </div>
 
-            {labels.error ? <p className="py-6 text-status-danger">{labels.error}</p> : null}
-
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+         {labels.error ? (
+            <SettingsCard>
+               <SettingsEmpty title={labels.error} />
+            </SettingsCard>
+         ) : null}
+         {rows.length > 0 ? (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                {rows.map((label) => (
                   <div
                      key={label.id}
-                     className="flex min-w-0 items-center gap-2 rounded-md border bg-container px-2.5 py-1.5"
+                     className="flex min-h-[42px] min-w-0 items-center gap-2 rounded-[10px] bg-settings-group pr-1.5 pl-3 transition-colors hover:bg-settings-row-hover"
                   >
                      <Popover>
                         <PopoverTrigger
                            aria-label={t('changeColour', { name: label.name })}
-                           className="size-3.5 shrink-0 rounded-full"
+                           className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
                            style={{ backgroundColor: label.color }}
                         />
                         <PopoverContent align="start" className="w-auto p-3">
@@ -171,6 +176,9 @@ export default function SkillLabelsSettings() {
                                  />
                               ))}
                            </div>
+                           {/* Any colour, not only the eight: a team with a
+                               palette of its own should not have to pick the
+                               nearest one Berry happens to ship. */}
                            <label className="mt-3 flex items-center gap-2">
                               <input
                                  type="color"
@@ -185,9 +193,12 @@ export default function SkillLabelsSettings() {
                            </label>
                         </PopoverContent>
                      </Popover>
-                     <Input
+                     {/* The name is the rename field; it reads as plain text until
+                         it is pointed at. */}
+                     <input
                         defaultValue={label.name}
-                        className="h-7 min-w-0 flex-1 border-transparent bg-transparent px-1 hover:border-border"
+                        aria-label={t('rename', { name: label.name })}
+                        className="-ml-1 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field"
                         onBlur={(event) => rename(label, event.target.value)}
                         onKeyDown={(event) => {
                            if (event.key === 'Enter') event.currentTarget.blur();
@@ -197,31 +208,31 @@ export default function SkillLabelsSettings() {
                            }
                         }}
                      />
-                     <span className="shrink-0 text-muted-foreground tabular-nums">
+                     <span
+                        data-settings-type="caption"
+                        className="shrink-0 whitespace-nowrap text-subtle-foreground tabular-nums"
+                     >
                         {label.usageCount === undefined
                            ? '—'
                            : t('usageCount', { count: label.usageCount })}
                      </span>
-                     <Button
-                        size="xs"
-                        variant="ghost"
-                        className="size-7 shrink-0 p-0 text-status-danger hover:text-status-danger"
+                     <SettingsIconButton
+                        label={t('remove')}
+                        destructive
                         disabled={labels.saving}
-                        aria-label={t('remove')}
                         onClick={() => setRemoving(label)}
                      >
-                        <Trash2 className="size-3.5" aria-hidden />
-                     </Button>
+                        <Trash2 />
+                     </SettingsIconButton>
                   </div>
                ))}
             </div>
-
-            {!labels.loading && rows.length === 0 && !labels.error ? (
-               <p className="py-6 text-muted-foreground">
-                  {query.trim() === '' ? t('empty') : t('noMatch')}
-               </p>
-            ) : null}
-         </div>
+         ) : null}
+         {!labels.loading && rows.length === 0 && !labels.error ? (
+            <SettingsCard>
+               <SettingsEmpty title={query.trim() === '' ? t('empty') : t('noMatch')} />
+            </SettingsCard>
+         ) : null}
 
          <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
             <AlertDialogContent>
@@ -243,6 +254,6 @@ export default function SkillLabelsSettings() {
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
-      </div>
+      </SettingsShell>
    );
 }

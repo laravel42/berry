@@ -38,17 +38,24 @@ export const New: Story = {
    play: async ({ canvasElement }) => {
       const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog'));
       // Nothing is ready until an assignee, a runbook and a project are chosen.
-      await expect(dialog.getByRole('button', { name: 'Create autopilot' })).toBeDisabled();
+      await expect(dialog.getByRole('button', { name: 'Create loop' })).toBeDisabled();
    },
 };
 
-/** Started from an empty-state template: name and runbook already written. */
+/** Started from a template: name, instructions and an event trigger already filled in. */
 export const FromTemplate: Story = {
    args: {
-      template: {
-         name: 'Weekly digest',
-         prompt:
-            'Write the week in one page: what shipped, what slipped, what failed and what needs a decision.',
+      seed: {
+         name: 'Triage new bugs',
+         instructions: 'A new bug was reported. Assess its severity and recommend an owner.',
+         trigger: {
+            kind: 'event',
+            eventType: 'issue.created',
+            conditions: { match: 'all', rules: [{ field: 'label', op: 'in', values: ['bug'] }] },
+            description: 'When a task labelled “bug” is created',
+         },
+         accessMode: 'recommend',
+         templateKey: 'bug-triage',
       },
    },
 };

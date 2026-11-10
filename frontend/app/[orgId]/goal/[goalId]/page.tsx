@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 
-interface Props {
+/** Legacy Goals URL; milestones now open via the project. */
+export default async function GoalRedirect({
+   params,
+}: {
    params: Promise<{ orgId: string; goalId: string }>;
-}
-
-export default async function GoalIndexRedirect({ params }: Props) {
+}) {
    const { orgId, goalId } = await params;
-   redirect(`/${orgId}/goal/${goalId}/overview`);
+   redirect(`/${orgId}/milestone/${goalId}`);
 }

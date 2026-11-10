@@ -4,7 +4,7 @@ import { titleRequest } from './chat-tasks.ts';
 
 test('the first message reaches the title call as data to name, not as a request to answer', () => {
    const ask =
-      'Analyze https://emailbuilder.online and draft a project "PageBuilder landing", then create Goals and Tasks';
+      'Analyze https://emailbuilder.online and draft a project "PageBuilder landing", then create Milestones and Tasks';
    const { system, prompt } = titleRequest(ask);
    assert.match(system, /never answer it/);
    assert.match(prompt, /<message>\nAnalyze https:\/\/emailbuilder\.online[\s\S]*\n<\/message>\nName the conversation\.$/);

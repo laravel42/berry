@@ -131,13 +131,6 @@ export default function AgentCapabilitiesTab({
       onDirtyChange(dirty);
    }, [dirty, onDirtyChange]);
 
-   const whatChanged = useMemo(() => {
-      const parts: string[] = [];
-      if (instructionsDirty) parts.push(t('change_instructions'));
-      if (skillsDirty) parts.push(t('change_skills'));
-      return parts.join(', ');
-   }, [instructionsDirty, skillsDirty, t]);
-
    const discard = () => {
       setSections(savedSections);
       setAssignedIds(baselineIds);
@@ -307,12 +300,7 @@ export default function AgentCapabilitiesTab({
          </div>
 
          {!readOnly && dirty ? (
-            <UnsavedChangesBar
-               what={whatChanged}
-               busy={saving}
-               onDiscard={discard}
-               onSave={() => void save()}
-            />
+            <UnsavedChangesBar busy={saving} onDiscard={discard} onSave={() => void save()} />
          ) : null}
       </div>
    );

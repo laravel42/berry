@@ -192,38 +192,34 @@ export function ReviewDecisionBar({
 
    const approve = (
       <Button
-         size="xs"
-         variant="default"
-         className="w-[42px] px-0"
+         variant="secondary"
+         className="shrink-0 border-0 bg-status-warning/15 text-status-warning shadow-xs hover:bg-status-warning/25 hover:text-status-warning"
          disabled={pending !== null}
          aria-busy={pending === 'approve' || undefined}
-         aria-label={t('decision.approve')}
-         title={t('decision.approve')}
          onClick={() => request('approve')}
       >
          {pending === 'approve' ? (
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            <Loader2 className="size-4 animate-spin" aria-hidden />
          ) : (
-            <Check className="size-3.5" aria-hidden />
+            <Check className="size-4" aria-hidden />
          )}
+         {pending === 'approve' ? t('decision.approving') : t('decision.approve')}
       </Button>
    );
    const sendBack = (
       <Button
-         size="xs"
          variant="secondary"
-         className="w-[42px] px-0"
+         className="shrink-0 border-0 bg-status-danger/15 text-status-danger shadow-xs hover:bg-status-danger/25 hover:text-status-danger"
          disabled={pending !== null}
          aria-busy={pending === 'send-back' || undefined}
-         aria-label={t('decision.sendBack')}
-         title={t('decision.sendBack')}
          onClick={() => request('send-back')}
       >
          {pending === 'send-back' ? (
-            <Loader2 className="size-3.5 animate-spin" aria-hidden />
+            <Loader2 className="size-4 animate-spin" aria-hidden />
          ) : (
-            <X className="size-3.5" aria-hidden />
+            <X className="size-4" aria-hidden />
          )}
+         {pending === 'send-back' ? t('decision.sendingBack') : t('decision.sendBack')}
       </Button>
    );
 

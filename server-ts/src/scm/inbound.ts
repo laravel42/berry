@@ -1,4 +1,4 @@
-import { refreshGoalsForIssue } from '../core/goal-status.ts';
+import { refreshMilestonesForIssue } from '../core/milestone-status.ts';
 import type { Sql } from '../db/pool.ts';
 import type { Logger } from '../observability/log.ts';
 import type { ScmLinkRepository } from './links.ts';
@@ -139,7 +139,7 @@ export class ScmInbound {
                 status = COALESCE(${status}::issue_status, status),
                 updated_at = now()
           WHERE id = ${link.berryId} AND deleted_at IS NULL`;
-      if (status) await refreshGoalsForIssue(this.#sql, link.berryId, new Date().toISOString());
+      if (status) await refreshMilestonesForIssue(this.#sql, link.berryId, new Date().toISOString());
 
       await this.#links.touch({
          provider: 'github',
@@ -236,7 +236,7 @@ export class ScmInbound {
       const status = closed ? 'completed' : null;
 
       await this.#sql`
-         UPDATE goals
+         UPDATE milestones
             SET title = COALESCE(${title}, title),
                 status = COALESCE(${status}, status),
                 completed_at = CASE WHEN ${closed} THEN COALESCE(completed_at, now())
@@ -252,7 +252,7 @@ export class ScmInbound {
       });
       this.#logger.info('scm inbound applied', {
          event: 'milestone',
-         goalId: link.berryId,
+         milestoneId: link.berryId,
          closed,
       });
       return { applied: true, reason: 'milestone updated' };

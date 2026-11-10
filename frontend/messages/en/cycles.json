@@ -1,0 +1,136 @@
+{
+   "nav": {
+      "title": "Cycles"
+   },
+   "list": {
+      "title": "Cycles",
+      "new": "New cycle",
+      "search": "Search cycles",
+      "loading": "Loading cycles…",
+      "noneMatch": "No cycle matches this search.",
+      "name": "Cycle",
+      "dates": "Dates",
+      "length": "Length",
+      "tasks": "Tasks",
+      "done": "Done",
+      "status": "Status",
+      "progress": "Progress",
+      "weeks": "{count} wk",
+      "group": "{name} cycles"
+   },
+   "timeline": {
+      "title": "Timeline",
+      "today": "Today",
+      "tasks": "{count, plural, one {# task} other {# tasks}}",
+      "percentDone": "{percent}% done"
+   },
+   "active": {
+      "title": "Active",
+      "dayOf": "Day {day} of {length}",
+      "daysLeft": "{count, plural, one {# day left} other {# days left}}",
+      "endsToday": "Ends today",
+      "overdue": "Past its end date",
+      "open": "Open {name}"
+   },
+   "chart": {
+      "label": "Burn-up: tasks done per day against the cycle's scope",
+      "done": "Done",
+      "scope": "Scope",
+      "ideal": "Ideal",
+      "today": "Today"
+   },
+   "stats": {
+      "done": "Done",
+      "inProgress": "In progress",
+      "notStarted": "Not started",
+      "cancelled": "Cancelled"
+   },
+   "status": {
+      "upcoming": "Upcoming",
+      "active": "Active",
+      "completed": "Completed"
+   },
+   "taskStatus": {
+      "backlog": "Backlog",
+      "todo": "Todo",
+      "inProgress": "In progress",
+      "inReview": "In review",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+   },
+   "empty": {
+      "mark": "No cycles",
+      "title": "No cycles yet.",
+      "body": "Cycles are time-based intervals to help your team focus on a predefined set of work.",
+      "create": "Create first cycle"
+   },
+   "create": {
+      "title": "New cycle",
+      "close": "Close",
+      "name": "Name",
+      "startsOn": "Starts",
+      "endsOn": "Ends",
+      "length": "{count, plural, one {# day} other {# days}}",
+      "oneWeek": "1 week",
+      "twoWeeks": "2 weeks",
+      "threeWeeks": "3 weeks",
+      "custom": "Custom",
+      "duration": "Duration",
+      "endsBeforeStart": "Ends before it starts",
+      "activate": "Make active",
+      "activateHint": "Start this cycle now. Otherwise it waits as upcoming.",
+      "activeTaken": "{name} is active. A workspace has one active cycle at a time.",
+      "submit": "Create cycle",
+      "creating": "Creating…",
+      "cancel": "Cancel",
+      "created": "Created {name}",
+      "failed": "The cycle could not be created."
+   },
+   "detail": {
+      "back": "Cycles",
+      "close": "Close",
+      "loading": "Loading cycle…",
+      "notFound": "This cycle does not exist or was removed.",
+      "progress": "Progress",
+      "progressSummary": "{percent}% of {count, plural, one {# task} other {# tasks}} done",
+      "nothingScheduled": "Nothing scheduled yet",
+      "issues": "Tasks",
+      "addTasks": "Add tasks",
+      "noIssues": "No tasks in this cycle yet.",
+      "removeFromCycle": "Remove {identifier} from this cycle",
+      "unassigned": "Unassigned",
+      "properties": "Properties",
+      "assignees": "Assignees",
+      "propStatus": "Status",
+      "propStarts": "Starts",
+      "propEnds": "Ends",
+      "propLength": "Length",
+      "propNumber": "Number",
+      "propCreatedBy": "Created by",
+      "days": "{count, plural, one {# day} other {# days}}",
+      "activate": "Activate",
+      "complete": "Complete cycle",
+      "remove": "Remove",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "Its tasks stay where they are and leave the cycle. This cannot be undone.",
+      "removeConfirm": "Remove cycle",
+      "cancel": "Cancel",
+      "removed": "Removed {name}",
+      "activated": "{name} is now active",
+      "completed": "Completed {name}",
+      "failed": "That change could not be saved."
+   },
+   "add": {
+      "title": "Add tasks to {name}",
+      "search": "Search tasks",
+      "empty": "No task matches.",
+      "none": "Every task is already in this cycle.",
+      "inOther": "In {name}",
+      "selected": "{count, plural, =0 {Nothing selected} one {# selected} other {# selected}}",
+      "submit": "Add to cycle",
+      "cancel": "Cancel",
+      "added": "{count, plural, one {Added # task} other {Added # tasks}}",
+      "failed": "Some tasks could not be added."
+   }
+}

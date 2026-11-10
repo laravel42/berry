@@ -451,7 +451,7 @@ git commit -m "feat(server-ts): remember each user's interface language"
 - Produces (in `@/lib/i18n/locales`):
   - `LOCALES: readonly ['en','zh-Hans','ja','ko']`, `type Locale`, `DEFAULT_LOCALE: Locale = 'en'`, `LOCALE_COOKIE = 'berry_locale'`
   - `LOCALE_NAMES: Record<Locale, string>`
-  - `NAMESPACES: readonly ['common','settings','shell','tasks','projects','goals','reviews','agents','runtimes']`
+  - `NAMESPACES: readonly ['common','settings','shell','tasks','projects','milestones','reviews','agents','runtimes']`
   - `isLocale(value: unknown): value is Locale`
   - `resolveLocale(cookie: string | null | undefined, acceptLanguage: string | null | undefined): Locale`
 - Produces (catalogue): `common` namespace keys `learnMore`, `loading`, `retry`. All other namespace files exist as `{}`, and their owner tasks fill them.
@@ -483,7 +483,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MESSAGES = ROOT / "frontend" / "messages"
 LOCALES = ("en", "zh-Hans", "ja", "ko")
 NAMESPACES = (
-    "common", "settings", "shell", "tasks", "projects", "goals", "reviews", "agents", "runtimes",
+    "common", "settings", "shell", "tasks", "projects", "milestones", "reviews", "agents", "runtimes",
 )
 PLACEHOLDER = re.compile(r"\{\s*([A-Za-z_][A-Za-z0-9_]*)")
 
@@ -592,7 +592,7 @@ export const NAMESPACES = [
    'shell',
    'tasks',
    'projects',
-   'goals',
+   'milestones',
    'reviews',
    'agents',
    'runtimes',
@@ -717,7 +717,7 @@ Create `frontend/i18n/messages-en.ts`:
 ```ts
 import agents from '@/messages/en/agents.json';
 import common from '@/messages/en/common.json';
-import goals from '@/messages/en/goals.json';
+import goals from '@/messages/en/milestones.json';
 import projects from '@/messages/en/projects.json';
 import reviews from '@/messages/en/reviews.json';
 import runtimes from '@/messages/en/runtimes.json';
@@ -1275,7 +1275,7 @@ git commit -m "feat(frontend): choose the interface language in preferences"
 
 **Interfaces:**
 - Consumes: the Task 3 wiring.
-- Produces: `ShellRouteDef.labelKey: ShellLabelKey`, where `export type ShellLabelKey = 'tasks' | 'reviews' | 'goals' | 'projects' | 'runtimes' | 'agents' | 'analytics'`. The `SHELL_SECTIONS` entries gain `headingKey: 'work' | 'manage' | null`. The English `label` and `heading` stay, because the persisted tab model (`shell-tab-model.ts`, non-React) still uses them. Workstream I owns rail contents: a route it adds must carry a `labelKey` plus a `shell.nav.<key>` entry in all four locales.
+- Produces: `ShellRouteDef.labelKey: ShellLabelKey`, where `export type ShellLabelKey = 'tasks' | 'reviews' | 'milestones' | 'projects' | 'runtimes' | 'agents' | 'analytics'`. The `SHELL_SECTIONS` entries gain `headingKey: 'work' | 'manage' | null`. The English `label` and `heading` stay, because the persisted tab model (`shell-tab-model.ts`, non-React) still uses them. Workstream I owns rail contents: a route it adds must carry a `labelKey` plus a `shell.nav.<key>` entry in all four locales.
 
 - [ ] **Step 1: Write the catalogue**
 
@@ -1287,7 +1287,7 @@ git commit -m "feat(frontend): choose the interface language in preferences"
    "nav": {
       "tasks": "tasks",
       "reviews": "reviews",
-      "goals": "goals",
+      "milestones": "milestones",
       "projects": "projects",
       "runtimes": "runtimes",
       "agents": "agents",
@@ -1316,7 +1316,7 @@ git commit -m "feat(frontend): choose the interface language in preferences"
    "nav": {
       "tasks": "任务",
       "reviews": "评审",
-      "goals": "目标",
+      "milestones": "目标",
       "projects": "项目",
       "runtimes": "运行",
       "agents": "智能体",
@@ -1345,7 +1345,7 @@ git commit -m "feat(frontend): choose the interface language in preferences"
    "nav": {
       "tasks": "タスク",
       "reviews": "レビュー",
-      "goals": "ゴール",
+      "milestones": "ゴール",
       "projects": "プロジェクト",
       "runtimes": "ランタイム",
       "agents": "エージェント",
@@ -1374,7 +1374,7 @@ git commit -m "feat(frontend): choose the interface language in preferences"
    "nav": {
       "tasks": "작업 항목",
       "reviews": "리뷰",
-      "goals": "목표",
+      "milestones": "목표",
       "projects": "프로젝트",
       "runtimes": "런타임",
       "agents": "에이전트",
@@ -1413,7 +1413,7 @@ In `frontend/components/layout/shell/shell-routes.ts`, after the `ShellRoute` ty
 export type ShellLabelKey =
    | 'tasks'
    | 'reviews'
-   | 'goals'
+   | 'milestones'
    | 'projects'
    | 'runtimes'
    | 'agents'
@@ -1436,7 +1436,7 @@ Add `labelKey` to each route entry, matching its label:
    // WORK
    { id: 'issues', label: 'tasks', labelKey: 'tasks', /* …unchanged… */ },
    { id: 'reviews', label: 'reviews', labelKey: 'reviews', /* … */ },
-   { id: 'goals', label: 'goals', labelKey: 'goals', /* … */ },
+   { id: 'milestones', label: 'milestones', labelKey: 'milestones', /* … */ },
    { id: 'projects', label: 'projects', labelKey: 'projects', /* … */ },
    // MANAGE
    { id: 'runs', label: 'runtimes', labelKey: 'runtimes', /* … */ },
@@ -1632,7 +1632,7 @@ git commit -m "feat(frontend): show the rail and tabs in the chosen language"
 }
 ```
 
-`frontend/messages/en/goals.json`:
+`frontend/messages/en/milestones.json`:
 
 ```json
 {
@@ -1656,7 +1656,7 @@ git commit -m "feat(frontend): show the rail and tabs in the chosen language"
 }
 ```
 
-`frontend/messages/zh-Hans/goals.json`:
+`frontend/messages/zh-Hans/milestones.json`:
 
 ```json
 {
@@ -1680,7 +1680,7 @@ git commit -m "feat(frontend): show the rail and tabs in the chosen language"
 }
 ```
 
-`frontend/messages/ja/goals.json`:
+`frontend/messages/ja/milestones.json`:
 
 ```json
 {
@@ -1704,7 +1704,7 @@ git commit -m "feat(frontend): show the rail and tabs in the chosen language"
 }
 ```
 
-`frontend/messages/ko/goals.json`:
+`frontend/messages/ko/milestones.json`:
 
 ```json
 {
@@ -1846,7 +1846,7 @@ export default function Header() {
 
 In `frontend/components/common/goals/goals.tsx`, add `import { useTranslations } from 'next-intl';`, then:
 - In `EmptyGoals`, add `const t = useTranslations('goals.empty');`. Replace `label="No goals"` with `label={t('mark')}`, `No goals yet.` with `{t('title')}`, the paragraph text with `{t('body')}`, and `go to projects` with `{t('cta')}`.
-- In `Goals`, add `const t = useTranslations('goals.list');`. Replace `Goal`, `Status`, `Progress` and `Updated` in the header cells with `{t('goal')}`, `{t('status')}`, `{t('progress')}` and `{t('updated')}`, and `Loading goals…` with `{t('loading')}`.
+- In `Goals`, add `const t = useTranslations('milestones.list');`. Replace `Goal`, `Status`, `Progress` and `Updated` in the header cells with `{t('goal')}`, `{t('status')}`, `{t('progress')}` and `{t('updated')}`, and `Loading goals…` with `{t('loading')}`.
 
 - [ ] **Step 4: Implement Tasks and Projects**
 
@@ -1899,7 +1899,7 @@ Manual: with the cookie set to `ko`, open tasks, projects, goals and reviews. Th
 - [ ] **Step 7: Commit**
 
 ```bash
-git add frontend/components/layout/headers/my-issues/header.tsx frontend/components/layout/headers/projects/header-nav.tsx frontend/components/common/projects/projects.tsx frontend/components/layout/headers/goals/header.tsx frontend/components/common/goals/goals.tsx frontend/components/common/reviews/reviews.tsx frontend/messages/*/tasks.json frontend/messages/*/projects.json frontend/messages/*/goals.json frontend/messages/*/reviews.json
+git add frontend/components/layout/headers/my-issues/header.tsx frontend/components/layout/headers/projects/header-nav.tsx frontend/components/common/projects/projects.tsx frontend/components/layout/headers/goals/header.tsx frontend/components/common/goals/goals.tsx frontend/components/common/reviews/reviews.tsx frontend/messages/*/tasks.json frontend/messages/*/projects.json frontend/messages/*/milestones.json frontend/messages/*/reviews.json
 git commit -m "feat(frontend): translate the tasks, projects, goals and reviews pages"
 ```
 

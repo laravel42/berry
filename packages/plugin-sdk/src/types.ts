@@ -14,9 +14,16 @@ export interface PluginManifest {
    name: string;
    version: string;
    description?: string;
-   baseUrl: string;
+   baseUrl?: string;
    scopes?: ApiScope[];
-   config?: { key: string; label: string; type: 'string' | 'number' | 'boolean'; required?: boolean }[];
+   config?: {
+      key: string;
+      name?: string;
+      label: string;
+      type: 'string' | 'number' | 'boolean' | 'secret' | 'array';
+      options?: string[];
+      required?: boolean;
+   }[];
    secrets?: { name: string; description?: string }[];
    hooks?: (
       | { key: string; trigger: 'event'; events: string[]; path: string }

@@ -18,7 +18,7 @@ const meta = {
    args: {
       agent: frontendAgent,
       roster: rosterMap.get(frontendAgent.id),
-      columns: ['activity', 'lastActive', 'model', 'access'],
+      columns: ['activity', 'lastActive', 'access'],
       selected: false,
       onToggleSelected: fn(),
       actions: {

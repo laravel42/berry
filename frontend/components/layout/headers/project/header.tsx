@@ -1,6 +1,5 @@
 'use client';
 
-import { AiWorkflowButton } from '@/components/common/projects/details/ai-workflow-button';
 import {
    DeleteProjectDialog,
    useProjectDeletion,
@@ -101,7 +100,6 @@ export default function Header({
                      <DisplayOptions iconOnly />
                   </>
                ) : null}
-               <AiWorkflowButton project={project} />
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                      <Button

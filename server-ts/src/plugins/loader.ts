@@ -1,3 +1,4 @@
+import { bundledPluginIsContainer } from './catalog.ts';
 import { InvalidPluginInput, PluginUnreachable } from './errors.ts';
 import { parsePackage, type PluginPackage } from './manifest.ts';
 import type { PluginNetwork } from './net.ts';
@@ -13,7 +14,7 @@ export interface LoadedPackage {
 /** Reads a package from where the admin pointed, and validates it. Writes nothing. */
 export async function loadPackage(net: PluginNetwork, source: PackageSource): Promise<LoadedPackage> {
    if ('package' in source) {
-      return { pkg: parsePackage(source.package), source: 'upload', sourceUrl: null };
+      return { pkg: await parseLoaded(source.package), source: 'upload', sourceUrl: null };
    }
    const response = await net.request(source.url, {
       method: 'GET',
@@ -30,5 +31,20 @@ export async function loadPackage(net: PluginNetwork, source: PackageSource): Pr
    } catch {
       throw new InvalidPluginInput([{ path: '/url', message: 'The URL did not return a plugin package.' }]);
    }
-   return { pkg: parsePackage(json), source: 'url', sourceUrl: source.url };
+   return { pkg: await parseLoaded(json), source: 'url', sourceUrl: source.url };
+}
+
+/** A bundled plugin with a Dockerfile is reached through the container Berry starts, so it may omit a base URL. */
+async function parseLoaded(value: unknown): Promise<PluginPackage> {
+   const key = manifestKey(value);
+   const container = key !== null && (await bundledPluginIsContainer(key));
+   return parsePackage(value, { container });
+}
+
+function manifestKey(value: unknown): string | null {
+   if (!value || typeof value !== 'object') return null;
+   const record = value as { manifest?: unknown };
+   const manifest = record.manifest && typeof record.manifest === 'object' ? record.manifest : record;
+   const key = (manifest as { key?: unknown }).key;
+   return typeof key === 'string' ? key : null;
 }

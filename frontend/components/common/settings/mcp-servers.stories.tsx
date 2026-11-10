@@ -58,8 +58,8 @@ type Story = StoryObj<typeof meta>;
 
 export const WorkspaceServers: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
-      // Header values are write-only: only their names come back, masked.
-      await expect(await canvas.findByText('Authorization: •••• · X-Org: ••••')).toBeVisible();
+      // Header values are write-only: the row counts them and shows none.
+      await expect(await canvas.findByText(/· 2 headers/)).toBeVisible();
       const sentry = canvas.getByRole('switch', { name: 'Enable sentry' });
       await userEvent.click(sentry);
       const body = within(canvasElement.ownerDocument.body);

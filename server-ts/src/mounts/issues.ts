@@ -20,12 +20,13 @@ import { idempotent } from '../http/idempotent.ts';
 import type { IdempotencyStore } from '../http/idempotency.ts';
 import type { Broadcaster } from '../realtime/hub.ts';
 import type { BoardRepository } from '../core/boards.ts';
-import type { GoalLinker } from '../core/goal-linker.ts';
+import type { MilestoneLinker } from '../core/milestone-linker.ts';
 import {
    ApprovalRequired,
    InvalidTransition,
    OpenPullRequest,
    ProjectNotFound,
+   StartAfterDue,
    dbStatusToApi,
    escapeSearchLiteral,
    issueCursorScope,
@@ -91,7 +92,7 @@ export interface IssueOptions {
    attachments?: Hono<{ Variables: AuthVariables }> | undefined;
    /** What the agents on an issue produced: the listing. */
    artifacts?: Hono<{ Variables: AuthVariables }> | undefined;
-   goals?: GoalLinker | undefined;
+   milestones?: MilestoneLinker | undefined;
    /**
     * Where a task assigned to an agent gets its run. Omitted means a task
     * handed to an agent waits for someone to press Run — the behaviour of a
@@ -208,6 +209,7 @@ export function issueMounts(options: IssueOptions): Mount[] {
             status: input.status,
             priority: input.priority,
             sortOrder: input.sortOrder,
+            startDate: input.startDate,
             dueDate: input.dueDate,
             assignee: input.assignee,
             project: input.project,
@@ -491,14 +493,16 @@ export function serializeIssue(issue: Issue, relations: IssueRelations | undefin
       status: issue.status,
       priority: issue.priority,
       sortOrder: issue.sortOrder,
+      startDate: issue.startDate,
       dueDate: issue.dueDate,
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
       project: issue.project,
+      cycleId: issue.cycleId,
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
       updatedAt: issue.updatedAt,
-      goal: relations?.goal ?? null,
+      milestone: relations?.milestone ?? null,
       // Always arrays: the frontend maps over them without a guard.
       dependsOn: relations?.dependsOn ?? [],
       blocks: relations?.blocks ?? [],
@@ -561,21 +565,21 @@ async function applyGoal(
    options: IssueOptions,
    workspaceId: string,
    issueId: string,
-   goalId: string | null,
+   milestoneId: string | null,
    actorId: string
 ): Promise<void> {
-   if (!options.goals) return;
-   if (goalId === null) {
-      await options.goals.clearIssueGoal(issueId);
+   if (!options.milestones) return;
+   if (milestoneId === null) {
+      await options.milestones.clearIssueGoal(issueId);
       return;
    }
    // Scoped to the workspace: a goal from elsewhere is reported missing
    // rather than linked.
-   const linked = await options.goals.linkIssue(workspaceId, goalId, issueId, actorId);
+   const linked = await options.milestones.linkIssue(workspaceId, milestoneId, issueId, actorId);
    if (!linked) {
       throw new ApiError(
          422,
-         'GOAL_NOT_FOUND',
+         'MILESTONE_NOT_FOUND',
          'That goal does not exist in this workspace.'
       );
    }
@@ -589,9 +593,11 @@ export function touchesIssueRow(patch: IssuePatch): boolean {
       patch.status !== undefined ||
       patch.priority !== undefined ||
       patch.sortOrder !== undefined ||
+      patch.startDateSet === true ||
       patch.dueDateSet ||
       patch.assigneeSet ||
       patch.projectSet ||
+      patch.cycleSet === true ||
       patch.autoGate !== undefined
    );
 }
@@ -603,6 +609,7 @@ interface CreateInput {
    status: string;
    priority: string;
    sortOrder: number;
+   startDate: string | null;
    dueDate: string | null;
    assignee: AssigneeInput | null;
    project: string | null;
@@ -657,7 +664,11 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       }
    }
 
+   const startDate = optionalDate(body, 'startDate', fields);
    const dueDate = optionalDate(body, 'dueDate', fields);
+   if (startDate !== null && dueDate !== null && startDate > dueDate) {
+      fields.push(startAfterDueField());
+   }
    const assignee = optionalAssignee(body, fields);
    const project = optionalUUID(body, 'projectId', 'projectId must be a UUID.', fields);
    const goal = goalChange(body, fields);
@@ -671,6 +682,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       status,
       priority,
       sortOrder,
+      startDate,
       dueDate,
       assignee,
       project: project.value,
@@ -771,10 +783,18 @@ export function parsePatch(body: Record<string, unknown>): {
          patch.sortOrder = Number(body.sortOrder);
       }
    }
+   if ('startDate' in body) {
+      provided += 1;
+      patch.startDateSet = true;
+      patch.startDate = optionalDate(body, 'startDate', fields);
+   }
    if ('dueDate' in body) {
       provided += 1;
       patch.dueDateSet = true;
       patch.dueDate = optionalDate(body, 'dueDate', fields);
+   }
+   if (patch.startDate && patch.dueDate && patch.startDate > patch.dueDate) {
+      fields.push(startAfterDueField());
    }
    if ('assignee' in body) {
       provided += 1;
@@ -787,6 +807,11 @@ export function parsePatch(body: Record<string, unknown>): {
       // absent field, so patching a title alone does not drop the project.
       patch.projectSet = true;
       patch.project = optionalUUID(body, 'projectId', 'Project id must be a UUID.', fields).value;
+   }
+   if ('cycleId' in body) {
+      provided += 1;
+      patch.cycleSet = true;
+      patch.cycleId = optionalUUID(body, 'cycleId', 'Cycle id must be a UUID.', fields).value;
    }
    if (provided === 0) {
       fields.push(field('/', 'too_small', 'At least one field must be provided.'));
@@ -840,6 +865,10 @@ function optionalDate(
    return parsed.toISOString();
 }
 
+function startAfterDueField(): FieldError {
+   return field('/startDate', 'invalid_date_range', 'Start date must not be after the due date.');
+}
+
 function optionalAssignee(
    body: Record<string, unknown>,
    fields: FieldError[]
@@ -883,11 +912,11 @@ function goalChange(
    body: Record<string, unknown>,
    fields: FieldError[]
 ): { set: boolean; value: string | null } {
-   if (!('goalId' in body)) return { set: false, value: null };
-   if (body.goalId === null) return { set: true, value: null };
-   const parsed = looseUUID(String(body.goalId).trim());
+   if (!('milestoneId' in body)) return { set: false, value: null };
+   if (body.milestoneId === null) return { set: true, value: null };
+   const parsed = looseUUID(String(body.milestoneId).trim());
    if (parsed === null) {
-      fields.push(field('/goalId', 'invalid_string', 'goalId must be a UUID.'));
+      fields.push(field('/milestoneId', 'invalid_string', 'milestoneId must be a UUID.'));
       return { set: true, value: null };
    }
    return { set: true, value: parsed };
@@ -956,6 +985,9 @@ function rethrowWrite(verb: 'created' | 'updated'): (error: unknown) => never {
             { approvalId: null }
          );
       }
+      if (error instanceof StartAfterDue) {
+         assertValid([startAfterDueField()]);
+      }
       if (error instanceof ProjectNotFound) {
          throw new ApiError(
             422,
@@ -1000,10 +1032,12 @@ const ISSUE_BODY_FIELDS = new Set([
    'status',
    'priority',
    'sortOrder',
+   'startDate',
    'dueDate',
    'assignee',
    'projectId',
-   'goalId',
+   'cycleId',
+   'milestoneId',
    // Without this the allowlist refused every AutoGate change with a 422
    // before `parsePatch` saw it.
    'autoGate',

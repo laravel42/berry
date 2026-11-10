@@ -45,7 +45,7 @@ export const Editable: Story = {
          ' Keep diffs small.'
       );
       await waitFor(() => expect(args.onDirtyChange).toHaveBeenLastCalledWith(true));
-      await expect(canvas.getByText('Unsaved: instructions')).toBeVisible();
+      await expect(canvas.getByText('Unsaved changes')).toBeVisible();
    },
 };
 
@@ -63,7 +63,7 @@ export const AssignSkills: Story = {
       await expect(releaseNotes).toBeChecked();
       await waitFor(() => expect(args.onDirtyChange).toHaveBeenLastCalledWith(true));
       await userEvent.click(canvas.getByRole('button', { name: 'Save' }));
-      await waitFor(() => expect(canvas.queryByText('Unsaved: skills')).toBeNull());
+      await waitFor(() => expect(canvas.queryByText('Unsaved changes')).toBeNull());
    },
 };
 

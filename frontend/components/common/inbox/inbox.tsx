@@ -261,13 +261,15 @@ export default function Inbox() {
                selectedId ? 'hidden lg:flex' : 'flex'
             )}
          >
+            {/* No visible title row: the rail already says Inbox. The heading
+                stays for assistive tech. */}
+            <h1 className="sr-only">{t('title')}</h1>
             <PageStatement
-               label={t('title')}
                figure={status === 'ready' ? unread : undefined}
                line={t('statement.line', { count: unread })}
                sub={t('statement.sub')}
             />
-            <div className="flex h-[52px] shrink-0 items-center gap-1.5 border-b px-5">
+            <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-b px-5 py-[2px] [&_button]:!h-[30px]">
                <InboxFilterBar
                   filter={filter}
                   show={show}

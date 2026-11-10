@@ -7,15 +7,16 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# pnpm is the project's package manager. Pinned through corepack so the image
-# resolves the same version the workspace uses rather than whatever npm ships.
-RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
+# Bun is the project's package manager, pinned to the workspace's version;
+# Node still runs the server. The musl build, for Alpine.
+COPY --from=oven/bun:1.4.4-alpine /usr/local/bin/bun /usr/local/bin/bun
 
 # Dependencies first, so a source change does not reinstall them. The
-# standalone lockfile is committed alongside package.json; --frozen-lockfile
-# refuses to drift from it, the same guarantee `npm ci` gave.
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile --ignore-workspace
+# standalone lockfile is committed alongside package.json (bun run
+# lock:server); --frozen-lockfile refuses to drift from it.
+COPY package.json bun.lock ./
+COPY patches ./patches
+RUN bun install --production --frozen-lockfile && rm -rf /root/.bun/install/cache
 
 COPY tsconfig.json ./
 COPY src ./src

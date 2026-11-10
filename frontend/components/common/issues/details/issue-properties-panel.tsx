@@ -19,11 +19,19 @@ import { IssueDetailsSection } from './issue-details-section';
 import { IssueLabelPicker } from './issue-label-picker';
 import { IssueLinkedPullRequests } from './issue-linked-pull-requests';
 import { IssueParentSection } from './issue-parent-section';
+import { IssueCycleProperty } from './issue-cycle-property';
 import { IssueProjectProperty } from './issue-project-property';
 import { IssueQuickActions } from './issue-quick-actions';
-import { IssueDependenciesSection, IssueGoalSection } from './issue-relations';
+import { IssueDependenciesSection, IssueMilestoneSection } from './issue-relations';
 import { Section } from './panel-section';
 import { ReviewerProperty } from './reviewer-property';
+
+/** A stored instant as a local day, or nothing when it is absent or unreadable. */
+function parseDay(value: string | undefined): Date | undefined {
+   if (!value) return undefined;
+   const parsed = parseISO(value);
+   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
 
 interface IssuePropertiesPanelProps {
    issue: Issue;
@@ -40,30 +48,27 @@ interface IssuePropertiesPanelProps {
 export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProps) {
    const t = useTranslations('issueDetail.properties');
    const updateIssue = useIssuesStore((state) => state.updateIssue);
-   const dueDate = (() => {
-      if (!issue.dueDate) return undefined;
-      const parsed = parseISO(issue.dueDate);
-      return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-   })();
+   const startDate = parseDay(issue.startDate);
+   const dueDate = parseDay(issue.dueDate);
 
-   const saveDueDate = (date: Date | undefined) => {
+   const saveDate = (key: 'startDate' | 'dueDate', date: Date | undefined) => {
       // Noon UTC keeps the calendar day the person picked. The API wants RFC 3339.
       const next = date
          ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString()
          : null;
-      const previous = issue.dueDate;
-      updateIssue(issue.id, { dueDate: next ?? undefined });
-      void patchBoardIssue(issue.id, { dueDate: next }).catch((cause: unknown) => {
-         updateIssue(issue.id, { dueDate: previous });
+      const previous = issue[key];
+      updateIssue(issue.id, { [key]: next ?? undefined });
+      void patchBoardIssue(issue.id, { [key]: next }).catch((cause: unknown) => {
+         updateIssue(issue.id, { [key]: previous });
          toast.error(describePatchFailure(cause) || t('saveFailed'));
       });
    };
 
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto">
+         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto">
             <Section title={t('title')}>
-               <div className="flex flex-col gap-0.375">
+               <div className="flex flex-col gap-0.75">
                   <AssigneeUser
                      user={issue.assignee}
                      issueId={issue.id}
@@ -82,13 +87,23 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
                   <ProjectDateSelector
                      layout="row"
+                     label={t('startDate')}
+                     emptyLabel={t('setDate')}
+                     date={startDate}
+                     disabled={dueDate ? { after: dueDate } : undefined}
+                     onChange={(date) => saveDate('startDate', date)}
+                  />
+                  <ProjectDateSelector
+                     layout="row"
                      label={t('dueDate')}
                      emptyLabel={t('setDate')}
                      date={dueDate}
-                     onChange={saveDueDate}
+                     disabled={startDate ? { before: startDate } : undefined}
+                     onChange={(date) => saveDate('dueDate', date)}
                   />
 
                   <IssueProjectProperty issue={issue} />
+                  <IssueCycleProperty issue={issue} />
                   <AutoGateProperty issue={issue} />
                </div>
             </Section>
@@ -98,7 +113,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
             <IssueParentSection issue={issue} />
             <IssueQuickActions issueRef={issue.identifier} />
-            <IssueGoalSection issue={issue} />
+            <IssueMilestoneSection issue={issue} />
             <IssueDependenciesSection issue={issue} />
             <IssueLinkedPullRequests issueRef={issue.identifier} />
 

@@ -23,10 +23,13 @@ describe('/v1 public API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
    let w2: World;
    let viewerId = '';
    const tokens = { full: '', readOnly: '', plugin: '', viewer: '' };
+   let installations: PluginRepository;
+   let installationId = '';
 
    before(async () => {
       sql = openDatabase({ url: url as string });
       const runtime = new PluginRuntimeStore({ sql });
+      installations = new PluginRepository({ sql, sealer: testSealer() });
       const registry = new Registry();
       registry.registerAll(
          publicApiMounts({
@@ -35,6 +38,7 @@ describe('/v1 public API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
             issues: new IssueRepository(sql),
             comments: new CommentRepository(sql),
             plugins: runtime,
+            installations,
          })
       );
       app = createApp(registry);
@@ -61,9 +65,8 @@ describe('/v1 public API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
          fingerprint: Buffer.alloc(32, 'v'), scopes: null,
       })).secret;
 
-      const repo = new PluginRepository({ sql, sealer: testSealer() });
       const { installation } = await sql.begin((tx) =>
-         repo.install(tx, {
+         installations.install(tx, {
             workspaceId: w1.workspaceId, installedBy: w1.userId,
             // HELLO is not granted storage. resolveToken intersects a token's
             // scopes with the install grant, so without this the storage test
@@ -75,6 +78,8 @@ describe('/v1 public API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
             source: 'upload', sourceUrl: null, config: { greeting: 'hi' },
          })
       );
+      installationId = installation.id;
+      await sql.begin((tx) => installations.setSecret(tx, w1.workspaceId, installation.id, 'API_KEY', 'sk-1'));
       tokens.plugin = (
          await runtime.mintToken({
             workspaceId: w1.workspaceId, installationId: installation.id,
@@ -173,6 +178,14 @@ describe('/v1 public API', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.equal(await code(patch), 'INSUFFICIENT_SCOPE');
       const context = (await (await call('/v1/context', tokens.plugin)).json()) as { principal: { type: string } };
       assert.equal(context.principal.type, 'plugin');
+      const self = await call('/v1/self', tokens.plugin);
+      assert.equal(self.status, 200);
+      assert.equal(self.headers.get('cache-control'), 'no-store');
+      const opened = (await self.json()) as { config: { greeting: string }; secrets: Record<string, string> };
+      assert.equal(opened.config.greeting, 'hi');
+      assert.deepEqual(opened.secrets, { API_KEY: 'sk-1' });
+      assert.equal(installationId.length > 0, true);
+      assert.equal(await code(await call('/v1/self', tokens.full)), 'PLUGIN_TOKEN_REQUIRED');
    });
 
    test('storage is plugin-only and round-trips values', async () => {

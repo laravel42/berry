@@ -43,13 +43,13 @@ export const UnfillableVariable: Story = {
       await canvas.findByText('Write tests');
       // Braces must be escaped for userEvent.type.
       await userEvent.type(
-         canvas.getByPlaceholderText('Prompt'),
+         canvas.getByPlaceholderText('Prompt, e.g. Write tests for the task'),
          'Ping {{{{issue.assignee}} about {{{{issue.title}}'
       );
       await expect(canvas.getByRole('alert')).toHaveTextContent(
          'Berry cannot fill {{issue.assignee}}.'
       );
-      await expect(canvas.getByRole('button', { name: 'Add' })).toBeDisabled();
+      await expect(canvas.getByRole('button', { name: 'Add quick action' })).toBeDisabled();
    },
 };
 

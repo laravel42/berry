@@ -190,7 +190,7 @@ function serializeItem(item: InboxItem): Record<string, unknown> {
       archived: item.archived,
       createdAt: item.createdAt,
       approvalId: item.approvalId,
-      goalId: item.goalId,
+      milestoneId: item.milestoneId,
       planId: item.planId,
    };
 }

@@ -35,7 +35,7 @@ const archivedRow = {
    archived: true,
    createdAt: '2026-09-12T14:00:00Z',
    approvalId: null,
-   goalId: null,
+   milestoneId: null,
    planId: null,
    details: {},
 };

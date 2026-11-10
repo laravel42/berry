@@ -164,6 +164,7 @@ async function runOnce(
          agentId,
          kind: 'completion',
          source: 'completion',
+         purpose: input.purpose,
          prompt: input.prompt,
          priority: 10,
          ...(input.subject?.issueId ? { issueId: input.subject.issueId } : {}),

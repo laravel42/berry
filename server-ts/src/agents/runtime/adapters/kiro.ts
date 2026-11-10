@@ -26,6 +26,8 @@ import { RuntimeAdapterError } from './types.ts';
 export type KiroLauncher = (spec: KiroSpawn) => KiroChild;
 
 const DEFAULT_DEADLINE_MS = 2 * 60 * 60 * 1000;
+/** Boardless chat has no checkout; two hours of silence is a stuck CLI, not a long task. */
+const CHAT_PROMPT_MS = 90_000;
 const HANDSHAKE_MS = 20_000;
 const BRIDGE = fileURLToPath(new URL('./kiro-mcp-bridge.ts', import.meta.url));
 
@@ -293,10 +295,11 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
          }
          input.signal.addEventListener('abort', abort, { once: true });
          input.signal.throwIfAborted();
+         const promptMs = input.envelope.task.issue ? this.#deadlineMs : Math.min(this.#deadlineMs, CHAT_PROMPT_MS);
          deadline = setTimeout(() => {
             timedOut = true;
             abort();
-         }, this.#deadlineMs);
+         }, promptMs);
          deadline.unref?.();
          const cold = loaded ? '' : transcriptContext(input.envelope.transcript);
          const prompt = `${cold}${input.envelope.task.prompt}${turnNote(input.envelope, allowed)}`;
@@ -307,7 +310,7 @@ export class KiroAgentAdapter implements AgentProcessAdapter {
                sessionId,
                prompt: [{ type: 'text', text: prompt }],
             },
-            this.#deadlineMs
+            promptMs
          );
          const reported = kiroUsageEvent(result, runtime.model) ?? pendingUsage;
          if (reported) input.emit(reported);

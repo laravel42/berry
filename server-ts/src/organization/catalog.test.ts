@@ -4,15 +4,22 @@ import { describe, test } from 'node:test';
 import { TIERS } from '../agents/model-tiers.ts';
 import { KNOWN_TOOLS, toolCeiling } from './autonomy.ts';
 import { CATALOG, CORE_ROLES, catalogRole, WORKFLOWS } from './catalog.ts';
-import { roleContractSchema } from './contract.ts';
+import { DEPARTMENTS, roleContractSchema } from './contract.ts';
 import { PROMPT_SECTIONS } from './prompt.ts';
 
 const keys = new Set(CATALOG.map((role) => role.id));
 
+const BEYOND_SOFTWARE = [
+   'marketing-strategist', 'content-writer', 'social-media-manager',
+   'sales-specialist', 'customer-support-specialist', 'recruiter', 'people-partner',
+   'financial-analyst', 'legal-assistant', 'research-analyst', 'editor', 'translator',
+   'learning-designer', 'operations-coordinator', 'executive-assistant',
+];
+
 describe('the Berry organization catalog', () => {
-   test('has the Orchestrator, seven core roles and fourteen specialists, each a valid contract', () => {
-      assert.equal(CATALOG.length, 22);
-      assert.equal(keys.size, 22);
+   test('has the Orchestrator and ninety-five specialists, each a valid contract', () => {
+      assert.equal(CATALOG.length, 96);
+      assert.equal(keys.size, 96);
       for (const role of CATALOG) {
          const parsed = roleContractSchema.safeParse(role);
          assert.ok(parsed.success, `${role.id}: ${parsed.success ? '' : parsed.error.message}`);
@@ -22,27 +29,64 @@ describe('the Berry organization catalog', () => {
          'software-architect', 'backend-engineer', 'frontend-engineer', 'database-engineer',
          'integration-engineer', 'qa-engineer', 'reviewer', 'security-engineer', 'devops-engineer', 'sre',
          'data-analytics-engineer', 'technical-writer', 'growth-engineer', 'engineering-manager', 'cto',
+         ...BEYOND_SOFTWARE,
       ]) {
          assert.ok(keys.has(key), `missing ${key}`);
       }
-      // ADR-0018: what every workspace is given.
+      // What every workspace is given: the locked Orchestrator, nothing else.
+      assert.deepEqual([...CORE_ROLES], ['orchestrator']);
+   });
+
+   test('every department offers eight roles', () => {
+      const counts = new Map<string, number>();
+      for (const role of CATALOG) counts.set(role.department, (counts.get(role.department) ?? 0) + 1);
+      assert.deepEqual([...counts.keys()].sort(), [...DEPARTMENTS].sort());
+      for (const [department, count] of counts) assert.equal(count, 8, department);
+   });
+
+   test('roles in business departments write documents but never run commands', () => {
+      const business = new Set(['marketing', 'customer', 'people', 'finance-legal', 'knowledge', 'leadership', 'operations']);
+      for (const role of CATALOG) {
+         if (!business.has(role.department)) continue;
+         assert.equal(role.allowed_tools.includes('run_command'), false, role.id);
+      }
+   });
+
+   test('the Orchestrator can route to every other role', () => {
+      const orchestrator = catalogRole('orchestrator')!;
       assert.deepEqual(
-         [...CORE_ROLES],
-         ['orchestrator', 'planner', 'product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'reviewer', 'devops-engineer']
+         [...orchestrator.can_delegate_to].sort(),
+         CATALOG.filter((role) => role.id !== 'orchestrator').map((role) => role.id).sort()
       );
    });
 
-   test('the core roles hand work to each other, and workflows name only core roles', () => {
-      const core = new Set(CORE_ROLES);
-      for (const key of CORE_ROLES) assert.ok(keys.has(key), `core ${key} is not in the catalog`);
-      // Build work reaches the one core role that can push, from every role that plans or reviews it.
+   test('roles beyond software are specialists that write but never run commands', () => {
+      const departments = new Set(['marketing', 'customer', 'people', 'finance-legal', 'knowledge', 'operations']);
+      const orchestrator = catalogRole('orchestrator')!;
+      for (const key of BEYOND_SOFTWARE) {
+         const role = catalogRole(key)!;
+         assert.equal(CORE_ROLES.includes(key), false, `${key} is not given to every workspace`);
+         assert.ok(departments.has(role.department), `${key}: ${role.department}`);
+         assert.equal(role.autonomy_level, 2, key);
+         assert.equal(role.allowed_tools.includes('run_command'), false, key);
+         assert.ok(role.allowed_tools.includes('write_file'), `${key} cannot write its deliverable`);
+         assert.equal(role.allowed_tools.includes('submit_review'), false, key);
+         assert.ok(orchestrator.can_delegate_to.includes(key), `the Orchestrator cannot route to ${key}`);
+         assert.ok(role.never.length > 0, key);
+      }
+      // Decisions that bind a person, money or the law go to a person.
+      for (const key of ['recruiter', 'people-partner', 'financial-analyst', 'legal-assistant']) {
+         assert.ok(catalogRole(key)!.escalation_rules.some((rule) => rule.to === 'human'), key);
+      }
+   });
+
+   test('the only core role is the Orchestrator, and build work can still reach the engineer', () => {
+      assert.deepEqual([...CORE_ROLES], ['orchestrator']);
+      // Build work reaches the role that can push, from every role that plans or reviews it.
       for (const from of ['orchestrator', 'planner', 'product-lead', 'product-designer', 'qa-engineer', 'devops-engineer']) {
          assert.ok(catalogRole(from)!.can_delegate_to.includes('software-engineer'), `${from} cannot reach the engineer`);
       }
       assert.ok(catalogRole('software-engineer')!.allowed_tools.includes('run_command'));
-      for (const workflow of WORKFLOWS) {
-         for (const role of workflow.chain) assert.ok(core.has(role), `${workflow.key} names specialist ${role}`);
-      }
    });
 
    test('delegation is symmetric and only names catalog roles', () => {
@@ -59,7 +103,7 @@ describe('the Berry organization catalog', () => {
 
    test('every role can list the workspace from chat', () => {
       for (const role of CATALOG) {
-         for (const tool of ['list_tasks', 'list_plans', 'list_goals', 'list_projects']) {
+         for (const tool of ['list_tasks', 'list_plans', 'list_milestones', 'list_projects']) {
             assert.ok(role.allowed_tools.includes(tool), `${role.id}: ${tool}`);
          }
       }
@@ -68,7 +112,7 @@ describe('the Berry organization catalog', () => {
    test('the Orchestrator answers chat from the snapshot instead of listing first', () => {
       const prompt = catalogRole('orchestrator')!.system_prompt;
       assert.match(prompt, /Incoming work is already in the turn/);
-      assert.doesNotMatch(prompt, /list_tasks, list_plans, list_goals and list_projects before answering/);
+      assert.doesNotMatch(prompt, /list_tasks, list_plans, list_milestones and list_projects before answering/);
    });
 
    test('tools exist and sit inside each role’s ceiling', () => {
@@ -108,10 +152,10 @@ describe('the Berry organization catalog', () => {
       }
    });
 
-   test('only the orchestrator, the planner and the product lead file goals and plans', () => {
+   test('only the orchestrator, the planner and the product lead file milestones and plans', () => {
       for (const role of CATALOG) {
          const planner = role.id === 'orchestrator' || role.id === 'planner' || role.id === 'product-lead';
-         assert.equal(role.allowed_tools.includes('create_goal'), planner, role.id);
+         assert.equal(role.allowed_tools.includes('create_milestone'), planner, role.id);
          assert.equal(role.allowed_tools.includes('create_plan'), planner, role.id);
       }
    });
@@ -147,7 +191,7 @@ describe('the Berry organization catalog', () => {
       }
    });
 
-   test('discovery: every role but the Orchestrator, weekly, no two in the same hour', () => {
+   test('discovery: every role but the Orchestrator, weekly, no two at the same time', () => {
       const slots = new Set<string>();
       for (const role of CATALOG) {
          if (role.id === 'orchestrator') {
@@ -160,7 +204,7 @@ describe('the Berry organization catalog', () => {
          assert.equal(month, '*');
          assert.match(dow ?? '', /^[1-5]$/);
          assert.match(minute ?? '', /^\d+$/);
-         const slot = `${dow} ${hour}`;
+         const slot = `${dow} ${hour} ${minute}`;
          assert.equal(slots.has(slot), false, `${role.id} shares ${slot}`);
          slots.add(slot);
       }

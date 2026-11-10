@@ -257,7 +257,7 @@ export function ChatMarkdown({
    const tones = TONE[tone];
 
    return (
-      <div className={cn('flex flex-col gap-2', className)}>
+      <div className={cn('flex flex-col gap-1', className)}>
          {blocks.map((block, index) => {
             const key = `block-${index}`;
             if (block.kind === 'code') {
@@ -317,7 +317,7 @@ export function ChatMarkdown({
                const header = block.header ?? [];
                const rows = block.rows ?? [];
                const align = block.align ?? [];
-               const cell = `border px-2.5 py-1.5 ${tones.table}`;
+               const cell = `border px-2 py-1 ${tones.table}`;
                return (
                   <div key={key} className="w-full min-w-0 overflow-x-auto">
                      <table className="w-full border-collapse">

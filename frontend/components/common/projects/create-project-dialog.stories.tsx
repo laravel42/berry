@@ -69,7 +69,7 @@ export const CreateProject: Story = {
       // A combobox takes no name from its content, so the lead chip is found by its text.
       const leadChip = within(dialog)
          .getAllByRole('combobox')
-         .find((element) => element.textContent?.includes('Project lead'));
+         .find((element) => element.textContent?.includes('Lead'));
       await userEvent.click(leadChip!);
       await userEvent.click(await body.findByRole('option', { name: new RegExp(maya.name) }));
       await userEvent.click(within(dialog).getByRole('button', { name: 'Create project' }));
@@ -147,7 +147,7 @@ export const CreateFails: Story = {
       // A combobox takes no name from its content, so the lead chip is found by its text.
       const leadChip = within(dialog)
          .getAllByRole('combobox')
-         .find((element) => element.textContent?.includes('Project lead'));
+         .find((element) => element.textContent?.includes('Lead'));
       await userEvent.click(leadChip!);
       await userEvent.click(await body.findByRole('option', { name: new RegExp(maya.name) }));
       await userEvent.click(within(dialog).getByRole('button', { name: 'Create project' }));

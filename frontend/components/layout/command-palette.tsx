@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { publishShellEvent } from '@/lib/shell-events';
 import { formatCombo } from '@/lib/shortcuts';
-import { useCreateGoalStore } from '@/store/create-goal-store';
+import { useCreateMilestoneStore } from '@/store/create-milestone-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useCreatePlanStore } from '@/store/create-plan-store';
@@ -44,15 +44,20 @@ import {
    ChevronsUpDown,
    ChevronRight,
    CircleDot,
+   Atom,
+   RotateCw,
+   ChartColumn,
    Clipboard,
    ClipboardList,
    ClipboardType,
    FileText,
+   Folders,
    GitBranch,
    Bell,
    Layers,
    Link2,
    MessageSquare,
+   ScrollText,
    Server,
    Sparkles,
    SquarePen,
@@ -156,12 +161,39 @@ const PAGES: PalettePage[] = [
       primary: true,
    },
    {
+      id: 'projects',
+      label: 'Projects',
+      keywords: ['initiatives', 'workstreams'],
+      icon: Box,
+      href: '/projects',
+      shortcutId: 'goto.projects',
+      primary: true,
+   },
+   {
+      id: 'cycles',
+      label: 'Cycles',
+      keywords: ['sprints', 'iterations', 'timebox'],
+      icon: RotateCw,
+      href: '/cycles',
+      shortcutId: 'goto.cycles',
+      primary: true,
+   },
+   {
       id: 'my-issues',
       label: 'Tasks',
       keywords: ['issues', 'my work', 'assigned', 'todo'],
-      icon: ClipboardList,
+      icon: Folders,
       href: '/tasks',
       shortcutId: 'goto.myIssues',
+      primary: true,
+   },
+   {
+      id: 'loops',
+      label: 'Loops',
+      keywords: ['cadence', 'recurring', 'autopilot'],
+      icon: Atom,
+      href: '/loops',
+      shortcutId: 'goto.loops',
       primary: true,
    },
    {
@@ -177,18 +209,9 @@ const PAGES: PalettePage[] = [
       id: 'agents',
       label: 'Agents',
       keywords: ['bots', 'workers', 'ai'],
-      icon: Sparkles,
+      icon: Bot,
       href: '/agents',
       shortcutId: 'goto.agents',
-      primary: true,
-   },
-   {
-      id: 'projects',
-      label: 'Projects',
-      keywords: ['initiatives', 'workstreams'],
-      icon: Box,
-      href: '/projects',
-      shortcutId: 'goto.projects',
       primary: true,
    },
    {
@@ -197,14 +220,6 @@ const PAGES: PalettePage[] = [
       keywords: ['proposals', 'planning', 'questions'],
       icon: ClipboardList,
       href: '/plans',
-   },
-   {
-      id: 'goals',
-      label: 'Goals',
-      keywords: ['objectives', 'outcomes'],
-      icon: Target,
-      href: '/goals',
-      shortcutId: 'goto.goals',
    },
    {
       id: 'chat',
@@ -224,11 +239,25 @@ const PAGES: PalettePage[] = [
    },
    {
       id: 'runtimes',
-      label: 'Runtimes',
-      keywords: ['runs', 'execution', 'machines', 'agentcore', 'settings'],
+      label: 'AI providers',
+      keywords: ['runtimes', 'models', 'runs', 'execution', 'machines', 'agentcore', 'settings'],
       icon: Server,
       href: '/settings/runtimes',
       shortcutId: 'goto.runtimes',
+   },
+   {
+      id: 'usage',
+      label: 'Usage',
+      keywords: ['cost', 'spend', 'tokens'],
+      icon: ChartColumn,
+      href: '/usage',
+   },
+   {
+      id: 'logs',
+      label: 'Logs',
+      keywords: ['prompts', 'model calls', 'debug', 'settings'],
+      icon: ScrollText,
+      href: '/settings/logs',
    },
    {
       id: 'members',
@@ -290,7 +319,7 @@ export function CommandPalette() {
    } = useIssuesStore();
    const { openModal } = useCreateIssueStore();
    const openProjectModal = useCreateProjectStore((state) => state.openModal);
-   const openGoalModal = useCreateGoalStore((state) => state.openModal);
+   const openGoalModal = useCreateMilestoneStore((state) => state.openModal);
    const openPlanModal = useCreatePlanStore((state) => state.openModal);
    const allProjects = useProjectsStore((state) => state.projects);
    const members = useMembersStore((state) => state.members);
@@ -668,7 +697,7 @@ export function CommandPalette() {
                                  if (event.metaKey || event.ctrlKey) modifierDown.current = true;
                               }}
                            >
-                              <Avatar className="size-5">
+                              <Avatar className="size-4">
                                  <AvatarImage src={member.avatarUrl} alt={member.name} />
                                  <AvatarFallback>{member.name[0]}</AvatarFallback>
                               </Avatar>
@@ -745,7 +774,7 @@ export function CommandPalette() {
                               {t('newProject')}
                            </CommandItem>
                         ) : null}
-                        {matches(trimmed, t('newGoal'), 'goal', 'create') ? (
+                        {matches(trimmed, t('newMilestone'), 'milestone', 'goal', 'create') ? (
                            <CommandItem
                               value="command-new-goal"
                               onSelect={() => {
@@ -754,7 +783,7 @@ export function CommandPalette() {
                               }}
                            >
                               <Target className="text-muted-foreground" />
-                              {t('newGoal')}
+                              {t('newMilestone')}
                            </CommandItem>
                         ) : null}
                         {matches(trimmed, 'plan', 'planning') ? (
@@ -972,7 +1001,7 @@ export function CommandPalette() {
                                     close();
                                  }}
                               >
-                                 <Avatar className="size-5">
+                                 <Avatar className="size-4">
                                     <AvatarImage src={user.avatarUrl} alt={user.name} />
                                     <AvatarFallback>{user.name[0]}</AvatarFallback>
                                  </Avatar>

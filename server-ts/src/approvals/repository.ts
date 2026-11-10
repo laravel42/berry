@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { Role } from '../identity/roles.ts';
-import { refreshGoalsForIssue } from '../core/goal-status.ts';
+import { refreshMilestonesForIssue } from '../core/milestone-status.ts';
 import { applyProposalDecision } from '../organization/proposals.ts';
 import { notifyApprovalRequested } from './notify.ts';
 
@@ -32,7 +32,7 @@ export interface Approval {
    risk: ApprovalRisk;
    title: string;
    description: string | null;
-   goalId: string | null;
+   milestoneId: string | null;
    planId: string | null;
    issueId: string | null;
    issue: { id: string; identifier: string; title: string } | null;
@@ -60,7 +60,7 @@ export interface ApprovalCursor {
 export interface ApprovalFilter {
    status?: string | undefined;
    kind?: string | undefined;
-   goalId?: string | undefined;
+   milestoneId?: string | undefined;
    issueId?: string | undefined;
    /** Only the pending gates this caller could actually resolve. */
    mine?: { userId: string; role: Role } | undefined;
@@ -118,7 +118,7 @@ export class GateExists extends Error {
 const SENIORITY: Record<string, number> = { owner: 3, admin: 2, member: 1, viewer: 0 };
 
 const COLUMNS = `approval.id, approval.workspace_id, approval.kind, approval.risk,
-   approval.title, approval.description, approval.goal_id, approval.plan_id,
+   approval.title, approval.description, approval.milestone_id, approval.plan_id,
    approval.issue_id, approval.requested_from_user_id, approval.requested_from_role,
    approval.requested_by_type, approval.requested_by, approval.status,
    approval.decision_note, approval.resolved_by, approval.requested_at,
@@ -169,7 +169,7 @@ export class ApprovalRepository {
           WHERE approval.workspace_id = ${workspaceId}
             AND (${filter.status == null} OR approval.status = ${filter.status ?? null})
             AND (${filter.kind == null} OR approval.kind = ${filter.kind ?? null})
-            AND (${filter.goalId == null} OR approval.goal_id = ${filter.goalId ?? null}::uuid)
+            AND (${filter.milestoneId == null} OR approval.milestone_id = ${filter.milestoneId ?? null}::uuid)
             AND (${filter.issueId == null} OR approval.issue_id = ${filter.issueId ?? null}::uuid)
             AND (${mine === null} OR (
                   approval.status = 'pending'
@@ -308,7 +308,7 @@ export class ApprovalRepository {
                   UPDATE issues SET status = 'todo', updated_at = ${now} WHERE id = ${issueId} AND status = 'blocked'
                   RETURNING id`;
                releasedIssueId = (released[0]?.id as string | undefined) ?? null;
-               if (releasedIssueId) await refreshGoalsForIssue(tx, issueId, now);
+               if (releasedIssueId) await refreshMilestonesForIssue(tx, issueId, now);
             }
          } else if (issueId && input.decision === 'approved') {
             const [blocked] = await tx`
@@ -328,7 +328,7 @@ export class ApprovalRepository {
                RETURNING id`;
             if (updated.length > 0) {
                if (next === 'todo') releasedIssueId = issueId;
-               await refreshGoalsForIssue(tx, issueId, now);
+               await refreshMilestonesForIssue(tx, issueId, now);
             }
          }
 
@@ -384,7 +384,7 @@ function toApproval(row: Record<string, unknown>): Approval {
       risk: row.risk as ApprovalRisk,
       title: row.title as string,
       description: (row.description as string | null) ?? null,
-      goalId: (row.goal_id as string | null) ?? null,
+      milestoneId: (row.milestone_id as string | null) ?? null,
       planId: (row.plan_id as string | null) ?? null,
       issueId,
       // Present only when the issue is still there: a deleted task's gate

@@ -40,4 +40,8 @@ export const Hollow: Story = { args: { tone: 'neutral', state: 'hollow', label: 
 
 export const Wordmark: Story = {
    render: () => <BerryWordmark size="md" />,
+   play: async ({ canvas }) => {
+      const home = canvas.getByRole('link', { name: 'Berry home' });
+      await expect(home).toHaveAttribute('href', '/');
+   },
 };

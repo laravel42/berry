@@ -17,13 +17,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-   Dialog,
-   DialogContent,
-   DialogDescription,
-   DialogHeader,
-   DialogTitle,
-} from '@/components/ui/dialog';
+import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
    EmptyState,
    EmptyStateLoading,
@@ -41,11 +36,13 @@ import {
    loadWorkspaceAgents,
    restoreAgent,
    gatewayPin,
+   isOrchestrator,
    setAgentAccess,
    updateAgentConfig,
    type Agent,
    type Tier,
 } from '@/lib/agents';
+import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import {
    useAgentsListStore,
@@ -95,6 +92,7 @@ const reason = (error: unknown, fallback: string) =>
 export default function Agents() {
    const t = useTranslations('agentsChat.list');
    const common = useTranslations('agentsChat.common');
+   const detail = useTranslations('agentsChat.detail');
    const tiers = useTranslations('agentsChat.detail.tiers');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
@@ -118,8 +116,13 @@ export default function Agents() {
    const clearSelection = useAgentsListStore((state) => state.clearSelection);
    const setFilters = useAgentsListStore((state) => state.setFilters);
    const filterColumns = useAgentFilterColumns();
+   // The Orchestrator works behind the scenes: it routes work and is never
+   // assigned or edited from here, so the list leaves it out.
    const source = useMemo(
-      () => (scope === 'archived' ? (archived ?? []) : agents),
+      () =>
+         (scope === 'archived' ? (archived ?? []) : agents).filter(
+            (agent) => !isOrchestrator(agent)
+         ),
       [scope, archived, agents]
    );
    const filter = useListFilters({
@@ -132,9 +135,11 @@ export default function Agents() {
    const [loading, setLoading] = useState(!agentsReady);
    const [confirm, setConfirm] = useState<Confirm | null>(null);
    const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
+   const [bulkRuntimeOpen, setBulkRuntimeOpen] = useState(false);
    const [bulkTierOpen, setBulkTierOpen] = useState(false);
    const [bulkReport, setBulkReport] = useState<BulkReport | null>(null);
    const [busy, setBusy] = useState(false);
+   const [runtimes, setRuntimes] = useState<Runtime[]>([]);
 
    const load = useCallback(
       async (silent = false) => {
@@ -161,8 +166,12 @@ export default function Agents() {
       void load(useAgentsStore.getState().ready);
    }, [load]);
 
-   // The archive is read the first time it is asked for, and re-read whenever
-   // something in it changes.
+   useEffect(() => {
+      void listRuntimes().then(setRuntimes, () => setRuntimes([]));
+   }, []);
+
+   // The archive is read up front so the Archived tab can show a count, and
+   // re-read whenever something in it changes (callers clear it to null).
    const loadArchive = useCallback(async () => {
       try {
          hydrateArchived(await loadArchivedAgents());
@@ -172,9 +181,9 @@ export default function Agents() {
    }, [hydrateArchived, t]);
 
    useEffect(() => {
-      if (scope !== 'archived' || archived !== null) return;
+      if (archived !== null) return;
       void loadArchive();
-   }, [scope, archived, loadArchive]);
+   }, [archived, loadArchive]);
 
    const rows = useMemo(() => {
       const term = query.trim().toLowerCase();
@@ -265,21 +274,52 @@ export default function Agents() {
    };
 
    /**
-    * Puts the selection on one tier, or null for each role's own. A tier that
-    * is the agent's role default is stored as none, as on the agent's page,
-    * and a pinned model is cleared: it would otherwise override the tier.
+    * Puts the selection on one tier. A tier that is the agent's role default
+    * is stored as none, as on the agent's page, and a pinned model is cleared:
+    * it would otherwise override the tier.
     */
-   const bulkTier = (next: Tier | null) => {
+   const bulkTier = (next: Tier) => {
       setBulkTierOpen(false);
       void bulk(t('errorTitle'), async (agent) => {
          const config: Parameters<typeof updateAgentConfig>[1] = {
-            tier: next === null || next === roleDefaultTier(agent) ? null : next,
+            tier: next === roleDefaultTier(agent) ? null : next,
          };
          if (gatewayPin(agent)) {
             config.provider = null;
             config.model = null;
          }
          upsertAgent(await updateAgentConfig(agent.id, config));
+      });
+   };
+
+   const bulkAccess = (next: 'everyone' | 'admins') => {
+      setBulkAccessOpen(false);
+      void bulk(t('errorTitle'), async (agent) => {
+         // The member list is the agent's own and is left alone; only the
+         // scope is being set here.
+         const current = await getAgentAccess(agent.id);
+         await setAgentAccess(agent.id, {
+            ...current,
+            assign: next,
+            mention: next,
+         });
+      });
+   };
+
+   /**
+    * Puts the selection on one runtime, or clears the binding so each agent
+    * falls back to the workspace default (or has nowhere to run).
+    */
+   const bulkRuntime = (next: string | null) => {
+      setBulkRuntimeOpen(false);
+      void bulk(t('errorTitle'), async (agent) => {
+         const previous = roster.get(agent.id)?.runtimeId ?? null;
+         if (next === previous) return;
+         if (next === null) {
+            if (previous) await unbindAgentRuntime(previous, agent.id);
+         } else {
+            await bindAgentRuntime(next, agent.id);
+         }
       });
    };
 
@@ -294,7 +334,7 @@ export default function Agents() {
       );
       if (!key) {
          return (
-            <div className={classes} title={hint}>
+            <div className={cn(classes, 'uppercase')} title={hint}>
                {label}
             </div>
          );
@@ -386,7 +426,6 @@ export default function Agents() {
                      </button>
                      {header('activity', t('colActivity'))}
                      {header('lastActive', t('colLastActive'))}
-                     {header('model', t('colModel'), 'justify-end')}
                      {header('access', t('colAccess'), 'justify-end')}
                   </div>
 
@@ -444,12 +483,12 @@ export default function Agents() {
 
          {selectedRows.length > 0 ? (
             <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
-               <span className="font-medium">
+               <span className="font-bold">
                   {t('bulkSelected', { count: selectedRows.length })}
                </span>
                {scope === 'archived' ? (
                   <Button
-                     size="xs"
+                     size="sm"
                      variant="secondary"
                      disabled={busy}
                      onClick={() =>
@@ -462,25 +501,94 @@ export default function Agents() {
                   </Button>
                ) : (
                   <>
+                     <Popover open={bulkTierOpen} onOpenChange={setBulkTierOpen}>
+                        <PopoverTrigger asChild>
+                           <Button size="sm" variant="secondary" disabled={busy}>
+                              {t('bulkTier')}
+                           </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" side="top" className="w-80 p-0">
+                           <Command>
+                              <CommandList>
+                                 <CommandGroup>
+                                    {TIER_ORDER.map((name) => (
+                                       <CommandItem
+                                          key={name}
+                                          disabled={busy}
+                                          onSelect={() => bulkTier(name)}
+                                          className="items-start gap-3"
+                                       >
+                                          <span className="w-24 shrink-0">
+                                             <TierChip tier={name} className="px-2 py-1" />
+                                          </span>
+                                          <span className="text-muted-foreground">
+                                             {tiers(`outcome.${name}`)}
+                                          </span>
+                                       </CommandItem>
+                                    ))}
+                                 </CommandGroup>
+                              </CommandList>
+                           </Command>
+                        </PopoverContent>
+                     </Popover>
+                     <Popover open={bulkAccessOpen} onOpenChange={setBulkAccessOpen}>
+                        <PopoverTrigger asChild>
+                           <Button size="sm" variant="secondary" disabled={busy}>
+                              {t('bulkAccess')}
+                           </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" side="top" className="w-72 p-0">
+                           <Command>
+                              <CommandList>
+                                 <CommandGroup>
+                                    {(['everyone', 'admins'] as const).map((next) => (
+                                       <CommandItem
+                                          key={next}
+                                          disabled={busy}
+                                          onSelect={() => bulkAccess(next)}
+                                       >
+                                          {next === 'everyone'
+                                             ? t('accessEveryone')
+                                             : t('accessAdmins')}
+                                       </CommandItem>
+                                    ))}
+                                 </CommandGroup>
+                              </CommandList>
+                           </Command>
+                        </PopoverContent>
+                     </Popover>
+                     <Popover open={bulkRuntimeOpen} onOpenChange={setBulkRuntimeOpen}>
+                        <PopoverTrigger asChild>
+                           <Button size="sm" variant="secondary" disabled={busy}>
+                              {t('bulkRuntime')}
+                           </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" side="top" className="w-72 p-0">
+                           <Command>
+                              <CommandList>
+                                 <CommandGroup>
+                                    <CommandItem disabled={busy} onSelect={() => bulkRuntime(null)}>
+                                       {detail('setRuntimeNone')}
+                                    </CommandItem>
+                                    {runtimes.map((runtime) => (
+                                       <CommandItem
+                                          key={runtime.id}
+                                          disabled={busy}
+                                          onSelect={() => bulkRuntime(runtime.id)}
+                                       >
+                                          {runtime.status === 'active'
+                                             ? runtime.name
+                                             : `${runtime.name} · ${t('runtimeUnreachable')}`}
+                                       </CommandItem>
+                                    ))}
+                                 </CommandGroup>
+                              </CommandList>
+                           </Command>
+                        </PopoverContent>
+                     </Popover>
                      <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => setBulkTierOpen(true)}
-                     >
-                        {t('bulkTier')}
-                     </Button>
-                     <Button
-                        size="xs"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => setBulkAccessOpen(true)}
-                     >
-                        {t('bulkAccess')}
-                     </Button>
-                     <Button
-                        size="xs"
-                        variant="secondary"
+                        size="sm"
+                        variant="destructive"
                         disabled={busy}
                         onClick={() =>
                            void bulk(t('errorTitle'), async (agent) => {
@@ -492,7 +600,12 @@ export default function Agents() {
                      </Button>
                   </>
                )}
-               <Button size="xs" variant="ghost" onClick={() => clearSelection()}>
+               <Button
+                  size="sm"
+                  variant="ghost"
+                  className="font-bold underline underline-offset-2"
+                  onClick={() => clearSelection()}
+               >
                   {t('bulkClear')}
                </Button>
             </div>
@@ -534,81 +647,6 @@ export default function Agents() {
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>
-
-         <Dialog open={bulkAccessOpen} onOpenChange={setBulkAccessOpen}>
-            <DialogContent className="sm:max-w-md">
-               <DialogHeader>
-                  <DialogTitle>{t('bulkAccess')}</DialogTitle>
-                  <DialogDescription>
-                     {t('bulkSelected', { count: selectedRows.length })}
-                  </DialogDescription>
-               </DialogHeader>
-               <div className="flex flex-col gap-2">
-                  {(['everyone', 'admins'] as const).map((next) => (
-                     <Button
-                        key={next}
-                        size="sm"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => {
-                           setBulkAccessOpen(false);
-                           void bulk(t('errorTitle'), async (agent) => {
-                              // The member list is the agent's own and is left
-                              // alone; only the scope is being set here.
-                              const current = await getAgentAccess(agent.id);
-                              await setAgentAccess(agent.id, {
-                                 ...current,
-                                 assign: next,
-                                 mention: next,
-                              });
-                           });
-                        }}
-                     >
-                        {next === 'everyone' ? t('accessEveryone') : t('accessAdmins')}
-                     </Button>
-                  ))}
-               </div>
-            </DialogContent>
-         </Dialog>
-
-         <Dialog open={bulkTierOpen} onOpenChange={setBulkTierOpen}>
-            <DialogContent className="sm:max-w-md">
-               <DialogHeader>
-                  <DialogTitle>{t('bulkTier')}</DialogTitle>
-                  <DialogDescription>
-                     {t('bulkSelected', { count: selectedRows.length })}
-                     {selectedRows.some((agent) => gatewayPin(agent))
-                        ? ` · ${t('bulkTierPinned')}`
-                        : null}
-                  </DialogDescription>
-               </DialogHeader>
-               <div className="flex flex-col overflow-hidden rounded-md border">
-                  <button
-                     type="button"
-                     disabled={busy}
-                     onClick={() => bulkTier(null)}
-                     className="flex items-center gap-3 px-3 py-2 text-left outline-none enabled:hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                  >
-                     <span className="w-24 shrink-0 font-medium">{t('bulkTierRole')}</span>
-                     <span className="text-muted-foreground">{t('bulkTierRoleHint')}</span>
-                  </button>
-                  {TIER_ORDER.map((name) => (
-                     <button
-                        key={name}
-                        type="button"
-                        disabled={busy}
-                        onClick={() => bulkTier(name)}
-                        className="flex items-center gap-3 border-t px-3 py-2 text-left outline-none enabled:hover:bg-accent/30 focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                     >
-                        <span className="w-24 shrink-0">
-                           <TierChip tier={name} className="px-2 py-1" />
-                        </span>
-                        <span className="text-muted-foreground">{tiers(`outcome.${name}`)}</span>
-                     </button>
-                  ))}
-               </div>
-            </DialogContent>
-         </Dialog>
       </div>
    );
 }

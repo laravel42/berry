@@ -9,7 +9,6 @@ import {
    workspaceRoute,
 } from '@/components/layout/stories-fixtures';
 import { useIssuesStore } from '@/store/issues-store';
-import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
 import MyIssues from './my-issues';
 
@@ -33,7 +32,6 @@ const meta = {
       seedSession();
       useIssuesStore.getState().hydrateIssues(issues);
       useIssuesStore.setState({ loadState: 'ready', loadError: null });
-      useRightPanelStore.setState({ openPanel: null });
       useSearchStore.setState({ isSearchOpen: false, searchQuery: '' });
       msw.use(...shellHandlers);
    },

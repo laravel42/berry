@@ -36,16 +36,30 @@ export const OpenList: Story = {
    },
 };
 
-/** No timeline view any more; the ordering direction flips in place. */
+/** The ordering direction flips in place. */
 export const ReverseOrdering: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
       const body = within(canvasElement.ownerDocument.body);
       await expect(await body.findByText('List options')).toBeVisible();
-      await expect(body.queryByRole('button', { name: 'Timeline' })).not.toBeInTheDocument();
       await userEvent.click(body.getByRole('button', { name: 'Ascending' }));
       await expect(useProjectsDisplayStore.getState().direction).toBe('desc');
       await expect(body.getByRole('button', { name: 'Descending' })).toBeVisible();
+   },
+};
+
+/** Timeline layout exposes project-list and week-number switches. */
+export const TimelineOptions: Story = {
+   beforeEach: () => {
+      useProjectsDisplayStore.getState().resetDisplaySettings();
+      useProjectsDisplayStore.setState({ viewType: 'timeline' });
+   },
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Display' }));
+      const body = within(canvasElement.ownerDocument.body);
+      await expect(await body.findByText('Timeline options')).toBeVisible();
+      await expect(body.getByText('Show project list')).toBeVisible();
+      await expect(body.getByText('Show week numbers')).toBeVisible();
    },
 };
 

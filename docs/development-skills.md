@@ -8,7 +8,7 @@ These are repository development skills, not automatically imported into Berry's
 - Read `AGENTS.md` and the applicable workspace instructions before using a skill.
 - Load only skills relevant to the current task. Installing a collection does not activate every workflow.
 - Berry's instructions and user authorization take precedence over upstream prescriptions, including always-on entry points.
-- Use the current workspace manifest for versions and commands. Preserve independent workspace toolchains and the existing pnpm layout.
+- Use the current workspace manifest for versions and commands. Preserve independent workspace toolchains and the existing Bun workspace layout.
 - Model execution stays in the isolated runtime. Never move provider calls or credentials into the product server or frontend.
 - Preserve human release decisions, task-scoped tools, immutable migrations, and exact description bytes.
 - Skills do not authorize merges, releases, deployments, messages, or destructive actions.

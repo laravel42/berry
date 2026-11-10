@@ -118,10 +118,7 @@ export function RuntimeProviderBadge({
 }) {
    const framed = size === 'md';
    const mark = (
-      <RuntimeMark
-         runtimeId={runtimeId}
-         className={framed && !bare ? 'size-[60%]' : 'size-3.5 shrink-0'}
-      />
+      <RuntimeMark runtimeId={runtimeId} className={framed ? 'size-[60%]' : 'size-3.5 shrink-0'} />
    );
 
    if (bare) {

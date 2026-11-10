@@ -19,7 +19,13 @@ import {
    type AgentTask,
    type ModelTiers,
 } from '@/lib/agents';
-import type { Autopilot, AutopilotDetail, AutopilotRun, WebhookDelivery } from '@/lib/autopilots';
+import type {
+   Autopilot,
+   AutopilotDetail,
+   AutopilotRun,
+   LoopTemplate,
+   WebhookDelivery,
+} from '@/lib/autopilots';
 import type { RoleContract } from '@/lib/organization';
 import type { RunRecord } from '@/lib/runs';
 import type { AgentCoverage, Runtime } from '@/lib/runtimes';
@@ -189,7 +195,10 @@ export const frontendAgent: Agent = {
    autonomyLevel: 3,
    customized: true,
    contract: frontendContract,
-   conversationStarters: ['Build the empty state for the goals list', 'Audit the settings forms'],
+   conversationStarters: [
+      'Build the empty state for the milestones list',
+      'Audit the settings forms',
+   ],
    maxConcurrency: 2,
 };
 
@@ -422,7 +431,7 @@ export const agentTasks: AgentTask[] = [
       id: 'run-7f3a91c2',
       status: 'running',
       issueId: 'issue-42',
-      summary: 'Adding the empty state to the goals list',
+      summary: 'Adding the empty state to the milestones list',
       failure: null,
       createdAt: '2026-09-18T11:38:00Z',
       startedAt: '2026-09-18T11:40:00Z',
@@ -588,7 +597,7 @@ export const issues: Issue[] = [
    issue(
       'issue-42',
       'BERR-42',
-      'Add an empty state to the goals list',
+      'Add an empty state to the milestones list',
       'in-progress',
       agentToUser(frontendAgent),
       0
@@ -716,7 +725,7 @@ export const runs: RunRecord[] = [
       kind: 'agent',
       purpose: null,
       sequence: 3,
-      summary: 'Adding the empty state to the goals list',
+      summary: 'Adding the empty state to the milestones list',
       usage: {
          inputTokens: 18_400,
          outputTokens: 2_100,
@@ -912,6 +921,20 @@ const autopilotBase = {
    version: 1,
    quotaPeriod: 'none',
    quotaMax: null,
+   accessMode: 'recommend',
+   concurrencyPolicy: 'skip_if_running',
+   maxTurns: null,
+   maxDurationMinutes: null,
+   maxChainDepth: 0,
+   allowAgentEvents: false,
+   templateKey: null,
+   activity: {
+      lastRun: null,
+      nextFireAt: null,
+      runsLast7Days: 0,
+      failedLast7Days: 0,
+      eventTypes: [],
+   },
    createdBy: 'user-1',
    triggerKinds: [],
    createdAt: '2026-07-10T09:00:00Z',
@@ -931,6 +954,31 @@ export const autopilots: Autopilot[] = [
       quotaPeriod: 'day',
       quotaMax: 2,
       version: 4,
+      activity: {
+         lastRun: { id: 'apr-6', state: 'running', createdAt: '2026-09-18T07:00:00Z' },
+         nextFireAt: '2026-09-21T07:00:00Z',
+         runsLast7Days: 3,
+         failedLast7Days: 1,
+         eventTypes: [],
+      },
+   },
+   {
+      ...autopilotBase,
+      id: 'ap-bugs',
+      name: 'Triage new bugs',
+      description: 'Assess severity and recommend an owner.',
+      assigneeId: orchestratorAgent.id,
+      promptTemplate:
+         'A new bug was reported. Assess its severity and recommend who should take it.',
+      triggerKinds: ['event'],
+      templateKey: 'bug-triage',
+      activity: {
+         lastRun: { id: 'apr-9', state: 'waiting_for_approval', createdAt: '2026-09-18T10:12:00Z' },
+         nextFireAt: null,
+         runsLast7Days: 5,
+         failedLast7Days: 0,
+         eventTypes: ['issue.created'],
+      },
    },
    {
       ...autopilotBase,
@@ -974,6 +1022,8 @@ export const autopilotDetail: AutopilotDetail = {
          lastFiredAt: '2026-09-18T07:00:00Z',
          tokenHint: null,
          eventFilters: [],
+         eventType: null,
+         conditions: { match: 'all', rules: [] },
          createdAt: '2026-07-10T09:00:00Z',
          updatedAt: '2026-07-10T09:00:00Z',
       },
@@ -988,8 +1038,26 @@ export const autopilotDetail: AutopilotDetail = {
          lastFiredAt: '2026-09-02T12:00:00Z',
          tokenHint: 'a91f',
          eventFilters: ['issues.opened', 'issues.reopened'],
+         eventType: null,
+         conditions: { match: 'all', rules: [] },
          createdAt: '2026-08-01T09:00:00Z',
          updatedAt: '2026-08-01T09:00:00Z',
+      },
+      {
+         id: 'trg-event',
+         autopilotId: 'ap-triage',
+         kind: 'event',
+         enabled: true,
+         cronExpression: null,
+         timezone: null,
+         nextFireAt: null,
+         lastFiredAt: null,
+         tokenHint: null,
+         eventFilters: [],
+         eventType: 'issue.created',
+         conditions: { match: 'all', rules: [{ field: 'label', op: 'in', values: ['bug'] }] },
+         createdAt: '2026-08-02T09:00:00Z',
+         updatedAt: '2026-08-02T09:00:00Z',
       },
    ],
    members: [
@@ -1007,8 +1075,20 @@ const runBase = {
    reasonCode: null,
    reasonMessage: null,
    issueId: null,
+   issueIdentifier: null,
    runId: null,
    taskStatus: null,
+   state: 'queued',
+   agentId: null,
+   triggerEventId: null,
+   parentAutopilotRunId: null,
+   depth: 0,
+   retryOf: null,
+   retriedBy: null,
+   timedOutAt: null,
+   startedAt: null,
+   completedAt: null,
+   summary: null,
    slot: null,
    requestedBy: null,
 } satisfies Omit<AutopilotRun, 'id' | 'createdAt'>;
@@ -1019,8 +1099,11 @@ export const autopilotRuns: AutopilotRun[] = [
       id: 'apr-6',
       createdAt: '2026-09-18T07:00:00Z',
       issueId: 'issue-44',
+      issueIdentifier: 'BER-44',
       runId: 'run-7f3a91c2',
       taskStatus: 'running',
+      state: 'running',
+      startedAt: '2026-09-18T07:00:04Z',
    },
    {
       ...runBase,
@@ -1030,14 +1113,19 @@ export const autopilotRuns: AutopilotRun[] = [
       triggerId: null,
       requestedBy: 'user-1',
       issueId: 'issue-40',
+      issueIdentifier: 'BER-40',
       runId: 'run-9c1d5e77',
       taskStatus: 'succeeded',
+      state: 'waiting_for_approval',
+      startedAt: '2026-09-17T09:14:03Z',
+      completedAt: '2026-09-17T09:17:41Z',
    },
    {
       ...runBase,
       id: 'apr-4',
       createdAt: '2026-09-17T07:00:00Z',
       status: 'skipped',
+      state: 'skipped',
       reasonCode: 'QUOTA_EXCEEDED',
    },
    {
@@ -1045,6 +1133,7 @@ export const autopilotRuns: AutopilotRun[] = [
       id: 'apr-3',
       createdAt: '2026-09-16T07:00:00Z',
       status: 'skipped',
+      state: 'skipped',
       reasonCode: 'QUOTA_EXCEEDED',
    },
    {
@@ -1052,6 +1141,7 @@ export const autopilotRuns: AutopilotRun[] = [
       id: 'apr-2',
       createdAt: '2026-09-15T07:00:00Z',
       status: 'skipped',
+      state: 'skipped',
       reasonCode: 'QUOTA_EXCEEDED',
    },
    {
@@ -1059,6 +1149,7 @@ export const autopilotRuns: AutopilotRun[] = [
       id: 'apr-1',
       createdAt: '2026-09-14T07:00:00Z',
       status: 'failed',
+      state: 'failed',
       reasonCode: 'ENQUEUE_FAILED',
       reasonMessage: 'The dispatcher refused the task.',
       autopilotVersion: 3,
@@ -1223,7 +1314,7 @@ export const storyHandlers = [
          ...(deliveries.find((entry) => entry.id === params.deliveryId) ?? deliveries[0]!),
          payload: {
             action: 'opened',
-            issue: { number: 118, title: 'Goals list has no empty state' },
+            issue: { number: 118, title: 'Milestones list has no empty state' },
          },
       })
    ),
@@ -1251,7 +1342,7 @@ export const modelTiers: ModelTiers = {
    tiers: [
       {
          tier: 'berry_max',
-         name: 'BerryMax',
+         name: 'Max',
          models: [
             {
                id: 'openai/gpt-5.2',
@@ -1273,7 +1364,7 @@ export const modelTiers: ModelTiers = {
       },
       {
          tier: 'berry_mid',
-         name: 'BerryMid',
+         name: 'Mid',
          models: [
             {
                id: 'z-ai/glm-5',
@@ -1295,7 +1386,7 @@ export const modelTiers: ModelTiers = {
       },
       {
          tier: 'berry_low',
-         name: 'BerryLow',
+         name: 'Low',
          models: [
             {
                id: 'minimax/minimax-m2.5',
@@ -1352,4 +1443,44 @@ export const gatewayHandlers = [
    ),
    http.get('*/api/v1/agents/tiers', () => HttpResponse.json(modelTiers)),
    http.get('*/api/v1/agents/models', () => HttpResponse.json({ nodes: gatewayModels })),
+];
+
+/** The server's template catalogue, as `GET /api/v1/autopilots/templates` returns two of them. */
+export const loopTemplates: LoopTemplate[] = [
+   {
+      key: 'bug-triage',
+      name: 'Triage new bugs',
+      description: 'When a bug is reported, assess its severity and recommend who should take it.',
+      category: 'triage',
+      instructions: 'A new bug was reported. Assess its severity and recommend an owner.',
+      trigger: {
+         kind: 'event',
+         eventType: 'issue.created',
+         conditions: { match: 'all', rules: [{ field: 'label', op: 'in', values: ['bug'] }] },
+         description: 'When a task labelled “bug” is created',
+      },
+      roles: ['qa-engineer', 'orchestrator'],
+      requires: ['A “bug” label on reported bugs'],
+      accessMode: 'recommend',
+      allowAgentEvents: false,
+      suggestedAgent: {
+         id: orchestratorAgent.id,
+         name: orchestratorAgent.name,
+         roleKey: 'orchestrator',
+      },
+   },
+   {
+      key: 'weekly-summary',
+      name: 'Summarize the week',
+      description:
+         'Every Friday afternoon, summarize completed work, open risks and next priorities.',
+      category: 'reporting',
+      instructions: 'Summarize this week in the workspace.',
+      trigger: { kind: 'cron', expression: '0 16 * * 5', description: 'Fridays at 16:00' },
+      roles: ['product-lead', 'orchestrator'],
+      requires: [],
+      accessMode: 'recommend',
+      allowAgentEvents: false,
+      suggestedAgent: null,
+   },
 ];

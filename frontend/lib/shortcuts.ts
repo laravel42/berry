@@ -74,6 +74,14 @@ export const SEQUENCE_WINDOW_MS = 1000;
  */
 export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'issue.create', group: 'general', labelKey: 'createIssue', defaultCombo: 'c' },
+   // Fires only where a page registers it: the Loops list.
+   { id: 'loops.new', group: 'general', labelKey: 'newLoop', defaultCombo: 'n' },
+   {
+      id: 'issue.assignMilestone',
+      group: 'general',
+      labelKey: 'assignMilestone',
+      defaultCombo: 'shift+m',
+   },
    {
       id: 'sidebar.toggle',
       group: 'general',
@@ -139,7 +147,8 @@ export const SHORTCUTS: ShortcutDefinition[] = [
    { id: 'goto.approvals', group: 'navigation', labelKey: 'goToApprovals', defaultCombo: 'g a' },
    { id: 'goto.agents', group: 'navigation', labelKey: 'goToAgents', defaultCombo: 'g e' },
    { id: 'goto.projects', group: 'navigation', labelKey: 'goToProjects', defaultCombo: 'g p' },
-   { id: 'goto.goals', group: 'navigation', labelKey: 'goToGoals', defaultCombo: 'g g' },
+   { id: 'goto.cycles', group: 'navigation', labelKey: 'goToCycles', defaultCombo: null },
+   { id: 'goto.loops', group: 'navigation', labelKey: 'goToLoops', defaultCombo: 'g l' },
    { id: 'goto.chat', group: 'navigation', labelKey: 'goToChat', defaultCombo: 'g c' },
    { id: 'goto.views', group: 'navigation', labelKey: 'goToViews', defaultCombo: 'g v' },
    { id: 'goto.settings', group: 'navigation', labelKey: 'goToSettings', defaultCombo: 'g s' },
@@ -292,12 +301,24 @@ export function formatCombo(combo: string, apple = isApplePlatform()): string {
       .join(SEQUENCE_SEPARATOR);
 }
 
-function formatChord(combo: string, apple: boolean): string {
-   const parts = combo.split('+').map((part) => {
+/**
+ * The same as `formatCombo`, one key per entry, for drawing each key as its
+ * own cap: `mod+b` is `[['⌘', 'B']]`, the sequence `g i` is `[['G'], ['I']]`.
+ */
+export function formatComboKeys(combo: string, apple = isApplePlatform()): string[][] {
+   return comboChords(combo).map((chord) => chordKeys(chord, apple));
+}
+
+function chordKeys(combo: string, apple: boolean): string[] {
+   return combo.split('+').map((part) => {
       const mapped = apple ? APPLE_GLYPHS[part] : OTHER_NAMES[part];
       if (mapped) return mapped;
       return part.length === 1 ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1);
    });
+}
+
+function formatChord(combo: string, apple: boolean): string {
+   const parts = chordKeys(combo, apple);
    return apple ? parts.join('') : parts.join('+');
 }
 

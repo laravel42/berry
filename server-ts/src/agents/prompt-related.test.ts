@@ -4,6 +4,13 @@ import { buildMessage } from './prompt.ts';
 
 const base = { issueIdentifier: 'L42-7', issueTitle: 'Decide the cache TTL', issueDescription: 'Pick one.', instructions: null, reviewFeedback: null, repository: null } as unknown as Parameters<typeof buildMessage>[0];
 
+test('a plugin named on the task is told to the agent with its tool prefix', () => {
+   const message = buildMessage({ ...base, plugins: [{ name: 'Linear', server: 'plugin-linear' }] });
+   assert.match(message, /Plugins named on this task/);
+   assert.match(message, /Linear: tools are named plugin-linear_<tool>/);
+   assert.doesNotMatch(buildMessage(base), /Plugins named on this task/);
+});
+
 test('the agent is told which sandbox commands it may run, and to list aliases with list_run_tools', () => {
    const message = buildMessage(base);
    assert.match(message, /Files/);

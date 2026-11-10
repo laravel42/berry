@@ -67,15 +67,15 @@ cannot be filled, write `Unknown` or `N/A` and say why; do not leave it blank.
 
 | Check | Command | Result | Evidence |
 | --- | --- | --- | --- |
-| Server tests | `pnpm test:server` | Pass / Fail / N/A | `<PR check / log>` |
-| Server typecheck | `pnpm typecheck:server` | Pass / Fail / N/A | `<log>` |
-| Server DB tests | `BERRY_TEST_DATABASE_URL=… pnpm test:server` | `<N ran / N skipped>` | `<log>` |
-| No model SDK in server | `pnpm check:models` | Pass / Fail / N/A | `<log>` |
+| Server tests | `bun run test:server` | Pass / Fail / N/A | `<PR check / log>` |
+| Server typecheck | `bun run typecheck:server` | Pass / Fail / N/A | `<log>` |
+| Server DB tests | `BERRY_TEST_DATABASE_URL=… bun run test:server` | `<N ran / N skipped>` | `<log>` |
+| No model SDK in server | `bun run check:models` | Pass / Fail / N/A | `<log>` |
 | Locale catalogues | `python3 scripts/check-locale-catalogues.py` | Pass / Fail / N/A | `<log>` |
-| Plugin SDK | `pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk` | Pass / Fail / N/A | `<log>` |
-| Frontend build | `cd frontend && pnpm build:check` | Pass / Fail / N/A | `<log>` |
-| Frontend lint | `cd frontend && pnpm lint` | Pass / Fail / N/A | `<log>` |
-| Migrations applied | `pnpm db:migrate` against the target database, then confirm `berry_schema_migrations` is at the latest version with no checksum drift | Pass / Fail / N/A | `<log>` |
+| Plugin SDK | `bun run test:plugin-sdk && bun run typecheck:plugin-sdk` | Pass / Fail / N/A | `<log>` |
+| Frontend build | `cd frontend && bun run build:check` | Pass / Fail / N/A | `<log>` |
+| Frontend lint | `cd frontend && bun run lint` | Pass / Fail / N/A | `<log>` |
+| Migrations applied | `bun run db:migrate` against the target database, then confirm `berry_schema_migrations` is at the latest version with no checksum drift | Pass / Fail / N/A | `<log>` |
 | Host PostgreSQL reachable | `DATABASE_URL` points at a reachable PostgreSQL 16+ instance (no container stack) | Pass / Fail / N/A | `<log>` |
 | AgentCore runtime deployed | The target AgentCore Runtime image is built and published (`server-ts/sandbox/agentcore/deploy.sh`) and `BERRY_AGENTCORE_RUNTIME_ARN` (or `BERRY_AGENT_RUNTIME_URL`) points at it | Pass / Fail / N/A | `<log>` |
 | Runtime callback URL reachable | The runtime can reach `BERRY_RUNTIME_CALLBACK_URL` (or `BERRY_PUBLIC_URL`) back to this deployment | Pass / Fail / N/A | `<log>` |

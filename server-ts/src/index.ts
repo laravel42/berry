@@ -50,7 +50,8 @@ import { releaseTaskResources } from './runs/session-teardown.ts';
 import { issuePreviewEnvironmentRoutes } from './mounts/preview-environments.ts';
 import { PreviewEnvStore } from './previews/env-store.ts';
 import { RunArtifactRepository } from './core/run-artifacts.ts';
-import { goalMounts } from './mounts/goals.ts';
+import { milestoneMounts } from './mounts/milestones.ts';
+import { cycleMounts } from './mounts/cycles.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
@@ -79,9 +80,15 @@ import { workTrackingHooks } from './work/hooks.ts';
 import { stageGate } from './work/hierarchy.ts';
 import { accountRoutes } from './mounts/account.ts';
 import { conversationMounts } from './mounts/conversations.ts';
+import { voiceMounts } from './mounts/voice.ts';
 import { editorMounts } from './mounts/editor.ts';
 import { EditorAssist } from './editor/assist.ts';
 import { ProjectDraftAssist } from './editor/project-draft.ts';
+import { ProjectMilestoneGenerator } from './projects/generate-milestones.ts';
+import {
+   listAssignableAgents,
+   ProjectMilestoneTaskGenerator,
+} from './projects/generate-tasks.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
 import { planMounts, type PlanOptions } from './mounts/plans.ts';
 import { registerPlanningTools } from './plans/agent-tools.ts';
@@ -105,7 +112,10 @@ import {
    registerOrganizationToolsFor,
 } from './runtime/wiring.ts';
 import { AutopilotRepository } from './autopilots/repository.ts';
-import { fireAutopilot, retryPendingAutopilot, type FireInput } from './autopilots/fire.ts';
+import { fireAutopilot, retryAutopilotRun, retryPendingAutopilot, type FireInput } from './autopilots/fire.ts';
+import { LoopDrafter } from './autopilots/draft.ts';
+import { LoopWorker } from './autopilots/worker.ts';
+import { registerLoopRunUpdates } from './autopilots/events.ts';
 import { autopilotMounts } from './mounts/autopilots.ts';
 import { autopilotWebhookMounts } from './mounts/autopilot-webhooks.ts';
 import { AutopilotScheduler } from './runs/scheduler.ts';
@@ -126,8 +136,9 @@ import { IssueRepository } from './core/issues.ts';
 import { CommentRepository } from './core/comments.ts';
 import { DependencyRepository } from './core/dependencies.ts';
 import { ReviewRepository } from './core/reviews.ts';
-import { GoalRepository } from './core/goals.ts';
-import { createGoalLinker } from './core/goal-linker.ts';
+import { MilestoneRepository } from './core/milestones.ts';
+import { CycleRepository } from './core/cycles.ts';
+import { createMilestoneLinker } from './core/milestone-linker.ts';
 import { AttachmentRepository } from './core/attachments.ts';
 import { ProjectRepository } from './core/projects.ts';
 import { Hub } from './realtime/hub.ts';
@@ -136,11 +147,14 @@ import { ReplayRepository } from './realtime/replay.ts';
 import { IdempotencyStore } from './http/idempotency.ts';
 import { SessionService } from './auth/sessions.ts';
 import { personalTokenResolver } from './auth/credentials.ts';
+import { bundledPluginsRoot } from './plugins/catalog.ts';
+import { pluginContainers } from './plugins/containers.ts';
 import { PluginRuntimeStore } from './plugins/runtime-store.ts';
 import { publicApiMounts } from './mounts/public-api.ts';
 import { PluginRepository } from './plugins/repository.ts';
 import { createPluginNetwork } from './plugins/net.ts';
 import { pluginMounts } from './mounts/plugins.ts';
+import { PluginOAuthStateStore } from './plugins/oauth-states.ts';
 import { PluginCaller, PluginHookRunner } from './plugins/hooks.ts';
 import { createBerryAuth, devSessionCookies } from './auth/better-auth.ts';
 import { drain } from './http/drain.ts';
@@ -160,14 +174,18 @@ import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
-import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
+import { isApiTokenRuntime, takesBaseUrl } from './runtime/ai-runtime-catalog.ts';
+import { lmStudioBaseUrl } from './runtime/lmstudio-endpoint.ts';
+import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, LMSTUDIO_NO_TOKEN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
+import { awsMicrovmApi, microvmHealth, microvmTransport, postgresMicrovmSessions } from './runtime/microvm-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { workstationKiro } from './runtime/workstation-kiro.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
-import { syncPlatformRuntime } from './runtime/runtimes.ts';
+import { configurePlatformModel } from './runtime/platform-model.ts';
+import { syncPlatformRuntime, type RuntimeHosts } from './runtime/runtimes.ts';
 import { ensureDiscovery } from './organization/discovery.ts';
 import { ensureOrganizationEverywhere } from './organization/provision.ts';
 import { autoseedWorkspace, loadDeploySkills, seedDefaultsEverywhere } from './seed/deploy.ts';
@@ -276,6 +294,7 @@ const auth =
            github: config.auth.github,
            sessionTtlMs: config.sessionTtlMs,
            testUtils: config.auth.devLogin,
+           mail: config.auth.mail,
         })
       : null;
 
@@ -306,7 +325,8 @@ const previewTokens = new PreviewTokens({ secret: config.auth.secret });
 const comments = new CommentRepository(sql);
 const dependencies = new DependencyRepository(sql);
 const reviews = new ReviewRepository(sql);
-const goals = new GoalRepository(sql);
+const milestones = new MilestoneRepository(sql);
+const cycles = new CycleRepository(sql);
 const attachments = new AttachmentRepository(sql);
 const projects = new ProjectRepository(sql);
 const agents = new AgentRepository(sql);
@@ -407,10 +427,10 @@ const runMemory =
  * gets a repository, which is a working deployment, instead of one that fails
  * at the clone with a decryption error.
  */
-// The issue mount's narrow view of goals: clear an issue's goal, or link it to
-// one that belongs to the same workspace. Adapted here (see core/goal-linker)
-// so `goalId` on an issue is honoured rather than silently discarded.
-const goalLinker = createGoalLinker(sql, goals);
+// The issue mount's narrow view of milestones: clear an issue's goal, or link it to
+// one that belongs to the same workspace. Adapted here (see core/milestone-linker)
+// so `milestoneId` on an issue is honoured rather than silently discarded.
+const goalLinker = createMilestoneLinker(sql, milestones);
 
 const connections = config.integrationKey
    ? new ConnectionRepository({ sql, sealer: sealerFromKey(config.integrationKey) })
@@ -432,6 +452,9 @@ const agentProfiles = new AgentProfileRepository({ sql, sealer: agentSealer });
 const pluginRepository = config.integrationKey
    ? new PluginRepository({ sql, sealer: sealerFromKey(config.integrationKey) })
    : null;
+const pluginOAuthStates = config.integrationKey
+   ? new PluginOAuthStateStore({ sql, sealer: sealerFromKey(config.integrationKey) })
+   : null;
 const pluginNetwork = createPluginNetwork({ allowPrivate: config.pluginsAllowPrivateNetwork });
 
 /**
@@ -452,6 +475,9 @@ const githubToken =
               userAccess: githubUserAccess,
            })
       : null;
+const gitlabToken = connections
+   ? (workspaceId: string) => connections.token(workspaceId, 'gitlab')
+   : null;
 const scm = await createScm({ sql, config, logger, githubToken });
 const scmWorkspaces = scm.workspaces;
 const scmSync = scm.sync;
@@ -533,8 +559,9 @@ const gatewayRoute = config.agentCoreGateway
  */
 /**
  * Where tasks run (ADR-0014). The configured AgentCore Runtime by ARN when
- * there is one, else the same image on a URL (the local agent-runtime
- * service). A workspace's registered runtimes override it per agent.
+ * there is one, else a Lambda MicroVM per session when an image is named,
+ * else the same image on a URL (the local agent-runtime service). A
+ * workspace's registered runtimes override it per agent.
  */
 const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
    ? {
@@ -545,6 +572,15 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
         region: config.agentCore.region,
         endpointUrl: null,
      }
+   : config.microvm
+     ? {
+          id: null,
+          driver: 'microvm',
+          arn: config.microvm.imageArn,
+          qualifier: config.microvm.imageVersion ?? 'ACTIVE',
+          region: config.microvm.region,
+          endpointUrl: null,
+       }
    : config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
      ? {
           id: null,
@@ -556,6 +592,56 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
        }
      : null;
 
+/**
+ * Every host this deployment can run a task on, so an agent can be bound to
+ * one of them. The default is the first: AgentCore, then MicroVMs, then the
+ * local session router.
+ */
+const runtimeHosts: RuntimeHosts = {
+   default: defaultTarget,
+   all: [
+      ...(config.agentCore?.runtimeArn
+         ? [
+              {
+                 id: null,
+                 driver: 'agentcore' as const,
+                 arn: config.agentCore.runtimeArn,
+                 qualifier: 'DEFAULT',
+                 region: config.agentCore.region,
+                 endpointUrl: null,
+              },
+           ]
+         : []),
+      ...(config.microvm
+         ? [
+              {
+                 id: null,
+                 driver: 'microvm' as const,
+                 arn: config.microvm.imageArn,
+                 qualifier: config.microvm.imageVersion ?? 'ACTIVE',
+                 region: config.microvm.region,
+                 endpointUrl: null,
+              },
+           ]
+         : []),
+      ...(config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
+         ? [
+              {
+                 id: null,
+                 driver: 'http' as const,
+                 arn: null,
+                 qualifier: 'DEFAULT',
+                 region: null,
+                 endpointUrl: config.runtime.agentRuntimeUrl,
+              },
+           ]
+         : []),
+   ],
+};
+
+// Chat and the product's own single calls run on Berry's Bedrock model, when
+// the deployment names one; agent work stays on the workspace's providers.
+configurePlatformModel(config.bedrock ? { provider: 'bedrock', ...config.bedrock } : null);
 configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
 const hasAgentExecution = (workspaceId: string): Promise<boolean> =>
    agentExecutionAvailable(sql, {
@@ -605,7 +691,7 @@ const releaseTask = (issueId: string) =>
       {
          sql,
          transport: { stop: (input) => transport.stop(input) },
-         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, defaultTarget),
+         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, runtimeHosts),
          previews: previewEnvironments,
          report: (message, fields) => logger.info(message, fields),
       },
@@ -636,6 +722,10 @@ const reviewGate = new ReviewGate({
  */
 const recordUsage: UsageRecorder = recordTaskUsage;
 
+const microvmApi = config.microvm
+   ? awsMicrovmApi({ region: config.microvm.region, credentials: config.microvm.credentials })
+   : null;
+
 const transport = routingTransport({
    agentcore: config.agentCore
       ? agentCoreTransport({
@@ -643,6 +733,10 @@ const transport = routingTransport({
            ...(config.agentCore.credentials ? { credentials: config.agentCore.credentials } : {}),
         })
       : null,
+   microvm:
+      config.microvm && microvmApi
+         ? microvmTransport({ settings: config.microvm, api: microvmApi, sessions: postgresMicrovmSessions(sql) })
+         : null,
    http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
 
@@ -660,6 +754,7 @@ const executor = new RuntimeTaskExecutor({
         sql,
         transport,
         defaultTarget,
+        hosts: runtimeHosts,
         recordUsage,
         builder: new EnvelopeBuilder({
            sql,
@@ -671,8 +766,11 @@ const executor = new RuntimeTaskExecutor({
               const [connection] = await sql<Array<{
                  external_account_id: string | null;
                  external_account_name: string | null;
+                 credential_sealed: Buffer | null;
+                 metadata: Record<string, unknown> | null;
               }>>`
-                 SELECT connection.external_account_id, connection.external_account_name
+                 SELECT connection.external_account_id, connection.external_account_name, connection.credential_sealed,
+                        connection.metadata
                    FROM ai_runtime_connections AS connection
                    JOIN workspace_memberships AS membership
                      ON membership.workspace_id = connection.workspace_id
@@ -685,6 +783,38 @@ const executor = new RuntimeTaskExecutor({
                     AND connection.external_account_id IS NOT DISTINCT FROM ${accountId}`;
               if (!connection) {
                  throw new Error('the personal AI runtime connection is no longer usable');
+              }
+              if (takesBaseUrl(runtimeId)) {
+                 const stored = connection.metadata?.baseUrl;
+                 const baseUrl = typeof stored === 'string' ? lmStudioBaseUrl(stored) : null;
+                 if (baseUrl === null) {
+                    throw new Error('the personal AI runtime connection is no longer usable');
+                 }
+                 const sealed = connection.credential_sealed ? Buffer.from(connection.credential_sealed) : null;
+                 const sealer = sealed && config.integrationKey ? sealerFromKey(config.integrationKey) : null;
+                 if (sealed && !sealer) {
+                    throw new Error('the personal AI runtime connection is no longer usable');
+                 }
+                 return {
+                    type: 'api_key',
+                    token: sealed && sealer ? sealer.open(sealed) : LMSTUDIO_NO_TOKEN,
+                    accountId: connection.external_account_id,
+                    accountName: connection.external_account_name,
+                    baseUrl,
+                 };
+              }
+              if (isApiTokenRuntime(runtimeId)) {
+                 const sealer = config.integrationKey ? sealerFromKey(config.integrationKey) : null;
+                 const sealed = connection.credential_sealed ? Buffer.from(connection.credential_sealed) : null;
+                 if (!sealer || !sealed) {
+                    throw new Error('the personal AI runtime connection is no longer usable');
+                 }
+                 return {
+                    type: 'api_key',
+                    token: sealer.open(sealed),
+                    accountId: connection.external_account_id,
+                    accountName: connection.external_account_name,
+                 };
               }
               if (
                  runtimeId === 'claude' ||
@@ -726,7 +856,18 @@ const executor = new RuntimeTaskExecutor({
            extensions: { skills: skillRepository, mcp: mcpRepository, profile: agentProfiles, gateway: gatewayRoute },
            // Plugin tools need the sealing key: without it no plugin is installed.
            ...(pluginRepository
-              ? { plugins: { plugins: pluginRepository, runtime: pluginRuntime, ttlMs: PLUGIN_MCP_TOKEN_TTL_MS } }
+              ? {
+                   plugins: {
+                      plugins: pluginRepository,
+                      runtime: pluginRuntime,
+                      ttlMs: PLUGIN_MCP_TOKEN_TTL_MS,
+                      containers: pluginContainers({
+                         root: bundledPluginsRoot(),
+                         publishAddr: config.docker.publishAddr,
+                         hostAddr: config.docker.hostAddr,
+                      }),
+                   },
+                }
               : {}),
            onSkipped: (names) => logger.warn('mcp server skipped: no gateway', { names }),
            onError: (message, error) =>
@@ -762,7 +903,7 @@ const executor = new RuntimeTaskExecutor({
 
 // Every workspace sees the deployment's own runtime as a row it can bind
 // agents to and probe. A failure here costs the listing, never the boot.
-await syncPlatformRuntime(sql, defaultTarget).catch((error: unknown) =>
+await syncPlatformRuntime(sql, runtimeHosts).catch((error: unknown) =>
    logger.error('could not sync the platform runtime', {
       error: error instanceof Error ? error.message : String(error),
    })
@@ -827,7 +968,7 @@ const cancelPersonalRuntimeRun = async (runId: string): Promise<void> => {
       if (!(error instanceof RunTerminal)) throw error;
    });
    if (!run.runtime_session_id) return;
-   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, defaultTarget);
+   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, runtimeHosts);
    const stop = transport.stopStrict;
    if (!target || !stop) throw new Error('the runtime session stop cannot be confirmed');
    await stop({ target, runtimeSessionId: run.runtime_session_id });
@@ -854,7 +995,7 @@ registry.registerAll(
       autoseed: async (workspaceId) =>
          autoseedWorkspace(sql, workspaceId, {
             skills: deploySkills,
-            syncRuntime: () => syncPlatformRuntime(sql, defaultTarget, { workspaceId }),
+            syncRuntime: () => syncPlatformRuntime(sql, runtimeHosts, { workspaceId }),
             onError: (step, error) =>
                logger.error('could not autoseed workspace', {
                   workspaceId,
@@ -883,6 +1024,8 @@ const commentOptions = {
    issues,
    idempotency,
    broadcaster,
+   attachments,
+   storage,
    hooks: workHooks,
    extensions: commentTrackingRoutes({ sql, comments, broadcaster }),
    // A person's comment that mentions an agent (or replies to the assignee)
@@ -898,9 +1041,9 @@ const commentOptions = {
 registry.registerAll(
    issueMounts({
       scm: scmSync,
-      // Without this, `goalId` on a create or patch is accepted and silently
+      // Without this, `milestoneId` on a create or patch is accepted and silently
       // does nothing — and a task then reaches the git host with no milestone.
-      goals: goalLinker,
+      milestones: goalLinker,
       sessions,
       issues,
       boards,
@@ -979,6 +1122,7 @@ registry.registerAll(
       issues,
       comments,
       plugins: pluginRuntime,
+      installations: pluginRepository,
       broadcaster,
    })
 );
@@ -990,6 +1134,13 @@ registry.registerAll(
       runtime: pluginRuntime,
       network: pluginNetwork,
       publicUrl: config.integrations.publicUrl,
+      appUrl: config.integrations.appUrl ?? config.auth.baseUrl,
+      workspaceSlug: async (workspaceId: string) => {
+         const [row] = await sql`SELECT slug FROM workspaces WHERE id = ${workspaceId}`;
+         return (row?.slug as string | undefined) ?? null;
+      },
+      oauthStates: pluginOAuthStates,
+      ...(config.integrations.googleOAuth ? { oauthClient: config.integrations.googleOAuth } : {}),
    })
 );
 // Plugin hooks run in every server process; the cursor and schedule rows are
@@ -1025,7 +1176,25 @@ const autopilots = new AutopilotRepository({
 const fireAutopilotNow = (input: FireInput) =>
    fireAutopilot({ sql, issues, enqueue: autopilotEnqueue }, input);
 
-registry.registerAll(autopilotMounts({ sessions, sql, autopilots, fire: fireAutopilotNow, idempotency }));
+// Loops are autopilots (ADR-0020): the same mount, with the run controls,
+// templates and drafting a Loop adds. Cancel goes through the ledger, the
+// way the runs mount's does; a draft uses a model only where the workspace
+// can run one.
+const loopLedger = new RunLedger({ sql });
+const fireDeps = { sql, issues, enqueue: autopilotEnqueue };
+registry.registerAll(
+   autopilotMounts({
+      sessions,
+      sql,
+      autopilots,
+      fire: fireAutopilotNow,
+      idempotency,
+      retry: (input) => retryAutopilotRun(fireDeps, input),
+      cancelRun: (runId) => loopLedger.markCancelled(runId),
+      drafter: new LoopDrafter({ completion, defaultModel: config.runtime.defaultModel }),
+      canUseModel: hasAgentExecution,
+   })
+);
 registry.registerAll(autopilotWebhookMounts({ autopilots, fire: fireAutopilotNow, logger }));
 registry.registerAll(
    webhookMounts({
@@ -1039,7 +1208,10 @@ registry.registerAll(
    })
 );
 registry.registerAll(
-   goalMounts({ sessions, goals, issues, idempotency, broadcaster, scm: scmSync })
+   milestoneMounts({ sessions, milestones, issues, idempotency, broadcaster, scm: scmSync })
+);
+registry.registerAll(
+   cycleMounts({ sessions, cycles, issues, idempotency, broadcaster })
 );
 registry.registerAll(attachmentMounts({ sessions, attachments, storage }));
 registry.registerAll(artifactMounts({ sessions, artifacts: runArtifacts, issues, storage }));
@@ -1053,8 +1225,22 @@ registry.registerAll(
       scmWorkspaces,
       connections,
       githubToken,
+      gitlabToken,
       logger,
       sql,
+      milestones,
+      issues,
+      milestoneGenerator: new ProjectMilestoneGenerator({
+         completion,
+         skills: skillRepository,
+         defaultModel: config.runtime.defaultModel,
+      }),
+      taskGenerator: new ProjectMilestoneTaskGenerator({
+         completion,
+         skills: skillRepository,
+         defaultModel: config.runtime.defaultModel,
+         loadAgents: (workspaceId) => listAssignableAgents(sql, workspaceId),
+      }),
    })
 );
 registry.registerAll(runMounts(runOptions));
@@ -1092,8 +1278,8 @@ const planOptions: PlanOptions = {
    sql,
    logger,
 };
-// `create_goal` and `create_plan`: the same planner a person's request reaches.
-registerPlanningTools({ sql, goals, boards, plans: planOptions, scm: scmSync });
+// `create_milestone` and `create_plan`: the same planner a person's request reaches.
+registerPlanningTools({ sql, milestones, boards, plans: planOptions, scm: scmSync });
 // Berry's tools for a running task, behind its task token (not a session).
 registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    ...(scm.provisioning ? { github: async (workspaceId: string, owner?: string | null) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }) } : {}),
@@ -1112,6 +1298,9 @@ registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
                  githubRepoSet: true,
                  githubRepoId: repository.githubRepoId,
                  githubRepoFullName: repository.githubRepoFullName,
+                 gitlabRepoSet: true,
+                 gitlabProjectId: null,
+                 gitlabProjectPath: null,
               });
            },
         }
@@ -1145,12 +1334,18 @@ registry.registerAll(
          });
       },
       defaultTarget,
+      hosts: runtimeHosts,
       health: async (target) => {
          if (target.driver === 'http') {
             const response = await fetch(`${(target.endpointUrl ?? '').replace(/\/+$/, '')}/ping`, {
                signal: AbortSignal.timeout(10_000),
             });
             if (!response.ok) throw new Error(`the runtime answered ${response.status}`);
+            return;
+         }
+         if (target.driver === 'microvm') {
+            if (!config.microvm || !microvmApi) throw new Error('Lambda MicroVMs are not configured');
+            await microvmHealth(microvmApi, config.microvm);
             return;
          }
          if (!target.arn || !agentCore) throw new Error('AgentCore is not configured');
@@ -1227,7 +1422,18 @@ const conversationRepository = new ConversationRepository(sql);
 // Once per process: a finished chat task posts its reply into the session.
 // It hooks the ledger's terminal notification.
 registerChatReplies({ sql, conversations: conversationRepository });
+// A Loop's history and the Loops list follow its runs ending (ADR-0020).
+registerLoopRunUpdates({ sql });
 registerOrganizationToolsFor({ sql, issues, gate: reviewGate, limits: config.organization });
+registry.registerAll(
+   voiceMounts({
+      sessions,
+      sql,
+      agents,
+      conversations: conversationRepository,
+      livekit: config.livekit,
+   })
+);
 registry.registerAll(
    conversationMounts({
       sessions,
@@ -1316,6 +1522,10 @@ registry.registerAll(
       // create. A stored App's slug wins.
       appSlug: config.auth.githubAppSlug,
       userAccess: githubUserAccess,
+      // Disconnect for a sign-in-only GitHub link turns this off rather than
+      // wiping the person's login token, which other workspaces still need.
+      githubSettings,
+      sql,
       completeAgentCoreAuthorization: scm.completeAgentCoreAuthorization,
       agentCoreAttention: scm.agentCoreAttention,
       publicUrl: config.integrations.publicUrl,
@@ -1420,11 +1630,16 @@ registry.registerAll(
          // for the same workspace this read is about.
          planner: executionForRequest,
          modelGateway: false,
+         // LiveKit credentials are present: the browser can open a voice room.
+         voiceAgents: config.livekit !== null,
          // What the sign-in page believes: true when the GitHub OAuth App
          // can complete a round trip and Better Auth can hold the session.
          githubSignIn: auth !== null && config.auth.github !== null,
          passwordlessLogin: config.auth.devLogin,
          emailRegistration: auth !== null,
+         magicLink: auth !== null && config.auth.mail !== null,
+         passwordReset: auth !== null && config.auth.mail !== null,
+         twoFactor: auth !== null,
       },
       signInOrigin: config.auth.baseUrl,
    })
@@ -1508,6 +1723,17 @@ const autopilotScheduler = new AutopilotScheduler({
 });
 autopilotScheduler?.start();
 
+// Event triggers and run time limits. Safe with any number of servers: one
+// cursor row read under SKIP LOCKED, and a unique key per (trigger, event).
+const loopWorker = new LoopWorker({
+   sql,
+   fire: fireAutopilotNow,
+   retryPending: (input) => retryPendingAutopilot(fireDeps, input.autopilotRunId),
+   cancelRun: (runId) => loopLedger.markCancelled(runId),
+   logger,
+});
+loopWorker.start();
+
 const app = createApp(registry);
 
 // A request addressed to a preview's host name is that preview's; every other
@@ -1525,18 +1751,24 @@ logger.info('Berry server listening', {
    // Named at boot so an operator can see where tasks are sent, without
    // reading the environment back.
    agentRuntime: defaultTarget
-      ? defaultTarget.driver === 'agentcore'
-         ? defaultTarget.arn
-         : defaultTarget.endpointUrl
+      ? defaultTarget.driver === 'http'
+         ? defaultTarget.endpointUrl
+         : defaultTarget.driver === 'microvm'
+           ? `microvm ${defaultTarget.arn}`
+           : defaultTarget.arn
       : 'none',
    // Named at boot because a server that admits runs but does not execute them
    // looks identical from outside until the first one sits queued forever.
    runDispatch: dispatcher ? `${config.runtime.concurrency} at a time` : 'off',
    // Schedules fire beside the dispatcher and nowhere else.
    autopilotSchedules: autopilotScheduler ? 'on' : 'off',
+   loopEvents: 'on',
    // Named at boot because recall is invisible from outside: an agent with no
    // memory and an agent whose store is misconfigured both just start fresh.
    runMemory: runMemory ? 'agentcore' : 'off',
+   // Named at boot: without it chat and the editors' AI help need a provider
+   // connected in every workspace.
+   platformModel: config.bedrock ? `bedrock ${config.bedrock.model} (${config.bedrock.region})` : 'off',
    // Named at boot so an operator can see whether a run can reach a
    // repository, without reading the environment back.
    integrations: connections
@@ -1586,6 +1818,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
             dispatcher ? dispatcher.stop() : Promise.resolve(),
             followupWorker ? followupWorker.stop() : Promise.resolve(),
             autopilotScheduler ? autopilotScheduler.stop() : Promise.resolve(),
+            loopWorker.stop(),
             pluginHooks ? pluginHooks.stop() : Promise.resolve(),
             previewEnvironments ? previewEnvironments.stopAll() : Promise.resolve(),
          ])

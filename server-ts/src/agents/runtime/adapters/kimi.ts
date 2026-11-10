@@ -36,6 +36,8 @@ export function kimiExecutable(home = homedir()): string {
 }
 
 const DEFAULT_DEADLINE_MS = 2 * 60 * 60 * 1000;
+/** Boardless chat has no checkout; two hours of silence is a stuck CLI, not a long task. */
+const CHAT_PROMPT_MS = 90_000;
 const HANDSHAKE_MS = 20_000;
 const BRIDGE = fileURLToPath(new URL('./kiro-mcp-bridge.ts', import.meta.url));
 
@@ -259,10 +261,11 @@ export class KimiAgentAdapter implements AgentProcessAdapter {
          }
          input.signal.addEventListener('abort', abort, { once: true });
          input.signal.throwIfAborted();
+         const promptMs = input.envelope.task.issue ? this.#deadlineMs : Math.min(this.#deadlineMs, CHAT_PROMPT_MS);
          deadline = setTimeout(() => {
             timedOut = true;
             abort();
-         }, this.#deadlineMs);
+         }, promptMs);
          deadline.unref?.();
          const cold = loaded ? '' : promptContext(input);
          const prompt = `${cold}${input.envelope.task.prompt}${runtimeTurnNoteFor(input.envelope, 'list_run_tools')}`;
@@ -270,7 +273,7 @@ export class KimiAgentAdapter implements AgentProcessAdapter {
          const result = await client.request(
             'session/prompt',
             { sessionId, prompt: [{ type: 'text', text: prompt }] },
-            this.#deadlineMs
+            promptMs
          );
          const reported = kimiUsageEvent(result, model) ?? pendingUsage;
          if (reported) input.emit(reported);

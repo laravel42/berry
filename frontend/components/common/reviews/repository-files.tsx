@@ -22,6 +22,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
  * new route is registered, or what the migration before this one did, needs
  * the rest of the tree at that commit. There is one file browser in Berry, so
  * the repository's files are handed to it as the records it already reads.
+ * `.handoffs` is omitted here, as it is from a comment's file list: the note
+ * stays on the task.
  */
 export function RepositoryFiles({ issueRef, runId }: { issueRef: string; runId: string }) {
    const t = useTranslations('reviews.repositoryFiles');

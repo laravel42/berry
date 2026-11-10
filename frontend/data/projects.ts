@@ -24,6 +24,8 @@ export interface Project {
    healthUpdatedAgoDays?: number;
    /** GitHub repository this project delivers into, as owner/name. */
    githubRepo?: string;
+   /** GitLab project this project delivers into, as path_with_namespace. */
+   gitlabRepo?: string;
    /** What the project is for, as stored Markdown. */
    description?: string;
    /** Who created the project, when known. */

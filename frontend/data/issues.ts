@@ -43,10 +43,12 @@ export interface Issue {
    rank: string;
    /** Board column order from API (`sortOrder`). */
    sortOrder: number;
+   /** When work is planned to start; never after `dueDate`. */
+   startDate?: string;
    dueDate?: string;
    activeRunId?: string | null;
-   /** The goal the task serves; null when it serves none. */
-   goal?: { id: string; title: string } | null;
+   /** The milestone the task serves; null when it serves none. */
+   milestone?: { id: string; title: string } | null;
    /** Set when a workflow run created the task. */
    origin?: IssueOrigin | null;
    /** Tasks that must finish before this one starts. */

@@ -341,7 +341,8 @@ export function registerCoreAgentTools(): void {
                    berry_issue_identifier(b.workspace_id, i.number) AS identifier,
                    i.assignee_type::text AS assignee_type,
                    COALESCE(a.name, u.name) AS assignee_name,
-                   p.name AS project, p.github_repo_full_name AS repository
+                   p.name AS project,
+                   COALESCE(p.gitlab_project_path, p.github_repo_full_name) AS repository
               FROM issues AS i JOIN boards AS b ON b.id = i.board_id
               LEFT JOIN agents AS a ON i.assignee_type = 'agent' AND a.id = i.assignee_id
               LEFT JOIN users AS u ON i.assignee_type = 'user' AND u.id = i.assignee_id
@@ -380,13 +381,20 @@ export function registerCoreAgentTools(): void {
 
    registerAgentTool('post_comment', {
       description:
-         'Post a comment on a task, as yourself: this run\'s task, or another one named by `task`. ' +
-         'Use it to ask a question, hand over context or report progress.',
+         'Post a comment on another task, as yourself. This run\'s task gets one comment, ' +
+         'your final message, so a comment here is refused. Use it to hand context to a task you are not working.',
       scope: 'task:write',
       inputSchema: z.object({ body: z.string().min(1).max(20_000), task: TASK_REF }),
       handler: async (context, input) => {
+         const issueId = await taskOf(context, input.task);
+         if (context.task.issueId && issueId === context.task.issueId) {
+            return {
+               posted: false,
+               reason: 'This task gets one comment, the result of the run. Put it in your final message.',
+            };
+         }
          const comment = await postRunResult(context.sql, {
-            issueId: await taskOf(context, input.task),
+            issueId,
             agentId: context.task.agentId,
             text: input.body,
             cut: false,
@@ -615,7 +623,8 @@ export function registerCoreAgentTools(): void {
       inputSchema: z.object({}),
       handler: async (context) => {
          const rows = await context.sql`
-            SELECT p.name, p.description, p.status, p.github_repo_full_name AS repository
+            SELECT p.name, p.description, p.status,
+                   COALESCE(p.gitlab_project_path, p.github_repo_full_name) AS repository
               FROM issue_project_links AS link
               JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
              WHERE link.issue_id = ${issueOf(context)} AND p.workspace_id = ${context.task.workspaceId}`;
@@ -853,7 +862,7 @@ export function registerCoreAgentTools(): void {
                    COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(p.ir->'issues') = 'array' THEN p.ir->'issues' END), 0) AS planned,
                    (SELECT COUNT(*)::int FROM plan_issues AS pi WHERE pi.plan_id = p.id) AS created
               FROM plans AS p
-              LEFT JOIN goals AS g ON g.id = p.goal_id
+              LEFT JOIN milestones AS g ON g.id = p.milestone_id
              WHERE p.workspace_id = ${context.task.workspaceId}
                AND p.deleted_at IS NULL
                AND p.archived_at IS NULL
@@ -875,29 +884,39 @@ export function registerCoreAgentTools(): void {
       },
    });
 
-   registerAgentTool('list_goals', {
-      description: 'List goals in this workspace: id, title, status and project. Defaults to goals that are not finished.',
+   registerAgentTool('list_milestones', {
+      description:
+         'List project milestones: id, title, target date, sort order, status and project. ' +
+         'Pass projectId to list one project in delivery order. Defaults to milestones that are not finished.',
       scope: 'task:read',
       inputSchema: z.object({
+         projectId: z.uuid().optional(),
          status: z.enum(['open', 'all']).default('open').describe('open excludes completed and cancelled.'),
       }),
       handler: async (context, input) => {
          const rows = await context.sql`
-            SELECT g.id::text AS id, g.title, g.status, p.name AS project
-              FROM goals AS g
+            SELECT g.id::text AS id, g.title, g.status, g.target_date::text AS target_date,
+                   g.sort_order, p.name AS project, g.project_id::text AS project_id
+              FROM milestones AS g
               LEFT JOIN projects AS p ON p.id = g.project_id AND p.deleted_at IS NULL
              WHERE g.workspace_id = ${context.task.workspaceId}
                AND g.deleted_at IS NULL
+               AND (${input.projectId ?? null}::uuid IS NULL OR g.project_id = ${input.projectId ?? null}::uuid)
                AND (${input.status === 'all'} OR g.status NOT IN ('completed', 'cancelled'))
-             ORDER BY g.updated_at DESC, g.id DESC
+             ORDER BY
+               CASE WHEN ${input.projectId ?? null}::uuid IS NULL THEN g.updated_at END DESC NULLS LAST,
+               g.sort_order ASC, g.id ASC
              LIMIT ${LIST_LIMIT + 1}`;
          const truncated = rows.length > LIST_LIMIT;
          const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
          return {
-            goals: page.map((row) => ({
+            milestones: page.map((row) => ({
                id: row.id,
                title: row.title,
                status: row.status,
+               targetDate: row.target_date,
+               sortOrder: Number(row.sort_order),
+               projectId: row.project_id,
                project: row.project,
             })),
             truncated,
@@ -911,7 +930,8 @@ export function registerCoreAgentTools(): void {
       inputSchema: z.object({}),
       handler: async (context) => {
          const rows = await context.sql`
-            SELECT id::text AS id, name, status, priority, github_repo_full_name AS repository
+            SELECT id::text AS id, name, status, priority,
+                   COALESCE(gitlab_project_path, github_repo_full_name) AS repository
               FROM projects
              WHERE workspace_id = ${context.task.workspaceId} AND deleted_at IS NULL
              ORDER BY updated_at DESC, id DESC

@@ -1,0 +1,51 @@
+{
+   "schemaVersion": 1,
+   "key": "hex",
+   "name": "Hex",
+   "version": "1.0.0",
+   "description": "Notebooks and analytics projects in Hex. An agent can open an analysis and read the result the task is asking about.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "us",
+            "eu"
+         ],
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "Access token",
+         "label": "Saved when you connect with Hex.",
+         "type": "secret",
+         "required": false
+      },
+      {
+         "key": "REFRESH_TOKEN",
+         "name": "Refresh token",
+         "label": "Saved when you connect with Hex.",
+         "type": "secret",
+         "required": false
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "us": "https://app.hex.tech/mcp",
+         "eu": "https://eu.hex.tech/mcp"
+      },
+      "auth": "oauth",
+      "scopes": [
+         "email",
+         "offline_access",
+         "openid",
+         "profile"
+      ]
+   }
+}

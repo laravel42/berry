@@ -68,6 +68,8 @@ export class PluginCaller {
       let httpStatus: number | null = null;
       let error: string | null = null;
       try {
+         if (!installation.baseUrl) throw new PluginUnreachable('This plugin has no address.');
+         const base = installation.baseUrl.replace(/\/+$/, '');
          const { token, expiresAt } = await runtime.mintToken({
             workspaceId: installation.workspaceId,
             installationId: installation.id,
@@ -87,7 +89,6 @@ export class PluginCaller {
          });
          const secret = await plugins.signingSecret(installation.workspaceId, installation.id);
          const timestamp = Math.floor(this.#clock().getTime() / 1000);
-         const base = installation.manifest.baseUrl.replace(/\/+$/, '');
          const response = await network.request(`${base}${input.path}`, {
             method: 'POST',
             headers: { 'content-type': 'application/json', [SIGNATURE_HEADER]: signPayload(secret, timestamp, body) },

@@ -19,7 +19,7 @@ const LEVEL_1 = [
    'list_agents',
    'list_tasks',
    'list_plans',
-   'list_goals',
+   'list_milestones',
    'list_projects',
    'fetch_url',
    // The project's repository, read in place. A checkout is unpacked for any
@@ -48,7 +48,7 @@ const LEVEL_2 = [
    // Only a repository Berry's GitHub access can already see, as a person's picker.
    'link_project_repository',
    // Filed for the person who asked, and only if they could have; a plan stays a proposal.
-   'create_goal',
+   'create_milestone',
    'create_plan',
 ] as const;
 
@@ -93,7 +93,7 @@ const UNVOUCHED_REACH = [
    'list_agents',
    'list_tasks',
    'list_plans',
-   'list_goals',
+   'list_milestones',
    'list_projects',
    'browse_repository',
    'read_repository_file',

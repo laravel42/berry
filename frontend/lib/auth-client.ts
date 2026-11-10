@@ -1,15 +1,34 @@
 'use client';
 
 import { createAuthClient } from 'better-auth/react';
+import { magicLinkClient, twoFactorClient } from 'better-auth/client/plugins';
 
 import { API_BASE_URL } from './config';
 
-type AuthClient = ReturnType<typeof createAuthClient>;
+function createBerryAuthClient() {
+   return createAuthClient({
+      baseURL: API_BASE_URL || (typeof window !== 'undefined' ? window.location.origin : ''),
+      basePath: '/api/auth',
+      plugins: [
+         magicLinkClient(),
+         twoFactorClient({
+            onTwoFactorRedirect() {
+               if (typeof window === 'undefined') return;
+               const next = new URL('/sign-in', window.location.origin);
+               next.searchParams.set('step', 'twofa');
+               window.location.assign(next.toString());
+            },
+         }),
+      ],
+   });
+}
+
+type AuthClient = ReturnType<typeof createBerryAuthClient>;
 
 let client: AuthClient | null = null;
 
 /**
- * The Better Auth client, for starting GitHub sign-in and signing out.
+ * The Better Auth client, for starting sign-in and signing out.
  *
  * Created on first use in the browser rather than at import, so a page that
  * imports it can still be prerendered: there is no origin to point at on the
@@ -20,9 +39,6 @@ export function authClient(): AuthClient {
    if (typeof window === 'undefined') {
       throw new Error('The auth client is browser-only');
    }
-   client ??= createAuthClient({
-      baseURL: API_BASE_URL || window.location.origin,
-      basePath: '/api/auth',
-   });
+   client ??= createBerryAuthClient();
    return client;
 }

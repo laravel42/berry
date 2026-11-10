@@ -1,15 +1,24 @@
 import { z } from 'zod';
 import { parseSkillMarkdown } from '../skills/frontmatter.ts';
 import { SkillImportError } from '../skills/github-import.ts';
-import { readZip } from '../skills/zip.ts';
 
-/** One skill from the AgentCore deep-skills pack, ready to upsert. */
+/** One skill from a committed pack, ready to upsert. */
 export interface PackedSkill {
    name: string;
    description: string;
    content: string;
    labels: string[];
+   /** The pack it came from, recorded as the skill's `source_url`. */
+   source: string;
 }
+
+/** Eight skills for each software role, the Orchestrator, Planner and Reviewer included. */
+export const SOFTWARE_PACK_SOURCE = 'seed://berry-software-skills';
+/** Eight skills for each specialist beyond software. */
+export const WORK_PACK_SOURCE = 'seed://berry-work-skills';
+
+/** How many skills each catalogue role carries, and so each role agent is bound to. */
+export const SKILLS_PER_ROLE = 8;
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
@@ -23,19 +32,15 @@ const entrySchema = z.object({
 const manifestSchema = z.array(entrySchema).min(1);
 
 /**
- * The 100-skill pack is a zip of folders, each with a SKILL.md, plus a
- * manifest. Berry's zip import is one skill per archive, so the seeder splits
- * the pack here rather than posting it at `/skills/import/zip`.
+ * A pack's files by path relative to its root: `manifest.json` plus each
+ * entry's `SKILL.md`.
  *
- * Name and description come from the manifest: every SKILL.md folds its
- * description across lines, and the catalogue parser only reads one-line keys.
- * The body is still the instructions an agent should follow.
+ * Name, role and description come from the manifest: the software pack's
+ * SKILL.md files fold their description across lines, and the catalogue
+ * parser only reads one-line keys. The body is the instructions an agent
+ * follows.
  */
-export function skillsFromPack(bytes: Buffer): PackedSkill[] {
-   // One skill archive is 100 files / 1 MiB; this pack is 100 skills plus a
-   // manifest and a README, so the seeder asks for a larger envelope.
-   const files = unwrap(readZip(bytes, { maxFiles: 512, maxBytes: 4 << 20 }));
-   const byPath = new Map(files.map((file) => [file.path, file.content]));
+export function skillsFromFiles(byPath: ReadonlyMap<string, string>, source: string): PackedSkill[] {
    const raw = byPath.get('manifest.json');
    if (!raw) throw new SkillImportError('SKILL_MANIFEST_MISSING', 'The pack has no manifest.json.');
    let parsed: unknown;
@@ -62,17 +67,7 @@ export function skillsFromPack(bytes: Buffer): PackedSkill[] {
          description: entry.description,
          content: body,
          labels: [entry.role],
+         source,
       };
    });
-}
-
-function unwrap(entries: { path: string; content: Buffer }[]): { path: string; content: string }[] {
-   const text = entries.filter((entry) => !entry.content.includes(0) && !entry.path.startsWith('__MACOSX/'));
-   const tops = new Set(text.map((entry) => entry.path.split('/')[0]));
-   const [only] = [...tops];
-   const strip =
-      tops.size === 1 && only !== undefined && !text.some((entry) => entry.path === only) ? `${only}/` : '';
-   return text
-      .map((entry) => ({ path: entry.path.slice(strip.length), content: entry.content.toString('utf8') }))
-      .filter((file) => file.path !== '');
 }

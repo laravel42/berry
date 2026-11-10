@@ -32,7 +32,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Opens on the roster; choosing the Orchestrator opens its composer. */
+/** Opens straight on the Orchestrator thread — no agent picker. */
 export const StartAConversation: Story = {
    beforeEach: ({ msw }) => {
       // Opening the Orchestrator's thread answers with its own conversation,
@@ -56,10 +56,7 @@ export const StartAConversation: Story = {
          )
       );
    },
-   play: async ({ canvas, userEvent }) => {
-      await userEvent.click(
-         await canvas.findByRole('button', { name: 'Start a chat with Orchestrator' })
-      );
+   play: async ({ canvas }) => {
       await expect(
          await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
       ).toBeVisible();

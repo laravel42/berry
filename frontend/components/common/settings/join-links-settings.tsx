@@ -1,21 +1,20 @@
 'use client';
 
-import { Copy, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { ConfirmAction } from '@/components/common/confirm-action';
-import { SettingsCard, SettingsRow, SettingsSection } from '@/components/common/settings/shared';
+import {
+   SelectMenu,
+   SettingsCard,
+   SettingsEmpty,
+   SettingsRow,
+   SettingsSection,
+} from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import { Button } from '@/components/ui/button';
-import {
-   Select,
-   SelectContent,
-   SelectItem,
-   SelectTrigger,
-   SelectValue,
-} from '@/components/ui/select';
 import {
    createJoinLink,
    joinLinkUrl,
@@ -107,44 +106,46 @@ export function JoinLinksPanel() {
          description={links.error ?? t('joinLinksDescription')}
       >
          <SettingsCard>
-            <SettingsRow title={t('joinLinksCreate')}>
-               <div className="flex flex-wrap items-center gap-2">
-                  <Select
-                     value={role}
-                     onValueChange={(next) => setRole(next as (typeof LINK_ROLES)[number])}
-                     disabled={creating}
-                  >
-                     <SelectTrigger className="w-36" aria-label={t('inviteRole')}>
-                        <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent>
-                        {LINK_ROLES.map((candidate) => (
-                           <SelectItem key={candidate} value={candidate}>
-                              {t(`role_${candidate}`)}
-                           </SelectItem>
-                        ))}
-                     </SelectContent>
-                  </Select>
-                  <Select value={expiry} onValueChange={setExpiry} disabled={creating}>
-                     <SelectTrigger className="w-44" aria-label={t('joinLinksExpiry')}>
-                        <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent>
-                        <SelectItem value="1">{t('joinLinksExpiry1')}</SelectItem>
-                        <SelectItem value="7">{t('joinLinksExpiry7')}</SelectItem>
-                        <SelectItem value="30">{t('joinLinksExpiry30')}</SelectItem>
-                        <SelectItem value="never">{t('joinLinksExpiryNever')}</SelectItem>
-                     </SelectContent>
-                  </Select>
-                  <Button size="xs" disabled={creating} onClick={() => void create()}>
-                     {creating ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                     ) : (
-                        t('joinLinksCreateAction')
-                     )}
-                  </Button>
-               </div>
-            </SettingsRow>
+            <SettingsRow
+               title={t('joinLinksCreate')}
+               className="[&>div]:flex-wrap"
+               trailing={
+                  <span className="flex flex-wrap items-center gap-2">
+                     <SelectMenu
+                        className="w-auto min-w-28"
+                        aria-label={t('inviteRole')}
+                        options={[...LINK_ROLES]}
+                        labels={Object.fromEntries(
+                           LINK_ROLES.map((candidate) => [candidate, t(`role_${candidate}`)])
+                        )}
+                        value={role}
+                        disabled={creating}
+                        onChange={(next) => setRole(next as (typeof LINK_ROLES)[number])}
+                     />
+                     <SelectMenu
+                        className="w-auto min-w-40"
+                        aria-label={t('joinLinksExpiry')}
+                        options={['1', '7', '30', 'never']}
+                        labels={{
+                           '1': t('joinLinksExpiry1'),
+                           '7': t('joinLinksExpiry7'),
+                           '30': t('joinLinksExpiry30'),
+                           'never': t('joinLinksExpiryNever'),
+                        }}
+                        value={expiry}
+                        disabled={creating}
+                        onChange={setExpiry}
+                     />
+                     <Button variant="soft" disabled={creating} onClick={() => void create()}>
+                        {creating ? (
+                           <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                           t('joinLinksCreateAction')
+                        )}
+                     </Button>
+                  </span>
+               }
+            />
             {fresh ? (
                <SettingsRow
                   title={
@@ -154,16 +155,15 @@ export function JoinLinksPanel() {
                   }
                   description={t('joinLinksFresh')}
                   trailing={
-                     <Button size="xs" variant="secondary" onClick={() => void copy(fresh)}>
-                        <Copy className="size-3.5" />
+                     <Button variant="soft" onClick={() => void copy(fresh)}>
                         {t('copy')}
                      </Button>
                   }
                />
             ) : null}
-            {links.loading ? <SettingsRow title={t('loading')} /> : null}
+            {links.loading ? <SettingsEmpty title={t('loading')} /> : null}
             {!links.loading && listed.length === 0 && !fresh ? (
-               <SettingsRow title={t('joinLinksEmpty')} />
+               <SettingsEmpty title={t('joinLinksEmpty')} />
             ) : null}
             {listed.map((link) => {
                const state = linkState(link);
@@ -177,12 +177,7 @@ export function JoinLinksPanel() {
                      )}
                      trailing={
                         state === 'joinLinksActive' ? (
-                           <Button
-                              size="xs"
-                              variant="ghost"
-                              className="text-status-danger hover:text-status-danger"
-                              onClick={() => setRevoking(link)}
-                           >
+                           <Button variant="soft-destructive" onClick={() => setRevoking(link)}>
                               {t('revoke')}
                            </Button>
                         ) : null

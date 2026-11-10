@@ -113,7 +113,7 @@ export const notificationSwitches = {
       comments: false,
       statusChanges: true,
       approvals: true,
-      goals: false,
+      milestones: false,
       updates: false,
       agentActivity: true,
    },
@@ -355,10 +355,10 @@ export const integrationProviders = [
    },
    {
       id: 'github',
-      include: 'oauth',
+      include: 'access_token',
       name: 'GitHub',
       description:
-         'The repositories your agents check out, branch and open pull requests. Connect to grant repository access so agents can clone, push and open pull requests.',
+         'Cloud. Pull requests, Actions and the GitHub ecosystem. Agents will check repositories out, branch and open pull requests there.',
       configured: true,
       connected: true,
       status: 'connected',
@@ -371,10 +371,10 @@ export const integrationProviders = [
    },
    {
       id: 'gitlab',
-      include: 'oauth',
+      include: 'access_token',
       name: 'GitLab',
       description:
-         'The projects a GitLab account can reach for this workspace. Sign in with GitLab to grant that access, so agents can work inside the repositories that account can open.',
+         'The projects a GitLab account can reach. Sign in so agents can work in those repositories.',
       configured: true,
       connected: true,
       status: 'connected',
@@ -391,6 +391,22 @@ export const integrationProviders = [
             enabledByDefault: false,
             allowed: false,
          },
+      ],
+   },
+   {
+      id: 'bitbucket',
+      include: 'access_token',
+      name: 'Bitbucket',
+      description:
+         'The repositories a Bitbucket account can reach. Agents will check them out, branch and open pull requests there.',
+      configured: false,
+      connected: false,
+      status: null,
+      source: null,
+      scopes: ['repository', 'pullrequest'],
+      tools: [
+         { name: 'bitbucket.read_repository', effect: 'read', allowed: false },
+         { name: 'bitbucket.open_pull_request', effect: 'external_side_effect', allowed: false },
       ],
    },
    {
@@ -699,6 +715,7 @@ export const installedPlugin = {
    description: 'Posts a morning summary of what changed overnight.',
    source: 'url' as const,
    sourceUrl: 'https://plugins.elian.dev/standup/berry-plugin.json',
+   baseUrl: 'https://plugins.elian.dev',
    enabled: true,
    config: { channel: '#eng-standup', digestHour: 8, mentionAssignee: true },
    configFields: pluginConfigFields,
@@ -712,6 +729,7 @@ export const installedPlugin = {
       { key: 'digest', trigger: 'schedule' as const, everyMinutes: 1440 },
    ],
    surfaces: [{ key: 'board', title: 'Standup board' }],
+   mcpOffer: 'declared' as const,
    mcpTools: [
       { name: 'standup.post_digest', description: 'Post the digest now.', approved: true },
       { name: 'standup.snooze', description: 'Skip tomorrow’s digest.', approved: false },
@@ -769,6 +787,7 @@ export const pluginPreview = {
    events: ['issue.completed'],
    schedules: [{ key: 'weekly', everyMinutes: 10080 }],
    surfaces: [{ key: 'drafts', title: 'Drafts' }],
+   mcpOffer: 'declared' as const,
    mcpTools: ['release_notes.draft'],
    files: [{ path: 'berry-plugin.json', size: 902 }],
 };

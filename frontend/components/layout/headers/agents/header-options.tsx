@@ -1,31 +1,20 @@
 'use client';
 
-import { Check, Columns3 } from 'lucide-react';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Button } from '@/components/ui/button';
-import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Input, searchFieldClass } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAgentFilterColumns } from '@/components/common/agents/agent-filter-columns';
 import { ListFilterTrigger, useListFilters } from '@/components/common/filters/list-filters';
-import { cn } from '@/lib/utils';
-import {
-   AGENT_COLUMNS,
-   useAgentsListStore,
-   type AgentColumn,
-   type AgentsScope,
-} from '@/store/agents-list-store';
+import { isOrchestrator } from '@/lib/agents';
+import { useAgentsListStore, type AgentsScope } from '@/store/agents-list-store';
 import { useAgentsStore } from '@/store/agents-store';
 
 const SCOPES: AgentsScope[] = ['all', 'archived'];
 
 /**
- * The agents toolbar: which agents, narrowed how, showing what.
+ * The agents toolbar: which agents, narrowed how.
  *
  * Every control writes to the list store rather than to the table, because the
  * page mounts this as a header and the table as its body — they never share a
@@ -34,9 +23,15 @@ const SCOPES: AgentsScope[] = ['all', 'archived'];
 export default function HeaderOptions() {
    const t = useTranslations('agentsChat.list');
    const tHeader = useTranslations('agents.header');
-   const agents = useAgentsStore((state) => state.agents);
-   const archived = useAgentsStore((state) => state.archived);
-   const { scope, filters, columns, setScope, setFilters, toggleColumn } = useAgentsListStore();
+   // The list leaves the Orchestrator out (it works behind the scenes), so the counts do too.
+   const allAgents = useAgentsStore((state) => state.agents);
+   const allArchived = useAgentsStore((state) => state.archived);
+   const agents = useMemo(() => allAgents.filter((agent) => !isOrchestrator(agent)), [allAgents]);
+   const archived = useMemo(
+      () => allArchived?.filter((agent) => !isOrchestrator(agent)) ?? null,
+      [allArchived]
+   );
+   const { scope, filters, query, setScope, setFilters, setQuery } = useAgentsListStore();
    const filterColumns = useAgentFilterColumns();
    const filter = useListFilters({
       data: scope === 'archived' ? (archived ?? []) : agents,
@@ -45,8 +40,8 @@ export default function HeaderOptions() {
       onFiltersChange: setFilters,
    });
 
-   // An archive nobody has opened yet has no count rather than a count of
-   // zero: the two mean different things and only one of them is known.
+   // Archived is null only while its first load is in flight; once known,
+   // zero and a positive count are both shown.
    const counts: Record<AgentsScope, number | null> = {
       all: agents.length,
       archived: archived?.length ?? null,
@@ -57,15 +52,19 @@ export default function HeaderOptions() {
       archived: t('scopeArchived'),
    };
 
-   const columnLabel: Record<AgentColumn, string> = {
-      activity: t('colActivity'),
-      lastActive: t('colLastActive'),
-      model: t('colModel'),
-      access: t('colAccess'),
-   };
-
    return (
-      <div className="mb-1 flex h-[52px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5">
+      <div className="mb-1 flex h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[2px] [&_button]:!h-[30px] [&_a]:!h-[30px]">
+         <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
+            <Input
+               className={`${searchFieldClass} w-64 max-sm:w-40`}
+               value={query}
+               onChange={(event) => setQuery(event.target.value)}
+               placeholder={tHeader('search')}
+               aria-label={tHeader('search')}
+            />
+            <ListFilterTrigger filter={filter} />
+         </div>
+
          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Tabs value={scope} onValueChange={(value) => setScope(value as AgentsScope)}>
                <TabsList aria-label={tHeader('title')}>
@@ -81,40 +80,6 @@ export default function HeaderOptions() {
                   ))}
                </TabsList>
             </Tabs>
-         </div>
-
-         <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <ListFilterTrigger filter={filter} />
-            <DropdownMenu>
-               <DropdownMenuTrigger asChild>
-                  <Button size="xs" variant="outline" className="border-muted-foreground/15">
-                     <Columns3 className="size-4" />
-                     {t('columns')}
-                  </Button>
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="end" className="w-52">
-                  {AGENT_COLUMNS.map((column) => (
-                     <DropdownMenuItem
-                        key={column}
-                        // The menu stays open: choosing columns is a series of
-                        // decisions, and reopening it after each one is a tax
-                        // on the person who wants three of them.
-                        onSelect={(event) => {
-                           event.preventDefault();
-                           toggleColumn(column);
-                        }}
-                     >
-                        <Check
-                           className={cn(
-                              'size-3.5',
-                              columns.includes(column) ? 'opacity-100' : 'opacity-0'
-                           )}
-                        />
-                        {columnLabel[column]}
-                     </DropdownMenuItem>
-                  ))}
-               </DropdownMenuContent>
-            </DropdownMenu>
          </div>
       </div>
    );

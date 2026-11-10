@@ -1,0 +1,3218 @@
+[
+  {
+    "name": "audience-definition",
+    "role": "Marketing Strategist",
+    "description": "Use when a plan, campaign or piece of work needs a clear picture of who it is for and what they need.",
+    "path": "audience-definition/SKILL.md"
+  },
+  {
+    "name": "positioning-statement",
+    "role": "Marketing Strategist",
+    "description": "Use when an offer needs a clear position against alternatives and a short message hierarchy.",
+    "path": "positioning-statement/SKILL.md"
+  },
+  {
+    "name": "campaign-plan",
+    "role": "Marketing Strategist",
+    "description": "Use when a goal needs a dated, owned campaign across channels with a success measure set in advance.",
+    "path": "campaign-plan/SKILL.md"
+  },
+  {
+    "name": "creative-brief",
+    "role": "Marketing Strategist",
+    "description": "Use when a writer, designer or social manager needs a one-page brief to produce a piece of work.",
+    "path": "creative-brief/SKILL.md"
+  },
+  {
+    "name": "campaign-results-review",
+    "role": "Marketing Strategist",
+    "description": "Use when a campaign has run and its results must be judged against the measure set beforehand.",
+    "path": "campaign-results-review/SKILL.md"
+  },
+  {
+    "name": "article-drafting",
+    "role": "Content Writer",
+    "description": "Use when a brief asks for an article, blog post, report section or long-form piece.",
+    "path": "article-drafting/SKILL.md"
+  },
+  {
+    "name": "landing-page-copy",
+    "role": "Content Writer",
+    "description": "Use when a web page, sales page or sign-up page needs copy that leads a reader to one action.",
+    "path": "landing-page-copy/SKILL.md"
+  },
+  {
+    "name": "newsletter-issue",
+    "role": "Content Writer",
+    "description": "Use when an email newsletter, member update or bulletin issue needs to be written.",
+    "path": "newsletter-issue/SKILL.md"
+  },
+  {
+    "name": "proposal-writing",
+    "role": "Content Writer",
+    "description": "Use when a business proposal, bid, tender response or grant application must be written to a funder's or buyer's criteria.",
+    "path": "proposal-writing/SKILL.md"
+  },
+  {
+    "name": "script-writing",
+    "role": "Content Writer",
+    "description": "Use when a video, podcast, presentation, webinar or speech needs a script.",
+    "path": "script-writing/SKILL.md"
+  },
+  {
+    "name": "case-study-writing",
+    "role": "Content Writer",
+    "description": "Use when a customer, partner or project story needs to be written as a case study or success story.",
+    "path": "case-study-writing/SKILL.md"
+  },
+  {
+    "name": "social-posting-calendar",
+    "role": "Social Media Manager",
+    "description": "Use when a campaign or period needs a per-platform posting calendar a person can approve.",
+    "path": "social-posting-calendar/SKILL.md"
+  },
+  {
+    "name": "platform-post-adaptation",
+    "role": "Social Media Manager",
+    "description": "Use when a message must be written as posts fitted to each platform's format, length and audience.",
+    "path": "platform-post-adaptation/SKILL.md"
+  },
+  {
+    "name": "reply-playbook",
+    "role": "Social Media Manager",
+    "description": "Use when a team needs approved reply templates for common comments, questions and complaints on social channels.",
+    "path": "reply-playbook/SKILL.md"
+  },
+  {
+    "name": "social-performance-summary",
+    "role": "Social Media Manager",
+    "description": "Use when shared social numbers need to be turned into a short summary of what worked and what to change.",
+    "path": "social-performance-summary/SKILL.md"
+  },
+  {
+    "name": "visual-asset-brief",
+    "role": "Social Media Manager",
+    "description": "Use when a post or campaign needs images or video and a designer, photographer or editor needs a brief.",
+    "path": "visual-asset-brief/SKILL.md"
+  },
+  {
+    "name": "account-brief",
+    "role": "Sales Specialist",
+    "description": "Use before contacting a prospect or customer, to research the account from public sources and the workspace.",
+    "path": "account-brief/SKILL.md"
+  },
+  {
+    "name": "outreach-sequence-drafting",
+    "role": "Sales Specialist",
+    "description": "Use when a person needs first-contact and follow-up messages to a prospect, partner or donor.",
+    "path": "outreach-sequence-drafting/SKILL.md"
+  },
+  {
+    "name": "discovery-call-prep",
+    "role": "Sales Specialist",
+    "description": "Use before a sales, partnership or client intake call to prepare questions, likely objections and the goal of the call.",
+    "path": "discovery-call-prep/SKILL.md"
+  },
+  {
+    "name": "quote-and-proposal",
+    "role": "Sales Specialist",
+    "description": "Use when a prospect needs a written quote or sales proposal built from approved prices and terms.",
+    "path": "quote-and-proposal/SKILL.md"
+  },
+  {
+    "name": "call-notes-to-next-steps",
+    "role": "Sales Specialist",
+    "description": "Use after a call or meeting with a customer to turn notes into a summary, follow-up message and owned next steps.",
+    "path": "call-notes-to-next-steps/SKILL.md"
+  },
+  {
+    "name": "objection-handling-guide",
+    "role": "Sales Specialist",
+    "description": "Use when a team keeps hearing the same objections and needs honest, sourced answers.",
+    "path": "objection-handling-guide/SKILL.md"
+  },
+  {
+    "name": "support-reply-drafting",
+    "role": "Customer Support Specialist",
+    "description": "Use when a customer question or complaint needs an accurate, kind reply drafted from help content and policy.",
+    "path": "support-reply-drafting/SKILL.md"
+  },
+  {
+    "name": "support-request-triage",
+    "role": "Customer Support Specialist",
+    "description": "Use when a batch of incoming requests needs sorting by urgency and kind so the right person handles each.",
+    "path": "support-request-triage/SKILL.md"
+  },
+  {
+    "name": "help-article-writing",
+    "role": "Customer Support Specialist",
+    "description": "Use when a repeated customer question needs a help or FAQ article that answers it for good.",
+    "path": "help-article-writing/SKILL.md"
+  },
+  {
+    "name": "customer-feedback-to-task",
+    "role": "Customer Support Specialist",
+    "description": "Use when a bug report, complaint or request from customers should become a clear task for the people who can fix it.",
+    "path": "customer-feedback-to-task/SKILL.md"
+  },
+  {
+    "name": "escalation-handoff",
+    "role": "Customer Support Specialist",
+    "description": "Use when a case must be handed to a person: a summary that lets them act without rereading the whole history.",
+    "path": "escalation-handoff/SKILL.md"
+  },
+  {
+    "name": "job-description-writing",
+    "role": "Recruiter",
+    "description": "Use when a role needs a job description written from what the person must achieve, not a wish list.",
+    "path": "job-description-writing/SKILL.md"
+  },
+  {
+    "name": "hiring-scorecard",
+    "role": "Recruiter",
+    "description": "Use when a role needs a scoring rubric agreed before applications are read.",
+    "path": "hiring-scorecard/SKILL.md"
+  },
+  {
+    "name": "structured-interview-plan",
+    "role": "Recruiter",
+    "description": "Use when interview stages need questions tied to the scorecard and the same for every candidate.",
+    "path": "structured-interview-plan/SKILL.md"
+  },
+  {
+    "name": "candidate-message-drafting",
+    "role": "Recruiter",
+    "description": "Use when a recruiter needs drafts for candidate invitations, updates, rejections or offers for a person to send.",
+    "path": "candidate-message-drafting/SKILL.md"
+  },
+  {
+    "name": "interview-debrief-summary",
+    "role": "Recruiter",
+    "description": "Use when interview notes need summarising against the scorecard so people can decide.",
+    "path": "interview-debrief-summary/SKILL.md"
+  },
+  {
+    "name": "people-policy-drafting",
+    "role": "People Partner",
+    "description": "Use when a workplace policy (leave, remote work, expenses, conduct) needs drafting or updating in plain language.",
+    "path": "people-policy-drafting/SKILL.md"
+  },
+  {
+    "name": "onboarding-plan",
+    "role": "People Partner",
+    "description": "Use when a new team member, volunteer or contractor needs a day-by-day onboarding plan.",
+    "path": "onboarding-plan/SKILL.md"
+  },
+  {
+    "name": "performance-review-cycle",
+    "role": "People Partner",
+    "description": "Use when a team needs templates, a calendar and guidance for a fair performance or development review round.",
+    "path": "performance-review-cycle/SKILL.md"
+  },
+  {
+    "name": "people-announcement",
+    "role": "People Partner",
+    "description": "Use when an internal announcement about a people change (joiner, leaver, reorganisation, policy) must be drafted.",
+    "path": "people-announcement/SKILL.md"
+  },
+  {
+    "name": "policy-practice-gap-review",
+    "role": "People Partner",
+    "description": "Use when written policies may not match what actually happens, to list the gaps and options to close them.",
+    "path": "policy-practice-gap-review/SKILL.md"
+  },
+  {
+    "name": "budget-build",
+    "role": "Financial Analyst",
+    "description": "Use when an organisation, project, event or household needs a budget with its assumptions written down.",
+    "path": "budget-build/SKILL.md"
+  },
+  {
+    "name": "cash-flow-forecast",
+    "role": "Financial Analyst",
+    "description": "Use when someone needs to know whether cash will run out, and when, from expected money in and out.",
+    "path": "cash-flow-forecast/SKILL.md"
+  },
+  {
+    "name": "variance-explanation",
+    "role": "Financial Analyst",
+    "description": "Use when actual results differ from budget or forecast and each difference must be explained line by line.",
+    "path": "variance-explanation/SKILL.md"
+  },
+  {
+    "name": "option-cost-comparison",
+    "role": "Financial Analyst",
+    "description": "Use when a decision between options (buy or lease, supplier A or B, hire or contract) must be compared on cost, cash and risk.",
+    "path": "option-cost-comparison/SKILL.md"
+  },
+  {
+    "name": "reconciliation-check",
+    "role": "Financial Analyst",
+    "description": "Use when figures in two places (bank and ledger, invoices and payments, report and source) should match and might not.",
+    "path": "reconciliation-check/SKILL.md"
+  },
+  {
+    "name": "board-financial-pack",
+    "role": "Financial Analyst",
+    "description": "Use when a board, trustees, owners or lenders need a short financial summary with tables they can trust.",
+    "path": "board-financial-pack/SKILL.md"
+  },
+  {
+    "name": "contract-summary",
+    "role": "Legal Assistant",
+    "description": "Use when someone needs a contract, lease or agreement summarised: parties, term, money, obligations and exits.",
+    "path": "contract-summary/SKILL.md"
+  },
+  {
+    "name": "contract-comparison",
+    "role": "Legal Assistant",
+    "description": "Use when a draft contract must be compared with a template, standard terms or a previous version.",
+    "path": "contract-comparison/SKILL.md"
+  },
+  {
+    "name": "clause-risk-list",
+    "role": "Legal Assistant",
+    "description": "Use when a document must be scanned for unusual or high-risk clauses, each quoted with why it matters.",
+    "path": "clause-risk-list/SKILL.md"
+  },
+  {
+    "name": "obligation-deadline-tracker",
+    "role": "Legal Assistant",
+    "description": "Use when agreements contain dates and obligations that must be tracked: renewals, notice periods, reporting, payments.",
+    "path": "obligation-deadline-tracker/SKILL.md"
+  },
+  {
+    "name": "regulation-checklist",
+    "role": "Legal Assistant",
+    "description": "Use when a law, regulation or standard must be turned into a checklist of what applies to the organisation, with sources.",
+    "path": "regulation-checklist/SKILL.md"
+  },
+  {
+    "name": "research-question-framing",
+    "role": "Research Analyst",
+    "description": "Use at the start of any research request to turn a vague ask into an answerable question with a plan.",
+    "path": "research-question-framing/SKILL.md"
+  },
+  {
+    "name": "source-evaluation",
+    "role": "Research Analyst",
+    "description": "Use when sources must be judged for reliability before their claims are relied on.",
+    "path": "source-evaluation/SKILL.md"
+  },
+  {
+    "name": "research-brief",
+    "role": "Research Analyst",
+    "description": "Use when research findings must be written as a brief with the answer first and citations throughout.",
+    "path": "research-brief/SKILL.md"
+  },
+  {
+    "name": "competitor-landscape",
+    "role": "Research Analyst",
+    "description": "Use when a team needs to understand the organisations, products or alternatives its audience could choose instead.",
+    "path": "competitor-landscape/SKILL.md"
+  },
+  {
+    "name": "market-sizing",
+    "role": "Research Analyst",
+    "description": "Use when a rough size of a market, audience or demand is needed, built from stated assumptions.",
+    "path": "market-sizing/SKILL.md"
+  },
+  {
+    "name": "survey-design",
+    "role": "Research Analyst",
+    "description": "Use when a questionnaire must be designed to collect reliable answers from customers, members, staff or the public.",
+    "path": "survey-design/SKILL.md"
+  },
+  {
+    "name": "copy-edit",
+    "role": "Editor",
+    "description": "Use when a draft needs grammar, spelling, punctuation and consistency corrected without changing meaning.",
+    "path": "copy-edit/SKILL.md"
+  },
+  {
+    "name": "structural-edit",
+    "role": "Editor",
+    "description": "Use when a draft is hard to follow and needs its order, sections and argument reworked for the reader.",
+    "path": "structural-edit/SKILL.md"
+  },
+  {
+    "name": "house-style-pass",
+    "role": "Editor",
+    "description": "Use when a document must be brought in line with the organisation's style guide, or a style guide must be written.",
+    "path": "house-style-pass/SKILL.md"
+  },
+  {
+    "name": "plain-language-rewrite",
+    "role": "Editor",
+    "description": "Use when a dense, technical, legal or bureaucratic text must be rewritten so its intended readers understand it on first read.",
+    "path": "plain-language-rewrite/SKILL.md"
+  },
+  {
+    "name": "fact-check-pass",
+    "role": "Editor",
+    "description": "Use when a draft's names, numbers, quotes and claims must be checked against sources before publication.",
+    "path": "fact-check-pass/SKILL.md"
+  },
+  {
+    "name": "document-translation",
+    "role": "Translator",
+    "description": "Use when a document, letter or message must be translated with its meaning, tone and register intact.",
+    "path": "document-translation/SKILL.md"
+  },
+  {
+    "name": "market-localization",
+    "role": "Translator",
+    "description": "Use when content must be adapted for another market: dates, numbers, currency, units, examples, idioms and cultural references.",
+    "path": "market-localization/SKILL.md"
+  },
+  {
+    "name": "terminology-glossary",
+    "role": "Translator",
+    "description": "Use when a workspace needs a glossary of its key terms and their approved translations.",
+    "path": "terminology-glossary/SKILL.md"
+  },
+  {
+    "name": "translation-review",
+    "role": "Translator",
+    "description": "Use when an existing translation (human or machine) must be checked for accuracy, completeness and fluency.",
+    "path": "translation-review/SKILL.md"
+  },
+  {
+    "name": "interface-string-translation",
+    "role": "Translator",
+    "description": "Use when app, website, form or product interface text must be translated within length limits and with placeholders kept.",
+    "path": "interface-string-translation/SKILL.md"
+  },
+  {
+    "name": "learning-outcomes",
+    "role": "Learning Designer",
+    "description": "Use at the start of any training, course or lesson to write outcomes a learner can be checked against.",
+    "path": "learning-outcomes/SKILL.md"
+  },
+  {
+    "name": "course-blueprint",
+    "role": "Learning Designer",
+    "description": "Use when a course, programme or workshop series must be outlined into modules, sessions and activities.",
+    "path": "course-blueprint/SKILL.md"
+  },
+  {
+    "name": "lesson-plan",
+    "role": "Learning Designer",
+    "description": "Use when a teacher, trainer or facilitator needs a single lesson or session planned minute by minute.",
+    "path": "lesson-plan/SKILL.md"
+  },
+  {
+    "name": "quiz-and-answer-key",
+    "role": "Learning Designer",
+    "description": "Use when learners need questions that check the outcomes, with an answer key and explanations.",
+    "path": "quiz-and-answer-key/SKILL.md"
+  },
+  {
+    "name": "workshop-facilitation-guide",
+    "role": "Learning Designer",
+    "description": "Use when a workshop, training day or meeting with activities needs a facilitator guide.",
+    "path": "workshop-facilitation-guide/SKILL.md"
+  },
+  {
+    "name": "training-feedback-revision",
+    "role": "Learning Designer",
+    "description": "Use when feedback or results from a training must be turned into concrete revisions.",
+    "path": "training-feedback-revision/SKILL.md"
+  },
+  {
+    "name": "standard-operating-procedure",
+    "role": "Operations Coordinator",
+    "description": "Use when recurring work needs a written procedure someone can follow on their first day.",
+    "path": "standard-operating-procedure/SKILL.md"
+  },
+  {
+    "name": "meeting-actions-capture",
+    "role": "Operations Coordinator",
+    "description": "Use when meeting notes or a transcript must become decisions, actions with owners and dates, and open questions.",
+    "path": "meeting-actions-capture/SKILL.md"
+  },
+  {
+    "name": "vendor-comparison",
+    "role": "Operations Coordinator",
+    "description": "Use when suppliers, services or tools must be compared on cost, terms and fit before a person chooses.",
+    "path": "vendor-comparison/SKILL.md"
+  },
+  {
+    "name": "event-plan",
+    "role": "Operations Coordinator",
+    "description": "Use when an event, launch, conference, fundraiser, move or offsite needs a dated plan and checklists.",
+    "path": "event-plan/SKILL.md"
+  },
+  {
+    "name": "overdue-task-follow-up",
+    "role": "Operations Coordinator",
+    "description": "Use when tasks are past their due date and need a polite, specific follow-up and a clearer plan.",
+    "path": "overdue-task-follow-up/SKILL.md"
+  },
+  {
+    "name": "meeting-briefing-note",
+    "role": "Executive Assistant",
+    "description": "Use before a meeting to prepare an agenda and a one-page briefing on people, context and decisions needed.",
+    "path": "meeting-briefing-note/SKILL.md"
+  },
+  {
+    "name": "thread-digest",
+    "role": "Executive Assistant",
+    "description": "Use when a long email thread, chat or document must be summarised into what needs a decision and by when.",
+    "path": "thread-digest/SKILL.md"
+  },
+  {
+    "name": "voice-matched-drafting",
+    "role": "Executive Assistant",
+    "description": "Use when emails, letters or messages must be drafted in a specific person's voice for them to send.",
+    "path": "voice-matched-drafting/SKILL.md"
+  },
+  {
+    "name": "commitment-tracker",
+    "role": "Executive Assistant",
+    "description": "Use when a person needs a list of what they promised, to whom, and by when, gathered from tasks and threads.",
+    "path": "commitment-tracker/SKILL.md"
+  },
+  {
+    "name": "weekly-priorities-brief",
+    "role": "Executive Assistant",
+    "description": "Use at the start of a week to give a person a short brief of priorities, deadlines and decisions waiting.",
+    "path": "weekly-priorities-brief/SKILL.md"
+  },
+  {
+    "name": "travel-itinerary-plan",
+    "role": "Executive Assistant",
+    "description": "Use when a trip needs an itinerary and options compared, for a person to book.",
+    "path": "travel-itinerary-plan/SKILL.md"
+  },
+  {
+    "name": "brand-voice-guide",
+    "role": "Marketing Strategist",
+    "description": "Use when an organisation needs its voice written down so every writer and agent sounds the same.",
+    "path": "brand-voice-guide/SKILL.md"
+  },
+  {
+    "name": "marketing-budget-allocation",
+    "role": "Marketing Strategist",
+    "description": "Use when a marketing budget must be split across channels and activities with the reasoning visible.",
+    "path": "marketing-budget-allocation/SKILL.md"
+  },
+  {
+    "name": "competitive-messaging-response",
+    "role": "Marketing Strategist",
+    "description": "Use when a competitor launches, changes prices or attacks, and the team needs a calm, factual response plan.",
+    "path": "competitive-messaging-response/SKILL.md"
+  },
+  {
+    "name": "press-release-writing",
+    "role": "Content Writer",
+    "description": "Use when news (a launch, partnership, appointment, milestone or event) needs a press release for media.",
+    "path": "press-release-writing/SKILL.md"
+  },
+  {
+    "name": "product-description-writing",
+    "role": "Content Writer",
+    "description": "Use when products, services, listings or menu items need accurate, persuasive descriptions.",
+    "path": "product-description-writing/SKILL.md"
+  },
+  {
+    "name": "community-guidelines",
+    "role": "Social Media Manager",
+    "description": "Use when an online community, group or comment section needs clear rules and a moderation approach.",
+    "path": "community-guidelines/SKILL.md"
+  },
+  {
+    "name": "influencer-collaboration-brief",
+    "role": "Social Media Manager",
+    "description": "Use when a partnership with a creator, influencer or ambassador needs a brief and disclosure rules.",
+    "path": "influencer-collaboration-brief/SKILL.md"
+  },
+  {
+    "name": "social-holding-statement",
+    "role": "Social Media Manager",
+    "description": "Use when something has gone wrong publicly and a short holding statement and reply guidance are needed fast.",
+    "path": "social-holding-statement/SKILL.md"
+  },
+  {
+    "name": "key-account-plan",
+    "role": "Sales Specialist",
+    "description": "Use when an important customer needs a plan for keeping, growing and serving the relationship.",
+    "path": "key-account-plan/SKILL.md"
+  },
+  {
+    "name": "renewal-preparation",
+    "role": "Sales Specialist",
+    "description": "Use before a contract or subscription renewal to prepare the case, the risks and the conversation.",
+    "path": "renewal-preparation/SKILL.md"
+  },
+  {
+    "name": "canned-reply-library",
+    "role": "Customer Support Specialist",
+    "description": "Use when support needs a library of saved replies for frequent questions, kept accurate and human.",
+    "path": "canned-reply-library/SKILL.md"
+  },
+  {
+    "name": "satisfaction-feedback-review",
+    "role": "Customer Support Specialist",
+    "description": "Use when customer satisfaction scores and comments must be turned into themes and actions.",
+    "path": "satisfaction-feedback-review/SKILL.md"
+  },
+  {
+    "name": "service-outage-notice",
+    "role": "Customer Support Specialist",
+    "description": "Use when customers must be told about an outage, delay or disruption: what happened, impact and next update.",
+    "path": "service-outage-notice/SKILL.md"
+  },
+  {
+    "name": "candidate-sourcing-plan",
+    "role": "Recruiter",
+    "description": "Use when a role needs a plan for where and how to find a broad, qualified pool of candidates.",
+    "path": "candidate-sourcing-plan/SKILL.md"
+  },
+  {
+    "name": "interview-panel-briefing",
+    "role": "Recruiter",
+    "description": "Use before interviews to brief panel members on the role, rubric, their questions and fair-interview rules.",
+    "path": "interview-panel-briefing/SKILL.md"
+  },
+  {
+    "name": "hiring-pipeline-report",
+    "role": "Recruiter",
+    "description": "Use when open roles need a status report: stages, numbers, timing and bottlenecks.",
+    "path": "hiring-pipeline-report/SKILL.md"
+  },
+  {
+    "name": "offboarding-checklist",
+    "role": "People Partner",
+    "description": "Use when someone is leaving and the practical steps (handover, access, equipment, farewell) must be planned.",
+    "path": "offboarding-checklist/SKILL.md"
+  },
+  {
+    "name": "employee-survey-summary",
+    "role": "People Partner",
+    "description": "Use when engagement, pulse or wellbeing survey results must be summarised anonymously with actions.",
+    "path": "employee-survey-summary/SKILL.md"
+  },
+  {
+    "name": "career-framework",
+    "role": "People Partner",
+    "description": "Use when a team needs role levels with clear expectations so growth and promotion are fair.",
+    "path": "career-framework/SKILL.md"
+  },
+  {
+    "name": "invoice-expense-review",
+    "role": "Financial Analyst",
+    "description": "Use when invoices or expense claims must be checked against contracts, orders, receipts and policy before a person approves them.",
+    "path": "invoice-expense-review/SKILL.md"
+  },
+  {
+    "name": "pricing-margin-model",
+    "role": "Financial Analyst",
+    "description": "Use when prices must be tested against costs, margins and volumes before a person sets them.",
+    "path": "pricing-margin-model/SKILL.md"
+  },
+  {
+    "name": "nda-first-pass",
+    "role": "Legal Assistant",
+    "description": "Use when a non-disclosure agreement arrives and needs a quick structured review before a person decides.",
+    "path": "nda-first-pass/SKILL.md"
+  },
+  {
+    "name": "privacy-notice-review",
+    "role": "Legal Assistant",
+    "description": "Use when a privacy notice or policy must be checked against what the organisation actually collects and does with personal data.",
+    "path": "privacy-notice-review/SKILL.md"
+  },
+  {
+    "name": "data-processing-inventory",
+    "role": "Legal Assistant",
+    "description": "Use when an organisation needs a record of what personal data it holds, why, where and for how long.",
+    "path": "data-processing-inventory/SKILL.md"
+  },
+  {
+    "name": "literature-review",
+    "role": "Research Analyst",
+    "description": "Use when a question needs a structured review of published studies, reports or academic work.",
+    "path": "literature-review/SKILL.md"
+  },
+  {
+    "name": "qualitative-notes-synthesis",
+    "role": "Research Analyst",
+    "description": "Use when interview notes, focus groups, open answers or field notes must be turned into themes with evidence.",
+    "path": "qualitative-notes-synthesis/SKILL.md"
+  },
+  {
+    "name": "final-proofread",
+    "role": "Editor",
+    "description": "Use as the last check before something is printed, published or sent: typos, layout, links, names and numbers.",
+    "path": "final-proofread/SKILL.md"
+  },
+  {
+    "name": "headline-summary-edit",
+    "role": "Editor",
+    "description": "Use when titles, headlines, subject lines, summaries or abstracts must be sharpened to say what the piece delivers.",
+    "path": "headline-summary-edit/SKILL.md"
+  },
+  {
+    "name": "accessible-writing-check",
+    "role": "Editor",
+    "description": "Use when a document, page or email must be checked so people with disabilities and low literacy can use it.",
+    "path": "accessible-writing-check/SKILL.md"
+  },
+  {
+    "name": "subtitle-translation",
+    "role": "Translator",
+    "description": "Use when video or audio needs subtitles or captions translated within timing and length limits.",
+    "path": "subtitle-translation/SKILL.md"
+  },
+  {
+    "name": "transcreation",
+    "role": "Translator",
+    "description": "Use when slogans, campaigns or creative copy must be recreated for another language and culture, not translated literally.",
+    "path": "transcreation/SKILL.md"
+  },
+  {
+    "name": "cross-language-consistency-check",
+    "role": "Translator",
+    "description": "Use when the same content exists in several languages and they must say the same thing.",
+    "path": "cross-language-consistency-check/SKILL.md"
+  },
+  {
+    "name": "training-needs-analysis",
+    "role": "Learning Designer",
+    "description": "Use before building training to find out what people actually need to learn and whether training is the answer.",
+    "path": "training-needs-analysis/SKILL.md"
+  },
+  {
+    "name": "microlearning-module",
+    "role": "Learning Designer",
+    "description": "Use when a single skill or fact needs a short (two to ten minute) learning piece people can take on their own.",
+    "path": "microlearning-module/SKILL.md"
+  },
+  {
+    "name": "supplies-inventory-tracker",
+    "role": "Operations Coordinator",
+    "description": "Use when supplies, stock or equipment need a tracker with reorder points so nothing runs out.",
+    "path": "supplies-inventory-tracker/SKILL.md"
+  },
+  {
+    "name": "recurring-tasks-calendar",
+    "role": "Operations Coordinator",
+    "description": "Use when routine obligations (renewals, filings, maintenance, reports, inspections) need a calendar with owners.",
+    "path": "recurring-tasks-calendar/SKILL.md"
+  },
+  {
+    "name": "process-bottleneck-review",
+    "role": "Operations Coordinator",
+    "description": "Use when a process is slow, error-prone or frustrating, to find where it gets stuck and how to fix it.",
+    "path": "process-bottleneck-review/SKILL.md"
+  },
+  {
+    "name": "decision-memo",
+    "role": "Executive Assistant",
+    "description": "Use when a person must make a decision and needs the options, trade-offs and a recommendation on one page.",
+    "path": "decision-memo/SKILL.md"
+  },
+  {
+    "name": "inbox-triage-summary",
+    "role": "Executive Assistant",
+    "description": "Use when a person shares a batch of messages and needs them sorted into reply, decide, read later and ignore.",
+    "path": "inbox-triage-summary/SKILL.md"
+  },
+  {
+    "name": "project-scope-statement",
+    "role": "Project Manager",
+    "description": "Use when a project starts or drifts and needs its scope, exclusions and success criteria written down.",
+    "path": "project-scope-statement/SKILL.md"
+  },
+  {
+    "name": "project-schedule",
+    "role": "Project Manager",
+    "description": "Use when a project needs a schedule with milestones, owners and dependencies.",
+    "path": "project-schedule/SKILL.md"
+  },
+  {
+    "name": "risk-issue-log",
+    "role": "Project Manager",
+    "description": "Use when a project needs its risks and live issues recorded with owners and actions.",
+    "path": "risk-issue-log/SKILL.md"
+  },
+  {
+    "name": "weekly-project-status",
+    "role": "Project Manager",
+    "description": "Use when a sponsor needs a status report they can read in a minute.",
+    "path": "weekly-project-status/SKILL.md"
+  },
+  {
+    "name": "project-kickoff-pack",
+    "role": "Project Manager",
+    "description": "Use when a project team is about to start and needs one shared starting point.",
+    "path": "project-kickoff-pack/SKILL.md"
+  },
+  {
+    "name": "change-request-assessment",
+    "role": "Project Manager",
+    "description": "Use when someone asks to change a project's scope, dates or budget mid-way.",
+    "path": "change-request-assessment/SKILL.md"
+  },
+  {
+    "name": "stakeholder-communication-plan",
+    "role": "Project Manager",
+    "description": "Use when a project affects several groups who each need different information at different times.",
+    "path": "stakeholder-communication-plan/SKILL.md"
+  },
+  {
+    "name": "project-closeout-review",
+    "role": "Project Manager",
+    "description": "Use when a project ends and its results, lessons and loose ends must be recorded.",
+    "path": "project-closeout-review/SKILL.md"
+  },
+  {
+    "name": "purchase-requirements",
+    "role": "Procurement Specialist",
+    "description": "Use when something is to be bought and its requirements must be written before suppliers are approached.",
+    "path": "purchase-requirements/SKILL.md"
+  },
+  {
+    "name": "request-for-quotation",
+    "role": "Procurement Specialist",
+    "description": "Use when suppliers must be asked for comparable quotes.",
+    "path": "request-for-quotation/SKILL.md"
+  },
+  {
+    "name": "supplier-quote-comparison",
+    "role": "Procurement Specialist",
+    "description": "Use when quotes have arrived and must be compared on price, terms and risk.",
+    "path": "supplier-quote-comparison/SKILL.md"
+  },
+  {
+    "name": "supplier-due-diligence",
+    "role": "Procurement Specialist",
+    "description": "Use before a new supplier is engaged, to check they are real, stable and suitable.",
+    "path": "supplier-due-diligence/SKILL.md"
+  },
+  {
+    "name": "supplier-contract-renewal-summary",
+    "role": "Procurement Specialist",
+    "description": "Use when a supplier contract is approaching renewal and a decision is needed.",
+    "path": "supplier-contract-renewal-summary/SKILL.md"
+  },
+  {
+    "name": "supplier-register",
+    "role": "Procurement Specialist",
+    "description": "Use when the organisation needs one list of its suppliers, contracts, owners and renewal dates.",
+    "path": "supplier-register/SKILL.md"
+  },
+  {
+    "name": "spend-analysis",
+    "role": "Procurement Specialist",
+    "description": "Use when spending with suppliers must be analysed to find savings and consolidation.",
+    "path": "spend-analysis/SKILL.md"
+  },
+  {
+    "name": "negotiation-brief",
+    "role": "Procurement Specialist",
+    "description": "Use before a person negotiates with a supplier, to prepare positions and limits.",
+    "path": "negotiation-brief/SKILL.md"
+  },
+  {
+    "name": "event-brief",
+    "role": "Event Planner",
+    "description": "Use when an event idea needs a brief: goal, audience, budget, date and success measure.",
+    "path": "event-brief/SKILL.md"
+  },
+  {
+    "name": "venue-comparison",
+    "role": "Event Planner",
+    "description": "Use when venues must be compared for an event.",
+    "path": "venue-comparison/SKILL.md"
+  },
+  {
+    "name": "run-of-show",
+    "role": "Event Planner",
+    "description": "Use when an event needs a minute-by-minute plan for the day.",
+    "path": "run-of-show/SKILL.md"
+  },
+  {
+    "name": "event-checklist",
+    "role": "Event Planner",
+    "description": "Use when everything that must happen before, during and after an event must be listed with owners.",
+    "path": "event-checklist/SKILL.md"
+  },
+  {
+    "name": "event-budget-tracker",
+    "role": "Event Planner",
+    "description": "Use when an event's costs must be tracked against budget.",
+    "path": "event-budget-tracker/SKILL.md"
+  },
+  {
+    "name": "speaker-briefing",
+    "role": "Event Planner",
+    "description": "Use when speakers, hosts or performers need a briefing for an event.",
+    "path": "speaker-briefing/SKILL.md"
+  },
+  {
+    "name": "invitation-and-registration",
+    "role": "Event Planner",
+    "description": "Use when guests must be invited and registrations managed.",
+    "path": "invitation-and-registration/SKILL.md"
+  },
+  {
+    "name": "post-event-follow-up",
+    "role": "Event Planner",
+    "description": "Use after an event to thank people, collect feedback and record results.",
+    "path": "post-event-follow-up/SKILL.md"
+  },
+  {
+    "name": "current-process-map",
+    "role": "Process Improvement Analyst",
+    "description": "Use when a process must be mapped as it actually runs today.",
+    "path": "current-process-map/SKILL.md"
+  },
+  {
+    "name": "process-time-measurement",
+    "role": "Process Improvement Analyst",
+    "description": "Use when time and effort per step must be measured to find waste.",
+    "path": "process-time-measurement/SKILL.md"
+  },
+  {
+    "name": "root-cause-analysis",
+    "role": "Process Improvement Analyst",
+    "description": "Use when a recurring problem in a process needs its causes found.",
+    "path": "root-cause-analysis/SKILL.md"
+  },
+  {
+    "name": "improvement-proposal",
+    "role": "Process Improvement Analyst",
+    "description": "Use when a process change must be proposed with its expected effect.",
+    "path": "improvement-proposal/SKILL.md"
+  },
+  {
+    "name": "future-process-design",
+    "role": "Process Improvement Analyst",
+    "description": "Use when an agreed change needs the new process designed step by step.",
+    "path": "future-process-design/SKILL.md"
+  },
+  {
+    "name": "procedure-rollout-plan",
+    "role": "Process Improvement Analyst",
+    "description": "Use when a new procedure is agreed and must be introduced to the people who use it.",
+    "path": "procedure-rollout-plan/SKILL.md"
+  },
+  {
+    "name": "process-metrics-dashboard",
+    "role": "Process Improvement Analyst",
+    "description": "Use when a process needs a few measures that show whether it is healthy.",
+    "path": "process-metrics-dashboard/SKILL.md"
+  },
+  {
+    "name": "pilot-results-review",
+    "role": "Process Improvement Analyst",
+    "description": "Use when a process change has been piloted and must be judged before rolling out.",
+    "path": "pilot-results-review/SKILL.md"
+  },
+  {
+    "name": "stock-demand-review",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when stock levels must be checked against expected demand.",
+    "path": "stock-demand-review/SKILL.md"
+  },
+  {
+    "name": "reorder-plan",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when reorders must be planned with lead times and quantities.",
+    "path": "reorder-plan/SKILL.md"
+  },
+  {
+    "name": "delay-impact-report",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when a shipment or supply is delayed and its effect on orders must be assessed.",
+    "path": "delay-impact-report/SKILL.md"
+  },
+  {
+    "name": "logistics-option-comparison",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when shipping or logistics options must be compared.",
+    "path": "logistics-option-comparison/SKILL.md"
+  },
+  {
+    "name": "demand-forecast",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when future demand for items must be estimated for planning.",
+    "path": "demand-forecast/SKILL.md"
+  },
+  {
+    "name": "supplier-performance-review",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when supplier delivery performance must be reviewed.",
+    "path": "supplier-performance-review/SKILL.md"
+  },
+  {
+    "name": "stock-count-reconciliation",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when a physical count must be reconciled with recorded stock.",
+    "path": "stock-count-reconciliation/SKILL.md"
+  },
+  {
+    "name": "supply-risk-map",
+    "role": "Supply Chain Coordinator",
+    "description": "Use when the supply chain's single points of failure must be identified.",
+    "path": "supply-risk-map/SKILL.md"
+  },
+  {
+    "name": "microcopy-writing",
+    "role": "UX Writer",
+    "description": "Use when labels, buttons, tooltips and short interface text must be written.",
+    "path": "microcopy-writing/SKILL.md"
+  },
+  {
+    "name": "error-message-writing",
+    "role": "UX Writer",
+    "description": "Use when error messages must tell people what happened and how to recover.",
+    "path": "error-message-writing/SKILL.md"
+  },
+  {
+    "name": "empty-state-writing",
+    "role": "UX Writer",
+    "description": "Use when screens with no content yet need text that explains and invites the first action.",
+    "path": "empty-state-writing/SKILL.md"
+  },
+  {
+    "name": "product-terminology-list",
+    "role": "UX Writer",
+    "description": "Use when a product needs one agreed name for each thing and action.",
+    "path": "product-terminology-list/SKILL.md"
+  },
+  {
+    "name": "flow-wording-review",
+    "role": "UX Writer",
+    "description": "Use when a flow must be reviewed for confusing, inconsistent or missing words.",
+    "path": "flow-wording-review/SKILL.md"
+  },
+  {
+    "name": "in-product-onboarding-text",
+    "role": "UX Writer",
+    "description": "Use when new users need guidance inside the product: tours, checklists, tips.",
+    "path": "in-product-onboarding-text/SKILL.md"
+  },
+  {
+    "name": "notification-copy",
+    "role": "UX Writer",
+    "description": "Use when emails, push or in-app notifications sent by the product need wording.",
+    "path": "notification-copy/SKILL.md"
+  },
+  {
+    "name": "voice-and-tone-for-product",
+    "role": "UX Writer",
+    "description": "Use when a product's interface voice must be defined for different situations.",
+    "path": "voice-and-tone-for-product/SKILL.md"
+  },
+  {
+    "name": "wcag-design-review",
+    "role": "Accessibility Specialist",
+    "description": "Use when a design must be reviewed against WCAG before it is built.",
+    "path": "wcag-design-review/SKILL.md"
+  },
+  {
+    "name": "page-accessibility-audit",
+    "role": "Accessibility Specialist",
+    "description": "Use when a live page or app screen must be audited for accessibility.",
+    "path": "page-accessibility-audit/SKILL.md"
+  },
+  {
+    "name": "accessibility-requirements",
+    "role": "Accessibility Specialist",
+    "description": "Use when new work needs accessibility requirements written before it starts.",
+    "path": "accessibility-requirements/SKILL.md"
+  },
+  {
+    "name": "accessible-document-review",
+    "role": "Accessibility Specialist",
+    "description": "Use when documents (PDFs, slides, spreadsheets) must be checked for accessibility.",
+    "path": "accessible-document-review/SKILL.md"
+  },
+  {
+    "name": "media-captions-and-alternatives",
+    "role": "Accessibility Specialist",
+    "description": "Use when video, audio or images need captions, transcripts or descriptions.",
+    "path": "media-captions-and-alternatives/SKILL.md"
+  },
+  {
+    "name": "accessibility-issue-explainer",
+    "role": "Accessibility Specialist",
+    "description": "Use when an accessibility problem must be explained to a team so they fix it well.",
+    "path": "accessibility-issue-explainer/SKILL.md"
+  },
+  {
+    "name": "accessibility-statement",
+    "role": "Accessibility Specialist",
+    "description": "Use when an organisation needs a public accessibility statement.",
+    "path": "accessibility-statement/SKILL.md"
+  },
+  {
+    "name": "assistive-tech-test-plan",
+    "role": "Accessibility Specialist",
+    "description": "Use when a product must be tested with assistive technologies.",
+    "path": "assistive-tech-test-plan/SKILL.md"
+  },
+  {
+    "name": "feedback-tagging-system",
+    "role": "Product Operations Manager",
+    "description": "Use when customer feedback from many channels must be collected and tagged for the product team.",
+    "path": "feedback-tagging-system/SKILL.md"
+  },
+  {
+    "name": "release-calendar",
+    "role": "Product Operations Manager",
+    "description": "Use when product releases need a shared calendar and communication plan.",
+    "path": "release-calendar/SKILL.md"
+  },
+  {
+    "name": "metrics-review-pack",
+    "role": "Product Operations Manager",
+    "description": "Use when the product team's regular metrics review must be prepared.",
+    "path": "metrics-review-pack/SKILL.md"
+  },
+  {
+    "name": "spec-and-review-templates",
+    "role": "Product Operations Manager",
+    "description": "Use when the product team needs consistent templates for specs, reviews and launches.",
+    "path": "spec-and-review-templates/SKILL.md"
+  },
+  {
+    "name": "product-process-health-check",
+    "role": "Product Operations Manager",
+    "description": "Use when the product team's routines must be reviewed for what works and what does not.",
+    "path": "product-process-health-check/SKILL.md"
+  },
+  {
+    "name": "launch-communication-pack",
+    "role": "Product Operations Manager",
+    "description": "Use when a product release needs internal communication for sales, support and other teams.",
+    "path": "launch-communication-pack/SKILL.md"
+  },
+  {
+    "name": "feature-request-digest",
+    "role": "Product Operations Manager",
+    "description": "Use when feature requests must be summarised for prioritisation.",
+    "path": "feature-request-digest/SKILL.md"
+  },
+  {
+    "name": "product-tooling-inventory",
+    "role": "Product Operations Manager",
+    "description": "Use when the product team's tools need listing with owners, costs and overlaps.",
+    "path": "product-tooling-inventory/SKILL.md"
+  },
+  {
+    "name": "processing-record",
+    "role": "Privacy Specialist",
+    "description": "Use when the organisation must keep its record of personal data processing current.",
+    "path": "processing-record/SKILL.md"
+  },
+  {
+    "name": "data-protection-impact-assessment",
+    "role": "Privacy Specialist",
+    "description": "Use when new work processes personal data in a way that may be high risk.",
+    "path": "data-protection-impact-assessment/SKILL.md"
+  },
+  {
+    "name": "privacy-by-design-review",
+    "role": "Privacy Specialist",
+    "description": "Use when a new feature or project must be reviewed for privacy risks before it is built.",
+    "path": "privacy-by-design-review/SKILL.md"
+  },
+  {
+    "name": "data-subject-request-preparation",
+    "role": "Privacy Specialist",
+    "description": "Use when a person asks to access, correct, delete or move their data and a response must be prepared.",
+    "path": "data-subject-request-preparation/SKILL.md"
+  },
+  {
+    "name": "privacy-notice-drafting",
+    "role": "Privacy Specialist",
+    "description": "Use when a privacy notice must be written in plain language from actual practice.",
+    "path": "privacy-notice-drafting/SKILL.md"
+  },
+  {
+    "name": "data-breach-triage",
+    "role": "Privacy Specialist",
+    "description": "Use when personal data may have been lost, exposed or misused and the first assessment is needed.",
+    "path": "data-breach-triage/SKILL.md"
+  },
+  {
+    "name": "vendor-privacy-review",
+    "role": "Privacy Specialist",
+    "description": "Use when a supplier will process personal data for the organisation.",
+    "path": "vendor-privacy-review/SKILL.md"
+  },
+  {
+    "name": "retention-schedule",
+    "role": "Privacy Specialist",
+    "description": "Use when personal data needs retention periods and deletion rules.",
+    "path": "retention-schedule/SKILL.md"
+  },
+  {
+    "name": "risk-register",
+    "role": "Risk Analyst",
+    "description": "Use when the organisation's main risks must be listed with likelihood, impact and owners.",
+    "path": "risk-register/SKILL.md"
+  },
+  {
+    "name": "risk-appetite-statement",
+    "role": "Risk Analyst",
+    "description": "Use when leadership needs to state how much risk it accepts in each area.",
+    "path": "risk-appetite-statement/SKILL.md"
+  },
+  {
+    "name": "control-description",
+    "role": "Risk Analyst",
+    "description": "Use when a risk's controls must be described with how they are checked.",
+    "path": "control-description/SKILL.md"
+  },
+  {
+    "name": "project-risk-review",
+    "role": "Risk Analyst",
+    "description": "Use when a new project or initiative must be reviewed for risks before approval.",
+    "path": "project-risk-review/SKILL.md"
+  },
+  {
+    "name": "risk-trend-report",
+    "role": "Risk Analyst",
+    "description": "Use when leadership needs a periodic report on growing, new and unowned risks.",
+    "path": "risk-trend-report/SKILL.md"
+  },
+  {
+    "name": "scenario-stress-test",
+    "role": "Risk Analyst",
+    "description": "Use when plans must be tested against plausible bad scenarios.",
+    "path": "scenario-stress-test/SKILL.md"
+  },
+  {
+    "name": "business-continuity-plan",
+    "role": "Risk Analyst",
+    "description": "Use when the organisation needs a plan to keep critical work going during a disruption.",
+    "path": "business-continuity-plan/SKILL.md"
+  },
+  {
+    "name": "incident-loss-log",
+    "role": "Risk Analyst",
+    "description": "Use when incidents and near misses must be recorded to learn from them.",
+    "path": "incident-loss-log/SKILL.md"
+  },
+  {
+    "name": "quality-standard",
+    "role": "Quality Manager",
+    "description": "Use when a product, service or process needs a written quality standard.",
+    "path": "quality-standard/SKILL.md"
+  },
+  {
+    "name": "quality-checklist",
+    "role": "Quality Manager",
+    "description": "Use when work needs a checklist used before it is released or delivered.",
+    "path": "quality-checklist/SKILL.md"
+  },
+  {
+    "name": "defect-root-cause-review",
+    "role": "Quality Manager",
+    "description": "Use when a defect or complaint must be traced to its root cause.",
+    "path": "defect-root-cause-review/SKILL.md"
+  },
+  {
+    "name": "corrective-action-tracker",
+    "role": "Quality Manager",
+    "description": "Use when corrective and preventive actions must be tracked to completion.",
+    "path": "corrective-action-tracker/SKILL.md"
+  },
+  {
+    "name": "audit-readiness-pack",
+    "role": "Quality Manager",
+    "description": "Use when a quality audit or certification is coming.",
+    "path": "audit-readiness-pack/SKILL.md"
+  },
+  {
+    "name": "complaint-trend-analysis",
+    "role": "Quality Manager",
+    "description": "Use when complaints must be analysed for patterns that point to quality problems.",
+    "path": "complaint-trend-analysis/SKILL.md"
+  },
+  {
+    "name": "supplier-quality-review",
+    "role": "Quality Manager",
+    "description": "Use when quality of incoming goods or services from suppliers must be reviewed.",
+    "path": "supplier-quality-review/SKILL.md"
+  },
+  {
+    "name": "quality-kpi-report",
+    "role": "Quality Manager",
+    "description": "Use when quality performance must be reported regularly.",
+    "path": "quality-kpi-report/SKILL.md"
+  },
+  {
+    "name": "release-calendar-and-freezes",
+    "role": "Release Manager",
+    "description": "Use when releases need a calendar with freeze windows everyone respects.",
+    "path": "release-calendar-and-freezes/SKILL.md"
+  },
+  {
+    "name": "release-gate-check",
+    "role": "Release Manager",
+    "description": "Use when a release must be checked against its gates before going out.",
+    "path": "release-gate-check/SKILL.md"
+  },
+  {
+    "name": "release-notes-from-changes",
+    "role": "Release Manager",
+    "description": "Use when release notes must be written from merged changes for users.",
+    "path": "release-notes-from-changes/SKILL.md"
+  },
+  {
+    "name": "rollback-plan",
+    "role": "Release Manager",
+    "description": "Use when a release needs a tested plan to undo it.",
+    "path": "rollback-plan/SKILL.md"
+  },
+  {
+    "name": "release-communication",
+    "role": "Release Manager",
+    "description": "Use when a release must be announced to internal teams and users.",
+    "path": "release-communication/SKILL.md"
+  },
+  {
+    "name": "release-retrospective",
+    "role": "Release Manager",
+    "description": "Use after a release to learn what went well and what did not.",
+    "path": "release-retrospective/SKILL.md"
+  },
+  {
+    "name": "release-readiness-checklist",
+    "role": "Release Manager",
+    "description": "Use when teams need one checklist to prepare a release.",
+    "path": "release-readiness-checklist/SKILL.md"
+  },
+  {
+    "name": "hotfix-coordination",
+    "role": "Release Manager",
+    "description": "Use when an urgent fix must ship outside the normal calendar.",
+    "path": "hotfix-coordination/SKILL.md"
+  },
+  {
+    "name": "it-how-to-guide",
+    "role": "IT Support Specialist",
+    "description": "Use when someone asks how to do something with a device, account or tool.",
+    "path": "it-how-to-guide/SKILL.md"
+  },
+  {
+    "name": "it-request-triage",
+    "role": "IT Support Specialist",
+    "description": "Use when IT requests pile up and must be sorted.",
+    "path": "it-request-triage/SKILL.md"
+  },
+  {
+    "name": "joiner-leaver-account-checklist",
+    "role": "IT Support Specialist",
+    "description": "Use when accounts and devices for new or leaving staff must be set up or removed.",
+    "path": "joiner-leaver-account-checklist/SKILL.md"
+  },
+  {
+    "name": "it-help-article",
+    "role": "IT Support Specialist",
+    "description": "Use when a repeated IT problem needs a help article.",
+    "path": "it-help-article/SKILL.md"
+  },
+  {
+    "name": "device-inventory",
+    "role": "IT Support Specialist",
+    "description": "Use when devices must be tracked with owners, status and support dates.",
+    "path": "device-inventory/SKILL.md"
+  },
+  {
+    "name": "phishing-report-handling",
+    "role": "IT Support Specialist",
+    "description": "Use when someone reports a suspicious email or message.",
+    "path": "phishing-report-handling/SKILL.md"
+  },
+  {
+    "name": "software-access-request",
+    "role": "IT Support Specialist",
+    "description": "Use when someone requests access to a tool or software.",
+    "path": "software-access-request/SKILL.md"
+  },
+  {
+    "name": "it-onboarding-guide",
+    "role": "IT Support Specialist",
+    "description": "Use when new staff need a guide to their first day with IT.",
+    "path": "it-onboarding-guide/SKILL.md"
+  },
+  {
+    "name": "spend-allocation-report",
+    "role": "FinOps Analyst",
+    "description": "Use when cloud and software spending must be broken down by team and service.",
+    "path": "spend-allocation-report/SKILL.md"
+  },
+  {
+    "name": "idle-resource-finder",
+    "role": "FinOps Analyst",
+    "description": "Use when idle and oversized resources must be found.",
+    "path": "idle-resource-finder/SKILL.md"
+  },
+  {
+    "name": "spend-forecast",
+    "role": "FinOps Analyst",
+    "description": "Use when future cloud spending must be forecast from usage trends.",
+    "path": "spend-forecast/SKILL.md"
+  },
+  {
+    "name": "commitment-purchase-analysis",
+    "role": "FinOps Analyst",
+    "description": "Use when reserved capacity or savings plans are being considered.",
+    "path": "commitment-purchase-analysis/SKILL.md"
+  },
+  {
+    "name": "tagging-policy",
+    "role": "FinOps Analyst",
+    "description": "Use when resources need consistent tags so spending can be owned.",
+    "path": "tagging-policy/SKILL.md"
+  },
+  {
+    "name": "unit-cost-metrics",
+    "role": "FinOps Analyst",
+    "description": "Use when cloud costs must be tied to business units like cost per customer or transaction.",
+    "path": "unit-cost-metrics/SKILL.md"
+  },
+  {
+    "name": "software-licence-review",
+    "role": "FinOps Analyst",
+    "description": "Use when software subscriptions must be reviewed for use and cost.",
+    "path": "software-licence-review/SKILL.md"
+  },
+  {
+    "name": "savings-tracker",
+    "role": "FinOps Analyst",
+    "description": "Use when savings actions must be tracked and their effect verified.",
+    "path": "savings-tracker/SKILL.md"
+  },
+  {
+    "name": "business-metric-catalogue",
+    "role": "BI Analyst",
+    "description": "Use when business metrics must be defined once with exact formulas so every team reports them the same way.",
+    "path": "business-metric-catalogue/SKILL.md"
+  },
+  {
+    "name": "report-design",
+    "role": "BI Analyst",
+    "description": "Use when a recurring report must be designed for a team's decisions.",
+    "path": "report-design/SKILL.md"
+  },
+  {
+    "name": "report-query-drafting",
+    "role": "BI Analyst",
+    "description": "Use when the queries behind a report must be written for review.",
+    "path": "report-query-drafting/SKILL.md"
+  },
+  {
+    "name": "number-change-explanation",
+    "role": "BI Analyst",
+    "description": "Use when a reported number moved and people ask why.",
+    "path": "number-change-explanation/SKILL.md"
+  },
+  {
+    "name": "data-quality-check",
+    "role": "BI Analyst",
+    "description": "Use before reports are shared, to check the data behind them.",
+    "path": "data-quality-check/SKILL.md"
+  },
+  {
+    "name": "self-service-guide",
+    "role": "BI Analyst",
+    "description": "Use when teams need to answer their own questions with existing reports.",
+    "path": "self-service-guide/SKILL.md"
+  },
+  {
+    "name": "kpi-target-setting",
+    "role": "BI Analyst",
+    "description": "Use when targets for key metrics must be proposed from history and plans.",
+    "path": "kpi-target-setting/SKILL.md"
+  },
+  {
+    "name": "report-inventory-cleanup",
+    "role": "BI Analyst",
+    "description": "Use when reports have multiplied and many are unused or duplicate.",
+    "path": "report-inventory-cleanup/SKILL.md"
+  },
+  {
+    "name": "search-intent-research",
+    "role": "SEO Specialist",
+    "description": "Use when content plans need to know what the audience searches for and why.",
+    "path": "search-intent-research/SKILL.md"
+  },
+  {
+    "name": "content-plan-by-intent",
+    "role": "SEO Specialist",
+    "description": "Use when content must be planned around search intent.",
+    "path": "content-plan-by-intent/SKILL.md"
+  },
+  {
+    "name": "on-page-review",
+    "role": "SEO Specialist",
+    "description": "Use when pages must be reviewed for titles, headings, structure and links.",
+    "path": "on-page-review/SKILL.md"
+  },
+  {
+    "name": "search-visibility-report",
+    "role": "SEO Specialist",
+    "description": "Use when search performance must be reported over time.",
+    "path": "search-visibility-report/SKILL.md"
+  },
+  {
+    "name": "internal-link-plan",
+    "role": "SEO Specialist",
+    "description": "Use when internal links must be planned so important pages are reachable.",
+    "path": "internal-link-plan/SKILL.md"
+  },
+  {
+    "name": "content-refresh-plan",
+    "role": "SEO Specialist",
+    "description": "Use when existing pages lose traffic or go out of date.",
+    "path": "content-refresh-plan/SKILL.md"
+  },
+  {
+    "name": "local-search-profile",
+    "role": "SEO Specialist",
+    "description": "Use when a local business needs its listings and local pages accurate and consistent.",
+    "path": "local-search-profile/SKILL.md"
+  },
+  {
+    "name": "search-snippet-markup-brief",
+    "role": "SEO Specialist",
+    "description": "Use when pages would benefit from structured data and a developer needs a brief.",
+    "path": "search-snippet-markup-brief/SKILL.md"
+  },
+  {
+    "name": "customer-survey-analysis",
+    "role": "Customer Insights Analyst",
+    "description": "Use when survey results must be analysed into findings.",
+    "path": "customer-survey-analysis/SKILL.md"
+  },
+  {
+    "name": "review-mining",
+    "role": "Customer Insights Analyst",
+    "description": "Use when public reviews and ratings must be analysed for what customers value and dislike.",
+    "path": "review-mining/SKILL.md"
+  },
+  {
+    "name": "support-theme-analysis",
+    "role": "Customer Insights Analyst",
+    "description": "Use when support conversations must be analysed for recurring problems and needs.",
+    "path": "support-theme-analysis/SKILL.md"
+  },
+  {
+    "name": "customer-interview-guide",
+    "role": "Customer Insights Analyst",
+    "description": "Use when customers must be interviewed to understand needs and decisions.",
+    "path": "customer-interview-guide/SKILL.md"
+  },
+  {
+    "name": "interview-summary",
+    "role": "Customer Insights Analyst",
+    "description": "Use after customer interviews to summarise what was learned.",
+    "path": "interview-summary/SKILL.md"
+  },
+  {
+    "name": "needs-based-segmentation",
+    "role": "Customer Insights Analyst",
+    "description": "Use when customers must be grouped by what they need rather than demographics.",
+    "path": "needs-based-segmentation/SKILL.md"
+  },
+  {
+    "name": "insight-report",
+    "role": "Customer Insights Analyst",
+    "description": "Use when findings must be reported as insights with quotes and counts.",
+    "path": "insight-report/SKILL.md"
+  },
+  {
+    "name": "churn-reason-analysis",
+    "role": "Customer Insights Analyst",
+    "description": "Use when customers leave and the reasons must be understood.",
+    "path": "churn-reason-analysis/SKILL.md"
+  },
+  {
+    "name": "market-price-comparison",
+    "role": "Pricing Analyst",
+    "description": "Use when prices and packages must be compared with the market.",
+    "path": "market-price-comparison/SKILL.md"
+  },
+  {
+    "name": "price-change-model",
+    "role": "Pricing Analyst",
+    "description": "Use when the effect of a price change on revenue must be modelled.",
+    "path": "price-change-model/SKILL.md"
+  },
+  {
+    "name": "discount-analysis",
+    "role": "Pricing Analyst",
+    "description": "Use when discounts must be analysed for use and effect.",
+    "path": "discount-analysis/SKILL.md"
+  },
+  {
+    "name": "pricing-page-draft",
+    "role": "Pricing Analyst",
+    "description": "Use when a pricing page or FAQ must be drafted for review.",
+    "path": "pricing-page-draft/SKILL.md"
+  },
+  {
+    "name": "packaging-design",
+    "role": "Pricing Analyst",
+    "description": "Use when offers must be grouped into tiers or packages.",
+    "path": "packaging-design/SKILL.md"
+  },
+  {
+    "name": "willingness-to-pay-study",
+    "role": "Pricing Analyst",
+    "description": "Use when price sensitivity must be researched.",
+    "path": "willingness-to-pay-study/SKILL.md"
+  },
+  {
+    "name": "price-increase-communication",
+    "role": "Pricing Analyst",
+    "description": "Use when an approved price increase must be communicated to customers.",
+    "path": "price-increase-communication/SKILL.md"
+  },
+  {
+    "name": "revenue-leakage-check",
+    "role": "Pricing Analyst",
+    "description": "Use when billed amounts may not match prices and contracts.",
+    "path": "revenue-leakage-check/SKILL.md"
+  },
+  {
+    "name": "leadership-meeting-prep",
+    "role": "Chief of Staff",
+    "description": "Use when a leadership meeting needs an agenda and decision papers.",
+    "path": "leadership-meeting-prep/SKILL.md"
+  },
+  {
+    "name": "decision-log",
+    "role": "Chief of Staff",
+    "description": "Use when leadership decisions must be recorded and tracked.",
+    "path": "decision-log/SKILL.md"
+  },
+  {
+    "name": "commitment-follow-through",
+    "role": "Chief of Staff",
+    "description": "Use when leadership commitments must be tracked to completion.",
+    "path": "commitment-follow-through/SKILL.md"
+  },
+  {
+    "name": "weekly-organisation-summary",
+    "role": "Chief of Staff",
+    "description": "Use when leadership needs a weekly summary of the organisation's state.",
+    "path": "weekly-organisation-summary/SKILL.md"
+  },
+  {
+    "name": "strategy-to-goals",
+    "role": "Chief of Staff",
+    "description": "Use when a strategy must become goals with owners.",
+    "path": "strategy-to-goals/SKILL.md"
+  },
+  {
+    "name": "cross-team-issue-resolution",
+    "role": "Chief of Staff",
+    "description": "Use when an issue between teams needs framing for leadership.",
+    "path": "cross-team-issue-resolution/SKILL.md"
+  },
+  {
+    "name": "offsite-planning",
+    "role": "Chief of Staff",
+    "description": "Use when a leadership offsite or planning session must be designed.",
+    "path": "offsite-planning/SKILL.md"
+  },
+  {
+    "name": "board-meeting-pack",
+    "role": "Chief of Staff",
+    "description": "Use when a board meeting pack must be assembled.",
+    "path": "board-meeting-pack/SKILL.md"
+  },
+  {
+    "name": "operating-performance-review",
+    "role": "COO",
+    "description": "Use when operating performance across departments must be reviewed.",
+    "path": "operating-performance-review/SKILL.md"
+  },
+  {
+    "name": "capacity-readiness-assessment",
+    "role": "COO",
+    "description": "Use when a plan must be checked against the people and capacity available.",
+    "path": "capacity-readiness-assessment/SKILL.md"
+  },
+  {
+    "name": "operating-model-review",
+    "role": "COO",
+    "description": "Use when processes and structure may need to change.",
+    "path": "operating-model-review/SKILL.md"
+  },
+  {
+    "name": "operational-risk-assessment",
+    "role": "COO",
+    "description": "Use when operational risks must be assessed.",
+    "path": "operational-risk-assessment/SKILL.md"
+  },
+  {
+    "name": "growth-readiness-review",
+    "role": "COO",
+    "description": "Use when the organisation plans to grow and must check it can.",
+    "path": "growth-readiness-review/SKILL.md"
+  },
+  {
+    "name": "cost-efficiency-review",
+    "role": "COO",
+    "description": "Use when operating costs must be reviewed for efficiency.",
+    "path": "cost-efficiency-review/SKILL.md"
+  },
+  {
+    "name": "kpi-framework",
+    "role": "COO",
+    "description": "Use when the organisation needs a set of operational KPIs.",
+    "path": "kpi-framework/SKILL.md"
+  },
+  {
+    "name": "plan-challenge-memo",
+    "role": "COO",
+    "description": "Use when a plan must be challenged on feasibility before approval.",
+    "path": "plan-challenge-memo/SKILL.md"
+  },
+  {
+    "name": "runway-review",
+    "role": "CFO",
+    "description": "Use when leadership needs to know how long cash lasts.",
+    "path": "runway-review/SKILL.md"
+  },
+  {
+    "name": "investment-case-review",
+    "role": "CFO",
+    "description": "Use when a major spend or investment must be assessed financially.",
+    "path": "investment-case-review/SKILL.md"
+  },
+  {
+    "name": "profitability-analysis",
+    "role": "CFO",
+    "description": "Use when profitability by product, customer or channel must be understood.",
+    "path": "profitability-analysis/SKILL.md"
+  },
+  {
+    "name": "financial-controls-policy",
+    "role": "CFO",
+    "description": "Use when financial policies and controls must be recommended.",
+    "path": "financial-controls-policy/SKILL.md"
+  },
+  {
+    "name": "board-financial-narrative",
+    "role": "CFO",
+    "description": "Use when financial results must be explained to a board or investors.",
+    "path": "board-financial-narrative/SKILL.md"
+  },
+  {
+    "name": "funding-options-review",
+    "role": "CFO",
+    "description": "Use when funding (loans, investment, grants) is being considered.",
+    "path": "funding-options-review/SKILL.md"
+  },
+  {
+    "name": "annual-budget-review",
+    "role": "CFO",
+    "description": "Use when the annual budget must be reviewed before approval.",
+    "path": "annual-budget-review/SKILL.md"
+  },
+  {
+    "name": "financial-risk-review",
+    "role": "CFO",
+    "description": "Use when financial risks (credit, currency, liquidity, concentration) must be reviewed.",
+    "path": "financial-risk-review/SKILL.md"
+  },
+  {
+    "name": "marketing-strategy-review",
+    "role": "CMO",
+    "description": "Use when marketing strategy must be reviewed against business goals.",
+    "path": "marketing-strategy-review/SKILL.md"
+  },
+  {
+    "name": "brand-position-assessment",
+    "role": "CMO",
+    "description": "Use when brand and positioning decisions must be assessed.",
+    "path": "brand-position-assessment/SKILL.md"
+  },
+  {
+    "name": "marketing-investment-mix",
+    "role": "CMO",
+    "description": "Use when marketing effort must be allocated across channels and programmes.",
+    "path": "marketing-investment-mix/SKILL.md"
+  },
+  {
+    "name": "campaign-strategy-challenge",
+    "role": "CMO",
+    "description": "Use when a campaign must be challenged on whether it serves the strategy.",
+    "path": "campaign-strategy-challenge/SKILL.md"
+  },
+  {
+    "name": "market-entry-assessment",
+    "role": "CMO",
+    "description": "Use when entering a new market or segment is being considered.",
+    "path": "market-entry-assessment/SKILL.md"
+  },
+  {
+    "name": "brand-health-tracker",
+    "role": "CMO",
+    "description": "Use when brand awareness and perception must be tracked over time.",
+    "path": "brand-health-tracker/SKILL.md"
+  },
+  {
+    "name": "marketing-team-capability-review",
+    "role": "CMO",
+    "description": "Use when the marketing team's skills and capacity must be reviewed against plans.",
+    "path": "marketing-team-capability-review/SKILL.md"
+  },
+  {
+    "name": "growth-narrative",
+    "role": "CMO",
+    "description": "Use when leadership needs a clear story of how the organisation grows its audience.",
+    "path": "growth-narrative/SKILL.md"
+  },
+  {
+    "name": "people-strategy-review",
+    "role": "Chief People Officer",
+    "description": "Use when people strategy must be reviewed against business plans.",
+    "path": "people-strategy-review/SKILL.md"
+  },
+  {
+    "name": "organisation-design-options",
+    "role": "Chief People Officer",
+    "description": "Use when organisation structure must change.",
+    "path": "organisation-design-options/SKILL.md"
+  },
+  {
+    "name": "decision-people-impact",
+    "role": "Chief People Officer",
+    "description": "Use when a major decision will affect people.",
+    "path": "decision-people-impact/SKILL.md"
+  },
+  {
+    "name": "pay-and-growth-policy",
+    "role": "Chief People Officer",
+    "description": "Use when policies on pay, progression and growth must be recommended.",
+    "path": "pay-and-growth-policy/SKILL.md"
+  },
+  {
+    "name": "culture-risk-scan",
+    "role": "Chief People Officer",
+    "description": "Use when engagement and other data must be scanned for culture risks.",
+    "path": "culture-risk-scan/SKILL.md"
+  },
+  {
+    "name": "wellbeing-programme-review",
+    "role": "Chief People Officer",
+    "description": "Use when wellbeing programmes must be reviewed for use and effect.",
+    "path": "wellbeing-programme-review/SKILL.md"
+  },
+  {
+    "name": "talent-review-framework",
+    "role": "Chief People Officer",
+    "description": "Use when the organisation needs a fair process to review talent and succession.",
+    "path": "talent-review-framework/SKILL.md"
+  },
+  {
+    "name": "people-metrics-dashboard",
+    "role": "Chief People Officer",
+    "description": "Use when leadership needs aggregated people metrics.",
+    "path": "people-metrics-dashboard/SKILL.md"
+  },
+  {
+    "name": "strategic-position-analysis",
+    "role": "Strategy Director",
+    "description": "Use when the organisation's market position must be analysed.",
+    "path": "strategic-position-analysis/SKILL.md"
+  },
+  {
+    "name": "strategic-options-paper",
+    "role": "Strategy Director",
+    "description": "Use when strategic options must be framed with trade-offs.",
+    "path": "strategic-options-paper/SKILL.md"
+  },
+  {
+    "name": "strategy-goals-cascade",
+    "role": "Strategy Director",
+    "description": "Use when a chosen strategy must become goals across the organisation.",
+    "path": "strategy-goals-cascade/SKILL.md"
+  },
+  {
+    "name": "quarterly-strategy-review",
+    "role": "Strategy Director",
+    "description": "Use each quarter to review strategy against results.",
+    "path": "quarterly-strategy-review/SKILL.md"
+  },
+  {
+    "name": "scenario-planning",
+    "role": "Strategy Director",
+    "description": "Use when uncertain futures must be explored to make strategy robust.",
+    "path": "scenario-planning/SKILL.md"
+  },
+  {
+    "name": "partnership-and-acquisition-screen",
+    "role": "Strategy Director",
+    "description": "Use when partnerships or acquisitions are being considered strategically.",
+    "path": "partnership-and-acquisition-screen/SKILL.md"
+  },
+  {
+    "name": "competitive-move-analysis",
+    "role": "Strategy Director",
+    "description": "Use when a competitor makes a strategic move.",
+    "path": "competitive-move-analysis/SKILL.md"
+  },
+  {
+    "name": "strategy-one-pager",
+    "role": "Strategy Director",
+    "description": "Use when the strategy must be summarised on one page for everyone.",
+    "path": "strategy-one-pager/SKILL.md"
+  },
+  {
+    "name": "emissions-inventory",
+    "role": "Sustainability Lead",
+    "description": "Use when greenhouse gas emissions must be measured from available data.",
+    "path": "emissions-inventory/SKILL.md"
+  },
+  {
+    "name": "reduction-action-plan",
+    "role": "Sustainability Lead",
+    "description": "Use when actions to reduce environmental impact must be recommended.",
+    "path": "reduction-action-plan/SKILL.md"
+  },
+  {
+    "name": "sustainability-report",
+    "role": "Sustainability Lead",
+    "description": "Use when a sustainability report must be prepared.",
+    "path": "sustainability-report/SKILL.md"
+  },
+  {
+    "name": "sustainability-questionnaire",
+    "role": "Sustainability Lead",
+    "description": "Use when customers or investors send sustainability questionnaires.",
+    "path": "sustainability-questionnaire/SKILL.md"
+  },
+  {
+    "name": "green-claims-check",
+    "role": "Sustainability Lead",
+    "description": "Use when public environmental claims must be checked against evidence.",
+    "path": "green-claims-check/SKILL.md"
+  },
+  {
+    "name": "supplier-sustainability-review",
+    "role": "Sustainability Lead",
+    "description": "Use when suppliers' environmental and social practices must be reviewed.",
+    "path": "supplier-sustainability-review/SKILL.md"
+  },
+  {
+    "name": "social-impact-measurement",
+    "role": "Sustainability Lead",
+    "description": "Use when social impact must be measured.",
+    "path": "social-impact-measurement/SKILL.md"
+  },
+  {
+    "name": "sustainability-targets",
+    "role": "Sustainability Lead",
+    "description": "Use when environmental targets must be proposed.",
+    "path": "sustainability-targets/SKILL.md"
+  },
+  {
+    "name": "brand-guidelines-maintenance",
+    "role": "Brand Manager",
+    "description": "Use when brand guidelines (voice, visuals, naming) must be updated or filled in.",
+    "path": "brand-guidelines-maintenance/SKILL.md"
+  },
+  {
+    "name": "brand-consistency-review",
+    "role": "Brand Manager",
+    "description": "Use when materials must be checked against the brand guidelines.",
+    "path": "brand-consistency-review/SKILL.md"
+  },
+  {
+    "name": "brand-work-brief",
+    "role": "Brand Manager",
+    "description": "Use when designers or agencies need a brief for brand work.",
+    "path": "brand-work-brief/SKILL.md"
+  },
+  {
+    "name": "naming-exploration",
+    "role": "Brand Manager",
+    "description": "Use when a product, service or programme needs a name.",
+    "path": "naming-exploration/SKILL.md"
+  },
+  {
+    "name": "brand-perception-tracking",
+    "role": "Brand Manager",
+    "description": "Use when how the brand is perceived must be tracked.",
+    "path": "brand-perception-tracking/SKILL.md"
+  },
+  {
+    "name": "brand-asset-library",
+    "role": "Brand Manager",
+    "description": "Use when brand assets must be organised so people use the right versions.",
+    "path": "brand-asset-library/SKILL.md"
+  },
+  {
+    "name": "co-branding-rules",
+    "role": "Brand Manager",
+    "description": "Use when the brand appears with a partner's brand.",
+    "path": "co-branding-rules/SKILL.md"
+  },
+  {
+    "name": "brand-architecture",
+    "role": "Brand Manager",
+    "description": "Use when relationships between the main brand and sub-brands or products must be defined.",
+    "path": "brand-architecture/SKILL.md"
+  },
+  {
+    "name": "email-program-plan",
+    "role": "Email Marketing Specialist",
+    "description": "Use when an email programme must be planned across the year or a campaign.",
+    "path": "email-program-plan/SKILL.md"
+  },
+  {
+    "name": "automated-email-sequence",
+    "role": "Email Marketing Specialist",
+    "description": "Use when a triggered sequence (welcome, onboarding, re-engagement) must be designed.",
+    "path": "automated-email-sequence/SKILL.md"
+  },
+  {
+    "name": "subject-line-testing",
+    "role": "Email Marketing Specialist",
+    "description": "Use when subject lines must be written and tested.",
+    "path": "subject-line-testing/SKILL.md"
+  },
+  {
+    "name": "audience-segment-plan",
+    "role": "Email Marketing Specialist",
+    "description": "Use when email audiences must be segmented.",
+    "path": "audience-segment-plan/SKILL.md"
+  },
+  {
+    "name": "email-performance-report",
+    "role": "Email Marketing Specialist",
+    "description": "Use when email results must be reported.",
+    "path": "email-performance-report/SKILL.md"
+  },
+  {
+    "name": "list-hygiene-plan",
+    "role": "Email Marketing Specialist",
+    "description": "Use when email lists need cleaning to protect deliverability.",
+    "path": "list-hygiene-plan/SKILL.md"
+  },
+  {
+    "name": "email-compliance-check",
+    "role": "Email Marketing Specialist",
+    "description": "Use before sending, to check consent, unsubscribe and sender details.",
+    "path": "email-compliance-check/SKILL.md"
+  },
+  {
+    "name": "email-template-system",
+    "role": "Email Marketing Specialist",
+    "description": "Use when reusable email templates must be designed.",
+    "path": "email-template-system/SKILL.md"
+  },
+  {
+    "name": "media-pitch",
+    "role": "PR Specialist",
+    "description": "Use when a story must be pitched to journalists.",
+    "path": "media-pitch/SKILL.md"
+  },
+  {
+    "name": "spokesperson-briefing",
+    "role": "PR Specialist",
+    "description": "Use when a spokesperson must be prepared for an interview or appearance.",
+    "path": "spokesperson-briefing/SKILL.md"
+  },
+  {
+    "name": "reputation-holding-statement",
+    "role": "PR Specialist",
+    "description": "Use when a sensitive situation needs a holding statement for media.",
+    "path": "reputation-holding-statement/SKILL.md"
+  },
+  {
+    "name": "media-coverage-tracking",
+    "role": "PR Specialist",
+    "description": "Use when media coverage must be tracked and summarised.",
+    "path": "media-coverage-tracking/SKILL.md"
+  },
+  {
+    "name": "media-list",
+    "role": "PR Specialist",
+    "description": "Use when a list of relevant journalists and outlets must be built.",
+    "path": "media-list/SKILL.md"
+  },
+  {
+    "name": "press-kit",
+    "role": "PR Specialist",
+    "description": "Use when journalists need a press kit.",
+    "path": "press-kit/SKILL.md"
+  },
+  {
+    "name": "crisis-communication-plan",
+    "role": "PR Specialist",
+    "description": "Use when the organisation needs a plan for communicating in a crisis.",
+    "path": "crisis-communication-plan/SKILL.md"
+  },
+  {
+    "name": "thought-leadership-plan",
+    "role": "PR Specialist",
+    "description": "Use when experts in the organisation should share views publicly.",
+    "path": "thought-leadership-plan/SKILL.md"
+  },
+  {
+    "name": "video-script",
+    "role": "Video Producer",
+    "description": "Use when a video needs a script with timing.",
+    "path": "video-script/SKILL.md"
+  },
+  {
+    "name": "storyboard",
+    "role": "Video Producer",
+    "description": "Use when a video needs a storyboard.",
+    "path": "storyboard/SKILL.md"
+  },
+  {
+    "name": "shoot-plan",
+    "role": "Video Producer",
+    "description": "Use when a video shoot must be planned.",
+    "path": "shoot-plan/SKILL.md"
+  },
+  {
+    "name": "captions-and-descriptions",
+    "role": "Video Producer",
+    "description": "Use when videos need captions, titles and descriptions.",
+    "path": "captions-and-descriptions/SKILL.md"
+  },
+  {
+    "name": "platform-video-adaptation",
+    "role": "Video Producer",
+    "description": "Use when one video must be adapted for several platforms.",
+    "path": "platform-video-adaptation/SKILL.md"
+  },
+  {
+    "name": "video-production-budget",
+    "role": "Video Producer",
+    "description": "Use when a video production must be budgeted.",
+    "path": "video-production-budget/SKILL.md"
+  },
+  {
+    "name": "music-and-rights-check",
+    "role": "Video Producer",
+    "description": "Use when music, footage or images in a video must be cleared.",
+    "path": "music-and-rights-check/SKILL.md"
+  },
+  {
+    "name": "video-performance-review",
+    "role": "Video Producer",
+    "description": "Use when video results must be reviewed.",
+    "path": "video-performance-review/SKILL.md"
+  },
+  {
+    "name": "product-messaging-framework",
+    "role": "Product Marketing Manager",
+    "description": "Use when a product needs positioning and messaging by audience.",
+    "path": "product-messaging-framework/SKILL.md"
+  },
+  {
+    "name": "product-launch-plan",
+    "role": "Product Marketing Manager",
+    "description": "Use when a product or feature launch must be planned.",
+    "path": "product-launch-plan/SKILL.md"
+  },
+  {
+    "name": "sales-enablement-kit",
+    "role": "Product Marketing Manager",
+    "description": "Use when sales needs materials to sell a product.",
+    "path": "sales-enablement-kit/SKILL.md"
+  },
+  {
+    "name": "competitor-comparison",
+    "role": "Product Marketing Manager",
+    "description": "Use when sales needs an honest comparison with competitors.",
+    "path": "competitor-comparison/SKILL.md"
+  },
+  {
+    "name": "win-loss-analysis",
+    "role": "Product Marketing Manager",
+    "description": "Use when win and loss reasons must be collected and analysed.",
+    "path": "win-loss-analysis/SKILL.md"
+  },
+  {
+    "name": "buyer-persona",
+    "role": "Product Marketing Manager",
+    "description": "Use when the people who buy and influence purchases must be described.",
+    "path": "buyer-persona/SKILL.md"
+  },
+  {
+    "name": "feature-announcement",
+    "role": "Product Marketing Manager",
+    "description": "Use when a new feature must be announced to customers.",
+    "path": "feature-announcement/SKILL.md"
+  },
+  {
+    "name": "pricing-and-packaging-input",
+    "role": "Product Marketing Manager",
+    "description": "Use when product marketing must give input on pricing and packaging.",
+    "path": "pricing-and-packaging-input/SKILL.md"
+  },
+  {
+    "name": "account-plan-maintenance",
+    "role": "Account Manager",
+    "description": "Use when an account plan must be kept current with goals and contacts.",
+    "path": "account-plan-maintenance/SKILL.md"
+  },
+  {
+    "name": "business-review-deck",
+    "role": "Account Manager",
+    "description": "Use when a customer business review must be prepared.",
+    "path": "business-review-deck/SKILL.md"
+  },
+  {
+    "name": "renewal-risk-scan",
+    "role": "Account Manager",
+    "description": "Use when accounts must be scanned for renewal risk.",
+    "path": "renewal-risk-scan/SKILL.md"
+  },
+  {
+    "name": "expansion-opportunity-brief",
+    "role": "Account Manager",
+    "description": "Use when an account may benefit from more products or services.",
+    "path": "expansion-opportunity-brief/SKILL.md"
+  },
+  {
+    "name": "account-follow-up",
+    "role": "Account Manager",
+    "description": "Use after an account interaction to draft a follow-up for a person to send.",
+    "path": "account-follow-up/SKILL.md"
+  },
+  {
+    "name": "stakeholder-map",
+    "role": "Account Manager",
+    "description": "Use when relationships within a customer must be mapped.",
+    "path": "stakeholder-map/SKILL.md"
+  },
+  {
+    "name": "escalated-account-recovery",
+    "role": "Account Manager",
+    "description": "Use when an unhappy account needs a recovery plan.",
+    "path": "escalated-account-recovery/SKILL.md"
+  },
+  {
+    "name": "account-health-summary",
+    "role": "Account Manager",
+    "description": "Use when a portfolio of accounts must be summarised for leadership.",
+    "path": "account-health-summary/SKILL.md"
+  },
+  {
+    "name": "customer-success-plan",
+    "role": "Customer Success Manager",
+    "description": "Use when a customer needs a plan tied to their goals.",
+    "path": "customer-success-plan/SKILL.md"
+  },
+  {
+    "name": "adoption-health-tracking",
+    "role": "Customer Success Manager",
+    "description": "Use when product adoption and health signals must be tracked.",
+    "path": "adoption-health-tracking/SKILL.md"
+  },
+  {
+    "name": "success-playbook",
+    "role": "Customer Success Manager",
+    "description": "Use when common situations need a playbook.",
+    "path": "success-playbook/SKILL.md"
+  },
+  {
+    "name": "problem-handoff",
+    "role": "Customer Success Manager",
+    "description": "Use when a customer problem must be handed to support or product with context.",
+    "path": "problem-handoff/SKILL.md"
+  },
+  {
+    "name": "quarterly-value-review",
+    "role": "Customer Success Manager",
+    "description": "Use when a customer needs a quarterly review of value achieved.",
+    "path": "quarterly-value-review/SKILL.md"
+  },
+  {
+    "name": "churn-save-plan",
+    "role": "Customer Success Manager",
+    "description": "Use when a customer signals they may leave.",
+    "path": "churn-save-plan/SKILL.md"
+  },
+  {
+    "name": "customer-advocacy-programme",
+    "role": "Customer Success Manager",
+    "description": "Use when happy customers could act as references or advocates.",
+    "path": "customer-advocacy-programme/SKILL.md"
+  },
+  {
+    "name": "success-metrics-report",
+    "role": "Customer Success Manager",
+    "description": "Use when customer success performance must be reported.",
+    "path": "success-metrics-report/SKILL.md"
+  },
+  {
+    "name": "tender-requirements-matrix",
+    "role": "Bid Manager",
+    "description": "Use when tender documents must be read and every requirement listed.",
+    "path": "tender-requirements-matrix/SKILL.md"
+  },
+  {
+    "name": "bid-no-bid-assessment",
+    "role": "Bid Manager",
+    "description": "Use when deciding whether to bid for a tender.",
+    "path": "bid-no-bid-assessment/SKILL.md"
+  },
+  {
+    "name": "bid-plan",
+    "role": "Bid Manager",
+    "description": "Use when a bid needs a plan with owners and deadlines.",
+    "path": "bid-plan/SKILL.md"
+  },
+  {
+    "name": "proposal-section-writing",
+    "role": "Bid Manager",
+    "description": "Use when a proposal section must be written to score well.",
+    "path": "proposal-section-writing/SKILL.md"
+  },
+  {
+    "name": "bid-compliance-check",
+    "role": "Bid Manager",
+    "description": "Use before submission, to check the bid complies with every requirement.",
+    "path": "bid-compliance-check/SKILL.md"
+  },
+  {
+    "name": "clarification-questions",
+    "role": "Bid Manager",
+    "description": "Use when unclear tender points need clarification questions.",
+    "path": "clarification-questions/SKILL.md"
+  },
+  {
+    "name": "bid-pricing-narrative",
+    "role": "Bid Manager",
+    "description": "Use when the pricing section of a bid needs explanation.",
+    "path": "bid-pricing-narrative/SKILL.md"
+  },
+  {
+    "name": "bid-debrief",
+    "role": "Bid Manager",
+    "description": "Use after a bid result to learn from it.",
+    "path": "bid-debrief/SKILL.md"
+  },
+  {
+    "name": "partner-research",
+    "role": "Partnership Manager",
+    "description": "Use when potential partners must be researched.",
+    "path": "partner-research/SKILL.md"
+  },
+  {
+    "name": "partnership-proposal",
+    "role": "Partnership Manager",
+    "description": "Use when a partnership proposal must be written.",
+    "path": "partnership-proposal/SKILL.md"
+  },
+  {
+    "name": "partner-plan",
+    "role": "Partnership Manager",
+    "description": "Use when an active partnership needs a joint plan.",
+    "path": "partner-plan/SKILL.md"
+  },
+  {
+    "name": "partnership-value-report",
+    "role": "Partnership Manager",
+    "description": "Use when the value a partnership delivers must be reported.",
+    "path": "partnership-value-report/SKILL.md"
+  },
+  {
+    "name": "partner-onboarding",
+    "role": "Partnership Manager",
+    "description": "Use when a new partner must be onboarded.",
+    "path": "partner-onboarding/SKILL.md"
+  },
+  {
+    "name": "co-marketing-plan",
+    "role": "Partnership Manager",
+    "description": "Use when partners will market together.",
+    "path": "co-marketing-plan/SKILL.md"
+  },
+  {
+    "name": "partner-health-review",
+    "role": "Partnership Manager",
+    "description": "Use when partnerships must be reviewed for health.",
+    "path": "partner-health-review/SKILL.md"
+  },
+  {
+    "name": "partner-agreement-summary",
+    "role": "Partnership Manager",
+    "description": "Use when a partnership agreement must be summarised for the team.",
+    "path": "partner-agreement-summary/SKILL.md"
+  },
+  {
+    "name": "customer-onboarding-plan",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when a new customer needs an onboarding plan to first success.",
+    "path": "customer-onboarding-plan/SKILL.md"
+  },
+  {
+    "name": "setup-guide",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when customers need a setup guide.",
+    "path": "setup-guide/SKILL.md"
+  },
+  {
+    "name": "onboarding-checklist",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when onboarding needs a shared checklist.",
+    "path": "onboarding-checklist/SKILL.md"
+  },
+  {
+    "name": "onboarding-progress-report",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when onboarding progress and blockers must be reported.",
+    "path": "onboarding-progress-report/SKILL.md"
+  },
+  {
+    "name": "kickoff-meeting-pack",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when an onboarding kickoff meeting must be prepared.",
+    "path": "kickoff-meeting-pack/SKILL.md"
+  },
+  {
+    "name": "training-session-plan",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when customer users need training.",
+    "path": "training-session-plan/SKILL.md"
+  },
+  {
+    "name": "handover-to-success",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when an account is live and must be handed to customer success.",
+    "path": "handover-to-success/SKILL.md"
+  },
+  {
+    "name": "onboarding-friction-review",
+    "role": "Customer Onboarding Specialist",
+    "description": "Use when onboarding takes too long and the friction must be found.",
+    "path": "onboarding-friction-review/SKILL.md"
+  },
+  {
+    "name": "pipeline-report",
+    "role": "Sales Operations Analyst",
+    "description": "Use when the sales pipeline must be reported.",
+    "path": "pipeline-report/SKILL.md"
+  },
+  {
+    "name": "forecast-accuracy-review",
+    "role": "Sales Operations Analyst",
+    "description": "Use when sales forecast accuracy must be reviewed.",
+    "path": "forecast-accuracy-review/SKILL.md"
+  },
+  {
+    "name": "sales-stage-definitions",
+    "role": "Sales Operations Analyst",
+    "description": "Use when sales stages need exit criteria.",
+    "path": "sales-stage-definitions/SKILL.md"
+  },
+  {
+    "name": "crm-data-gap-report",
+    "role": "Sales Operations Analyst",
+    "description": "Use when sales records have gaps or errors.",
+    "path": "crm-data-gap-report/SKILL.md"
+  },
+  {
+    "name": "territory-and-quota-plan",
+    "role": "Sales Operations Analyst",
+    "description": "Use when territories and quotas must be designed for review.",
+    "path": "territory-and-quota-plan/SKILL.md"
+  },
+  {
+    "name": "sales-process-review",
+    "role": "Sales Operations Analyst",
+    "description": "Use when the sales process slows the team down.",
+    "path": "sales-process-review/SKILL.md"
+  },
+  {
+    "name": "commission-calculation-check",
+    "role": "Sales Operations Analyst",
+    "description": "Use when commissions must be checked before a person approves them.",
+    "path": "commission-calculation-check/SKILL.md"
+  },
+  {
+    "name": "win-rate-analysis",
+    "role": "Sales Operations Analyst",
+    "description": "Use when win rates must be analysed by segment and stage.",
+    "path": "win-rate-analysis/SKILL.md"
+  },
+  {
+    "name": "sourcing-channel-plan",
+    "role": "Talent Sourcer",
+    "description": "Use when a role needs a plan of where to look for candidates.",
+    "path": "sourcing-channel-plan/SKILL.md"
+  },
+  {
+    "name": "boolean-search-strings",
+    "role": "Talent Sourcer",
+    "description": "Use when search strings are needed to find candidates on public platforms.",
+    "path": "boolean-search-strings/SKILL.md"
+  },
+  {
+    "name": "sourcing-outreach-drafts",
+    "role": "Talent Sourcer",
+    "description": "Use when candidates found must be contacted by a person.",
+    "path": "sourcing-outreach-drafts/SKILL.md"
+  },
+  {
+    "name": "profile-criteria-summary",
+    "role": "Talent Sourcer",
+    "description": "Use when public profiles must be summarised against role criteria.",
+    "path": "profile-criteria-summary/SKILL.md"
+  },
+  {
+    "name": "sourcing-reach-report",
+    "role": "Talent Sourcer",
+    "description": "Use when the reach and diversity of sourcing must be reported.",
+    "path": "sourcing-reach-report/SKILL.md"
+  },
+  {
+    "name": "talent-pool-plan",
+    "role": "Talent Sourcer",
+    "description": "Use when a pool of potential candidates must be built for future roles.",
+    "path": "talent-pool-plan/SKILL.md"
+  },
+  {
+    "name": "referral-campaign",
+    "role": "Talent Sourcer",
+    "description": "Use when employee referrals should be encouraged fairly.",
+    "path": "referral-campaign/SKILL.md"
+  },
+  {
+    "name": "market-talent-map",
+    "role": "Talent Sourcer",
+    "description": "Use when the market for a skill must be understood.",
+    "path": "market-talent-map/SKILL.md"
+  },
+  {
+    "name": "salary-band-design",
+    "role": "Compensation Analyst",
+    "description": "Use when salary bands must be built from market data.",
+    "path": "salary-band-design/SKILL.md"
+  },
+  {
+    "name": "pay-equity-analysis",
+    "role": "Compensation Analyst",
+    "description": "Use when pay must be analysed for unexplained gaps between groups.",
+    "path": "pay-equity-analysis/SKILL.md"
+  },
+  {
+    "name": "benefits-comparison",
+    "role": "Compensation Analyst",
+    "description": "Use when benefits packages must be compared.",
+    "path": "benefits-comparison/SKILL.md"
+  },
+  {
+    "name": "pay-change-cost-model",
+    "role": "Compensation Analyst",
+    "description": "Use when the cost of pay changes must be modelled.",
+    "path": "pay-change-cost-model/SKILL.md"
+  },
+  {
+    "name": "job-levelling",
+    "role": "Compensation Analyst",
+    "description": "Use when roles must be placed in levels consistently.",
+    "path": "job-levelling/SKILL.md"
+  },
+  {
+    "name": "compensation-review-cycle",
+    "role": "Compensation Analyst",
+    "description": "Use when a pay review cycle must be planned.",
+    "path": "compensation-review-cycle/SKILL.md"
+  },
+  {
+    "name": "offer-benchmark",
+    "role": "Compensation Analyst",
+    "description": "Use when an offer must be checked against bands and market.",
+    "path": "offer-benchmark/SKILL.md"
+  },
+  {
+    "name": "pay-transparency-statement",
+    "role": "Compensation Analyst",
+    "description": "Use when pay practices must be explained to staff.",
+    "path": "pay-transparency-statement/SKILL.md"
+  },
+  {
+    "name": "pulse-survey-design",
+    "role": "Employee Experience Specialist",
+    "description": "Use when a short engagement or pulse survey must be designed.",
+    "path": "pulse-survey-design/SKILL.md"
+  },
+  {
+    "name": "feedback-theme-summary",
+    "role": "Employee Experience Specialist",
+    "description": "Use when employee feedback must be summarised in aggregate.",
+    "path": "feedback-theme-summary/SKILL.md"
+  },
+  {
+    "name": "recognition-programme",
+    "role": "Employee Experience Specialist",
+    "description": "Use when a recognition programme must be designed.",
+    "path": "recognition-programme/SKILL.md"
+  },
+  {
+    "name": "wellbeing-initiative-plan",
+    "role": "Employee Experience Specialist",
+    "description": "Use when a wellbeing initiative must be planned.",
+    "path": "wellbeing-initiative-plan/SKILL.md"
+  },
+  {
+    "name": "feedback-action-tracker",
+    "role": "Employee Experience Specialist",
+    "description": "Use when actions promised in response to feedback must be tracked.",
+    "path": "feedback-action-tracker/SKILL.md"
+  },
+  {
+    "name": "employee-journey-map",
+    "role": "Employee Experience Specialist",
+    "description": "Use when the employee experience across stages must be mapped.",
+    "path": "employee-journey-map/SKILL.md"
+  },
+  {
+    "name": "team-event-plan",
+    "role": "Employee Experience Specialist",
+    "description": "Use when a team gathering must be planned inclusively.",
+    "path": "team-event-plan/SKILL.md"
+  },
+  {
+    "name": "exit-feedback-analysis",
+    "role": "Employee Experience Specialist",
+    "description": "Use when exit interviews or surveys must be analysed.",
+    "path": "exit-feedback-analysis/SKILL.md"
+  },
+  {
+    "name": "headcount-forecast",
+    "role": "Workforce Planner",
+    "description": "Use when headcount needs must be forecast from business plans.",
+    "path": "headcount-forecast/SKILL.md"
+  },
+  {
+    "name": "skills-gap-map",
+    "role": "Workforce Planner",
+    "description": "Use when skills needed for plans must be compared with skills present.",
+    "path": "skills-gap-map/SKILL.md"
+  },
+  {
+    "name": "build-buy-borrow-options",
+    "role": "Workforce Planner",
+    "description": "Use when gaps must be closed by hiring, training or contracting.",
+    "path": "build-buy-borrow-options/SKILL.md"
+  },
+  {
+    "name": "hiring-plan-tracking",
+    "role": "Workforce Planner",
+    "description": "Use when the hiring plan must be tracked against actual hiring.",
+    "path": "hiring-plan-tracking/SKILL.md"
+  },
+  {
+    "name": "succession-coverage-review",
+    "role": "Workforce Planner",
+    "description": "Use when critical roles need cover if someone leaves.",
+    "path": "succession-coverage-review/SKILL.md"
+  },
+  {
+    "name": "workforce-cost-model",
+    "role": "Workforce Planner",
+    "description": "Use when the cost of workforce plans must be modelled.",
+    "path": "workforce-cost-model/SKILL.md"
+  },
+  {
+    "name": "capacity-demand-model",
+    "role": "Workforce Planner",
+    "description": "Use when team capacity must be compared with expected demand.",
+    "path": "capacity-demand-model/SKILL.md"
+  },
+  {
+    "name": "contractor-usage-review",
+    "role": "Workforce Planner",
+    "description": "Use when use of contractors must be reviewed.",
+    "path": "contractor-usage-review/SKILL.md"
+  },
+  {
+    "name": "internal-announcement",
+    "role": "Internal Communications Specialist",
+    "description": "Use when news must be announced inside the organisation.",
+    "path": "internal-announcement/SKILL.md"
+  },
+  {
+    "name": "internal-newsletter",
+    "role": "Internal Communications Specialist",
+    "description": "Use when an internal newsletter must be produced.",
+    "path": "internal-newsletter/SKILL.md"
+  },
+  {
+    "name": "change-communication-plan",
+    "role": "Internal Communications Specialist",
+    "description": "Use when an organisational change must be communicated.",
+    "path": "change-communication-plan/SKILL.md"
+  },
+  {
+    "name": "all-hands-agenda",
+    "role": "Internal Communications Specialist",
+    "description": "Use when an all-hands meeting must be prepared.",
+    "path": "all-hands-agenda/SKILL.md"
+  },
+  {
+    "name": "internal-comms-calendar",
+    "role": "Internal Communications Specialist",
+    "description": "Use when internal communications need a calendar.",
+    "path": "internal-comms-calendar/SKILL.md"
+  },
+  {
+    "name": "leadership-message-draft",
+    "role": "Internal Communications Specialist",
+    "description": "Use when a leader needs a message to staff drafted in their voice.",
+    "path": "leadership-message-draft/SKILL.md"
+  },
+  {
+    "name": "channel-guidelines",
+    "role": "Internal Communications Specialist",
+    "description": "Use when internal channels (chat, email, intranet) need usage rules.",
+    "path": "channel-guidelines/SKILL.md"
+  },
+  {
+    "name": "comms-effectiveness-review",
+    "role": "Internal Communications Specialist",
+    "description": "Use when internal communications must be checked for reach and understanding.",
+    "path": "comms-effectiveness-review/SKILL.md"
+  },
+  {
+    "name": "activity-risk-assessment",
+    "role": "Health & Safety Advisor",
+    "description": "Use when an activity or place needs a health and safety risk assessment.",
+    "path": "activity-risk-assessment/SKILL.md"
+  },
+  {
+    "name": "safety-procedure",
+    "role": "Health & Safety Advisor",
+    "description": "Use when a safe working procedure must be written.",
+    "path": "safety-procedure/SKILL.md"
+  },
+  {
+    "name": "incident-report-analysis",
+    "role": "Health & Safety Advisor",
+    "description": "Use when safety incidents and near misses must be analysed.",
+    "path": "incident-report-analysis/SKILL.md"
+  },
+  {
+    "name": "corrective-safety-actions",
+    "role": "Health & Safety Advisor",
+    "description": "Use when actions from incidents must be tracked.",
+    "path": "corrective-safety-actions/SKILL.md"
+  },
+  {
+    "name": "safety-training-material",
+    "role": "Health & Safety Advisor",
+    "description": "Use when safety training must be prepared.",
+    "path": "safety-training-material/SKILL.md"
+  },
+  {
+    "name": "workplace-inspection-checklist",
+    "role": "Health & Safety Advisor",
+    "description": "Use when a workplace needs a regular inspection checklist.",
+    "path": "workplace-inspection-checklist/SKILL.md"
+  },
+  {
+    "name": "emergency-plan",
+    "role": "Health & Safety Advisor",
+    "description": "Use when an emergency plan (fire, evacuation, first aid) is needed.",
+    "path": "emergency-plan/SKILL.md"
+  },
+  {
+    "name": "remote-work-safety",
+    "role": "Health & Safety Advisor",
+    "description": "Use when home or remote working setups need a safety check.",
+    "path": "remote-work-safety/SKILL.md"
+  },
+  {
+    "name": "transaction-categorisation",
+    "role": "Bookkeeper",
+    "description": "Use when transactions must be categorised from records a person shares.",
+    "path": "transaction-categorisation/SKILL.md"
+  },
+  {
+    "name": "bank-reconciliation",
+    "role": "Bookkeeper",
+    "description": "Use when bank statements must be reconciled with the books.",
+    "path": "bank-reconciliation/SKILL.md"
+  },
+  {
+    "name": "missing-receipt-report",
+    "role": "Bookkeeper",
+    "description": "Use when receipts are missing or duplicates may exist.",
+    "path": "missing-receipt-report/SKILL.md"
+  },
+  {
+    "name": "month-end-checklist",
+    "role": "Bookkeeper",
+    "description": "Use when month-end closing needs a checklist.",
+    "path": "month-end-checklist/SKILL.md"
+  },
+  {
+    "name": "accounts-payable-ageing",
+    "role": "Bookkeeper",
+    "description": "Use when unpaid bills must be summarised by age.",
+    "path": "accounts-payable-ageing/SKILL.md"
+  },
+  {
+    "name": "accounts-receivable-ageing",
+    "role": "Bookkeeper",
+    "description": "Use when unpaid customer invoices must be summarised by age.",
+    "path": "accounts-receivable-ageing/SKILL.md"
+  },
+  {
+    "name": "expense-coding-guide",
+    "role": "Bookkeeper",
+    "description": "Use when people need a guide to coding expenses.",
+    "path": "expense-coding-guide/SKILL.md"
+  },
+  {
+    "name": "trial-balance-review",
+    "role": "Bookkeeper",
+    "description": "Use when a trial balance must be reviewed for anomalies.",
+    "path": "trial-balance-review/SKILL.md"
+  },
+  {
+    "name": "payroll-change-summary",
+    "role": "Payroll Specialist",
+    "description": "Use when payroll changes must be summarised for review before a run.",
+    "path": "payroll-change-summary/SKILL.md"
+  },
+  {
+    "name": "payroll-variance-check",
+    "role": "Payroll Specialist",
+    "description": "Use when payroll totals must be checked against the previous run.",
+    "path": "payroll-variance-check/SKILL.md"
+  },
+  {
+    "name": "payroll-calendar",
+    "role": "Payroll Specialist",
+    "description": "Use when payroll dates and deadlines must be planned.",
+    "path": "payroll-calendar/SKILL.md"
+  },
+  {
+    "name": "payroll-question-answers",
+    "role": "Payroll Specialist",
+    "description": "Use when staff ask payroll questions answerable from policy.",
+    "path": "payroll-question-answers/SKILL.md"
+  },
+  {
+    "name": "new-starter-payroll-checklist",
+    "role": "Payroll Specialist",
+    "description": "Use when a new starter must be set up in payroll.",
+    "path": "new-starter-payroll-checklist/SKILL.md"
+  },
+  {
+    "name": "leaver-final-pay-checklist",
+    "role": "Payroll Specialist",
+    "description": "Use when a leaver's final pay must be prepared.",
+    "path": "leaver-final-pay-checklist/SKILL.md"
+  },
+  {
+    "name": "payroll-year-end",
+    "role": "Payroll Specialist",
+    "description": "Use when payroll year-end tasks must be prepared.",
+    "path": "payroll-year-end/SKILL.md"
+  },
+  {
+    "name": "benefit-deduction-check",
+    "role": "Payroll Specialist",
+    "description": "Use when benefit and other deductions must be checked.",
+    "path": "benefit-deduction-check/SKILL.md"
+  },
+  {
+    "name": "tax-deadline-calendar",
+    "role": "Tax Assistant",
+    "description": "Use when tax deadlines must be tracked.",
+    "path": "tax-deadline-calendar/SKILL.md"
+  },
+  {
+    "name": "tax-records-pack",
+    "role": "Tax Assistant",
+    "description": "Use when records needed for a return must be gathered.",
+    "path": "tax-records-pack/SKILL.md"
+  },
+  {
+    "name": "tax-workings",
+    "role": "Tax Assistant",
+    "description": "Use when workings for a return must be prepared for review.",
+    "path": "tax-workings/SKILL.md"
+  },
+  {
+    "name": "adviser-question-list",
+    "role": "Tax Assistant",
+    "description": "Use when questions for the tax adviser must be collected.",
+    "path": "adviser-question-list/SKILL.md"
+  },
+  {
+    "name": "sales-tax-summary",
+    "role": "Tax Assistant",
+    "description": "Use when sales or value-added tax for a period must be summarised for review.",
+    "path": "sales-tax-summary/SKILL.md"
+  },
+  {
+    "name": "expense-deductibility-flags",
+    "role": "Tax Assistant",
+    "description": "Use when expenses may need tax treatment review.",
+    "path": "expense-deductibility-flags/SKILL.md"
+  },
+  {
+    "name": "tax-notice-summary",
+    "role": "Tax Assistant",
+    "description": "Use when a tax authority letter must be summarised.",
+    "path": "tax-notice-summary/SKILL.md"
+  },
+  {
+    "name": "tax-change-watch",
+    "role": "Tax Assistant",
+    "description": "Use when changes in tax rules that may affect the organisation must be tracked.",
+    "path": "tax-change-watch/SKILL.md"
+  },
+  {
+    "name": "contract-register",
+    "role": "Contract Manager",
+    "description": "Use when contracts must be kept in one register with key terms and dates.",
+    "path": "contract-register/SKILL.md"
+  },
+  {
+    "name": "template-contract-preparation",
+    "role": "Contract Manager",
+    "description": "Use when a contract must be prepared from an approved template.",
+    "path": "template-contract-preparation/SKILL.md"
+  },
+  {
+    "name": "obligation-tracking",
+    "role": "Contract Manager",
+    "description": "Use when obligations on both sides must be tracked.",
+    "path": "obligation-tracking/SKILL.md"
+  },
+  {
+    "name": "renewal-notice-reminders",
+    "role": "Contract Manager",
+    "description": "Use when owners must be reminded of renewals and notice periods.",
+    "path": "renewal-notice-reminders/SKILL.md"
+  },
+  {
+    "name": "contract-amendment-log",
+    "role": "Contract Manager",
+    "description": "Use when amendments to contracts must be tracked.",
+    "path": "contract-amendment-log/SKILL.md"
+  },
+  {
+    "name": "contract-request-intake",
+    "role": "Contract Manager",
+    "description": "Use when a team requests a new contract.",
+    "path": "contract-request-intake/SKILL.md"
+  },
+  {
+    "name": "contract-portfolio-report",
+    "role": "Contract Manager",
+    "description": "Use when leadership needs an overview of contracts.",
+    "path": "contract-portfolio-report/SKILL.md"
+  },
+  {
+    "name": "signature-readiness-check",
+    "role": "Contract Manager",
+    "description": "Use before a contract goes for signature.",
+    "path": "signature-readiness-check/SKILL.md"
+  },
+  {
+    "name": "obligations-register",
+    "role": "Compliance Officer",
+    "description": "Use when the rules that apply must be listed with sources.",
+    "path": "obligations-register/SKILL.md"
+  },
+  {
+    "name": "obligation-policy-mapping",
+    "role": "Compliance Officer",
+    "description": "Use when obligations must be mapped to policies and owners.",
+    "path": "obligation-policy-mapping/SKILL.md"
+  },
+  {
+    "name": "compliance-attestation",
+    "role": "Compliance Officer",
+    "description": "Use when compliance attestations need evidence prepared.",
+    "path": "compliance-attestation/SKILL.md"
+  },
+  {
+    "name": "regulatory-change-tracking",
+    "role": "Compliance Officer",
+    "description": "Use when changes in rules must be tracked.",
+    "path": "regulatory-change-tracking/SKILL.md"
+  },
+  {
+    "name": "compliance-training-plan",
+    "role": "Compliance Officer",
+    "description": "Use when staff need compliance training.",
+    "path": "compliance-training-plan/SKILL.md"
+  },
+  {
+    "name": "compliance-monitoring-plan",
+    "role": "Compliance Officer",
+    "description": "Use when compliance must be checked regularly.",
+    "path": "compliance-monitoring-plan/SKILL.md"
+  },
+  {
+    "name": "breach-assessment",
+    "role": "Compliance Officer",
+    "description": "Use when a possible breach of a rule must be assessed.",
+    "path": "breach-assessment/SKILL.md"
+  },
+  {
+    "name": "compliance-report",
+    "role": "Compliance Officer",
+    "description": "Use when leadership needs a compliance status report.",
+    "path": "compliance-report/SKILL.md"
+  },
+  {
+    "name": "risk-based-audit-plan",
+    "role": "Internal Auditor",
+    "description": "Use when audits must be planned by risk.",
+    "path": "risk-based-audit-plan/SKILL.md"
+  },
+  {
+    "name": "control-testing",
+    "role": "Internal Auditor",
+    "description": "Use when controls must be tested against their evidence.",
+    "path": "control-testing/SKILL.md"
+  },
+  {
+    "name": "audit-finding",
+    "role": "Internal Auditor",
+    "description": "Use when an audit finding must be written.",
+    "path": "audit-finding/SKILL.md"
+  },
+  {
+    "name": "audit-action-follow-up",
+    "role": "Internal Auditor",
+    "description": "Use when agreed audit actions must be followed up.",
+    "path": "audit-action-follow-up/SKILL.md"
+  },
+  {
+    "name": "audit-scoping-memo",
+    "role": "Internal Auditor",
+    "description": "Use at the start of an audit to agree scope.",
+    "path": "audit-scoping-memo/SKILL.md"
+  },
+  {
+    "name": "process-walkthrough",
+    "role": "Internal Auditor",
+    "description": "Use when a process must be documented for audit.",
+    "path": "process-walkthrough/SKILL.md"
+  },
+  {
+    "name": "audit-report",
+    "role": "Internal Auditor",
+    "description": "Use when an audit report must be written.",
+    "path": "audit-report/SKILL.md"
+  },
+  {
+    "name": "fraud-risk-review",
+    "role": "Internal Auditor",
+    "description": "Use when fraud risks in a process must be reviewed.",
+    "path": "fraud-risk-review/SKILL.md"
+  },
+  {
+    "name": "knowledge-base-structure",
+    "role": "Knowledge Manager",
+    "description": "Use when a knowledge base needs organising.",
+    "path": "knowledge-base-structure/SKILL.md"
+  },
+  {
+    "name": "stale-page-audit",
+    "role": "Knowledge Manager",
+    "description": "Use when outdated or duplicate pages must be found.",
+    "path": "stale-page-audit/SKILL.md"
+  },
+  {
+    "name": "decision-to-page",
+    "role": "Knowledge Manager",
+    "description": "Use when decisions and answers in tasks should become lasting pages.",
+    "path": "decision-to-page/SKILL.md"
+  },
+  {
+    "name": "knowledge-ownership-map",
+    "role": "Knowledge Manager",
+    "description": "Use when knowledge areas need owners.",
+    "path": "knowledge-ownership-map/SKILL.md"
+  },
+  {
+    "name": "page-template-set",
+    "role": "Knowledge Manager",
+    "description": "Use when pages need consistent templates.",
+    "path": "page-template-set/SKILL.md"
+  },
+  {
+    "name": "search-gap-analysis",
+    "role": "Knowledge Manager",
+    "description": "Use when people cannot find answers in the knowledge base.",
+    "path": "search-gap-analysis/SKILL.md"
+  },
+  {
+    "name": "glossary-of-terms",
+    "role": "Knowledge Manager",
+    "description": "Use when the organisation needs a glossary of its terms and acronyms.",
+    "path": "glossary-of-terms/SKILL.md"
+  },
+  {
+    "name": "knowledge-health-report",
+    "role": "Knowledge Manager",
+    "description": "Use when the knowledge base's health must be reported.",
+    "path": "knowledge-health-report/SKILL.md"
+  },
+  {
+    "name": "funding-call-search",
+    "role": "Grant Writer",
+    "description": "Use when funding calls that fit the organisation must be found.",
+    "path": "funding-call-search/SKILL.md"
+  },
+  {
+    "name": "funder-guideline-checklist",
+    "role": "Grant Writer",
+    "description": "Use when grant guidelines must be read and every requirement listed.",
+    "path": "funder-guideline-checklist/SKILL.md"
+  },
+  {
+    "name": "grant-application-narrative",
+    "role": "Grant Writer",
+    "description": "Use when a grant application narrative must be written.",
+    "path": "grant-application-narrative/SKILL.md"
+  },
+  {
+    "name": "budget-narrative",
+    "role": "Grant Writer",
+    "description": "Use when a grant budget must be explained.",
+    "path": "budget-narrative/SKILL.md"
+  },
+  {
+    "name": "grant-report",
+    "role": "Grant Writer",
+    "description": "Use when a report to a funder is due.",
+    "path": "grant-report/SKILL.md"
+  },
+  {
+    "name": "grant-calendar",
+    "role": "Grant Writer",
+    "description": "Use when grant deadlines and reporting dates must be tracked.",
+    "path": "grant-calendar/SKILL.md"
+  },
+  {
+    "name": "letter-of-support-request",
+    "role": "Grant Writer",
+    "description": "Use when partners must be asked for letters of support.",
+    "path": "letter-of-support-request/SKILL.md"
+  },
+  {
+    "name": "logic-model",
+    "role": "Grant Writer",
+    "description": "Use when a project needs a logic model from inputs to impact.",
+    "path": "logic-model/SKILL.md"
+  },
+  {
+    "name": "policy-tracking",
+    "role": "Policy Analyst",
+    "description": "Use when policy proposals that affect the organisation must be tracked.",
+    "path": "policy-tracking/SKILL.md"
+  },
+  {
+    "name": "policy-briefing",
+    "role": "Policy Analyst",
+    "description": "Use when a proposal must be explained: what would change and for whom.",
+    "path": "policy-briefing/SKILL.md"
+  },
+  {
+    "name": "consultation-response",
+    "role": "Policy Analyst",
+    "description": "Use when a response to a public consultation must be drafted.",
+    "path": "consultation-response/SKILL.md"
+  },
+  {
+    "name": "policy-options-comparison",
+    "role": "Policy Analyst",
+    "description": "Use when the organisation's response options must be compared.",
+    "path": "policy-options-comparison/SKILL.md"
+  },
+  {
+    "name": "regulatory-impact-estimate",
+    "role": "Policy Analyst",
+    "description": "Use when the effect of a rule on the organisation must be estimated.",
+    "path": "regulatory-impact-estimate/SKILL.md"
+  },
+  {
+    "name": "stakeholder-position-map",
+    "role": "Policy Analyst",
+    "description": "Use when positions of others on a policy issue must be mapped from public statements.",
+    "path": "stakeholder-position-map/SKILL.md"
+  },
+  {
+    "name": "policy-explainer",
+    "role": "Policy Analyst",
+    "description": "Use when staff or members need a plain explanation of a policy change.",
+    "path": "policy-explainer/SKILL.md"
+  },
+  {
+    "name": "evidence-review-for-policy",
+    "role": "Policy Analyst",
+    "description": "Use when the evidence behind a policy question must be reviewed.",
+    "path": "evidence-review-for-policy/SKILL.md"
+  },
+  {
+    "name": "prior-knowledge-check",
+    "role": "Tutor",
+    "description": "Use when starting with a learner, to find what they already know.",
+    "path": "prior-knowledge-check/SKILL.md"
+  },
+  {
+    "name": "step-by-step-explanation",
+    "role": "Tutor",
+    "description": "Use when a concept must be explained at the learner's level.",
+    "path": "step-by-step-explanation/SKILL.md"
+  },
+  {
+    "name": "practice-question-set",
+    "role": "Tutor",
+    "description": "Use when a learner needs practice questions with explained answers.",
+    "path": "practice-question-set/SKILL.md"
+  },
+  {
+    "name": "mistake-diagnosis",
+    "role": "Tutor",
+    "description": "Use when a learner's wrong answer must be understood and corrected.",
+    "path": "mistake-diagnosis/SKILL.md"
+  },
+  {
+    "name": "study-plan",
+    "role": "Tutor",
+    "description": "Use when a learner needs a plan for what to study next.",
+    "path": "study-plan/SKILL.md"
+  },
+  {
+    "name": "exam-preparation-guide",
+    "role": "Tutor",
+    "description": "Use when a learner prepares for an exam.",
+    "path": "exam-preparation-guide/SKILL.md"
+  },
+  {
+    "name": "concept-summary-sheet",
+    "role": "Tutor",
+    "description": "Use when a learner needs a one-page summary of a topic.",
+    "path": "concept-summary-sheet/SKILL.md"
+  },
+  {
+    "name": "progress-check-in",
+    "role": "Tutor",
+    "description": "Use when a learner's progress must be reviewed.",
+    "path": "progress-check-in/SKILL.md"
+  }
+]

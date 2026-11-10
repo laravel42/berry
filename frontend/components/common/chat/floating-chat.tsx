@@ -1,23 +1,12 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import Link from 'next/link';
-import { usePathname, useParams } from 'next/navigation';
-import { ChevronDown, Maximize2, Minus, Minimize2, Pin, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { usePathname } from 'next/navigation';
+import { Maximize2, Minus, Minimize2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-import { BerryMark } from '@/components/brand/berry-mark';
-import {
-   DropdownMenu,
-   DropdownMenuContent,
-   DropdownMenuItem,
-   DropdownMenuLabel,
-   DropdownMenuSeparator,
-   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { BerryApiError } from '@/lib/api';
-import { colorForAgent } from '@/lib/agent-color';
-import { isOrchestrator, loadWorkspaceAgents, useAgentAvatarSrc, type Agent } from '@/lib/agents';
+import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import {
    cancelSessionTask,
    listMessages,
@@ -44,61 +33,6 @@ import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 const SIZE_KEY = 'berry.floating-chat.size';
 const MIN_WIDTH = 320;
 const MIN_HEIGHT = 320;
-const MAX_RECENT = 6;
-
-/**
- * One agent to start a conversation with: who it is, what it is for, and the
- * action. The whole row is the button, so on a phone the target is the row.
- */
-function AgentPickRow({ agent, onPick }: { agent: Agent; onPick: (agent: Agent) => void }) {
-   const t = useTranslations('agentsChat.floating');
-   const avatarSrc = useAgentAvatarSrc(agent.avatarUrl);
-   const description = agent.description?.trim() || null;
-
-   return (
-      <li>
-         <button
-            type="button"
-            onClick={() => onPick(agent)}
-            aria-label={t('startChatWith', { name: agent.name })}
-            className="group flex min-h-11 w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-[var(--shell-hover)] focus-visible:bg-[var(--shell-hover)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
-         >
-            <span className="flex size-8 flex-none items-center justify-center overflow-hidden rounded-md bg-[var(--shell-surface)]">
-               {avatarSrc ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- a blob or external URL, not an optimisable asset
-                  <img src={avatarSrc} alt="" className="size-full object-cover" />
-               ) : (
-                  <BerryMark
-                     size="sm"
-                     tone="working"
-                     dotColor={colorForAgent(agent.id)}
-                     bracketClassName="text-[var(--shell-text)]"
-                  />
-               )}
-            </span>
-            <span className="min-w-0 flex-1">
-               <span className="block truncate font-medium text-[var(--shell-text)]">
-                  {agent.name}
-               </span>
-               {description ? (
-                  <span
-                     className="block truncate text-[var(--shell-text-muted)]"
-                     title={description}
-                  >
-                     {description}
-                  </span>
-               ) : null}
-            </span>
-            <span
-               aria-hidden
-               className="flex-none rounded-md bg-[var(--shell-line)] px-2 py-1 text-[var(--shell-text-muted)] transition-colors group-hover:bg-[var(--shell-line-strong)] group-hover:text-[var(--shell-text)] group-focus-visible:bg-[var(--shell-line-strong)] group-focus-visible:text-[var(--shell-text)]"
-            >
-               {t('startChat')}
-            </span>
-         </button>
-      </li>
-   );
-}
 
 /** The header's controls: small beside the title, a full tap target on a phone. */
 const headerControl =
@@ -110,24 +44,17 @@ const headerControl =
  * The point of this window is that the conversation is *next to* the work
  * rather than instead of it, so it deliberately does not try to be the chat
  * page: no queue panel, no archive, no session management. Anything beyond
- * saying something to an agent sends the reader to `/chat`, which is one click
- * away in the header.
+ * saying something to an agent belongs on `/chat`.
  *
- * It opens from the chat button in the tab strip (`ShellChatButton`) and from
- * mod+J; both go through the shell store, so the button reflects the window
- * and the window follows the button. Closed, it renders nothing: no corner
- * launcher sits over a page's own controls.
- *
- * Until a conversation is open there is no one to type to, so the window
- * opens on every agent in the workspace and shows the composer only once
- * one of them is chosen.
+ * It opens from the Agents button (`ShellChatButton`) and from mod+J; both go
+ * through the shell store. Closed, it renders nothing. Opening always lands on
+ * the Orchestrator thread — no agent picker, no history menu.
  */
 export function FloatingChat() {
    const t = useTranslations('agentsChat.floating');
    const chat = useTranslations('agentsChat.chat');
    const common = useTranslations('agentsChat.common');
    const pathname = usePathname() ?? '';
-   const { orgId } = useParams<{ orgId?: string }>();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
 
    const state = useShellStore((store) => store.chatWindow);
@@ -136,7 +63,6 @@ export function FloatingChat() {
    const [size, setSize] = useState({ width: 380, height: 520 });
    const [agents, setAgents] = useState<Agent[]>([]);
    const [agentsLoaded, setAgentsLoaded] = useState(false);
-   const [threads, setThreads] = useState<ChatThread[]>([]);
    const [active, setActive] = useState<ChatThread | null>(null);
    const [messages, setMessages] = useState<ChatMessage[]>([]);
    const [tasks, setTasks] = useState<ChatTask[]>([]);
@@ -167,6 +93,7 @@ export function FloatingChat() {
       },
    });
    const resizing = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+   const wasOpened = useRef(false);
 
    // The chat page is the full version of this; two of them on one screen
    // would be two places to type the same message.
@@ -202,9 +129,6 @@ export function FloatingChat() {
          .then((found) => setAgents(found.filter((agent) => !agent.archivedAt)))
          .catch(() => undefined)
          .finally(() => setAgentsLoaded(true));
-      void listThreads()
-         .then(setThreads)
-         .catch(() => undefined);
    }, [opened, agentsLoaded]);
 
    const openThread = useCallback(async (thread: ChatThread) => {
@@ -213,49 +137,41 @@ export function FloatingChat() {
       setMessages(await listMessages(thread.id).catch(() => []));
       setTasks(await listSessionTasks(thread.id).catch(() => []));
       await markSessionRead(thread.id).catch(() => undefined);
-      setThreads((current) =>
-         current.map((entry) => (entry.id === thread.id ? { ...entry, unread: 0 } : entry))
-      );
    }, []);
 
-   const withAgent = async (agent: Agent) => {
-      setOpening(agent.id);
-      try {
-         const id = await openAgentThread(agent.id);
-         const found = await listThreads();
-         setThreads(found);
-         const thread = found.find((entry) => entry.id === id);
-         if (thread) await openThread(thread);
-      } catch {
-         /* Reported by the page's own chat; a floating window stays quiet. */
-      } finally {
-         setOpening(null);
-      }
-   };
+   const withAgent = useCallback(
+      async (agent: Agent) => {
+         setOpening(agent.id);
+         try {
+            const id = await openAgentThread(agent.id);
+            const found = await listThreads();
+            const thread = found.find((entry) => entry.id === id);
+            if (thread) await openThread(thread);
+         } catch {
+            /* Reported by the page's own chat; a floating window stays quiet. */
+         } finally {
+            setOpening(null);
+         }
+      },
+      [openThread]
+   );
 
-   // Whoever was talked to most recently, then the rest of the roster with
-   // the Orchestrator at the top. Together that is every agent.
-   const picker = useMemo(() => {
-      const byId = new Map(agents.map((agent) => [agent.id, agent]));
-      const taken = new Set<string>();
-      const recent: Agent[] = [];
-      for (const thread of threads
-         .slice()
-         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))) {
-         const agent = thread.agentId ? byId.get(thread.agentId) : undefined;
-         if (!agent || taken.has(agent.id) || recent.length >= MAX_RECENT) continue;
-         taken.add(agent.id);
-         recent.push(agent);
+   const orchestrator = agents.find((agent) => isOrchestrator(agent));
+
+   // Agents button / shortcut: land on Orchestrator, not a roster.
+   useEffect(() => {
+      if (!opened) {
+         wasOpened.current = false;
+         return;
       }
-      const rest = agents
-         .filter((agent) => !taken.has(agent.id))
-         .sort(
-            (left, right) =>
-               Number(isOrchestrator(right)) - Number(isOrchestrator(left)) ||
-               left.name.localeCompare(right.name)
-         );
-      return { recent, rest };
-   }, [agents, threads]);
+      if (!agentsLoaded || opening !== null) return;
+      const justOpened = !wasOpened.current;
+      wasOpened.current = true;
+      if (!justOpened) return;
+      if (!orchestrator) return;
+      if (active?.agentId === orchestrator.id) return;
+      void withAgent(orchestrator);
+   }, [opened, agentsLoaded, opening, active, orchestrator, withAgent]);
 
    const activeId = active?.id ?? null;
    const activeAgent = active?.agentId
@@ -351,10 +267,10 @@ export function FloatingChat() {
       const move = (moveEvent: PointerEvent) => {
          const from = resizing.current;
          if (!from) return;
-         // The window grows up and to the right, because it is anchored to the
-         // bottom-left corner of the viewport.
+         // The window grows up and to the left, because it is anchored to the
+         // bottom-right corner of the viewport.
          setSize({
-            width: Math.max(MIN_WIDTH, from.width + (moveEvent.clientX - from.x)),
+            width: Math.max(MIN_WIDTH, from.width + (from.x - moveEvent.clientX)),
             height: Math.max(MIN_HEIGHT, from.height + (from.y - moveEvent.clientY)),
          });
       };
@@ -374,7 +290,8 @@ export function FloatingChat() {
 
    // Closed is nothing at all: the strip's chat button is the launcher, and a
    // page's bottom action bar gets its corner back.
-   if (hidden || state === 'closed') return null;
+   if (hidden) return null;
+   if (state === 'closed') return null;
 
    const expanded = state === 'expanded';
    const minimised = state === 'minimised';
@@ -386,37 +303,16 @@ export function FloatingChat() {
       '--chat-h': `min(${size.height}px, calc(100dvh - var(--shell-strip) - 5rem))`,
    } as CSSProperties;
 
-   const group = (label: string, list: Agent[]) =>
-      list.length === 0 ? null : (
-         <li>
-            <p
-               data-heading="label"
-               className="px-3 pt-3 pb-1 text-[var(--shell-text-dim)]"
-               aria-hidden
-            >
-               {label}
-            </p>
-            <ul aria-label={label}>
-               {list.map((agent) => (
-                  <AgentPickRow
-                     key={agent.id}
-                     agent={agent}
-                     onPick={(pick) => void withAgent(pick)}
-                  />
-               ))}
-            </ul>
-         </li>
-      );
-
    return (
       <div
          // Below `sm` the window fills the screen under the strip: a 380px
          // panel on a phone is the whole screen anyway, and keeping the strip
          // keeps the button that closes it.
+         data-step-body="prose"
          className={[
             'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
             // Bottom ~3.1rem: the Agents launcher sits under the panel.
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:left-4 sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
             expanded
                ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[calc(4rem-15px)]'
                : minimised
@@ -426,101 +322,42 @@ export function FloatingChat() {
          style={sizeVars}
       >
          <header className="flex flex-none items-center gap-2 border-b border-[var(--shell-line)] px-3 py-2">
-            <DropdownMenu>
-               <DropdownMenuTrigger asChild>
-                  <button
-                     type="button"
-                     className="flex min-h-11 min-w-0 flex-1 items-center gap-1 truncate rounded text-left text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] sm:min-h-0"
-                  >
-                     {active?.pinned ? (
-                        <Pin
-                           className="size-3 flex-none fill-current text-[var(--shell-text-dim)]"
-                           aria-label={chat('pin')}
-                        />
-                     ) : null}
-                     <span className="truncate">{active ? active.topic : t('title')}</span>
-                     <ChevronDown className="size-3.5 flex-none text-[var(--shell-text-dim)]" />
-                  </button>
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="start" className="max-h-80 w-72 overflow-y-auto">
-                  {active ? (
-                     <>
-                        <DropdownMenuItem onSelect={() => setActive(null)}>
-                           {t('newChat')}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                     </>
-                  ) : null}
-                  <DropdownMenuLabel>{t('history')}</DropdownMenuLabel>
-                  {threads.length === 0 ? (
-                     <DropdownMenuItem disabled>{chat('noSessions')}</DropdownMenuItem>
-                  ) : (
-                     threads.slice(0, 8).map((thread) => (
-                        <DropdownMenuItem key={thread.id} onSelect={() => void openThread(thread)}>
-                           <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
-                           {thread.pinned ? (
-                              <Pin className="size-3 flex-none fill-current" aria-hidden />
-                           ) : null}
-                        </DropdownMenuItem>
-                     ))
-                  )}
-                  <DropdownMenuLabel>{t('pickAgent')}</DropdownMenuLabel>
-                  {agents.length === 0 ? (
-                     <DropdownMenuItem disabled>{t('pickEmpty')}</DropdownMenuItem>
-                  ) : (
-                     agents.map((agent) => (
-                        <DropdownMenuItem key={agent.id} onSelect={() => void withAgent(agent)}>
-                           <span className="truncate">{agent.name}</span>
-                        </DropdownMenuItem>
-                     ))
-                  )}
-               </DropdownMenuContent>
-            </DropdownMenu>
-
-            {orgId ? (
-               <Link
-                  href={`/${orgId}/chat${active ? `?session=${active.id}` : ''}`}
-                  className="flex min-h-11 flex-none items-center rounded text-[var(--shell-text-dim)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] sm:min-h-0"
-               >
-                  {t('openFull')}
-               </Link>
-            ) : null}
-
             {!expanded && !minimised ? (
                <button
                   type="button"
                   onPointerDown={onResize}
                   aria-label={t('expand')}
-                  className="hidden size-4 flex-none cursor-nesw-resize text-[var(--shell-text-dim)] sm:block"
+                  className="hidden size-4 flex-none cursor-nwse-resize text-[var(--shell-text-dim)] sm:block"
                >
-                  <Minimize2 className="size-3.5 -rotate-90" aria-hidden />
+                  <Minimize2 className="size-3.5 rotate-90" aria-hidden />
                </button>
             ) : null}
-
-            <button
-               type="button"
-               aria-label={minimised ? t('restore') : t('minimise')}
-               onClick={() => setState(minimised ? 'open' : 'minimised')}
-               className={headerControl}
-            >
-               <Minus className="size-3.5" />
-            </button>
-            <button
-               type="button"
-               aria-label={expanded ? t('restore') : t('expand')}
-               onClick={() => setState(expanded ? 'open' : 'expanded')}
-               className={`hidden sm:flex ${headerControl}`}
-            >
-               <Maximize2 className="size-3.5" />
-            </button>
-            <button
-               type="button"
-               aria-label={t('close')}
-               onClick={() => setState('closed')}
-               className={headerControl}
-            >
-               <X className="size-3.5" />
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+               <button
+                  type="button"
+                  aria-label={minimised ? t('restore') : t('minimise')}
+                  onClick={() => setState(minimised ? 'open' : 'minimised')}
+                  className={headerControl}
+               >
+                  <Minus className="size-3.5" />
+               </button>
+               <button
+                  type="button"
+                  aria-label={expanded ? t('restore') : t('expand')}
+                  onClick={() => setState(expanded ? 'open' : 'expanded')}
+                  className={`hidden sm:flex ${headerControl}`}
+               >
+                  <Maximize2 className="size-3.5" />
+               </button>
+               <button
+                  type="button"
+                  aria-label={t('close')}
+                  onClick={() => setState('closed')}
+                  className={headerControl}
+               >
+                  <X className="size-3.5" />
+               </button>
+            </div>
          </header>
 
          {minimised ? null : active ? (
@@ -557,22 +394,13 @@ export function FloatingChat() {
             </>
          ) : (
             <div
-               className="min-h-0 flex-1 overflow-y-auto"
+               className="flex min-h-0 flex-1 items-center justify-center px-3"
                aria-busy={opening !== null || !agentsLoaded}
             >
-               <div className="px-3 pt-3">
-                  <h2 className="text-[var(--shell-text)]">{t('pickTitle')}</h2>
-                  <p className="mt-0.5 text-[var(--shell-text-muted)]">{t('pickHint')}</p>
-               </div>
-               {!agentsLoaded ? (
-                  <p className="px-3 py-4 text-[var(--shell-text-dim)]">{common('loading')}</p>
-               ) : agents.length === 0 ? (
-                  <p className="px-3 py-4 text-[var(--shell-text-muted)]">{t('pickEmpty')}</p>
+               {!agentsLoaded || opening !== null ? (
+                  <p className="text-[var(--shell-text-dim)]">{common('loading')}</p>
                ) : (
-                  <ul className="pb-2">
-                     {group(t('recentGroup'), picker.recent)}
-                     {group(t('allGroup'), picker.rest)}
-                  </ul>
+                  <p className="text-[var(--shell-text-muted)]">{t('pickEmpty')}</p>
                )}
             </div>
          )}

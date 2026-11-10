@@ -1,0 +1,44 @@
+{
+   "schemaVersion": 1,
+   "key": "cafe24",
+   "name": "Cafe24",
+   "version": "1.0.0",
+   "description": "Store data for a Cafe24 shop. An agent can look up catalog and order details and act on the shop while it handles a task.",
+   "scopes": [],
+   "config": [
+      {
+         "key": "ENDPOINT",
+         "name": "Server",
+         "label": "Which MCP server to call",
+         "type": "array",
+         "options": [
+            "catalog",
+            "mall"
+         ],
+         "required": true
+      },
+      {
+         "key": "MALL_ID",
+         "name": "Mall id",
+         "label": "Cafe24 store identifier",
+         "type": "string",
+         "required": true
+      },
+      {
+         "key": "API_KEY",
+         "name": "API Key",
+         "label": "Bearer token for the MCP server",
+         "type": "secret",
+         "required": true
+      }
+   ],
+   "mcp": {
+      "path": "/mcp",
+      "offer": "all",
+      "protocolVersion": "2025-03-26",
+      "servers": {
+         "catalog": "https://mcp-catalog.cafe24.com/api/mcp",
+         "mall": "https://{mall_id}.cafe24api.com/api/mcp"
+      }
+   }
+}

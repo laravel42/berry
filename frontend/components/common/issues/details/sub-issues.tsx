@@ -410,7 +410,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   />
                   <Button
                      size="xs"
-                     variant="outline"
+                     variant="secondary"
                      disabled={!title.trim() || adding}
                      onClick={add}
                   >

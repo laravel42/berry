@@ -44,7 +44,7 @@ const MAX_TITLE = 200;
 const MAX_DESCRIPTION = 10_000;
 const MAX_NOTE = 2_000;
 
-const FILTERS = ['workspaceId', 'status', 'kind', 'goalId', 'issueId', 'mine'] as const;
+const FILTERS = ['workspaceId', 'status', 'kind', 'milestoneId', 'issueId', 'mine'] as const;
 
 export interface ApprovalOptions {
    sessions: SessionService;
@@ -264,7 +264,7 @@ export function serializeApproval(approval: Approval): Record<string, unknown> {
       risk: approval.risk,
       title: approval.title,
       description: approval.description,
-      goalId: approval.goalId,
+      milestoneId: approval.milestoneId,
       planId: approval.planId,
       issueId: approval.issueId,
       issue: approval.issue,
@@ -288,12 +288,12 @@ function parseFilter(url: URL, caller: { userId: string; role: Role }) {
    if (kind !== null && !KINDS.has(kind)) {
       assertValid([fieldError('/kind', 'invalid_value', 'kind is not an approval kind.')]);
    }
-   const goalId = uuidParam(url, 'goalId');
+   const milestoneId = uuidParam(url, 'milestoneId');
    const issueId = uuidParam(url, 'issueId');
    return {
       ...(status === null ? {} : { status }),
       ...(kind === null ? {} : { kind: toColumnKind(kind) }),
-      ...(goalId === null ? {} : { goalId }),
+      ...(milestoneId === null ? {} : { milestoneId }),
       ...(issueId === null ? {} : { issueId }),
       ...(url.searchParams.get('mine') === 'true' ? { mine: caller } : {}),
    };
@@ -310,7 +310,7 @@ function uuidParam(url: URL, name: string): string | null {
 
 /** A cursor is only valid for the query that produced it. */
 function filterScope(workspaceId: string, url: URL): string {
-   const parts = ['status', 'kind', 'goalId', 'issueId', 'mine'].map(
+   const parts = ['status', 'kind', 'milestoneId', 'issueId', 'mine'].map(
       (name) => url.searchParams.get(name) ?? 'any'
    );
    return `approvals.${workspaceId}.${parts.join('.')}`;

@@ -160,7 +160,7 @@ function ViewRow({
             )}
             {displayProperties.owner && (
                <span className="flex items-center gap-1.5 w-32 shrink-0 justify-end">
-                  <Avatar className="size-5">
+                  <Avatar className="size-4">
                      <AvatarImage src={view.owner.avatarUrl} alt={view.owner.name} />
                      <AvatarFallback>{view.owner.name[0]}</AvatarFallback>
                   </Avatar>

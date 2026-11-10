@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { refreshGoalsForIssue } from '../core/goal-status.ts';
+import { refreshMilestonesForIssue } from '../core/milestone-status.ts';
 import type { Queryable } from '../db/pool.ts';
 
 /**
@@ -79,7 +79,7 @@ export async function applyProposalDecision(
          UPDATE issues SET status = 'cancelled'::issue_status, updated_at = now()
           WHERE id = ${proposal.issue_id} AND status = 'backlog'
          RETURNING id`;
-      if (cancelled.length > 0) await refreshGoalsForIssue(q, proposal.issue_id, new Date().toISOString());
+      if (cancelled.length > 0) await refreshMilestonesForIssue(q, proposal.issue_id, new Date().toISOString());
       return null;
    }
 
@@ -99,7 +99,7 @@ export async function applyProposalDecision(
        WHERE id = ${proposal.issue_id} AND status = 'backlog'
       RETURNING id`;
 
-   if (updated.length > 0) await refreshGoalsForIssue(q, proposal.issue_id, new Date().toISOString());
+   if (updated.length > 0) await refreshMilestonesForIssue(q, proposal.issue_id, new Date().toISOString());
    if (updated.length > 0 && owner) {
       await q`
          INSERT INTO assignments (id, issue_id, assignee_type, assignee_id, assigned_by, created_at)

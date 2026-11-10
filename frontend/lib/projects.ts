@@ -23,6 +23,7 @@ const projectSchema = z.object({
    startDate: z.string().nullish(),
    targetDate: z.string().nullish(),
    githubRepo: z.string().nullish(),
+   gitlabRepo: z.string().nullish(),
    // Nullish, and the type is not narrowed to a literal union: a server that
    // does not send it, or sends a kind this build has never heard of, should
    // cost the lead rather than the whole project.
@@ -98,6 +99,9 @@ export function toUiProject(apiProject: ApiProject): Project | undefined {
    if (apiProject.githubRepo) {
       project.githubRepo = apiProject.githubRepo;
    }
+   if (apiProject.gitlabRepo) {
+      project.gitlabRepo = apiProject.gitlabRepo;
+   }
    if (apiProject.description) {
       project.description = apiProject.description;
    }
@@ -159,6 +163,7 @@ export async function createWorkspaceProject(input: {
    /** Omitted or null when the project has no lead yet. */
    lead?: User | null;
    githubRepo?: string;
+   gitlabRepo?: string;
 }): Promise<Project> {
    const body: Record<string, unknown> = {
       workspaceId: input.workspaceId,
@@ -172,6 +177,7 @@ export async function createWorkspaceProject(input: {
    if (input.startDate) body.startDate = input.startDate;
    if (input.targetDate) body.targetDate = input.targetDate;
    if (input.githubRepo) body.githubRepo = input.githubRepo;
+   if (input.gitlabRepo) body.gitlabRepo = input.gitlabRepo;
 
    const json: unknown = await apiFetch('/api/v1/projects', {
       method: 'POST',
@@ -187,6 +193,92 @@ export async function createWorkspaceProject(input: {
       throw new Error('Created project could not be displayed');
    }
    return project;
+}
+
+/**
+ * Ask the Orchestrator to propose milestones from the project brief and file
+ * them. Returns the created milestones; an empty brief yields an empty list.
+ */
+export async function generateProjectMilestones(projectId: string): Promise<
+   {
+      id: string;
+      workspaceId: string;
+      projectId: string | null;
+      title: string;
+      description: string | null;
+      status: string;
+      targetDate: string | null;
+      sortOrder: number;
+      createdAt: string;
+      updatedAt: string;
+   }[]
+> {
+   const json: unknown = await apiFetch(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/generate-milestones`,
+      {
+         method: 'POST',
+      }
+   );
+   const parsed = z
+      .object({
+         nodes: z.array(
+            z.object({
+               id: z.string(),
+               workspaceId: z.string(),
+               projectId: z.string().nullish(),
+               title: z.string(),
+               description: z.string().nullish(),
+               status: z.string(),
+               targetDate: z.string().nullish(),
+               sortOrder: z.number(),
+               createdAt: z.string(),
+               updatedAt: z.string(),
+            })
+         ),
+      })
+      .safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Generate milestones response was not recognized');
+   }
+   return parsed.data.nodes.map((node) => ({
+      id: node.id,
+      workspaceId: node.workspaceId,
+      projectId: node.projectId ?? null,
+      title: node.title,
+      description: node.description ?? null,
+      status: node.status,
+      targetDate: node.targetDate ?? null,
+      sortOrder: node.sortOrder,
+      createdAt: node.createdAt,
+      updatedAt: node.updatedAt,
+   }));
+}
+
+/**
+ * Ask the Orchestrator to break each project milestone into board tasks and
+ * file them. Returns the created issues; no milestones yields an empty list.
+ */
+export async function generateProjectTasks(
+   projectId: string
+): Promise<{ id: string; title: string }[]> {
+   const json: unknown = await apiFetch(
+      `/api/v1/projects/${encodeURIComponent(projectId)}/generate-tasks`,
+      { method: 'POST' }
+   );
+   const parsed = z
+      .object({
+         nodes: z.array(
+            z.object({
+               id: z.string(),
+               title: z.string(),
+            })
+         ),
+      })
+      .safeParse(json);
+   if (!parsed.success) {
+      throw new Error('Generate tasks response was not recognized');
+   }
+   return parsed.data.nodes.map((node) => ({ id: node.id, title: node.title }));
 }
 
 export async function getWorkspaceProject(projectId: string): Promise<Project | undefined> {
@@ -241,6 +333,8 @@ const repositorySchema = z.object({
 });
 
 export type GitHubRepository = z.infer<typeof repositorySchema>;
+export type ScmRepository = GitHubRepository;
+export type ScmProvider = 'github' | 'gitlab';
 
 const accessSchema = z.object({
    /**
@@ -286,16 +380,36 @@ export async function loadGitHubRepositories(): Promise<RepositoryChoices> {
    return { repositories: parsed.data.repositories, access: parsed.data.access };
 }
 
-/** The accounts the signed-in person may create a repository under: their own, and organisations that allow it. */
-export async function loadRepositoryOwners(): Promise<
-   Array<{ login: string; type: 'user' | 'organization' }>
-> {
-   const json: unknown = await apiFetch('/api/v1/integrations/github/repository-owners');
+/** Projects the workspace's GitLab access token can see. */
+export async function loadGitLabRepositories(): Promise<RepositoryChoices> {
+   const json: unknown = await apiFetch('/api/v1/integrations/gitlab/repositories');
    const parsed = z
-      .object({
-         owners: z.array(z.object({ login: z.string(), type: z.enum(['user', 'organization']) })),
-      })
+      .object({ repositories: z.array(repositorySchema), access: accessSchema })
       .safeParse(json);
+   if (!parsed.success) throw new Error('Repository list was not recognized');
+   return { repositories: parsed.data.repositories, access: parsed.data.access };
+}
+
+const ownerSchema = z.object({
+   login: z.string(),
+   type: z.enum(['user', 'organization']),
+   id: z.number().optional(),
+});
+
+export type RepositoryOwner = z.infer<typeof ownerSchema>;
+
+/** The accounts the signed-in person may create a repository under: their own, and organisations that allow it. */
+export async function loadRepositoryOwners(): Promise<RepositoryOwner[]> {
+   const json: unknown = await apiFetch('/api/v1/integrations/github/repository-owners');
+   const parsed = z.object({ owners: z.array(ownerSchema) }).safeParse(json);
+   if (!parsed.success) throw new Error('Repository owners were not recognized');
+   return parsed.data.owners;
+}
+
+/** Namespaces the workspace GitLab token may create a project under. */
+export async function loadGitLabRepositoryOwners(): Promise<RepositoryOwner[]> {
+   const json: unknown = await apiFetch('/api/v1/integrations/gitlab/repository-owners');
+   const parsed = z.object({ owners: z.array(ownerSchema) }).safeParse(json);
    if (!parsed.success) throw new Error('Repository owners were not recognized');
    return parsed.data.owners;
 }
@@ -322,13 +436,38 @@ export async function createGitHubRepository(input: {
    return parsed.data.repository;
 }
 
-/** Link a project to a repository, or unlink it with null. */
+/** A new GitLab project under the workspace access token. */
+export async function createGitLabRepository(input: {
+   name: string;
+   owner?: string | null;
+   private: boolean;
+}): Promise<GitHubRepository> {
+   const json: unknown = await apiFetch('/api/v1/integrations/gitlab/repositories', {
+      method: 'POST',
+      body: JSON.stringify({
+         name: input.name,
+         ...(input.owner ? { owner: input.owner } : {}),
+         private: input.private,
+      }),
+   });
+   const parsed = z.object({ repository: repositorySchema }).safeParse(json);
+   if (!parsed.success) throw new Error('Create repository response was not recognized');
+   return parsed.data.repository;
+}
+
+/** Link a project to a repository, or unlink both SCM fields with null. */
 export async function setProjectRepository(
    projectId: string,
-   fullName: string | null
+   choice: { provider: ScmProvider; fullName: string } | null
 ): Promise<void> {
+   const body =
+      choice === null
+         ? { githubRepo: null, gitlabRepo: null }
+         : choice.provider === 'gitlab'
+           ? { gitlabRepo: choice.fullName, githubRepo: null }
+           : { githubRepo: choice.fullName, gitlabRepo: null };
    await apiFetch(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ githubRepo: fullName }),
+      body: JSON.stringify(body),
    });
 }

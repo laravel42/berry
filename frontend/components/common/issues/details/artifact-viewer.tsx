@@ -12,6 +12,7 @@ import {
    artifactPreviewUrl,
    artifactText,
    artifactView,
+   downloadArtifact,
    formatFileSize,
    type RunArtifact,
 } from '@/lib/attachments';
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils';
 import {
    ChevronLeft,
    ChevronRight,
+   Download,
    ExternalLink,
    Redo2,
    RotateCw,
@@ -29,6 +31,7 @@ import {
    X,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { toast } from 'sonner';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -424,6 +427,14 @@ export function ArtifactViewer({
                      onValueChange={setMode}
                   />
                ) : null}
+               <ToolbarButton
+                  label={t('download')}
+                  onClick={() => {
+                     void downloadArtifact(artifact).catch(() => toast.error(t('downloadFailed')));
+                  }}
+               >
+                  <Download className="size-4" />
+               </ToolbarButton>
                {kind === 'html' && !showsSource ? (
                   <ToolbarButton
                      label={t('reload')}

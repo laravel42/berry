@@ -15,7 +15,7 @@ test('a chat is told the workspace is visible and the message is not the board',
    const note = chatWorkspaceNote({
       tasks: [{ identifier: 'ABC-1', title: 'Incoming brief', status: 'todo', assigneeName: null, project: null }],
       plans: [],
-      goals: [],
+      milestones: [],
       projects: [],
       truncated: false,
    });

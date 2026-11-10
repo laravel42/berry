@@ -116,8 +116,11 @@ export class ConnectionRepository {
       scopes?: string[];
       externalAccountId?: string | null;
       externalAccountName?: string | null;
+      /** How the credential arrived. Defaults to oauth for the handshake path. */
+      connectionType?: 'oauth' | 'github_app' | 'agentcore' | 'nango' | 'access_token';
    }): Promise<Connection> {
       const now = this.#clock().toISOString();
+      const connectionType = input.connectionType ?? 'oauth';
       return this.#sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
          await tx`
@@ -133,13 +136,13 @@ export class ConnectionRepository {
             INSERT INTO integration_connections
                (workspace_id, provider, connected_by_user_id, external_account_id,
                 external_account_name, access_token_encrypted, refresh_token_encrypted,
-                expires_at, scopes, status, created_at, updated_at)
+                expires_at, scopes, status, connection_type, created_at, updated_at)
             VALUES (${input.workspaceId}, ${input.provider}, ${input.connectedByUserId},
                     ${input.externalAccountId ?? null}, ${input.externalAccountName ?? null},
                     ${this.#sealer.seal(input.accessToken)},
                     ${input.refreshToken ? this.#sealer.seal(input.refreshToken) : null},
                     ${input.expiresAt ?? null}, ${input.scopes ?? []}, 'connected',
-                    ${now}, ${now})
+                    ${connectionType}, ${now}, ${now})
             RETURNING ${tx.unsafe(COLUMNS)}`;
          return toConnection(row!);
       }) as Promise<Connection>;

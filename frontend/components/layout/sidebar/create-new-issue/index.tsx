@@ -1,13 +1,12 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { MarkdownTextarea } from '@/components/common/editor/markdown-textarea';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { useRunConfirm } from '@/components/common/issues/run-confirm-dialog';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
-import { ISSUE_STATUS_OPTIONS, StatusPicker } from '@/components/common/pickers/status-picker';
+import { StatusPicker, type StatusOption } from '@/components/common/pickers/status-picker';
 import { ProjectDateSelector } from '@/components/common/projects/create-project/date-selector';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
    Dialog,
    DialogContent,
@@ -27,27 +26,44 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Issue } from '@/data/issues';
 import type { LabelInterface } from '@/data/labels';
 import { priorities } from '@/data/priorities';
-import { status } from '@/data/status';
+import { status, type Status } from '@/data/status';
 import { BerryApiError } from '@/lib/api';
-import { WORKSPACE_NAME, WORKSPACE_SLUG } from '@/lib/config';
+import { WORKSPACE_NAME } from '@/lib/config';
+import { agentToUser } from '@/lib/agents';
+import { assistEditorText } from '@/lib/editor-ai';
 import { setIssueLabels } from '@/lib/issue-labels';
 import { setParent } from '@/lib/issue-tracking';
-import { createBoardIssue, describePatchFailure, rankFromSortOrder } from '@/lib/issues';
+import {
+   createBoardIssue,
+   describePatchFailure,
+   patchBoardIssue,
+   rankFromSortOrder,
+} from '@/lib/issues';
 import { loadWorkspaceLabels } from '@/lib/labels';
+import { loadPlugins } from '@/lib/plugins';
 import { loadProperties, setIssueProperty, type PropertyDefinition } from '@/lib/properties';
+import { useAgentsStore } from '@/store/agents-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useMembersStore } from '@/store/members-store';
+import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { RiEditLine } from '@remixicon/react';
 import { format } from 'date-fns';
-import { CheckIcon, ChevronRight, Plus, TagIcon, X } from 'lucide-react';
+import { CheckIcon, ChevronRight, Loader2, Plus, Sparkles, TagIcon, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { AssigneeSelector } from './assignee-selector';
+import { descriptionWithPlugins, CreatePluginSelect } from './plugin-select';
+import { CycleSelector } from './cycle-selector';
 import { ProjectSelector } from './project-selector';
+
+/** Fixed prompt for the create-task footer: expand the description for clarity. */
+const IMPROVE_DESCRIPTION_INSTRUCTION =
+   'Expand this task description so a person or agent can understand the goal, constraints, and what done looks like. Improve comprehension and focus. Keep it concrete and actionable. Return Markdown only.';
 
 /**
  * Creating a task: title, description, and whichever properties are worth
@@ -69,21 +85,27 @@ function toDraftDate(date?: Date): string {
    return date ? format(date, 'yyyy-MM-dd') : '';
 }
 
+/** Statuses a task may be created in. In review and done are later states. */
+const CREATABLE_STATUS_IDS = new Set(['backlog', 'to-do', 'in-progress', 'blocked', 'cancelled']);
+
+const CREATE_STATUS_OPTIONS: readonly StatusOption[] = status
+   .filter((entry) => CREATABLE_STATUS_IDS.has(entry.id))
+   .map((entry) => ({ status: entry, label: entry.name }));
+
+function creatableStatus(draftId: string | null, fallback: Status | null): Status {
+   const picked = status.find((entry) => entry.id === draftId);
+   if (picked && CREATABLE_STATUS_IDS.has(picked.id)) return picked;
+   if (fallback && CREATABLE_STATUS_IDS.has(fallback.id)) return fallback;
+   return status.find((entry) => entry.id === 'to-do')!;
+}
+
 export function CreateNewIssue() {
    const t = useTranslations('issueDetail.create');
    const tp = useTranslations('issueDetail.properties');
-   const {
-      isOpen,
-      context,
-      draft,
-      createAnother,
-      openModal,
-      closeModal,
-      setDraft,
-      resetDraft,
-      setCreateAnother,
-   } = useCreateIssueStore();
-   const { addIssue, getAllIssues, filterByStatus, filterByPriority } = useIssuesStore();
+   const { isOpen, context, draft, openModal, closeModal, setDraft, resetDraft } =
+      useCreateIssueStore();
+   const { addIssue, updateIssue, getAllIssues, filterByStatus, filterByPriority } =
+      useIssuesStore();
    const boardId = useSessionStore((state) => state.boardId);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const workspaceName = useSessionStore((state) => state.workspace?.name) ?? WORKSPACE_NAME;
@@ -94,17 +116,34 @@ export function CreateNewIssue() {
    // default and still sends it, so the task is created exactly as before.
    const createFields = useUiPrefsStore((state) => state.createFields);
    const [pending, setPending] = useState(false);
+   const [improving, setImproving] = useState(false);
    const [labels, setLabels] = useState<LabelInterface[]>([]);
    const [definitions, setDefinitions] = useState<PropertyDefinition[]>([]);
    const [revealedFields, setRevealedFields] = useState<string[]>([]);
 
-   const uiStatus =
-      status.find((entry) => entry.id === draft.statusId) ??
-      context.defaultStatus ??
-      status.find((entry) => entry.id === 'to-do')!;
+   // In review and done mean work already happened, so the server refuses
+   // them as a task's first status. A draft saved with one of those would
+   // otherwise fail every create.
+   const uiStatus = creatableStatus(draft.statusId, context.defaultStatus);
    const uiPriority =
       priorities.find((entry) => entry.id === draft.priorityId) ??
       priorities.find((entry) => entry.id === 'no-priority')!;
+   const projects = useProjectsStore((state) => state.projects);
+   const members = useMembersStore((state) => state.members);
+   const agents = useAgentsStore((state) => state.agents);
+   const selectedProject =
+      projects.find((project) => project.id === (draft.projectId ?? context.projectId)) ??
+      undefined;
+   const startDate = parseDraftDate(draft.startDate);
+   const dueDate = parseDraftDate(draft.targetDate);
+   const selectedAssignee = useMemo(() => {
+      if (!draft.assignee) return null;
+      if (draft.assignee.type === 'agent') {
+         const agent = agents.find((entry) => entry.id === draft.assignee?.id && !entry.archivedAt);
+         return agent ? agentToUser(agent) : null;
+      }
+      return members.find((member) => member.id === draft.assignee?.id) ?? null;
+   }, [agents, draft.assignee, members]);
 
    useEffect(() => {
       if (!isOpen || !workspaceId) return;
@@ -151,10 +190,15 @@ export function CreateNewIssue() {
 
    /** Everything that can only be done once the task has an id. */
    const applyExtras = async (created: Issue) => {
-      if (draft.labelIds.length > 0) {
-         await setIssueLabels(created.identifier, draft.labelIds).catch(() =>
-            toast.error(t('failed'))
-         );
+      const labelIds = draft.labelIds.filter((id) => labels.some((label) => label.id === id));
+      if (labelIds.length > 0) {
+         await setIssueLabels(created.identifier, labelIds).catch(() => toast.error(t('failed')));
+      }
+      if (draft.cycleId) {
+         const cycleId = draft.cycleId;
+         await patchBoardIssue(created.id, { cycleId })
+            .then(() => updateIssue(created.id, { cycleId }))
+            .catch((cause: unknown) => toast.error(describePatchFailure(cause) || t('failed')));
       }
       for (const [propertyId, value] of Object.entries(draft.properties)) {
          if (value === null || value === '' || value === undefined) continue;
@@ -169,33 +213,29 @@ export function CreateNewIssue() {
 
    const finish = () => {
       setRevealedFields([]);
-      if (createAnother) {
-         // Keep the context — the column, the parent — and clear what was typed.
-         resetDraft();
-         return;
-      }
       resetDraft();
       closeModal();
    };
 
-   const duplicateToast = (error: BerryApiError) => {
-      const details = (error.details ?? {}) as { identifier?: unknown; issueId?: unknown };
-      const identifier =
-         typeof details.identifier === 'string'
-            ? details.identifier
-            : typeof details.issueId === 'string'
-              ? details.issueId
-              : null;
-      toast.error(t('duplicate'), {
-         action: identifier
-            ? {
-                 label: t('viewExisting'),
-                 onClick: () => {
-                    window.location.href = `/${WORKSPACE_SLUG}/issue/${identifier}`;
-                 },
-              }
-            : undefined,
-      });
+   const improveDescription = async () => {
+      const source = draft.description.trim();
+      if (!source) {
+         toast.error(t('improveEmpty'));
+         return;
+      }
+      if (improving || pending) return;
+      setImproving(true);
+      try {
+         const rewritten = await assistEditorText({
+            text: source,
+            instruction: IMPROVE_DESCRIPTION_INSTRUCTION,
+         });
+         setDraft({ description: rewritten });
+      } catch (error) {
+         toast.error(error instanceof BerryApiError ? error.message : t('improveFailed'));
+      } finally {
+         setImproving(false);
+      }
    };
 
    const create = async () => {
@@ -204,13 +244,19 @@ export function CreateNewIssue() {
          toast.error(t('titleRequired'));
          return;
       }
-      const description = draft.description || undefined;
-      const assignee = draft.assignee;
+      const assignee = selectedAssignee
+         ? {
+              type:
+                 selectedAssignee.role === 'Application' ? ('agent' as const) : ('user' as const),
+              id: selectedAssignee.id,
+              name: selectedAssignee.name,
+           }
+         : null;
       if (!boardId) {
          toast.error('Board is not ready');
          return;
       }
-      const projectId = draft.projectId ?? context.projectId ?? undefined;
+      const projectId = selectedProject?.id;
       const willStart = assignee?.type === 'agent';
 
       // Handing work to an agent is two decisions: assign, and start. Asked
@@ -229,10 +275,15 @@ export function CreateNewIssue() {
 
       setPending(true);
       try {
+         let description = draft.description.trim();
+         if (assignee?.type === 'agent' && draft.pluginIds.length > 0) {
+            const installed = (await loadPlugins(workspaceId)).filter((plugin) => plugin.enabled);
+            description = descriptionWithPlugins(draft.description, installed, draft.pluginIds);
+         }
          const created = await createBoardIssue({
             boardId,
             title,
-            description,
+            description: description || undefined,
             // Not starting means the task waits in the backlog, which is the
             // one state an assigned agent is never dispatched from. Starting
             // means the opposite: an agent-assigned task outside the backlog
@@ -241,6 +292,7 @@ export function CreateNewIssue() {
             priorityId: uiPriority.id,
             assignee: assignee ? { type: assignee.type, id: assignee.id } : undefined,
             projectId,
+            startDate: draft.startDate || undefined,
             dueDate: draft.targetDate || undefined,
          });
 
@@ -257,9 +309,7 @@ export function CreateNewIssue() {
          }
          finish();
       } catch (error) {
-         if (error instanceof BerryApiError && error.status === 409) duplicateToast(error);
-         else
-            toast.error(error instanceof BerryApiError ? describePatchFailure(error) : t('failed'));
+         toast.error(error instanceof BerryApiError ? describePatchFailure(error) : t('failed'));
       } finally {
          setPending(false);
       }
@@ -271,6 +321,8 @@ export function CreateNewIssue() {
             ? draft.labelIds.filter((id) => id !== labelId)
             : [...draft.labelIds, labelId],
       });
+
+   const improveDisabled = pending || improving || draft.description.trim() === '';
 
    return (
       <Dialog open={isOpen} onOpenChange={(value) => (value ? openModal() : closeModal())}>
@@ -286,7 +338,7 @@ export function CreateNewIssue() {
          </DialogTrigger>
          <DialogContent
             showCloseButton={false}
-            className="top-[10vh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[750px]"
+            className="top-[10vh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[880px]"
          >
             <DialogHeader className="px-4 pt-4 pb-0">
                <DialogTitle className="sr-only">{t('title')}</DialogTitle>
@@ -305,22 +357,25 @@ export function CreateNewIssue() {
                         </span>
                      ) : null}
                   </div>
-                  <Button
-                     type="button"
-                     variant="ghost"
-                     size="icon"
-                     className="size-8 shrink-0"
-                     aria-label="Close"
-                     onClick={closeModal}
-                  >
-                     <X className="size-4" />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                     <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        aria-label="Close"
+                        onClick={closeModal}
+                     >
+                        <X className="size-4" />
+                     </Button>
+                  </div>
                </div>
             </DialogHeader>
 
             <div className="max-h-[52vh] w-full overflow-y-auto px-4 pb-0">
                <Input
                   data-heading="h1"
+                  data-create-title
                   plain
                   className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-placeholder"
                   placeholder={t('titlePlaceholder')}
@@ -333,7 +388,7 @@ export function CreateNewIssue() {
                      <StatusPicker
                         variant="chip"
                         status={uiStatus}
-                        options={ISSUE_STATUS_OPTIONS}
+                        options={CREATE_STATUS_OPTIONS}
                         onChange={(next) => setDraft({ statusId: next.id })}
                         countFor={(id) => filterByStatus(id).length}
                      />
@@ -348,7 +403,7 @@ export function CreateNewIssue() {
                   ) : null}
                   {createFields.assignee ? (
                      <AssigneeSelector
-                        assignee={null}
+                        assignee={selectedAssignee}
                         onChange={(next) =>
                            setDraft({
                               assignee: next
@@ -364,14 +419,25 @@ export function CreateNewIssue() {
                   ) : null}
                   {createFields.project ? (
                      <ProjectSelector
-                        project={undefined}
+                        project={selectedProject}
                         onChange={(next) => setDraft({ projectId: next?.id ?? null })}
                      />
                   ) : null}
 
+                  <CycleSelector
+                     cycleId={draft.cycleId}
+                     onChange={(cycleId) => setDraft({ cycleId })}
+                  />
+                  <ProjectDateSelector
+                     label={t('startDate')}
+                     date={startDate}
+                     disabled={dueDate ? { after: dueDate } : undefined}
+                     onChange={(next) => setDraft({ startDate: toDraftDate(next) })}
+                  />
                   <ProjectDateSelector
                      label={t('dueDate')}
-                     date={parseDraftDate(draft.targetDate)}
+                     date={dueDate}
+                     disabled={startDate ? { before: startDate } : undefined}
                      onChange={(targetDate) => setDraft({ targetDate: toDraftDate(targetDate) })}
                   />
                   <Popover modal>
@@ -484,26 +550,57 @@ export function CreateNewIssue() {
                   ) : null}
                </div>
 
-               <div className="mt-5 min-h-40 border-t border-border/60 pt-4">
-                  <MarkdownTextarea
-                     plain
-                     className="min-h-56 resize-none border-none bg-transparent px-0 text-foreground shadow-none outline-none placeholder:text-placeholder"
-                     placeholder={t('descriptionPlaceholder')}
+               <div className="mt-2.5 min-h-40 pt-2" data-create-description>
+                  <TiptapAiEditor
                      value={draft.description}
                      onChange={(description) => setDraft({ description })}
+                     placeholder={t('descriptionPlaceholder')}
+                     aria-label={t('descriptionPlaceholder')}
+                     aiAssist={false}
+                     formatting
+                     editable={!improving}
+                     className="min-h-56 [&_.ProseMirror]:!min-h-56 [&_.ProseMirror]:bg-transparent"
                   />
                </div>
             </div>
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
-               <label className="flex items-center gap-2 text-muted-foreground">
-                  <Checkbox
-                     checked={createAnother}
-                     onCheckedChange={(checked) => setCreateAnother(checked === true)}
-                  />
-                  {t('createAnother')}
-               </label>
-               <Button size="xs" disabled={pending} onClick={() => void create()}>
+               <div className="flex min-w-0 items-center gap-3">
+                  <span
+                     className="ai-animated-border h-7"
+                     aria-disabled={improveDisabled || undefined}
+                  >
+                     <Button
+                        type="button"
+                        variant="outline"
+                        size="xxs"
+                        className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground disabled:opacity-100 disabled:bg-background disabled:text-muted-foreground"
+                        disabled={improveDisabled}
+                        aria-busy={improving || undefined}
+                        onClick={() => void improveDescription()}
+                     >
+                        {improving ? (
+                           <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                        ) : (
+                           <Sparkles className="size-3.5" aria-hidden />
+                        )}
+                        {improving ? t('improving') : t('improve')}
+                     </Button>
+                  </span>
+                  {draft.assignee?.type === 'agent' ? (
+                     <CreatePluginSelect
+                        workspaceId={workspaceId}
+                        value={draft.pluginIds}
+                        onChange={(pluginIds) => setDraft({ pluginIds })}
+                     />
+                  ) : null}
+               </div>
+               <Button
+                  className="shrink-0"
+                  disabled={pending || improving}
+                  onClick={() => void create()}
+               >
+                  <CheckIcon className="size-4" aria-hidden />
                   {pending ? t('creating') : t('create')}
                </Button>
             </div>

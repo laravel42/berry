@@ -41,15 +41,18 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
       SELECT name, role_key, protected, autonomy_level, model_name, permissions, contract_version, archived_at
         FROM agents WHERE workspace_id = ${workspaceId} ORDER BY role_key NULLS LAST, name`;
 
-   test('every core role exists once, and no specialist; the Orchestrator keeps its protection and gains its contract', async () => {
+   test('a new workspace has only the Orchestrator, which keeps its protection and gains its contract', async () => {
       const result = await ensureOrganizationAgents(sql, workspaceId);
-      assert.equal(result.inserted.length, CORE_ROLES.length - 1, 'all but the trigger-made Orchestrator are inserted');
-      const live = (await rows()).filter((row) => row.archived_at === null);
-      const roles = live.filter((row) => row.role_key !== null);
-      // ADR-0018: the core roles and the Orchestrator; specialists are added by a person.
-      assert.deepEqual(roles.map((row) => row.role_key).sort(), [...CORE_ROLES].sort());
-      const orchestrator = roles.find((row) => row.role_key === 'orchestrator');
-      assert.equal(orchestrator?.protected, true);
+      assert.deepEqual(result.inserted, [], 'the trigger-made Orchestrator is adopted; nothing else is given');
+      const given = (await rows()).filter((row) => row.archived_at === null && row.role_key !== null);
+      assert.deepEqual(given.map((row) => row.role_key), [...CORE_ROLES]);
+      assert.equal(given[0]?.protected, true);
+
+      // Every other role comes from the catalogue, added by a person.
+      for (const key of ['product-lead', 'product-designer', 'software-engineer', 'qa-engineer', 'devops-engineer']) {
+         assert.equal((await addRole(sql, workspaceId, key)).added, true, key);
+      }
+      const roles = (await rows()).filter((row) => row.archived_at === null && row.role_key !== null);
       assert.equal(roles.filter((row) => row.protected).length, 1);
       assert.equal(roles.find((row) => row.role_key === 'software-engineer')?.protected, false);
       assert.deepEqual(
@@ -122,8 +125,9 @@ describe('provisioning the organization', { skip: url ? false : 'BERRY_TEST_DATA
    });
 
    test('an older contract is upgraded unless a person edited it', async () => {
+      // The oldest version a person-added role keeps; anything older is a retired roster.
       await sql`
-         UPDATE agents SET contract_version = 0
+         UPDATE agents SET contract_version = ${SPECIALISTS_KEPT_FROM}
           WHERE workspace_id = ${workspaceId} AND role_key IN ('qa-engineer', 'product-designer')`;
       await sql`
          UPDATE agents SET role_contract = jsonb_set(role_contract, '{mission}', '"Edited by a person."')

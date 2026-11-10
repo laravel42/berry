@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { sampleEnvelope } from './envelope.test.ts';
 import { encodeLifecycle, type LifecycleEvent } from './lifecycle.ts';
-import { httpTransport } from './http-transport.ts';
+import { credentialSafeRuntimeUrl, httpTransport } from './http-transport.ts';
 import { RuntimeUnavailable, type RuntimeTarget } from './transport.ts';
 
 const target: RuntimeTarget = { id: null, driver: 'http', arn: null, qualifier: 'DEFAULT', region: null, endpointUrl: 'http://agent-runtime:8080/' };
@@ -145,4 +145,33 @@ test('control uses the authenticated invoke seam and validates the runtime respo
       ok: true,
       models: [{ id: 'auto', name: 'Automatic', reasoning: null, tools: true, policy: null }],
    });
+});
+
+test('a personal credential may travel over HTTP only on loopback or a private network', () => {
+   for (const safe of [
+      'https://runtime.example.com',
+      'http://localhost:8080',
+      'http://127.0.0.1:8080',
+      'http://[::1]:8080',
+      'http://sessions:8080',
+      'http://10.0.0.5:8080',
+      'http://172.17.0.1:8080',
+      'http://172.31.255.1:8080',
+      'http://192.168.1.20:8080',
+   ]) {
+      assert.equal(credentialSafeRuntimeUrl(safe), true, safe);
+   }
+   for (const unsafe of [
+      'http://runtime.example.com',
+      'http://sessions.internal:8080',
+      'http://8.8.8.8:8080',
+      'http://172.32.0.1:8080',
+      'http://192.169.0.1:8080',
+      'http://[2001:db8::1]:8080',
+      'ftp://sessions:8080',
+      'not a url',
+      null,
+   ]) {
+      assert.equal(credentialSafeRuntimeUrl(unsafe), false, String(unsafe));
+   }
 });

@@ -147,13 +147,13 @@ export function ChatThread({
          ref={scroller}
          onScroll={onScroll}
          className={[
-            'flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-5',
+            'flex min-h-0 flex-1 flex-col overflow-y-auto px-3 pt-3 pb-1',
             // An empty conversation opens like a blank page: the greeting sits
             // in the middle with the composer under it, not at the top left.
             messages.length === 0 && !streamingText ? 'justify-center' : '',
          ].join(' ')}
       >
-         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
             {hasEarlier ? (
                <button
                   type="button"
@@ -196,7 +196,7 @@ export function ChatThread({
                const isAgent = message.authorType === 'agent';
 
                return (
-                  <div key={message.id} className="flex flex-col gap-4">
+                  <div key={message.id} className="flex flex-col gap-2">
                      {divider ? (
                         <div className="flex items-center gap-3 text-[var(--shell-text-dim)]">
                            <span className="h-px flex-1 bg-[var(--shell-line)]" />
@@ -208,7 +208,7 @@ export function ChatThread({
                      {isAgent ? (
                         // The agent's reply is the page's own text: no avatar, no
                         // name, the full width. Its actions show under it on hover.
-                        <article className="group flex flex-col gap-1.5">
+                        <article data-step-body="prose" className="group flex flex-col gap-1">
                            <div className="text-[var(--shell-text)]">
                               <ChatMarkdown body={message.body} />
                            </div>
@@ -245,7 +245,12 @@ export function ChatThread({
             })}
 
             {streamingText ? (
-               <article className="flex flex-col gap-1.5" aria-live="polite" aria-busy="true">
+               <article
+                  data-step-body="prose"
+                  className="flex flex-col gap-1"
+                  aria-live="polite"
+                  aria-busy="true"
+               >
                   <div className="text-[var(--shell-text)]">
                      <ChatMarkdown body={streamingText} />
                   </div>

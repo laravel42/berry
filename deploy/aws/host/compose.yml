@@ -45,7 +45,7 @@ services:
       logging: *logging
 
    # One container per agent session, each with its own folder, memory, CPU and
-   # process ceiling; idle ones are stopped. What `pnpm runtime:sessions` runs.
+   # process ceiling; idle ones are stopped. What `bun run runtime:sessions` runs.
    sessions:
       image: ${BERRY_IMAGE_API}
       restart: unless-stopped

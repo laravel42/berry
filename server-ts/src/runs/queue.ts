@@ -1,3 +1,4 @@
+import { platformModelFor } from '../runtime/platform-model.ts';
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
@@ -60,6 +61,11 @@ export interface EnqueueTaskInput {
    aiRuntime?: AiRuntimeRunSelection;
    /** Preserve an originating native run without re-resolving current overrides. */
    forceNativeRuntime?: boolean;
+   /**
+    * What a completion is for. A purpose the platform model answers runs on
+    * it, not on the workspace's providers (`platformModelFor`).
+    */
+   purpose?: string;
    /**
     * The run whose agent started this one (a handoff, an assignment, a
     * mention). Lets a chat follow the work its agent set going, not only its
@@ -139,8 +145,19 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
          overrideModelId = (session.ai_model_id as string | null) ?? null;
       }
 
+      // Chat and the product's own single calls run on the platform model when
+      // the deployment has one; no workspace provider is selected for them.
+      const [agentRow] = await tx`SELECT protected FROM agents WHERE id = ${input.agentId}`;
+      const onPlatformModel =
+         platformModelFor({
+            kind: input.kind,
+            purpose: input.purpose,
+            chatSessionId: input.chatSessionId,
+            issueId,
+            orchestrator: agentRow?.protected === true,
+         }) !== null;
       const aiRuntime =
-         input.forceNativeRuntime
+         input.forceNativeRuntime || onPlatformModel
             ? {
                  runtimeId: null,
                  modelId: null,
