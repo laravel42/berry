@@ -11,7 +11,7 @@ const runtimeSchema = z.object({
    id: z.string(),
    name: z.string(),
    kind: z.enum(['platform', 'custom']),
-   driver: z.enum(['agentcore', 'http']),
+   driver: z.enum(['agentcore', 'microvm', 'http']),
    arn: z.string().nullable(),
    endpointUrl: z.string().nullable(),
    qualifier: z.string(),
