@@ -15,6 +15,7 @@ import { priorities } from '@/data/priorities';
 import { status as allStatus } from '@/data/status';
 import { currentUser } from '@/data/users';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { publishShellEvent } from '@/lib/shell-events';
 import { formatCombo } from '@/lib/shortcuts';
@@ -59,7 +60,6 @@ import {
    MessageSquare,
    ScrollText,
    Server,
-   Sparkles,
    SquarePen,
    Tags,
    Target,
@@ -794,7 +794,7 @@ export function CommandPalette() {
                                  close();
                               }}
                            >
-                              <Sparkles className="text-muted-foreground" />
+                              <SparkIcon className="size-4 text-muted-foreground" />
                               Plan something…
                            </CommandItem>
                         ) : null}

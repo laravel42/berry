@@ -20,7 +20,8 @@ import { useCreatePlanStore } from '@/store/create-plan-store';
 import { usePlanStore } from '@/store/plan-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
-import { ChevronRight, Sparkles, X } from 'lucide-react';
+import { SparkIcon } from '@/components/ui/spark-icon';
+import { ChevronRight, X } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -171,7 +172,7 @@ export function CreatePlanDialog() {
                         Cancel
                      </Button>
                      <Button type="submit" size="sm" disabled={pending || !prompt.trim()}>
-                        <Sparkles className="size-4" />
+                        <SparkIcon className="size-4" />
                         {pending ? 'Planning…' : 'Plan it'}
                      </Button>
                   </div>
