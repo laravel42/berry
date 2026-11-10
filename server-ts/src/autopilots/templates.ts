@@ -119,6 +119,28 @@ export const LOOP_TEMPLATES: readonly LoopTemplate[] = [
       allowAgentEvents: false,
    },
    {
+      key: 'release-notes',
+      name: 'Draft release notes',
+      description: 'When a pull request linked to a task is merged, write what changed for the people who use it.',
+      category: 'reporting',
+      instructions:
+         'A pull request linked to a task was merged (see the trigger context). Read the task with read_task and what changed ' +
+         'with browse_repository and read_repository_file. Draft release notes for the people who use the product, not the ' +
+         'people who built it: what changed, who it affects, and anything they must do (a setting, a migration, a changed ' +
+         'default). Plain words, no internal names, three to six lines. Post them as a comment on the task. Do not change the ' +
+         'task itself.',
+      trigger: {
+         kind: 'event',
+         eventType: 'github.pull_request.updated',
+         conditions: { match: 'all', rules: [{ field: 'pullRequestState', op: 'in', values: ['merged'] }] },
+         description: 'When a pull request linked to a task is merged',
+      },
+      roles: ['technical-writer', 'product-lead', 'orchestrator'],
+      requires: ['The GitHub App connected', 'Pull requests linked to tasks'],
+      accessMode: 'recommend',
+      allowAgentEvents: false,
+   },
+   {
       key: 'blocked-tasks',
       name: 'Detect blocked work',
       description: 'When a task becomes blocked, find out what is holding it and propose a way to unblock it.',

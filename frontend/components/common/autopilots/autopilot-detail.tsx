@@ -22,7 +22,13 @@ import { DeliveriesTable } from '@/components/common/autopilots/history-tabs';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import EventReceipts from '@/components/common/loops/event-receipts';
 import { SectionCard, SoonPill } from '@/components/common/loops/loop-editor-parts';
-import LoopTriggerCard from '@/components/common/loops/loop-trigger-card';
+import TriggerEditor, {
+   applyTrigger,
+   draftFromTrigger,
+   sameTrigger,
+   triggerComplete,
+   type TriggerDraft,
+} from '@/components/common/loops/trigger-editor';
 import { LoopEditorFields, draftReady } from '@/components/common/loops/loop-editor-fields';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import {
@@ -56,6 +62,7 @@ import {
    type AutopilotDraft,
    type AutopilotRun,
    type LoopRunState,
+   type WebhookSecrets,
 } from '@/lib/autopilots';
 import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
 import { WORKSPACE_SLUG } from '@/lib/config';
@@ -130,11 +137,24 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    // saving) until the person changes something; from then it is theirs.
    const baseline = useMemo(() => (autopilot ? draftFromAutopilot(autopilot) : null), [autopilot]);
    const [draft, setDraft] = useState<AutopilotDraft | null>(null);
+   // The trigger is part of the same draft: the Loop's first trigger, saved
+   // with the rest. Further triggers a Loop was given before stay as they are.
+   const triggerBaseline = useMemo(
+      () => (autopilot ? draftFromTrigger(autopilot.triggers[0]) : null),
+      [autopilot]
+   );
+   const [triggerDraft, setTriggerDraft] = useState<TriggerDraft | null>(null);
+   const [secrets, setSecrets] = useState<WebhookSecrets | null>(null);
    const [touched, setTouched] = useState(false);
    useEffect(() => {
       if (baseline && !touched) setDraft(baseline);
-   }, [baseline, touched]);
-   const dirty = Boolean(touched && draft && baseline && !sameDraft(draft, baseline));
+      if (triggerBaseline && !touched) setTriggerDraft(triggerBaseline);
+   }, [baseline, triggerBaseline, touched]);
+   const fieldsChanged = Boolean(draft && baseline && !sameDraft(draft, baseline));
+   const triggerChanged = Boolean(
+      triggerDraft && triggerBaseline && !sameTrigger(triggerDraft, triggerBaseline)
+   );
+   const dirty = touched && (fieldsChanged || triggerChanged);
 
    useEffect(() => {
       if (!dirty) return;
@@ -207,8 +227,11 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       : paused
         ? 'paused'
         : null;
-   const listensForEvents = autopilot.triggerKinds.includes('event');
-   const ready = draftReady(draft);
+   const listensForEvents =
+      triggerDraft?.kind === 'event' ||
+      triggerDraft?.kind === 'pr' ||
+      autopilot.triggers.slice(1).some((trigger) => trigger.kind === 'event');
+   const ready = draftReady(draft) && (triggerDraft === null || triggerComplete(triggerDraft));
 
    const patch = (next: Partial<AutopilotDraft>) => {
       setTouched(true);
@@ -232,7 +255,12 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       if (!dirty || !ready || saving) return;
       setSaving(true);
       try {
-         await updateAutopilot(autopilot.id, draft);
+         if (fieldsChanged) await updateAutopilot(autopilot.id, draft);
+         if (triggerChanged && triggerDraft) {
+            const made = await applyTrigger(autopilot.id, autopilot.triggers[0], triggerDraft);
+            // A new webhook's URL and secret, readable this once.
+            if (made) setSecrets(made);
+         }
          toast.success(te('saved'));
          setTouched(false);
          reload();
@@ -246,6 +274,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    const discard = () => {
       setTouched(false);
       if (baseline) setDraft(baseline);
+      if (triggerBaseline) setTriggerDraft(triggerBaseline);
    };
 
    const runNow = () =>
@@ -411,7 +440,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          </header>
 
          <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-5">
+            <div className="flex w-full flex-col gap-5">
                {blocked === 'noRuntime' ? (
                   <Banner tone="warning">
                      {t('detail.noRuntimeBanner', { name: assigneeName })}{' '}
@@ -444,8 +473,8 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                   </Banner>
                ) : null}
 
-               <div className="grid items-start gap-5 lg:grid-cols-3">
-                  <div className="flex min-w-0 flex-col gap-5 lg:col-span-2">
+               <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                  <div className="flex min-w-0 flex-col gap-5">
                      <LoopEditorFields
                         draft={draft}
                         onPatch={patch}
@@ -454,11 +483,24 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                         coverage={coverage}
                         listensForEvents={listensForEvents}
                         trigger={
-                           <LoopTriggerCard
-                              autopilot={autopilot}
-                              canEdit={editable}
-                              onChanged={reload}
-                           />
+                           triggerDraft ? (
+                              <TriggerEditor
+                                 draft={triggerDraft}
+                                 onChange={(next) => {
+                                    setTouched(true);
+                                    setTriggerDraft(next);
+                                 }}
+                                 disabled={!editable}
+                                 autopilotId={autopilot.id}
+                                 current={autopilot.triggers[0]}
+                                 others={Math.max(0, autopilot.triggers.length - 1)}
+                                 secrets={secrets}
+                                 onSecrets={(next) => {
+                                    setSecrets(next);
+                                    reload();
+                                 }}
+                              />
+                           ) : null
                         }
                      />
                   </div>

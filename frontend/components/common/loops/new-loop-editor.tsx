@@ -8,28 +8,21 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { draftFromSeed, type LoopSeed } from '@/components/common/autopilots/autopilot-dialog';
-import ScheduleEditor from '@/components/common/autopilots/schedule-editor';
-import { SecretsNotice, useWorkspaceProjects } from '@/components/common/autopilots/triggers-tab';
-import EventTriggerEditor, {
-   conditionsComplete,
-} from '@/components/common/loops/event-trigger-editor';
+import { SecretsNotice } from '@/components/common/autopilots/triggers-tab';
 import { SectionCard } from '@/components/common/loops/loop-editor-parts';
 import { LoopEditorFields, draftReady } from '@/components/common/loops/loop-editor-fields';
-import { TriggerKindTiles, type TriggerKind } from '@/components/common/loops/loop-trigger-card';
+import TriggerEditor, {
+   addTrigger,
+   draftFromEvent,
+   triggerComplete,
+   type TriggerDraft,
+} from '@/components/common/loops/trigger-editor';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import {
-   addCronTrigger,
-   addEventTrigger,
-   addWebhookTrigger,
    createAutopilot,
    describeAutopilotFailure,
-   EMPTY_CONDITIONS,
    type AutopilotDraft,
-   type Conditions,
-   type LoopEventType,
    type WebhookSecrets,
 } from '@/lib/autopilots';
 import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
@@ -37,8 +30,6 @@ import { WORKSPACE_SLUG } from '@/lib/config';
 import { localTimezone } from '@/lib/cron-schedule';
 import { getAgentCoverage, type AgentCoverage } from '@/lib/runtimes';
 import { useSessionStore } from '@/store/session-store';
-
-type FirstTrigger = 'none' | 'cron' | 'event' | 'webhook';
 
 /**
  * A new Loop, reviewed on the same page an existing one is edited on.
@@ -63,30 +54,22 @@ export default function NewLoopEditor({
 }) {
    const t = useTranslations('loops');
    const te = useTranslations('loops.editor');
-   const tt = useTranslations('loops.triggers');
    const router = useRouter();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
-   const projects = useWorkspaceProjects();
 
    const [draft, setDraft] = useState<AutopilotDraft>(() => draftFromSeed(seed));
    const [boards, setBoards] = useState<BoardSummary[]>([]);
    const [coverage, setCoverage] = useState<AgentCoverage | null>(null);
-   const [trigger, setTrigger] = useState<FirstTrigger>(() => seed.trigger?.kind ?? 'none');
-   const [schedule, setSchedule] = useState({
-      expression: seed.trigger?.kind === 'cron' ? seed.trigger.expression : '0 9 * * 1-5',
-      timezone: localTimezone(),
+   const [trigger, setTrigger] = useState<TriggerDraft>(() => {
+      const first = seed.trigger;
+      if (first?.kind === 'cron') {
+         return { kind: 'cron', expression: first.expression, timezone: localTimezone() };
+      }
+      if (first?.kind === 'event') return draftFromEvent(first.eventType, first.conditions);
+      return { kind: 'manual' };
    });
-   const [eventTrigger, setEventTrigger] = useState<{
-      eventType: LoopEventType;
-      conditions: Conditions;
-   }>(() =>
-      seed.trigger?.kind === 'event'
-         ? { eventType: seed.trigger.eventType, conditions: seed.trigger.conditions }
-         : { eventType: 'issue.created', conditions: EMPTY_CONDITIONS }
-   );
-   const [eventFilters, setEventFilters] = useState('');
    const [createPaused, setCreatePaused] = useState(false);
    const [saving, setSaving] = useState(false);
    const [secrets, setSecrets] = useState<{ id: string; secrets: WebhookSecrets } | null>(null);
@@ -118,8 +101,7 @@ export default function NewLoopEditor({
       };
    }, [workspaceId]);
 
-   const ready =
-      draftReady(draft) && (trigger !== 'event' || conditionsComplete(eventTrigger.conditions));
+   const ready = draftReady(draft) && triggerComplete(trigger);
 
    const create = async () => {
       if (!ready || saving || !workspaceId) return;
@@ -128,20 +110,11 @@ export default function NewLoopEditor({
          const created = await createAutopilot(workspaceId, draft, {
             status: createPaused ? 'paused' : 'active',
          });
-         if (trigger === 'cron') {
-            await addCronTrigger(created.id, schedule);
-         } else if (trigger === 'event') {
-            await addEventTrigger(created.id, eventTrigger);
-         } else if (trigger === 'webhook') {
-            const made = await addWebhookTrigger(
-               created.id,
-               eventFilters
-                  .split(',')
-                  .map((name) => name.trim())
-                  .filter((name) => name !== '')
-            );
+         const made = await addTrigger(created.id, trigger);
+         if (made) {
+            // The secret is readable exactly once: hold the page on it.
             toast.success(t('dialog.created'));
-            setSecrets({ id: created.id, secrets: made.secrets });
+            setSecrets({ id: created.id, secrets: made });
             return;
          }
          toast.success(t('dialog.created'));
@@ -152,12 +125,6 @@ export default function NewLoopEditor({
          setSaving(false);
       }
    };
-
-   const pickKind = (kind: TriggerKind) => {
-      if (kind === 'pr') return;
-      setTrigger(kind === 'manual' ? 'none' : kind);
-   };
-   const isOn = (kind: TriggerKind) => (kind === 'manual' ? trigger === 'none' : kind === trigger);
 
    return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -204,7 +171,7 @@ export default function NewLoopEditor({
          </header>
 
          <div className="min-h-0 flex-1 overflow-y-auto p-5">
-            <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-5">
+            <div className="flex w-full flex-col gap-5">
                {secrets ? (
                   <div className="mx-auto w-full max-w-2xl">
                      <SecretsNotice
@@ -213,59 +180,16 @@ export default function NewLoopEditor({
                      />
                   </div>
                ) : (
-                  <div className="grid items-start gap-5 lg:grid-cols-3">
-                     <div className="flex min-w-0 flex-col gap-5 lg:col-span-2">
+                  <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_22rem] 2xl:grid-cols-[minmax(0,1fr)_24rem]">
+                     <div className="flex min-w-0 flex-col gap-5">
                         <LoopEditorFields
                            draft={draft}
                            onPatch={(next) => setDraft((current) => ({ ...current, ...next }))}
                            editable
                            boards={boards}
                            coverage={coverage}
-                           listensForEvents={trigger === 'event'}
-                           trigger={
-                              <SectionCard title={te('trigger')} hint={te('triggerHintNew')}>
-                                 <TriggerKindTiles
-                                    isOn={isOn}
-                                    isPicked={isOn}
-                                    canEdit
-                                    onPick={pickKind}
-                                 />
-                                 <div className="border-t border-border/60 px-4 py-4">
-                                    {trigger === 'cron' ? (
-                                       <ScheduleEditor
-                                          expression={schedule.expression}
-                                          timezone={schedule.timezone}
-                                          onChange={setSchedule}
-                                       />
-                                    ) : trigger === 'event' ? (
-                                       <EventTriggerEditor
-                                          eventType={eventTrigger.eventType}
-                                          conditions={eventTrigger.conditions}
-                                          projects={projects}
-                                          onChange={setEventTrigger}
-                                       />
-                                    ) : trigger === 'webhook' ? (
-                                       <div className="grid gap-2">
-                                          <Label htmlFor="new-loop-webhook-filters">
-                                             {tt('filters')}
-                                          </Label>
-                                          <Input
-                                             id="new-loop-webhook-filters"
-                                             value={eventFilters}
-                                             onChange={(event) =>
-                                                setEventFilters(event.target.value)
-                                             }
-                                          />
-                                          <p className="text-subtle-foreground">
-                                             {tt('filtersHint')}
-                                          </p>
-                                       </div>
-                                    ) : (
-                                       <p className="text-muted-foreground">{te('manualOnly')}</p>
-                                    )}
-                                 </div>
-                              </SectionCard>
-                           }
+                           listensForEvents={trigger.kind === 'event' || trigger.kind === 'pr'}
+                           trigger={<TriggerEditor draft={trigger} onChange={setTrigger} />}
                         />
                      </div>
 

@@ -2,11 +2,13 @@
 
 import { Plus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useId } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import {
+   InsetSegments,
+   SettingRow,
+   insetFieldClass,
+} from '@/components/common/loops/loop-editor-parts';
 import {
    Select,
    SelectContent,
@@ -123,17 +125,28 @@ interface Props {
    conditions: Conditions;
    projects: Project[];
    onChange: (next: { eventType: LoopEventType; conditions: Conditions }) => void;
+   /** Events this picker leaves out (the Pull request kind has its own card). */
+   exclude?: readonly LoopEventType[];
+   disabled?: boolean;
 }
 
 /**
- * What a Loop listens for, and the few filters that narrow it.
+ * What a Loop listens for, and the few filters that narrow it, as rows of the
+ * Loop page's Trigger section: When, then Only if.
  *
  * Deliberately small: at most eight filters, all or any, each a field "is"
  * or "is not" one of some values. Judgement belongs in the instructions.
  */
-export default function EventTriggerEditor({ eventType, conditions, projects, onChange }: Props) {
+export default function EventTriggerEditor({
+   eventType,
+   conditions,
+   projects,
+   onChange,
+   exclude = [],
+   disabled = false,
+}: Props) {
    const t = useTranslations('loops.eventTrigger');
-   const id = useId();
+   const te = useTranslations('loops.editor');
    const fields = fieldsFor(eventType);
    const rules = conditions.rules;
 
@@ -151,19 +164,27 @@ export default function EventTriggerEditor({ eventType, conditions, projects, on
       });
    };
 
+   const groups = GROUPS.map((group) => ({
+      ...group,
+      events: group.events.filter((event) => !exclude.includes(event)),
+   })).filter((group) => group.events.length > 0);
+
    return (
-      <div className="grid gap-3">
-         <div className="grid gap-1.5">
-            <Label htmlFor={`${id}-event`}>{t('event')}</Label>
+      <>
+         <SettingRow label={te('when')} hint={t(`hints.${eventType}`)}>
             <Select
                value={eventType}
+               disabled={disabled}
                onValueChange={(value) => changeEvent(value as LoopEventType)}
             >
-               <SelectTrigger id={`${id}-event`}>
+               <SelectTrigger
+                  className={cn(insetFieldClass, 'justify-between')}
+                  aria-label={te('when')}
+               >
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
-                  {GROUPS.map((group) => (
+                  {groups.map((group) => (
                      <SelectGroup key={group.key}>
                         <SelectLabel>{t(`groups.${group.key}`)}</SelectLabel>
                         {group.events.map((event) => (
@@ -175,48 +196,47 @@ export default function EventTriggerEditor({ eventType, conditions, projects, on
                   ))}
                </SelectContent>
             </Select>
-            <p className="text-muted-foreground">{t(`hints.${eventType}`)}</p>
-         </div>
+         </SettingRow>
 
-         <fieldset className="grid gap-2">
-            <legend className="mb-1.5 flex w-full items-center gap-2">
-               <span>{t('filters')}</span>
+         <div className="flex flex-col gap-2.5 border-t border-border/60 px-4 py-3.5">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+               <span className="font-medium">{te('onlyIf')}</span>
+               <span className="text-subtle-foreground">
+                  {rules.length === 0 ? t('noFilters') : te('onlyIfHint', { max: MAX_RULES })}
+               </span>
                {rules.length > 1 ? (
-                  <Select
-                     value={conditions.match}
-                     onValueChange={(value) =>
-                        onChange({
-                           eventType,
-                           conditions: { ...conditions, match: value === 'any' ? 'any' : 'all' },
-                        })
-                     }
-                  >
-                     <SelectTrigger className="h-7 w-auto gap-1 px-2" aria-label={t('matchLabel')}>
-                        <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent>
-                        <SelectItem value="all">{t('matchAll')}</SelectItem>
-                        <SelectItem value="any">{t('matchAny')}</SelectItem>
-                     </SelectContent>
-                  </Select>
+                  <div className="ml-auto w-44">
+                     <InsetSegments
+                        label={t('matchLabel')}
+                        value={conditions.match}
+                        disabled={disabled}
+                        options={[
+                           { value: 'all', label: t('matchAll') },
+                           { value: 'any', label: t('matchAny') },
+                        ]}
+                        onChange={(match) =>
+                           onChange({ eventType, conditions: { ...conditions, match } })
+                        }
+                     />
+                  </div>
                ) : null}
-            </legend>
-            {rules.length === 0 ? <p className="text-muted-foreground">{t('noFilters')}</p> : null}
+            </div>
             {rules.map((rule, index) => (
                <RuleRow
                   key={index}
                   rule={rule}
                   fields={fields}
                   projects={projects}
+                  disabled={disabled}
                   onChange={(patch) => setRule(index, patch)}
                   onRemove={() => setRules(rules.filter((_rule, at) => at !== index))}
                />
             ))}
-            {rules.length < MAX_RULES ? (
+            {disabled ? null : rules.length < MAX_RULES ? (
                <Button
                   type="button"
                   size="xs"
-                  variant="ghost"
+                  variant="secondary"
                   className="w-fit"
                   onClick={() => {
                      const field =
@@ -229,26 +249,29 @@ export default function EventTriggerEditor({ eventType, conditions, projects, on
                   }}
                >
                   <Plus className="size-3.5" aria-hidden />
-                  {t('addFilter')}
+                  {te('addCondition')}
                </Button>
             ) : (
-               <p className="text-muted-foreground">{t('maxFilters', { count: MAX_RULES })}</p>
+               <p className="text-subtle-foreground">{t('maxFilters', { count: MAX_RULES })}</p>
             )}
-         </fieldset>
-      </div>
+         </div>
+      </>
    );
 }
 
+/** One condition: field, is or is not, its values, and a way to drop it. */
 function RuleRow({
    rule,
    fields,
    projects,
+   disabled,
    onChange,
    onRemove,
 }: {
    rule: ConditionRule;
    fields: EditableField[];
    projects: Project[];
+   disabled: boolean;
    onChange: (patch: Partial<ConditionRule>) => void;
    onRemove: () => void;
 }) {
@@ -258,22 +281,32 @@ function RuleRow({
       : fields[0];
    if (!field) return null;
    const words = vocabulary(field);
-
    const toggle = (value: string) =>
       onChange({
          values: rule.values.includes(value)
             ? rule.values.filter((entry) => entry !== value)
             : [...rule.values, value],
       });
+   const pill = (on: boolean) =>
+      cn(
+         'h-[26px] max-w-48 truncate rounded-[7px] border px-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
+         on
+            ? 'border-foreground/25 bg-segment-selected text-foreground'
+            : 'border-border/70 bg-background text-muted-foreground enabled:hover:text-foreground'
+      );
 
    return (
-      <div className="grid gap-2 rounded-md border p-2.5">
-         <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2">
+         <div className="grid grid-cols-[minmax(0,1fr)_5.5rem_auto] items-center gap-2">
             <Select
                value={field}
+               disabled={disabled}
                onValueChange={(value) => onChange({ field: value as ConditionField, values: [] })}
             >
-               <SelectTrigger className="h-8 w-auto min-w-36" aria-label={t('field')}>
+               <SelectTrigger
+                  className={cn(insetFieldClass, 'justify-between')}
+                  aria-label={t('field')}
+               >
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -286,9 +319,13 @@ function RuleRow({
             </Select>
             <Select
                value={rule.op}
+               disabled={disabled}
                onValueChange={(value) => onChange({ op: value === 'not_in' ? 'not_in' : 'in' })}
             >
-               <SelectTrigger className="h-8 w-auto" aria-label={t('operator')}>
+               <SelectTrigger
+                  className={cn(insetFieldClass, 'justify-between')}
+                  aria-label={t('operator')}
+               >
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -300,7 +337,8 @@ function RuleRow({
                type="button"
                size="icon"
                variant="ghost"
-               className="ml-auto"
+               className="size-8 text-subtle-foreground hover:text-foreground"
+               disabled={disabled}
                onClick={onRemove}
                aria-label={t('removeFilter')}
             >
@@ -308,57 +346,45 @@ function RuleRow({
             </Button>
          </div>
          {words ? (
-            <div className="flex flex-wrap gap-1" role="group" aria-label={t(`fields.${field}`)}>
-               {words.map((word) => {
-                  const on = rule.values.includes(word);
-                  return (
-                     <button
-                        key={word}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => toggle(word)}
-                        className={cn(
-                           'rounded-md border px-2 py-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                           on
-                              ? 'border-primary/50 bg-primary/10 text-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                        )}
-                     >
-                        {t(`values.${field}.${word}` as never)}
-                     </button>
-                  );
-               })}
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t(`fields.${field}`)}>
+               {words.map((word) => (
+                  <button
+                     key={word}
+                     type="button"
+                     aria-pressed={rule.values.includes(word)}
+                     disabled={disabled}
+                     onClick={() => toggle(word)}
+                     className={pill(rule.values.includes(word))}
+                  >
+                     {t(`values.${field}.${word}` as never)}
+                  </button>
+               ))}
             </div>
          ) : field === 'project' ? (
-            <div className="flex flex-wrap gap-1" role="group" aria-label={t('fields.project')}>
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={t('fields.project')}>
                {projects.length === 0 ? (
-                  <span className="text-muted-foreground">{t('noProjects')}</span>
+                  <span className="text-subtle-foreground">{t('noProjects')}</span>
                ) : null}
-               {projects.map((project) => {
-                  const on = rule.values.includes(project.id);
-                  return (
-                     <button
-                        key={project.id}
-                        type="button"
-                        aria-pressed={on}
-                        onClick={() => toggle(project.id)}
-                        className={cn(
-                           'max-w-48 truncate rounded-md border px-2 py-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-                           on
-                              ? 'border-primary/50 bg-primary/10 text-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                        )}
-                     >
-                        {project.name}
-                     </button>
-                  );
-               })}
+               {projects.map((project) => (
+                  <button
+                     key={project.id}
+                     type="button"
+                     aria-pressed={rule.values.includes(project.id)}
+                     disabled={disabled}
+                     onClick={() => toggle(project.id)}
+                     className={pill(rule.values.includes(project.id))}
+                  >
+                     {project.name}
+                  </button>
+               ))}
             </div>
          ) : (
-            <Input
+            <input
+               className={insetFieldClass}
                value={rule.values.join(', ')}
                placeholder={t('labelsPlaceholder')}
                aria-label={t('fields.label')}
+               disabled={disabled}
                onChange={(event) =>
                   onChange({
                      values: event.target.value

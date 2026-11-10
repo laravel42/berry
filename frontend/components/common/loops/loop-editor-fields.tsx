@@ -1,8 +1,8 @@
 'use client';
 
-import { ChevronDown, Plus } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 import { BerryMark } from '@/components/brand/berry-mark';
 import { AgentPicker } from '@/components/common/agents/agent-multiselect';
@@ -15,7 +15,6 @@ import {
    SwitchRow,
    insetFieldClass,
 } from '@/components/common/loops/loop-editor-parts';
-import { Button } from '@/components/ui/button';
 import {
    Select,
    SelectContent,
@@ -45,10 +44,11 @@ export function draftReady(draft: AutopilotDraft): boolean {
 }
 
 /**
- * A Loop's own fields, as the sections of its page: General, then whatever
- * trigger card the page brings, then Instructions, Connectors, Access and
- * Limits. The same for a Loop being created and one being edited, so the two
- * cannot drift apart.
+ * A Loop's own fields, as the sections of its page: General, Instructions,
+ * then whatever trigger card the page brings, then Limits. Only what Berry
+ * honours is shown; "Ask before acting" (the access mode) leads Limits. The
+ * same for a Loop being created and one being edited, so the two cannot
+ * drift apart.
  */
 export function LoopEditorFields({
    draft,
@@ -84,6 +84,20 @@ export function LoopEditorFields({
       .map((agent) => ({ id: agent.id, label: agent.name }))
       .sort((left, right) => left.label.localeCompare(right.label));
    const hiddenAgents = agents.length - agentOptions.length;
+
+   // Each run opens its task on the workspace's board; there is no choice to
+   // make, so none is shown. A Loop that somehow has none is given it.
+   const firstBoard = boards[0]?.id ?? null;
+   useEffect(() => {
+      if (
+         editable &&
+         draft.executionMode === 'create_issue' &&
+         draft.boardId === null &&
+         firstBoard
+      ) {
+         onPatch({ boardId: firstBoard });
+      }
+   }, [editable, draft.executionMode, draft.boardId, firstBoard, onPatch]);
    const draftAgentName =
       agents.find((agent) => agent.id === draft.assigneeId)?.name ?? td('chooseAssignee');
 
@@ -143,55 +157,23 @@ export function LoopEditorFields({
                   }
                />
             </SettingRow>
-            <SettingRow label={td('outputMode')} hint={te('outputHint')}>
-               <InsetSegments
-                  label={td('outputMode')}
-                  value={draft.executionMode}
-                  disabled={!editable}
-                  options={[
-                     { value: 'create_issue', label: te('output_create') },
-                     { value: 'fixed_issue', label: te('output_fixed') },
-                  ]}
-                  onChange={(mode) =>
-                     patch({
-                        executionMode: mode,
-                        boardId: mode === 'create_issue' ? (boards[0]?.id ?? null) : null,
-                        projectId: null,
-                        issueId: null,
-                     })
-                  }
-               />
-            </SettingRow>
             {draft.executionMode === 'create_issue' ? (
-               <>
-                  <SettingRow label={td('board')} hint={te('boardHint')}>
-                     <InsetSelect
-                        value={draft.boardId ?? ''}
-                        placeholder={td('chooseBoard')}
-                        disabled={!editable}
-                        onChange={(value) => set('boardId', value)}
-                        options={boards.map((board) => ({
-                           value: board.id,
-                           label: board.name,
-                        }))}
-                     />
-                  </SettingRow>
-                  <SettingRow label={td('project')} hint={td('projectHint')}>
-                     <InsetSelect
-                        value={draft.projectId ?? 'none'}
-                        disabled={!editable}
-                        onChange={(value) => set('projectId', value === 'none' ? null : value)}
-                        options={[
-                           { value: 'none', label: td('projectNone') },
-                           ...projects.map((project) => ({
-                              value: project.id,
-                              label: project.name,
-                           })),
-                        ]}
-                     />
-                  </SettingRow>
-               </>
+               <SettingRow label={td('project')} hint={td('projectHint')}>
+                  <InsetSelect
+                     value={draft.projectId ?? 'none'}
+                     disabled={!editable}
+                     onChange={(value) => set('projectId', value === 'none' ? null : value)}
+                     options={[
+                        { value: 'none', label: td('projectNone') },
+                        ...projects.map((project) => ({
+                           value: project.id,
+                           label: project.name,
+                        })),
+                     ]}
+                  />
+               </SettingRow>
             ) : (
+               // A Loop set up earlier to work on one standing task keeps it here.
                <SettingRow label={td('task')} hint={te('taskHint')}>
                   <InsetSelect
                      value={draft.issueId ?? ''}
@@ -206,8 +188,6 @@ export function LoopEditorFields({
                </SettingRow>
             )}
          </SectionCard>
-
-         {trigger}
 
          <SectionCard title={td('runbook')} hint={te('instructionsHint')}>
             <div className="px-4 pb-4">
@@ -225,23 +205,9 @@ export function LoopEditorFields({
             </div>
          </SectionCard>
 
-         <SectionCard
-            title={te('connectors')}
-            hint={te('connectorsHint')}
-            soon
-            action={
-               <Button type="button" size="xs" variant="secondary" disabled>
-                  <Plus className="size-3.5" aria-hidden />
-                  {te('addConnector')}
-               </Button>
-            }
-         >
-            <p className="border-t border-border/60 px-4 py-3.5 text-subtle-foreground">
-               {te('noConnectors')}
-            </p>
-         </SectionCard>
+         {trigger}
 
-         <SectionCard title={te('access')} hint={te('accessHint')}>
+         <SectionCard title={tp('limits')} hint={te('limitsHint')}>
             <SwitchRow
                label={te('askFirst')}
                hint={
@@ -255,48 +221,6 @@ export function LoopEditorFields({
                disabled={!editable}
                onCheckedChange={(on) => set('accessMode', on ? 'recommend' : 'act')}
             />
-            <SettingRow label={te('reasoning')} hint={te('reasoningHint')} soon>
-               <InsetSegments
-                  label={te('reasoning')}
-                  value="auto"
-                  disabled
-                  options={[
-                     { value: 'auto', label: te('reasoning_auto') },
-                     { value: 'low', label: te('reasoning_low') },
-                     { value: 'medium', label: te('reasoning_medium') },
-                     { value: 'high', label: te('reasoning_high') },
-                  ]}
-               />
-            </SettingRow>
-            <SettingRow label={te('code')} hint={te('codeHint')} soon>
-               <InsetSegments
-                  label={te('code')}
-                  value="off"
-                  disabled
-                  options={[
-                     { value: 'off', label: te('code_off') },
-                     { value: 'read', label: te('code_read') },
-                     { value: 'write', label: te('code_write') },
-                  ]}
-               />
-            </SettingRow>
-            <SwitchRow label={te('web')} hint={te('webHint')} checked={false} soon />
-            <SwitchRow label={te('outside')} hint={te('outsideHint')} checked={false} soon />
-            <SettingRow label={te('editors')} hint={te('editorsHint')} soon>
-               <InsetSegments
-                  label={te('editors')}
-                  value="everyone"
-                  disabled
-                  options={[
-                     { value: 'everyone', label: te('editors_everyone') },
-                     { value: 'admins', label: te('editors_admins') },
-                     { value: 'me', label: te('editors_me') },
-                  ]}
-               />
-            </SettingRow>
-         </SectionCard>
-
-         <SectionCard title={tp('limits')} hint={te('limitsHint')}>
             <SwitchRow
                label={tp('concurrencyLabel')}
                hint={tp('concurrencyHint')}

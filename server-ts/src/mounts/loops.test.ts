@@ -175,7 +175,7 @@ describe('loops over /api/v1/autopilots', { skip: url ? false : 'BERRY_TEST_DATA
    test('templates suggest the workspace’s own agent for each role', async () => {
       const response = await call(u1, 'GET', `/api/v1/autopilots/templates?workspaceId=${w1.workspaceId}`);
       const { nodes } = (await response.json()) as { nodes: Array<{ key: string; accessMode: string; suggestedAgent: { roleKey: string } | null }> };
-      assert.equal(nodes.length, 8);
+      assert.equal(nodes.length, 9);
       assert.ok(nodes.every((template) => template.accessMode === 'recommend'));
       // Every workspace has an Orchestrator, and every template falls back to it.
       assert.ok(nodes.every((template) => template.suggestedAgent !== null));
