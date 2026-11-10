@@ -16,5 +16,5 @@ Berry starts this plugin in Docker when an agent run needs it and assigns the li
 The manual process is only for working on the plugin itself:
 
 ```sh
-PORT=8787 pnpm --filter @berry/plugin-customerio start
+PORT=8787 bun run --filter @berry/plugin-customerio start
 ```

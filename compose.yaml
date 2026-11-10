@@ -10,7 +10,7 @@
 #                                             sessions :8080 ← api      postgres :5432
 #
 #   Local development: the `dev` profile, from the working tree with watchers on.
-#      pnpm dev:docker        Ctrl+C stops it; pnpm dev:docker:down removes it
+#      bun run dev:docker     Ctrl+C stops it; bun run dev:docker:down removes it
 #      dev-web http://localhost:3000, dev-api http://localhost:4000,
 #      dev-sessions http://localhost:8080, dev-postgres inside the network.
 #      It reads the repository's .env, except DATABASE_URL.
@@ -47,16 +47,27 @@ x-dev: &dev
       - 'host.docker.internal:host-gateway'
    init: true
    environment: &dev-env
-      # pnpm's package store, in a volume: left to itself pnpm puts it beside the
-      # project, which here is the working tree on the Mac.
-      npm_config_store_dir: /pnpm-store
+      # Bun's download cache, in a volume, so a reinstall does not fetch again.
+      BUN_INSTALL_CACHE_DIR: /bun-cache
+
+# Every dev service sees the same installs. They are volumes rather than the
+# working tree's node_modules because some packages ship per-platform binaries,
+# and only `dev-install` writes them.
+x-dev-modules: &dev-modules
+   - .:/repo
+   - root-modules:/repo/node_modules
+   - server-modules:/repo/server-ts/node_modules
+   - web-modules:/repo/frontend/node_modules
+   - sdk-modules:/repo/packages/plugin-sdk/node_modules
+   - marketing-modules:/repo/apps/web/node_modules
+   - bun-cache:/bun-cache
 
 services:
    # ── Self-host ────────────────────────────────────────────────────────────
 
    # Fails the deploy, naming what is missing, before anything starts without
    # it. A check in each variable's place (`${X:?}`) would also stop
-   # `pnpm dev:docker`, which interpolates this whole file and sets none of them.
+   # `bun run dev:docker`, which interpolates this whole file and sets none of them.
    preflight:
       image: busybox:1.36
       restart: 'no'
@@ -170,7 +181,7 @@ services:
       logging: *logging
 
    # One container per agent session, each with its own folder, memory, CPU and
-   # process ceiling; idle ones are stopped. What `pnpm runtime:sessions` runs.
+   # process ceiling; idle ones are stopped. What `bun run runtime:sessions` runs.
    sessions:
       build:
          context: .
@@ -249,6 +260,13 @@ services:
          timeout: 3s
          retries: 20
 
+   # Installs the server's and the web app's dependencies once, then exits.
+   dev-install:
+      <<: *dev
+      command: ['bash', 'deploy/docker/dev-start.sh', 'install']
+      restart: 'no'
+      volumes: *dev-modules
+
    dev-api:
       <<: *dev
       command: ['bash', 'deploy/docker/dev-start.sh', 'api']
@@ -266,11 +284,12 @@ services:
          - '127.0.0.1:4000:4000'
       volumes:
          - .:/repo
+         - root-modules:/repo/node_modules
          - server-modules:/repo/server-ts/node_modules
-         - pnpm-store:/pnpm-store
          - /var/run/docker.sock:/var/run/docker.sock
          - ${HOME}/.cache/berry/previews:${HOME}/.cache/berry/previews
       depends_on:
+         dev-install: { condition: service_completed_successfully }
          dev-postgres: { condition: service_healthy }
          dev-sessions: { condition: service_started }
 
@@ -299,7 +318,7 @@ services:
          context: server-ts
          dockerfile: sandbox/agentcore/Dockerfile
          args:
-            # arm64 is an Apple Silicon Mac. Intel Mac or x86 Linux: BERRY_RUNTIME_PLATFORM=linux/amd64 pnpm dev:docker
+            # arm64 is an Apple Silicon Mac. Intel Mac or x86 Linux: BERRY_RUNTIME_PLATFORM=linux/amd64 bun run dev:docker
             BERRY_RUNTIME_PLATFORM: ${BERRY_RUNTIME_PLATFORM:-linux/arm64}
       image: berry-agent-runtime
       entrypoint: ['true']
@@ -317,27 +336,23 @@ services:
          NEXT_TELEMETRY_DISABLED: '1'
       ports:
          - '127.0.0.1:3000:3000'
-      volumes:
-         - .:/repo
-         - root-modules:/repo/node_modules
-         - web-modules:/repo/frontend/node_modules
-         - sdk-modules:/repo/packages/plugin-sdk/node_modules
-         - web-server-modules:/repo/server-ts/node_modules
-         - pnpm-store:/pnpm-store
-      depends_on: [dev-api]
+      volumes: *dev-modules
+      depends_on:
+         dev-install: { condition: service_completed_successfully }
+         dev-api: { condition: service_started }
 
 volumes:
    # Self-host's database.
    berry-postgres:
-   # Development: the database and the per-platform installs. The names are
-   # the ones deploy/local used, so an existing dev stack keeps its data.
+   # Development: the database and the per-platform installs. The database
+   # volume keeps deploy/local's name, so an existing dev stack keeps its data.
    postgres:
-   pnpm-store:
+   bun-cache:
    server-modules:
    root-modules:
    web-modules:
    sdk-modules:
-   web-server-modules:
+   marketing-modules:
 
 networks:
    berry:

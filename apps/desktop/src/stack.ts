@@ -119,7 +119,7 @@ export function findRepoRoot(start: string): string | null {
 }
 
 /**
- * Packaged Electron looks in `resources/berry` first. `pnpm dev:desktop` still
+ * Packaged Electron looks in `resources/berry` first. `bun run dev:desktop` still
  * walks to the git checkout. `BERRY_DESKTOP_ROOT` wins when it names either.
  */
 export function resolveStack(opts: {
@@ -167,7 +167,7 @@ export function nextCli(repoRoot: string): string {
    for (const candidate of candidates) {
       if (existsSync(candidate)) return candidate;
    }
-   throw new Error('Next.js is not installed. Run pnpm install from the repo root.');
+   throw new Error('Next.js is not installed. Run bun install from the repo root.');
 }
 
 export function bundledNodeBin(layout: StackLayout, fallback: string): string {

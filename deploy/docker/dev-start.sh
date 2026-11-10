@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Starts one of the development services inside its container:
-# `dev-start.sh api|sessions|web`, for the `dev` profile of the root compose.yaml.
+# `dev-start.sh install|api|sessions|web`, for the `dev` profile of the root
+# compose.yaml. `install` runs once, before the others, so two of them never
+# install into the same node_modules at once.
 #
 # The repository's .env is written for processes running on the Mac itself.
 # Two things differ in a container, and both are put right here rather than by
@@ -23,11 +25,18 @@ export BERRY_DOCKER_HOST_ADDR="$host_ip"
 onto_host() { printf '%s' "$1" | sed -E 's#(://([^/@]*@)?)(localhost|127\.0\.0\.1)([:/])#\1host.docker.internal\4#'; }
 
 case "${1:-}" in
+   install)
+      cd /repo
+      # The server and the web app, from the root lockfile, into the volumes
+      # the other services mount; the rest of the workspace is not needed here.
+      bun install --frozen-lockfile --filter @berry/server --filter berry-frontend
+      # The marketing site, which the web app's dev script builds first. Its
+      # own lockfile, outside the workspace.
+      cd /repo/apps/web
+      exec bun install --frozen-lockfile
+      ;;
    api)
       cd /repo/server-ts
-      # server-ts/pnpm-workspace.yaml is the workspace root in here, so this
-      # does not walk up to the repo and install the frontend.
-      pnpm install --frozen-lockfile
       export DATABASE_URL="$(onto_host "${DATABASE_URL:?DATABASE_URL is not set}")"
       [ -z "${S3_ENDPOINT:-}" ] || export S3_ENDPOINT="$(onto_host "$S3_ENDPOINT")"
       if ! node -e '
@@ -47,9 +56,7 @@ case "${1:-}" in
       exec node --watch --experimental-strip-types --no-warnings src/index.ts
       ;;
    sessions)
-      # No install: the router is Node's own modules and nothing else. It shares
-      # the server's folder with `api`, and two installs into one node_modules
-      # at once corrupt each other.
+      # No install: the router is Node's own modules and nothing else.
       cd /repo/server-ts
       # Exactly what the runtime reads, as scripts/runtime-docker.sh filters it:
       # an agent's commands run in these containers and have no business near
@@ -60,12 +67,11 @@ case "${1:-}" in
       exec node --experimental-strip-types --no-warnings src/runtime/local-router/main.ts
       ;;
    web)
-      cd /repo
-      pnpm install --frozen-lockfile --filter berry-frontend...
-      exec pnpm --filter berry-frontend dev --hostname 0.0.0.0
+      cd /repo/frontend
+      exec bun run dev --hostname 0.0.0.0
       ;;
    *)
-      echo "usage: dev-start.sh api|sessions|web" >&2
+      echo "usage: dev-start.sh install|api|sessions|web" >&2
       exit 1
       ;;
 esac

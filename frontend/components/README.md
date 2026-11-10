@@ -6,7 +6,7 @@ into a Berry pattern (a property picker, an empty list, a view toggle) so the pa
 built once, with its accessibility and states right once.
 
 Every component below has a Storybook file next to it. Its `play` functions are the
-component's tests, and `pnpm exec vitest run <path>` runs them in Chromium. The stories are
+component's tests, and `bun x vitest run <path>` runs them in Chromium. The stories are
 also the live examples.
 
 When you add a shared component, add it to this file. Say what it is for, what it is not

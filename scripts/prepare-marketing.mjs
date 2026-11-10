@@ -23,8 +23,17 @@ const distDir = path.join(webDir, 'dist');
 const publicDir = path.join(root, 'frontend', 'public');
 const marketingDir = path.join(publicDir, '__marketing');
 
+// A build that is packaged elsewhere (the web image, the desktop bundle) sets
+// BERRY_MARKETING_COPY=1: a link into apps/web/dist would dangle once only
+// frontend/public is copied out. In development a link saves the copy.
+const copyOnly = process.env.BERRY_MARKETING_COPY === '1';
+
 function linkOrCopy(from, to) {
    rmSync(to, { recursive: true, force: true });
+   if (copyOnly) {
+      cpSync(from, to, { recursive: true });
+      return;
+   }
    try {
       symlinkSync(from, to, 'dir');
    } catch {
@@ -37,7 +46,8 @@ if (!existsSync(path.join(webDir, 'package.json'))) {
    process.exit(1);
 }
 
-const build = spawnSync('pnpm', ['exec', 'astro', 'build'], {
+// Its own install (apps/web/bun.lock), outside the root workspace.
+const build = spawnSync('bun', ['x', 'astro', 'build'], {
    cwd: webDir,
    stdio: 'inherit',
    shell: process.platform === 'win32',

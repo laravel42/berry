@@ -148,7 +148,7 @@ an HTTP-to-HTTPS redirect on the listener if you want to refuse plaintext.
 
 ## Desktop
 
-Packaged and `pnpm dev:desktop` windows should set `BERRY_DESKTOP_URL` to this
+Packaged and `bun run dev:desktop` windows should set `BERRY_DESKTOP_URL` to this
 stack's `Url` instead of starting a local server. They do not need `DATABASE_URL`
 or IAM variables when they are only a window onto the hosted API.
 

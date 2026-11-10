@@ -4,7 +4,8 @@
  * secret: `.env` stays out of the bundle.
  */
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,21 +52,34 @@ function run(command: string, args: string[], cwd: string, env?: NodeJS.ProcessE
    }
 }
 
-if (!existsSync(path.join(repoRoot, 'pnpm-workspace.yaml'))) {
-   fail(`stage-bundle must run from the Berry repo (missing ${path.join(repoRoot, 'pnpm-workspace.yaml')})`);
+if (!existsSync(path.join(repoRoot, 'bun.lock'))) {
+   fail(`stage-bundle must run from the Berry repo (missing ${path.join(repoRoot, 'bun.lock')})`);
 }
 
 rmSync(berryRoot, { recursive: true, force: true });
 mkdirSync(berryRoot, { recursive: true });
 
-// Deploy must land inside this workspace: patchedDependencies paths are
-// resolved from the destination, and a /tmp target cannot see `patches/`.
-run(
-   'pnpm',
-   ['--filter', '@berry/server', 'deploy', '--prod', '--node-linker=hoisted', serverDest],
-   repoRoot,
-);
-rmSync(path.join(serverDest, 'sandbox'), { recursive: true, force: true });
+// The server with its production dependencies and nothing of the workspace:
+// copied to a folder outside the repository and installed there from its own
+// lockfile (server-ts/bun.lock, `bun run lock:server`). Inside the repository
+// Bun would install it as a member of the root workspace instead. The patch
+// it needs travels with it, in server-ts/patches.
+const serverSrc = path.join(repoRoot, 'server-ts');
+const staging = mkdtempSync(path.join(tmpdir(), 'berry-desktop-server-'));
+try {
+   cpSync(serverSrc, staging, {
+      recursive: true,
+      filter: (source) => {
+         const relative = path.relative(serverSrc, source);
+         const top = relative.split(path.sep)[0];
+         return top !== 'node_modules' && top !== 'sandbox' && !/^\.env(\.|$)/.test(path.basename(source));
+      },
+   });
+   run('bun', ['install', '--production', '--frozen-lockfile'], staging);
+   cpSync(staging, serverDest, { recursive: true });
+} finally {
+   rmSync(staging, { recursive: true, force: true });
+}
 
 const migrationsSrc = path.join(repoRoot, 'server-ts', 'migrations');
 if (!existsSync(migrationsSrc)) {
@@ -75,7 +89,9 @@ rmSync(path.join(serverDest, 'migrations'), { recursive: true, force: true });
 cpSync(migrationsSrc, path.join(serverDest, 'migrations'), { recursive: true });
 
 const nextDistDir = '.next-desktop-bundle';
-run('pnpm', ['--filter', 'berry-frontend', 'build'], repoRoot, {
+run('bun', ['run', 'build'], path.join(repoRoot, 'frontend'), {
+   // Copied, not linked: public/ is copied into the bundle on its own.
+   BERRY_MARKETING_COPY: '1',
    BERRY_API_ORIGIN: apiOrigin,
    NEXT_DIST_DIR: nextDistDir,
    NEXT_TELEMETRY_DISABLED: '1',
@@ -113,10 +129,10 @@ if (!existsSync(destStatic)) {
    fail(`Next static assets missing at ${destStatic}`);
 }
 if (!existsSync(path.join(serverDest, 'src', 'index.ts'))) {
-   fail('pnpm deploy did not copy server-ts/src/index.ts.');
+   fail('staging did not copy server-ts/src/index.ts.');
 }
 if (!existsSync(path.join(serverDest, 'migrations'))) {
-   fail('pnpm deploy did not copy server-ts/migrations.');
+   fail('staging did not copy server-ts/migrations.');
 }
 if (existsSync(path.join(berryRoot, '.env')) || existsSync(path.join(serverDest, '.env'))) {
    fail('refusing to bundle a .env file');

@@ -27,9 +27,9 @@ sign-in, the JSON-escaping contract, the DB-backed test recipe).
 ## Running
 
 ```
-pnpm typecheck:server
-pnpm test:server
-pnpm dev:server
+bun run typecheck:server
+bun run test:server
+bun run dev:server
 ```
 
 The server runs its `.ts` sources directly under `--experimental-strip-types`,
@@ -43,8 +43,8 @@ export DATABASE_URL=pglite:./.berry
 # or a host database:
 # export DATABASE_URL=postgres://<user>@127.0.0.1:5432/berry?sslmode=disable
 
-pnpm db:migrate   # forward-only, idempotent, exits non-zero on checksum drift
-pnpm db:seed      # local development dataset, idempotent
+bun run db:migrate   # forward-only, idempotent, exits non-zero on checksum drift
+bun run db:seed      # local development dataset, idempotent
 ```
 
 Run both before starting the server on a fresh database, so it comes up
@@ -72,7 +72,7 @@ commit values):
   repository connection), `GITHUB_PROVIDER`, `BERRY_GITHUB_WEBHOOK_SECRET`,
   `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` (Google MCP hosts
   that do not register clients), `LIVEKIT_URL` / `LIVEKIT_API_KEY` /
-  `LIVEKIT_API_SECRET` / `LIVEKIT_AGENT_NAME` (voice rooms; run `pnpm
+  `LIVEKIT_API_SECRET` / `LIVEKIT_AGENT_NAME` (voice rooms; run `bun run
   dev:voice` so the worker is registered).
 - **Storage**: `S3_BUCKET` (enables storage), `S3_REGION`, `S3_ENDPOINT`,
   `S3_USE_PATH_STYLE`, `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` /

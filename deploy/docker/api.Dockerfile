@@ -17,10 +17,14 @@ RUN apt-get update \
    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
+# Bun installs; Node runs the server, as it does in development.
+COPY --from=oven/bun:1.4.4 /usr/local/bin/bun /usr/local/bin/bun
 
-COPY server-ts/package.json server-ts/pnpm-lock.yaml ./
-RUN pnpm install --prod --frozen-lockfile --ignore-workspace
+# The server's own lockfile (bun run lock:server), so the image installs
+# server-ts alone and never the rest of the workspace.
+COPY server-ts/package.json server-ts/bun.lock ./
+COPY server-ts/patches ./patches
+RUN bun install --production --frozen-lockfile && rm -rf /root/.bun/install/cache
 
 COPY server-ts/tsconfig.json ./
 COPY server-ts/src ./src

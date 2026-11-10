@@ -1,0 +1,24 @@
+# Bun's install settings for the workspace (package.json "workspaces").
+
+[install]
+# Each package sees its own dependencies and their versions, as with pnpm.
+# The workspaces disagree on purpose (React 19.2 for Expo, 19.3 for the web
+# app; TypeScript 5.9, 6 and 7), and one shared node_modules would hand a
+# hoisted library whichever copy won the root: two Reacts in one app.
+linker = "isolated"
+
+# Supply chain: a version must have been public for a day before it is
+# installed, so a hijacked release is usually caught and pulled first.
+minimumReleaseAge = 86400
+# Published together and installed on the day: the Copilot SDK's platform builds.
+minimumReleaseAgeExcludes = [
+   "@github/copilot-sdk",
+   "@github/copilot-sdk-darwin-arm64",
+   "@github/copilot-sdk-darwin-x64",
+   "@github/copilot-sdk-linux-arm64",
+   "@github/copilot-sdk-linux-x64",
+   "@github/copilot-sdk-linuxmusl-arm64",
+   "@github/copilot-sdk-linuxmusl-x64",
+   "@github/copilot-sdk-win32-arm64",
+   "@github/copilot-sdk-win32-x64",
+]

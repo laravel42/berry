@@ -18,11 +18,11 @@
 # Verification builds, kept out of .next so they cannot race `next dev`,
 # which shares that directory and fails with ENOENT on its manifests.
 /.next-verify/
-# `pnpm dev:docker` builds here, apart from the Mac's own .next.
+# `bun run dev:docker` builds here, apart from the Mac's own .next.
 /.next-docker/
 # Electron's local stack, so it does not share .next with `next dev`.
 /.next-desktop/
-# Production standalone copy for `pnpm package:desktop`.
+# Production standalone copy for `bun run package:desktop`.
 /.next-desktop-bundle/
 /out/
 

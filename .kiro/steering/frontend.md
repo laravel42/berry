@@ -9,7 +9,7 @@ Next.js 15 App Router, React 19 (see `package.json` for exact versions).
 Prettier **3-space**, single quotes, semicolons, `es5` trailing commas,
 `printWidth` 100. Alias `@/*` → frontend root. Zod 4 (`package.json` pins
 `^4.6.5`). No test
-runner — `pnpm lint` and `pnpm build:check` (never plain `pnpm build` while
+runner — `bun run lint` and `bun run build:check` (never plain `bun run build` while
 `next dev` is running against the same `.next` dir), plus a manual check of
 the changed view.
 

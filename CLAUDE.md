@@ -6,7 +6,7 @@ Berry is a self-hosted, multi-workspace issue tracker whose assignees can be peo
 
 **Read [AGENTS.md](AGENTS.md) first.** It is the authoritative short guide: hard boundaries, schema gotchas, domain rules, commit conventions. It links to the doc that matches the work (`docs/coding-playbook.md`, `docs/api/gateway-v1.md`, `docs/adr/`, `server-ts/SCOPE.md`, `server-ts/ROUTING.md`, `server-ts/ARCHITECTURE.md`, `frontend/ARCHITECTURE.md`). This file only adds what you need to get oriented quickly.
 
-## Workspaces (pnpm, three packages, no shared toolchain)
+## Workspaces (Bun, three packages, no shared toolchain)
 
 | | `server-ts/` (`@berry/server`) | `frontend/` (`berry-frontend`) | `packages/plugin-sdk/` (`@berry/plugin-sdk`) |
 | --- | --- | --- | --- |
@@ -16,32 +16,34 @@ Berry is a self-hosted, multi-workspace issue tracker whose assignees can be peo
 | Tests | `node --test` | none — lint + build | `node --test` |
 | Zod | v4 | **v4** | — |
 
+Bun 1.4.4 is the package manager (`bun install`, `bun run`; settings in `bunfig.toml` and the root `package.json`); Node still runs the server, Next and the tests. `server-ts` also keeps its own `bun.lock` for the Docker images and the desktop bundle: after changing its dependencies, run `bun run lock:server`.
+
 Never run one workspace's formatter or linter over another. The server enables `erasableSyntaxOnly`, `verbatimModuleSyntax` and `noUncheckedIndexedAccess`. That rules out enums, namespaces and parameter properties, and requires `import type` for type-only imports.
 
 ## Commands (from repo root unless noted)
 
 ```bash
-cp .env.example .env && pnpm install   # local default is PGlite (`pglite:./.berry`)
+cp .env.example .env && bun install   # local default is PGlite (`pglite:./.berry`)
 
-pnpm typecheck:server
-pnpm test:server                 # DB tests self-skip without BERRY_TEST_DATABASE_URL
-pnpm dev:server                  # node --watch, reads ../.env
-pnpm db:migrate                  # needs DATABASE_URL
-pnpm db:seed                     # idempotent dev dataset
-pnpm db:reset                    # development/test database reset
+bun run typecheck:server
+bun run test:server                 # DB tests self-skip without BERRY_TEST_DATABASE_URL
+bun run dev:server                  # node --watch, reads ../.env
+bun run db:migrate                  # needs DATABASE_URL
+bun run db:seed                     # idempotent dev dataset
+bun run db:reset                    # development/test database reset
 
 # single server test file / single test
 cd server-ts && node --test --experimental-strip-types src/runs/dispatcher.test.ts
 cd server-ts && node --test --experimental-strip-types --test-name-pattern='lease' src/runs/dispatcher.test.ts
 
-pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
+bun run test:plugin-sdk && bun run typecheck:plugin-sdk
 
-pnpm dev:frontend
-cd frontend && pnpm lint && pnpm build:check   # build:check writes .next-verify; plain `build` corrupts a running `next dev`
+bun run dev:frontend
+cd frontend && bun run lint && bun run build:check   # build:check writes .next-verify; plain `build` corrupts a running `next dev`
 
 # repository checks (Python)
 python3 scripts/check-locale-catalogues.py     # English catalogues well-formed; no extra locales
-pnpm check:models                              # no model SDK imports in server-ts/src outside agents/runtime/
+bun run check:models                              # no model SDK imports in server-ts/src outside agents/runtime/
 ```
 
 To run DB-backed tests, create a schema-only copy of the dev database and point `BERRY_TEST_DATABASE_URL` at it. `server-ts/ROUTING.md` gives the exact commands. Never use the dev database: creating a workspace provisions a protected Orchestrator agent that can't be deleted.

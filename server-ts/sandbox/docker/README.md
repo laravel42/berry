@@ -14,7 +14,7 @@ and `BERRY_AGENT_RUNTIME_URL` (see
 value, is not imported anywhere in the server. Agent runs go through the
 AgentCore Runtime or its HTTP fallback, per ADR-0014.
 
-The code still builds and its tests still run as part of `pnpm test:server`
+The code still builds and its tests still run as part of `bun run test:server`
 (no daemon needed for that). It is legacy from an earlier execution design
 and is not part of normal development — do not run it, and do not point
 `BERRY_RUNTIME_URL`/`BERRY_RUNTIME_TOKEN` at it, unless you are specifically

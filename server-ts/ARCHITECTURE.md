@@ -284,4 +284,4 @@ nothing else; the other 95 catalogue roles are specialists a person adds
   there is no DI container (decorators/reflection collide with
   `erasableSyntaxOnly` and the no-build rule).
 - **No model SDK outside `src/agents/runtime/`.** Enforced by
-  `pnpm check:models`.
+  `bun run check:models`.

@@ -19,5 +19,5 @@ Berry starts this plugin in Docker when an agent run needs it and assigns the li
 The manual process is only for working on the plugin itself. `PORT` has to be set in the environment before the process starts:
 
 ```sh
-pnpm --filter @berry/plugin-outlook-calendar start
+bun run --filter @berry/plugin-outlook-calendar start
 ```

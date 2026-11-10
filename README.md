@@ -20,7 +20,7 @@ human decision. See [PRODUCT.md](PRODUCT.md) for the product-level description.
 | `packages/plugin-sdk` | SDK for building Berry plugins |
 | `docs` | Product brief, ADRs, API contract, design system, and [AI runtime matrix](docs/ai-runtimes.md) |
 
-The server, frontend, plugin SDK, desktop and mobile packages form a pnpm workspace
+The server, frontend, plugin SDK, desktop and mobile packages form a Bun workspace
 and do not share a validation workflow (different formatters and linters) — see [AGENTS.md](AGENTS.md) for the
 per-package rules.
 
@@ -60,23 +60,23 @@ Provider keys and object-store credentials are server-side only, never under a
 
 ## Quick start
 
-Prerequisites: Node 22 (with `--experimental-strip-types`), pnpm 12.5.1 (the version pinned in package.json), a
+Prerequisites: Node 22 (with `--experimental-strip-types`), Bun 1.4.4 (the version pinned in package.json; it installs and runs scripts, Node runs the server), a
 PostgreSQL 16 instance you run yourself, and Python 3 for repository checks.
 
 ```sh
 cp .env.example .env
-pnpm install
+bun install
 ```
 
 ```sh
-pnpm db:migrate   # forward-only, under an advisory lock; reads DATABASE_URL
-pnpm db:seed      # idempotent development dataset
-pnpm dev:server       # http://127.0.0.1:4000
+bun run db:migrate   # forward-only, under an advisory lock; reads DATABASE_URL
+bun run db:seed      # idempotent development dataset
+bun run dev:server       # http://127.0.0.1:4000
 ```
 
 ```sh
 cd frontend && cp .env.example .env.local && cd ..
-pnpm dev:frontend     # http://127.0.0.1:3000
+bun run dev:frontend     # http://127.0.0.1:3000
 ```
 
 Check the server is up:
@@ -94,10 +94,10 @@ real sign-in, configure a GitHub OAuth App (`BERRY_AUTH_GITHUB_CLIENT_ID/SECRET`
 Run the checks:
 
 ```sh
-pnpm typecheck:server
-pnpm test:server            # DB-backed tests self-skip without BERRY_TEST_DATABASE_URL
-pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
-cd frontend && pnpm lint && pnpm build:check   # build:check writes .next-verify, not .next
+bun run typecheck:server
+bun run test:server            # DB-backed tests self-skip without BERRY_TEST_DATABASE_URL
+bun run test:plugin-sdk && bun run typecheck:plugin-sdk
+cd frontend && bun run lint && bun run build:check   # build:check writes .next-verify, not .next
 ```
 
 Never point any of this at your everyday development database: creating a workspace

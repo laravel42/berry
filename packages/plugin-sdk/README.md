@@ -55,8 +55,8 @@ installed it).
 ## Testing and typechecking
 
 ```sh
-pnpm test:plugin-sdk       # node --test --experimental-strip-types 'src/**/*.test.ts'
-pnpm typecheck:plugin-sdk  # tsc --noEmit
+bun run test:plugin-sdk       # node --test --experimental-strip-types 'src/**/*.test.ts'
+bun run typecheck:plugin-sdk  # tsc --noEmit
 ```
 
 Sources run directly under `node --experimental-strip-types`, like

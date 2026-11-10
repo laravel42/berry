@@ -1,31 +1,46 @@
 # The Berry web app as Next's standalone server. Build context: the repository root.
 #
-# The frontend is one package of a pnpm workspace, so the install happens at the
+# The frontend is one package of a Bun workspace, so the install happens at the
 # workspace root and the standalone output keeps that layout: the server is at
-# frontend/server.js inside it.
-FROM node:22-bookworm-slim AS build
-WORKDIR /repo
-RUN corepack enable && corepack prepare pnpm@10.12.1 --activate
+# frontend/server.js inside it. The build first renders the marketing site
+# (apps/web, its own install) into frontend/public, so that comes along too.
+FROM oven/bun:1.4.4 AS bun
 
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml .npmrc ./
-COPY frontend/package.json frontend/
-COPY packages/plugin-sdk/package.json packages/plugin-sdk/
-COPY server-ts/package.json server-ts/
-# pnpm-workspace.yaml patches @electric-sql/pglite-socket. The lockfile records
-# that patch, so the file has to be present before install, even though the
-# web package does not import it.
-COPY patches patches
-RUN pnpm install --frozen-lockfile --filter berry-frontend...
+# Only the manifests, at their paths. A frozen install checks every workspace
+# the lockfile names, so all of them are needed, and copying just these keeps
+# the install layer below cached until a dependency changes.
+FROM node:22-bookworm-slim AS manifests
+WORKDIR /repo
+COPY . .
+RUN mkdir /out \
+   && find . -name node_modules -prune -o \( -name package.json -o -name bun.lock -o -name bunfig.toml \) -print \
+      | xargs -I{} cp --parents {} /out
+
+FROM node:22-bookworm-slim AS build
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+WORKDIR /repo
+COPY --from=manifests /out ./
+# The server's patched dependency is part of the root lockfile, so its patch
+# has to be present for the install, even though the web package does not use it.
+COPY server-ts/patches server-ts/patches
+RUN bun install --frozen-lockfile --filter berry-frontend \
+   && (cd apps/web && bun install --frozen-lockfile) \
+   && rm -rf /root/.bun/install/cache
 
 COPY frontend frontend
+COPY apps/web apps/web
+COPY scripts/prepare-marketing.mjs scripts/
 # Where `/api/*` is rewritten to is fixed when the app is built, so it is a
 # build argument: loopback where the web server shares the host's network with
 # the API (deploy/aws), the API's service name where both are containers on
-# one network (deploy/dokploy: http://api:4000).
+# one network (compose.yaml: http://api:4000).
 ARG BERRY_API_ORIGIN=http://127.0.0.1:4000
 ENV BERRY_API_ORIGIN=${BERRY_API_ORIGIN}
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm --filter berry-frontend build
+# The marketing site's assets are copied into frontend/public, not linked:
+# only that folder reaches the final image.
+ENV BERRY_MARKETING_COPY=1
+RUN cd frontend && bun run build
 
 FROM node:22-bookworm-slim
 WORKDIR /app
