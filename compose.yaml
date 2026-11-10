@@ -129,7 +129,28 @@ services:
          BERRY_AUTH_GITHUB_CLIENT_ID: ${BERRY_AUTH_GITHUB_CLIENT_ID:-}
          BERRY_AUTH_GITHUB_CLIENT_SECRET: ${BERRY_AUTH_GITHUB_CLIENT_SECRET:-}
          BERRY_GITHUB_WEBHOOK_SECRET: ${BERRY_GITHUB_WEBHOOK_SECRET:-}
-         # Agent runs: the session router beside this service.
+         SESSION_TTL: ${SESSION_TTL:-}
+         # Outbound mail: magic links, password resets, two-factor codes.
+         # BERRY_MAIL_PROVIDER=cloudflare fills the SMTP host and port; an
+         # explicit BERRY_SMTP_URL or BERRY_SMTP_HOST wins.
+         BERRY_MAIL_PROVIDER: ${BERRY_MAIL_PROVIDER:-}
+         BERRY_MAIL_FROM: ${BERRY_MAIL_FROM:-}
+         BERRY_SMTP_URL: ${BERRY_SMTP_URL:-}
+         BERRY_SMTP_HOST: ${BERRY_SMTP_HOST:-}
+         BERRY_SMTP_PORT: ${BERRY_SMTP_PORT:-587}
+         BERRY_SMTP_SECURE: ${BERRY_SMTP_SECURE:-}
+         BERRY_SMTP_USER: ${BERRY_SMTP_USER:-}
+         BERRY_SMTP_PASS: ${BERRY_SMTP_PASS:-}
+         # Plugin OAuth (Connect) for hosts without dynamic client registration.
+         GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+         GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+         # Voice rooms: all three of URL, key and secret, or none.
+         LIVEKIT_URL: ${LIVEKIT_URL:-}
+         LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+         LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+         LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-}
+         # Agent runs: the session router beside this service, unless
+         # BERRY_AGENTCORE_RUNTIME_ARN is set, which takes precedence.
          BERRY_AGENT_RUNTIME_URL: http://sessions:8080
          BERRY_RUNTIME_AUTH_TOKEN: ${BERRY_RUNTIME_AUTH_TOKEN:-}
          BERRY_BEDROCK_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
@@ -137,8 +158,17 @@ services:
          BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
          BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-}
          BERRY_RUN_CONCURRENCY: ${BERRY_RUN_CONCURRENCY:-2}
-         # Optional: AgentCore Memory for cross-run recall.
+         # Optional: runs on a deployed AgentCore Runtime instead of the
+         # sessions container (server-ts/sandbox/agentcore/deploy.sh prints the
+         # ARN). AgentCore calls back on BERRY_RUNTIME_CALLBACK_URL, so that
+         # must be public. Keys unset fall back to BERRY_BEDROCK_*, then to the
+         # AWS default chain (an instance role).
+         BERRY_AGENTCORE_RUNTIME_ARN: ${BERRY_AGENTCORE_RUNTIME_ARN:-}
          BERRY_AGENTCORE_REGION: ${BERRY_AGENTCORE_REGION:-}
+         BERRY_AGENTCORE_ACCESS_KEY_ID: ${BERRY_AGENTCORE_ACCESS_KEY_ID:-}
+         BERRY_AGENTCORE_SECRET_ACCESS_KEY: ${BERRY_AGENTCORE_SECRET_ACCESS_KEY:-}
+         BERRY_AGENTCORE_SESSION_TOKEN: ${BERRY_AGENTCORE_SESSION_TOKEN:-}
+         # Optional: AgentCore Memory for cross-run recall.
          BERRY_AGENTCORE_MEMORY_ID: ${BERRY_AGENTCORE_MEMORY_ID:-}
          # Previews, each at p-<id>-<app>.<preview domain>.
          BERRY_PREVIEW_DOMAIN: ${BERRY_PREVIEW_DOMAIN:-}

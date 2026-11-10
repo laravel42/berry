@@ -407,7 +407,7 @@
       "bandHintSome": "A runtime is a coding-agent CLI already signed in on this computer. Agents run on a connected subscription.",
       "bandAvailable": "{count} available",
       "catalogTitle": "Runtime catalog",
-      "catalogSearch": "Search runtimes and providers",
+      "catalogSearch": "Search AI providers",
       "catalogLoading": "Loading…",
       "catalogEmpty": "No runtime matches this view.",
       "filterAll": "All",

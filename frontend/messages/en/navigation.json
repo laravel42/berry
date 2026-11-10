@@ -107,7 +107,7 @@
          "goToApprovals": "Go to the inbox (approvals)",
          "goToViews": "Go to views",
          "goToAgents": "Go to agents",
-         "goToRuntimes": "Go to runtimes",
+         "goToRuntimes": "Go to AI providers",
          "goToSettings": "Go to settings",
          "newLoop": "New loop"
       },

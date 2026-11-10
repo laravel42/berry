@@ -239,8 +239,8 @@ const PAGES: PalettePage[] = [
    },
    {
       id: 'runtimes',
-      label: 'Runtimes',
-      keywords: ['runs', 'execution', 'machines', 'agentcore', 'settings'],
+      label: 'AI providers',
+      keywords: ['runtimes', 'models', 'runs', 'execution', 'machines', 'agentcore', 'settings'],
       icon: Server,
       href: '/settings/runtimes',
       shortcutId: 'goto.runtimes',
