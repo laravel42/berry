@@ -824,7 +824,7 @@ export class RunLedger {
       if (!run.issueId) return;
       const [row] = await tx`
          SELECT i.id, i.board_id, i.number, i.title, i.description,
-                i.status::text AS status, i.priority::text AS priority, i.sort_order, i.due_date,
+                i.status::text AS status, i.priority::text AS priority, i.sort_order, i.start_date, i.due_date,
                 i.assignee_type::text AS assignee_type, i.assignee_id,
                 COALESCE(assignee_user.name, assignee_agent.name) AS assignee_name,
                 COALESCE(assignee_user.avatar_url, assignee_agent.avatar_url) AS assignee_avatar,
@@ -858,6 +858,7 @@ export class RunLedger {
             status: issueStatusToApi(row.status as string),
             priority: row.priority,
             sortOrder: Number(row.sort_order),
+            startDate: toRFC3339(row.start_date as string | null),
             dueDate: toRFC3339(row.due_date as string | null),
             assignee: row.assignee_type
                ? {

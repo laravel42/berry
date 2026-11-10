@@ -218,6 +218,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
 | `priority` | `IssuePriority` | yes | Scheduling priority |
 | `sortOrder` | integer | yes | Relative order within a board column |
 | `autoGate` | boolean | yes | A passing agent review closes the task (merging its pull request) without a person |
+| `startDate` | `Timestamp` or null | yes | Planned start instant; never after `dueDate` |
 | `dueDate` | `Timestamp` or null | yes | Due instant |
 | `assignee` | `ActorRef` or null | yes | Current assignee |
 | `activeRunId` | `Uuid` or null | yes | Active Berry run; null when no run is active |
@@ -236,6 +237,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
   "status": "inProgress",
   "priority": "high",
   "sortOrder": 1200,
+  "startDate": null,
   "dueDate": null,
   "assignee": {
     "type": "agent",
@@ -524,6 +526,7 @@ Request:
 | `status` | `IssueStatus` | no | `backlog` |
 | `priority` | `IssuePriority` | no | `none` |
 | `sortOrder` | integer | no | 0 |
+| `startDate` | `Timestamp` or null | no | null |
 | `dueDate` | `Timestamp` or null | no | null |
 | `assignee` | `{ "type": "user \| agent", "id": "Uuid" }` or null | no | null |
 
@@ -542,7 +545,7 @@ Assignment through this general-purpose resource endpoint records assignment but
 
 #### `PATCH /api/v1/issues/{issueId}`
 
-Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `dueDate`, `assignee`, and `autoGate` (boolean). Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
+Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `startDate`, `dueDate`, `assignee`, and `autoGate` (boolean). A `startDate` later than the issue's `dueDate` returns `422 VALIDATION_FAILED` on `/startDate`. Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
 
 - `200`: updated `Issue`
 - `404`: issue or assignee `NOT_FOUND`
@@ -828,7 +831,7 @@ Workspace-scoped timeboxes (`upcoming` | `active` | `completed`). An issue belon
 
 #### `GET /api/v1/cycles/{cycleId}/issues`
 
-- `200`: `{ "nodes": [...] }` issue summaries
+- `200`: `{ "nodes": [...] }` issue summaries: `id`, `identifier`, `title`, `status` (`IssueStatus`), `assignee` (`ActorRef` or `null`), and `completedAt` — for a done task, its latest `issue.completed` event (or its last write when it reached done without one); `null` otherwise
 
 #### `PUT` / `DELETE /api/v1/cycles/{cycleId}/issues/{issueRef}`
 
@@ -1145,6 +1148,7 @@ Run sequences start at 0 and MUST be contiguous in the persisted stream. Deliver
 | `issue.deleted` | `IssueMutation` | Soft delete; the `issue` snapshot is the row as it was |
 | `comment.created` | `{ "comment": Comment }` | `runId` is the authoring run when applicable |
 | `milestone.created`, `milestone.updated`, `milestone.started`, `milestone.completed`, `milestone.cancelled`, `milestone.archived` | `{ "milestone": Milestone, "changedFields": string[], "actor"? }` | Workspace stream; `milestone.archived` is a topic no consumer dispatches or projects on. Historical `goal.*` topics with a `goal` payload key still replay. |
+| `cycle.created`, `cycle.updated`, `cycle.archived` | `{ "cycle": Cycle, "changedFields": string[], "actor"? }` | Workspace stream. Activating a cycle completes the previously active one in the same transaction without an event of its own; consumers refetch the list. |
 | `project.created`, `project.updated`, `project.archived` | `{ "project": { "id", "workspaceId", "name", "status", … }, "changedFields": string[], "actor"? }` | Workspace stream. A project has no board, so these never appear on a board replay. `project.archived` is the soft-delete. |
 | `approval.requested`, `approval.approved`, `approval.rejected`, `approval.expired` | `{ "approval": Approval, "issueId"?, "actor"? }` | On the board stream too when the approval gates an issue |
 | `integration.webhook.received` | `{ "provider", "event", "deliveryId", "payload" }` | Written once per verified provider delivery by `POST /api/v1/hooks/{provider}`; consumed by the trigger dispatcher, subscribable as a `berry_event` |
