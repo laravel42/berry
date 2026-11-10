@@ -33,7 +33,12 @@ import { agentToUser } from '@/lib/agents';
 import { assistEditorText } from '@/lib/editor-ai';
 import { setIssueLabels } from '@/lib/issue-labels';
 import { setParent } from '@/lib/issue-tracking';
-import { createBoardIssue, describePatchFailure, rankFromSortOrder } from '@/lib/issues';
+import {
+   createBoardIssue,
+   describePatchFailure,
+   patchBoardIssue,
+   rankFromSortOrder,
+} from '@/lib/issues';
 import { loadWorkspaceLabels } from '@/lib/labels';
 import { loadPlugins } from '@/lib/plugins';
 import { loadProperties, setIssueProperty, type PropertyDefinition } from '@/lib/properties';
@@ -53,6 +58,7 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { AssigneeSelector } from './assignee-selector';
 import { descriptionWithPlugins, CreatePluginSelect } from './plugin-select';
+import { CycleSelector } from './cycle-selector';
 import { ProjectSelector } from './project-selector';
 
 /** Fixed prompt for the create-task footer: expand the description for clarity. */
@@ -98,7 +104,8 @@ export function CreateNewIssue() {
    const tp = useTranslations('issueDetail.properties');
    const { isOpen, context, draft, openModal, closeModal, setDraft, resetDraft } =
       useCreateIssueStore();
-   const { addIssue, getAllIssues, filterByStatus, filterByPriority } = useIssuesStore();
+   const { addIssue, updateIssue, getAllIssues, filterByStatus, filterByPriority } =
+      useIssuesStore();
    const boardId = useSessionStore((state) => state.boardId);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const workspaceName = useSessionStore((state) => state.workspace?.name) ?? WORKSPACE_NAME;
@@ -127,6 +134,8 @@ export function CreateNewIssue() {
    const selectedProject =
       projects.find((project) => project.id === (draft.projectId ?? context.projectId)) ??
       undefined;
+   const startDate = parseDraftDate(draft.startDate);
+   const dueDate = parseDraftDate(draft.targetDate);
    const selectedAssignee = useMemo(() => {
       if (!draft.assignee) return null;
       if (draft.assignee.type === 'agent') {
@@ -184,6 +193,12 @@ export function CreateNewIssue() {
       const labelIds = draft.labelIds.filter((id) => labels.some((label) => label.id === id));
       if (labelIds.length > 0) {
          await setIssueLabels(created.identifier, labelIds).catch(() => toast.error(t('failed')));
+      }
+      if (draft.cycleId) {
+         const cycleId = draft.cycleId;
+         await patchBoardIssue(created.id, { cycleId })
+            .then(() => updateIssue(created.id, { cycleId }))
+            .catch((cause: unknown) => toast.error(describePatchFailure(cause) || t('failed')));
       }
       for (const [propertyId, value] of Object.entries(draft.properties)) {
          if (value === null || value === '' || value === undefined) continue;
@@ -277,6 +292,7 @@ export function CreateNewIssue() {
             priorityId: uiPriority.id,
             assignee: assignee ? { type: assignee.type, id: assignee.id } : undefined,
             projectId,
+            startDate: draft.startDate || undefined,
             dueDate: draft.targetDate || undefined,
          });
 
@@ -322,7 +338,7 @@ export function CreateNewIssue() {
          </DialogTrigger>
          <DialogContent
             showCloseButton={false}
-            className="top-[10vh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[810px]"
+            className="top-[10vh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[880px]"
          >
             <DialogHeader className="px-4 pt-4 pb-0">
                <DialogTitle className="sr-only">{t('title')}</DialogTitle>
@@ -342,27 +358,6 @@ export function CreateNewIssue() {
                      ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
-                     <span
-                        className="ai-animated-border h-7"
-                        aria-disabled={improveDisabled || undefined}
-                     >
-                        <Button
-                           type="button"
-                           variant="outline"
-                           size="xxs"
-                           className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground disabled:opacity-100 disabled:bg-background disabled:text-muted-foreground"
-                           disabled={improveDisabled}
-                           aria-busy={improving || undefined}
-                           onClick={() => void improveDescription()}
-                        >
-                           {improving ? (
-                              <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                           ) : (
-                              <Sparkles className="size-3.5" aria-hidden />
-                           )}
-                           {improving ? t('improving') : t('improve')}
-                        </Button>
-                     </span>
                      <Button
                         type="button"
                         variant="ghost"
@@ -380,6 +375,7 @@ export function CreateNewIssue() {
             <div className="max-h-[52vh] w-full overflow-y-auto px-4 pb-0">
                <Input
                   data-heading="h1"
+                  data-create-title
                   plain
                   className="h-auto border-none bg-transparent px-0 font-medium text-foreground shadow-none outline-none placeholder:font-normal placeholder:text-placeholder"
                   placeholder={t('titlePlaceholder')}
@@ -428,9 +424,20 @@ export function CreateNewIssue() {
                      />
                   ) : null}
 
+                  <CycleSelector
+                     cycleId={draft.cycleId}
+                     onChange={(cycleId) => setDraft({ cycleId })}
+                  />
+                  <ProjectDateSelector
+                     label={t('startDate')}
+                     date={startDate}
+                     disabled={dueDate ? { after: dueDate } : undefined}
+                     onChange={(next) => setDraft({ startDate: toDraftDate(next) })}
+                  />
                   <ProjectDateSelector
                      label={t('dueDate')}
-                     date={parseDraftDate(draft.targetDate)}
+                     date={dueDate}
+                     disabled={startDate ? { before: startDate } : undefined}
                      onChange={(targetDate) => setDraft({ targetDate: toDraftDate(targetDate) })}
                   />
                   <Popover modal>
@@ -543,7 +550,7 @@ export function CreateNewIssue() {
                   ) : null}
                </div>
 
-               <div className="mt-2.5 min-h-40 pt-2">
+               <div className="mt-2.5 min-h-40 pt-2" data-create-description>
                   <TiptapAiEditor
                      value={draft.description}
                      onChange={(description) => setDraft({ description })}
@@ -559,6 +566,27 @@ export function CreateNewIssue() {
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                     className="ai-animated-border h-7"
+                     aria-disabled={improveDisabled || undefined}
+                  >
+                     <Button
+                        type="button"
+                        variant="outline"
+                        size="xxs"
+                        className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground disabled:opacity-100 disabled:bg-background disabled:text-muted-foreground"
+                        disabled={improveDisabled}
+                        aria-busy={improving || undefined}
+                        onClick={() => void improveDescription()}
+                     >
+                        {improving ? (
+                           <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                        ) : (
+                           <Sparkles className="size-3.5" aria-hidden />
+                        )}
+                        {improving ? t('improving') : t('improve')}
+                     </Button>
+                  </span>
                   {draft.assignee?.type === 'agent' ? (
                      <CreatePluginSelect
                         workspaceId={workspaceId}

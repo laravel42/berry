@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, CalendarClock } from 'lucide-react';
 import { useId, useState } from 'react';
+import type { Matcher } from 'react-day-picker';
 
 interface ProjectDateSelectorProps {
    label: string;
@@ -23,6 +24,8 @@ interface ProjectDateSelectorProps {
    className?: string;
    /** Chip only: calendar glyph, no date text (aria-label still names the date). */
    iconOnly?: boolean;
+   /** Days the calendar refuses, such as a start after the due date. */
+   disabled?: Matcher | Matcher[];
 }
 
 export function ProjectDateSelector({
@@ -33,6 +36,7 @@ export function ProjectDateSelector({
    emptyLabel = 'Set date',
    className,
    iconOnly = false,
+   disabled,
 }: ProjectDateSelectorProps) {
    const id = useId();
    const [open, setOpen] = useState(false);
@@ -45,6 +49,7 @@ export function ProjectDateSelector({
          <Calendar
             mode="single"
             selected={date}
+            disabled={disabled}
             onSelect={(next) => {
                if (!next) return;
                onChange(next);
