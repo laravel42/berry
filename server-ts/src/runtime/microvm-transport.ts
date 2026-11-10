@@ -63,7 +63,7 @@ export interface MicrovmSettings {
 
 /** The four MicroVM operations the transport needs, so tests can stand in for AWS. */
 export interface MicrovmApi {
-   run(settings: MicrovmSettings, runtimeSessionId: string): Promise<{ microvmId: string; endpoint: string }>;
+   run(settings: MicrovmSettings, runtimeSessionId: string): Promise<MicrovmSession>;
    /** The VM's state, or null when AWS no longer knows it. */
    state(microvmId: string): Promise<string | null>;
    token(microvmId: string, minutes: number): Promise<string>;
@@ -75,6 +75,8 @@ export interface MicrovmApi {
 export interface MicrovmSession {
    microvmId: string;
    endpoint: string;
+   /** The image version the VM was started from; null when it was not recorded. */
+   imageVersion: string | null;
 }
 
 /** Which VM holds which session, shared by every server. */
@@ -123,7 +125,11 @@ export function awsMicrovmApi(options: {
             })
          );
          if (!answer.microvmId || !answer.endpoint) throw new Error('RunMicrovm returned no MicroVM id or endpoint');
-         return { microvmId: answer.microvmId, endpoint: answer.endpoint };
+         return {
+            microvmId: answer.microvmId,
+            endpoint: answer.endpoint,
+            imageVersion: answer.imageVersion ?? settings.imageVersion,
+         };
       },
       async state(microvmId) {
          try {
@@ -179,23 +185,25 @@ export async function microvmHealth(api: MicrovmApi, settings: MicrovmSettings):
 export function postgresMicrovmSessions(sql: Sql): MicrovmSessions {
    return {
       async find(runtimeSessionId) {
-         const rows = await sql<{ microvm_id: string; endpoint: string }[]>`
-            SELECT microvm_id, endpoint FROM runtime_microvms WHERE runtime_session_id = ${runtimeSessionId}
+         const rows = await sql<{ microvm_id: string; endpoint: string; image_version: string | null }[]>`
+            SELECT microvm_id, endpoint, image_version FROM runtime_microvms
+             WHERE runtime_session_id = ${runtimeSessionId}
          `;
          const row = rows[0];
-         return row ? { microvmId: row.microvm_id, endpoint: row.endpoint } : null;
+         return row ? { microvmId: row.microvm_id, endpoint: row.endpoint, imageVersion: row.image_version } : null;
       },
       async claim(runtimeSessionId, region, session) {
          await sql`
-            INSERT INTO runtime_microvms (runtime_session_id, microvm_id, endpoint, region)
-            VALUES (${runtimeSessionId}, ${session.microvmId}, ${session.endpoint}, ${region})
+            INSERT INTO runtime_microvms (runtime_session_id, microvm_id, endpoint, region, image_version)
+            VALUES (${runtimeSessionId}, ${session.microvmId}, ${session.endpoint}, ${region}, ${session.imageVersion})
             ON CONFLICT (runtime_session_id) DO NOTHING
          `;
-         const rows = await sql<{ microvm_id: string; endpoint: string }[]>`
-            SELECT microvm_id, endpoint FROM runtime_microvms WHERE runtime_session_id = ${runtimeSessionId}
+         const rows = await sql<{ microvm_id: string; endpoint: string; image_version: string | null }[]>`
+            SELECT microvm_id, endpoint, image_version FROM runtime_microvms
+             WHERE runtime_session_id = ${runtimeSessionId}
          `;
          const row = rows[0];
-         return row ? { microvmId: row.microvm_id, endpoint: row.endpoint } : session;
+         return row ? { microvmId: row.microvm_id, endpoint: row.endpoint, imageVersion: row.image_version } : session;
       },
       async touch(runtimeSessionId) {
          await sql`UPDATE runtime_microvms SET last_used_at = now() WHERE runtime_session_id = ${runtimeSessionId}`;
@@ -227,6 +235,8 @@ export function microvmTransport(options: {
    const clock = options.clock ?? Date.now;
    const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
    const tokens = new Map<string, { token: string; expiresAt: number }>();
+   /** The image's active version, asked of AWS at most once a minute. */
+   let active: { version: string | null; at: number } | null = null;
    /** One start per session at a time, however many calls arrive together. */
    const starting = new Map<string, Promise<MicrovmSession>>();
 
@@ -266,14 +276,44 @@ export function microvmTransport(options: {
       }
    };
 
-   /** A VM that holds the session and still exists, or null. */
+   /**
+    * The version a VM started now would run: the configured one, else the
+    * image's active version. Null when AWS cannot say, and then nothing is
+    * replaced on its account.
+    */
+   const wantedVersion = async (): Promise<string | null> => {
+      if (settings.imageVersion) return settings.imageVersion;
+      if (active && clock() - active.at < 60_000) return active.version;
+      const version = await api
+         .image(settings.imageArn)
+         .then((image) => image.activeVersion)
+         .catch(() => null);
+      active = { version, at: clock() };
+      return version;
+   };
+
+   const drop = async (runtimeSessionId: string, session: MicrovmSession) => {
+      tokens.delete(session.microvmId);
+      await sessions.forget(runtimeSessionId, session.microvmId);
+   };
+
+   /**
+    * A VM that holds the session, still exists and runs the current image, or
+    * null. One started from an older version is ended: the image was rebuilt
+    * for a reason, and the envelope's transcript lets a new VM carry on.
+    */
    const existing = async (runtimeSessionId: string): Promise<MicrovmSession | null> => {
       const found = await sessions.find(runtimeSessionId);
       if (!found) return null;
+      const wanted = await wantedVersion();
+      if (wanted !== null && found.imageVersion !== wanted) {
+         await api.terminate(found.microvmId).catch(() => undefined);
+         await drop(runtimeSessionId, found);
+         return null;
+      }
       const state = await api.state(found.microvmId);
       if (state !== null && !GONE.has(state)) return found;
-      tokens.delete(found.microvmId);
-      await sessions.forget(runtimeSessionId, found.microvmId);
+      await drop(runtimeSessionId, found);
       return null;
    };
 
