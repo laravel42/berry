@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { getRouter } from 'next/navigation';
+import { getRouter } from '@storybook/nextjs-vite/navigation.mock';
 import { expect, waitFor } from 'storybook/test';
 import { ShortcutProvider } from '@/components/layout/shortcut-provider';
 import { useCreateIssueStore } from '@/store/create-issue-store';

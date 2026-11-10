@@ -71,16 +71,18 @@ export const FoldedByDefault: Story = {
       await expect(await canvas.findByText('Produced · 4 files')).toBeInTheDocument();
       await expect(canvas.getByText('by Backend Engineer, Frontend Engineer')).toBeInTheDocument();
       await userEvent.click(canvas.getByRole('button', { name: 'Show files' }));
+      // Every subfolder starts collapsed too, separate from the "Show files" toggle.
+      await userEvent.click(await canvas.findByRole('button', { name: 'server-ts' }));
+      await userEvent.click(await canvas.findByRole('button', { name: 'migrations' }));
       await expect(canvas.getByText('061_project_health.sql')).toBeInTheDocument();
    },
 };
 
 export const Unfolded: Story = {
    args: { defaultOpen: true },
-   play: async ({ canvas, userEvent }) => {
-      // Folders fold on their own.
+   play: async ({ canvas }) => {
+      // Folders fold on their own, even though the tree itself defaults open.
       const folder = await canvas.findByRole('button', { name: /server-ts/ });
-      await userEvent.click(folder);
       await expect(folder).toHaveAttribute('aria-expanded', 'false');
       await expect(canvas.queryByText('projects.test.ts')).toBeNull();
    },
@@ -88,7 +90,10 @@ export const Unfolded: Story = {
 
 export const OneRunInReview: Story = {
    args: { heading: null, runId: 'run-42-1', onLoaded: fn() },
-   play: async ({ args, canvas }) => {
+   play: async ({ args, canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'server-ts' }));
+      await userEvent.click(await canvas.findByRole('button', { name: 'src' }));
+      await userEvent.click(await canvas.findByRole('button', { name: 'core' }));
       await expect(await canvas.findByText('projects.ts')).toBeInTheDocument();
       await expect(canvas.queryByText('projects-store.ts')).toBeNull();
       await waitFor(() =>

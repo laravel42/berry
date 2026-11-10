@@ -43,10 +43,15 @@ function StatusTick(props: { x?: number; y?: number; payload?: { value: string }
    if (!currentStatus) return <g />;
 
    const Icon = currentStatus.icon;
+   // A nested <svg> with no width/height attributes (just the Tailwind
+   // size-4 class) scales against the chart's own viewBox instead of its
+   // CSS size once it sits inside Recharts' <svg>, blowing the icon up to
+   // ~220px and spilling it over the table below. foreignObject gives it a
+   // normal HTML sizing context where the class applies as expected.
    return (
-      <g transform={`translate(${x - 7}, ${y + 2})`}>
+      <foreignObject x={x - 7} y={y + 2} width={16} height={16} style={{ overflow: 'visible' }}>
          <Icon />
-      </g>
+      </foreignObject>
    );
 }
 

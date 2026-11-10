@@ -30,3 +30,6 @@ HANDOFF.md
 # Written by deploy/aws/agentcore/setup.sh: holds an AWS access key.
 deploy/aws/agentcore/agentcore.env
 deploy/aws/microvm/microvm.env
+
+# Local dev-server log captures (redirected stdout/stderr), machine-local.
+*.log

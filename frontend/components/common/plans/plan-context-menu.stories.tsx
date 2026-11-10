@@ -28,7 +28,7 @@ const plan: PlanSummary = {
 const meta = {
    component: PlanContextMenu,
    tags: ['ai-generated'],
-   args: { plan, onChanged: fn() },
+   args: { plan, onChanged: fn(), children: null },
    render: (args) => (
       <PlanContextMenu {...args}>
          <div className="flex h-10 w-[420px] items-center border px-3">

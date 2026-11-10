@@ -23,7 +23,7 @@ import {
 const meta = {
    component: ChartPanel,
    tags: ['ai-generated'],
-   args: { title: 'Who spent it', hint: '6 agents ran' },
+   args: { title: 'Who spent it', hint: '6 agents ran', children: null },
 } satisfies Meta<typeof ChartPanel>;
 
 export default meta;

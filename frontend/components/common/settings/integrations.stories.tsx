@@ -83,15 +83,13 @@ export const GitHubOAuthDrawer: Story = {
       const github = await canvas.findByRole('region', { name: 'GitHub' });
       await expect(canvas.queryByText('Use GitHub in this workspace')).not.toBeInTheDocument();
       await userEvent.click(
-         within(github).getByRole('button', {
-            name: /Cloud\. Pull requests, Actions and the GitHub ecosystem/,
-         })
+         within(github).getByRole('button', { name: /The repositories your agents check out/ })
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');
-      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(await within(drawer).findByText('Use GitHub in this workspace')).toBeVisible();
       await expect(within(drawer).getByText('Pull requests on tasks')).toBeVisible();
-      await expect(within(drawer).getByRole('button', { name: 'Source control' })).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
    },
 };
 
@@ -105,9 +103,9 @@ export const GitLabSettingsDrawer: Story = {
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');
-      await expect(within(drawer).getByText('Use GitLab in this workspace')).toBeVisible();
+      await expect(await within(drawer).findByText('Use GitLab in this workspace')).toBeVisible();
       await expect(within(drawer).getByText('Merge requests on tasks')).toBeVisible();
-      await expect(within(drawer).getByRole('button', { name: 'Source control' })).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
       await expect(within(drawer).getByRole('button', { name: 'Disconnect' })).toBeVisible();
    },
 };
@@ -118,14 +116,12 @@ export const GitHubSettingsDrawer: Story = {
       const github = await canvas.findByRole('region', { name: 'GitHub' });
       await expect(canvas.queryByText('Use GitHub in this workspace')).not.toBeInTheDocument();
       await userEvent.click(
-         within(github).getByRole('button', {
-            name: /Cloud\. Pull requests, Actions and the GitHub ecosystem/,
-         })
+         within(github).getByRole('button', { name: /The repositories your agents check out/ })
       );
       const body = within(canvasElement.ownerDocument.body);
       const drawer = await body.findByRole('dialog');
-      await expect(within(drawer).getByText('Use GitHub in this workspace')).toBeVisible();
-      await expect(within(drawer).getByRole('button', { name: 'Source control' })).toBeVisible();
+      await expect(await within(drawer).findByText('Use GitHub in this workspace')).toBeVisible();
+      await expect(within(drawer).getByRole('button', { name: 'Integrations' })).toBeVisible();
    },
 };
 

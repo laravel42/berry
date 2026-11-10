@@ -15,11 +15,6 @@ const meta = {
       open: false,
       onToggleSelected: fn(),
       onOpen: fn(),
-      onChanged: fn(),
-      refreshing: false,
-      onRefreshing: fn(),
-      onConfirmDelete: fn(),
-      onRestore: fn(),
    },
 } satisfies Meta<typeof SkillLine>;
 

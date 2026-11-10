@@ -121,7 +121,7 @@ export function ListFilterClear({
    return (
       <Button size="xs" variant="destructive" className={className} onClick={onClear}>
          <FilterXIcon className="size-4" />
-         {t('clear')}
+         <span className="hidden md:inline-block">{t('clear')}</span>
       </Button>
    );
 }

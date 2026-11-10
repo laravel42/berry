@@ -10,11 +10,21 @@ const meta = {
    argTypes: {
       variant: {
          control: 'select',
-         options: ['default', 'destructive', 'outline', 'secondary', 'ghost', 'link', 'gate'],
+         options: [
+            'default',
+            'destructive',
+            'outline',
+            'secondary',
+            'ghost',
+            'link',
+            'gate',
+            'dark',
+            'ai',
+         ],
       },
       size: {
          control: 'select',
-         options: ['default', 'xxs', 'xs', 'sm', 'lg', 'icon'],
+         options: ['default', 'xxs', 'xs', 'sm', 'md', 'lg', 'icon'],
       },
    },
 } satisfies Meta<typeof Button>;

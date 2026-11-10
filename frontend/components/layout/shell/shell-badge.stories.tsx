@@ -21,6 +21,11 @@ type Story = StoryObj<typeof meta>;
 
 export const Few: Story = {};
 
+export const Hot: Story = {
+   // Owed work ("waiting on you") — the one rail count that wears the accent.
+   args: { count: 3, label: '3 waiting on you', hot: true },
+};
+
 export const Capped: Story = {
    args: { count: 240, label: '240 unread' },
    play: async ({ canvas }) => {
