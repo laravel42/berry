@@ -120,7 +120,12 @@ export function TiptapAiEditor({
             ...(dataHeading ? { 'data-heading': dataHeading } : {}),
          },
       },
-      onUpdate: ({ editor: current }) => {
+      onUpdate: ({ editor: current, transaction }) => {
+         // Only a change the transaction itself made is an edit. Tiptap also
+         // emits `update` from setEditable (a transaction that changes
+         // nothing) and when a plugin such as TrailingNode appends a fix-up to
+         // a focus or selection transaction.
+         if (!transaction.docChanged) return;
          onChange(readMarkdown(current));
       },
       onSelectionUpdate: () => {
@@ -137,7 +142,8 @@ export function TiptapAiEditor({
 
    useEffect(() => {
       if (!editor) return;
-      editor.setEditable(editable);
+      // Without `false` this emits an update, which read as an edit on load.
+      editor.setEditable(editable, false);
    }, [editor, editable]);
 
    useEffect(() => {
@@ -174,7 +180,11 @@ export function TiptapAiEditor({
       if (!editor || focusedRef.current) return;
       const current = readMarkdown(editor);
       if (current !== value) {
-         editor.commands.setContent(value);
+         // Showing a value that came from outside is not an edit. Tiptap 3
+         // emits an update here by default, and the Markdown it reads back is
+         // normalised, so every load reported a change nobody made: a skill
+         // opened with "Unsaved changes", and a description could be rewritten.
+         editor.commands.setContent(value, { emitUpdate: false });
       }
    }, [editor, value]);
 
