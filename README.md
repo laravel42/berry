@@ -43,9 +43,9 @@ accounts they already pay for. Subscription access and limits remain with the
 provider. Native/API execution is a separate option; a disconnected subscription
 does not silently fall back to API billing. See [AI runtimes](docs/ai-runtimes.md).
 
-Berry can run directly on the host. Optional Docker development and Dokploy
-deployment stacks are documented in [deploy/local](deploy/local/README.md) and
-[deploy/dokploy](deploy/dokploy/README.md).
+Berry can run directly on the host. Docker, for local development and for
+self-hosting (Dokploy or any Docker host), is one file at the root,
+[compose.yaml](compose.yaml), documented in [deploy/docker](deploy/docker/README.md).
 
 | Dependency | Purpose |
 | --- | --- |

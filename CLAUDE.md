@@ -89,7 +89,7 @@ The request path is `app/[orgId]/…` route → `components/` → `lib/<domain>.
 ## Stale docs to be aware of
 
 Code comments and some historical records still describe the older design:
-- Docker Compose was removed. Code comments that mention "Compose" (for example in `src/config/config.ts` and `src/config/config.test.ts`) describe how env values used to arrive.
+- The old root `docker-compose.yml` that wired the API's env is gone; code comments that mention "Compose" (for example in `src/config/config.ts` and `src/config/config.test.ts`) describe how env values used to arrive. Docker today is the root `compose.yaml` (self-host by default, local development under the `dev` profile; see `deploy/docker/README.md`).
 - `BERRY_RUNTIME_DRIVER` is parsed in `src/config/config.ts`, but the Docker execution driver is not wired: `src/execution/factory.ts` is imported nowhere, and `src/index.ts` picks a runtime target only from the AgentCore ARN or `BERRY_AGENT_RUNTIME_URL` (see `server-ts/sandbox/docker/README.md`).
 - The dated plans and specs in `docs/superpowers/`, `CHANGELOG.md` and the Context/Decision/Consequences bodies of ADRs are history. Each ADR's Status line and "Current state" section say what holds today.
 - Squads/Crew, the Google ADK runtime, OpenRouter, Kilo, and native Bedrock model calls are gone; do not re-add them. Models are subscription CLIs (ADR-0019).

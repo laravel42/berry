@@ -78,8 +78,9 @@ existing server instead. Navigation stays on that origin plus GitHub sign-in.
 Also in the repo: `docs/` and `scripts/` (Python repository checks). Local
 development uses PGlite (`DATABASE_URL=pglite:./.berry`). Host PostgreSQL 16
 and object storage remain for a shared or remote database, with
-subscription CLIs or a native compute host. Optional Docker development and
-Dokploy stacks live in `deploy/local/` and `deploy/dokploy/`. ECS Fargate for
+subscription CLIs or a native compute host. Docker is one root `compose.yaml`:
+self-host/Dokploy by default, local development under the `dev` profile
+(`deploy/docker/`). ECS Fargate for
 the control plane (existing Aurora with IAM auth, no Docker socket) is
 `deploy/aws/cloudformation/`. The CDK app in `deploy/aws` remains the one-EC2
 Docker host for previews and in-process sessions.
