@@ -2,9 +2,9 @@
    "version": "2.0.0",
    "tasks": [
       {
-         "label": "pnpm build",
+         "label": "bun run build",
          "type": "shell",
-         "command": "pnpm build",
+         "command": "bun run build",
          "options": { "cwd": "${workspaceFolder}" },
          "group": "build",
          "problemMatcher": "$tsc"

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const frontendDir = path.dirname(fileURLToPath(import.meta.url));
-/** pnpm workspace root — Turbopack must resolve `next` from here, not `frontend/`. */
+/** Bun workspace root — Turbopack must resolve `next` from here, not `frontend/`. */
 const repoRoot = path.join(frontendDir, '..');
 
 function berryApiOrigin(): string {
@@ -41,8 +41,8 @@ const nextConfig: NextConfig = {
    /**
     * A self-contained server, so the app can be deployed without the workspace.
     *
-    * `next start` needs the repository's `node_modules`, which is a pnpm
-    * workspace with symlinks across packages — nothing that survives being
+    * `next start` needs the repository's `node_modules`, the whole workspace's
+    * hoisted install with links across packages — nothing that survives being
     * copied to a host. Standalone emits `.next/standalone/server.js` with only
     * the files it traced, which is what a container or a bare box can actually
     * run. It is also the entry point the image pipeline looks for.

@@ -4,9 +4,9 @@
    "private": true,
    "scripts": {
       "prepare:marketing": "node ../scripts/prepare-marketing.mjs",
-      "dev": "pnpm prepare:marketing && next dev --turbopack",
-      "build": "pnpm prepare:marketing && next build",
-      "build:check": "pnpm prepare:marketing && NEXT_DIST_DIR=.next-verify next build",
+      "dev": "bun run prepare:marketing && next dev --turbopack",
+      "build": "bun run prepare:marketing && next build",
+      "build:check": "bun run prepare:marketing && NEXT_DIST_DIR=.next-verify next build",
       "start": "next start",
       "lint": "eslint .",
       "format": "prettier --write .",

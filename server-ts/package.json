@@ -55,5 +55,26 @@
          "@modelcontextprotocol/sdk": "1.32.1",
          "@modelcontextprotocol/server": "2.3.0"
       }
+   },
+   "trustedDependencies": [
+      "better-sqlite3",
+      "node-llama-cpp",
+      "tree-sitter-go",
+      "tree-sitter-javascript",
+      "tree-sitter-python",
+      "tree-sitter-rust",
+      "tree-sitter-typescript"
+   ],
+   "overrides": {
+      "proxy-addr": "2.0.8",
+      "simple-git": "4.0.1",
+      "@simple-git/argv-parser": "2.0.1",
+      "body-parser": "2.4.0",
+      "zod@>=4.0.0 <4.6.6": "4.6.7",
+      "@modelcontextprotocol/sdk": "1.32.1",
+      "@modelcontextprotocol/server": "2.3.0"
+   },
+   "patchedDependencies": {
+      "@electric-sql/pglite-socket@0.2.11": "patches/@electric-sql__pglite-socket@0.2.11.patch"
    }
 }

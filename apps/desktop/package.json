@@ -7,11 +7,11 @@
    "main": "dist/main.js",
    "scripts": {
       "build:js": "tsc -p tsconfig.json && cp src/preload.cjs dist/preload.cjs && cp build/icon.png dist/icon.png",
-      "dev": "pnpm build:js && node --env-file-if-exists=.env node_modules/electron/cli.js .",
+      "dev": "bun run build:js && node --env-file-if-exists=.env node_modules/electron/cli.js .",
       "typecheck": "tsc -p tsconfig.json --noEmit",
       "test": "node --experimental-strip-types --test test/*.test.ts",
       "stage-bundle": "node --experimental-strip-types scripts/stage-bundle.ts",
-      "package": "pnpm build:js && pnpm run stage-bundle && electron-builder --dir"
+      "package": "bun run build:js && bun run stage-bundle && electron-builder --dir"
    },
    "build": {
       "appId": "pm.berry.desktop",
