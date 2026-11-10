@@ -420,8 +420,10 @@ export default function Reviews({
             )}
          >
             <div className="shrink-0">
+               {/* No visible title row: the rail already says Reviews. The
+                   heading stays for assistive tech. */}
+               <h1 className="sr-only">{t('title')}</h1>
                <PageStatement
-                  label={t('title')}
                   figure={waitingCount ?? undefined}
                   line={t('statement.line', { count: waitingCount ?? 0 })}
                   sub={t('statement.sub')}

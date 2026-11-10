@@ -261,8 +261,10 @@ export default function Inbox() {
                selectedId ? 'hidden lg:flex' : 'flex'
             )}
          >
+            {/* No visible title row: the rail already says Inbox. The heading
+                stays for assistive tech. */}
+            <h1 className="sr-only">{t('title')}</h1>
             <PageStatement
-               label={t('title')}
                figure={status === 'ready' ? unread : undefined}
                line={t('statement.line', { count: unread })}
                sub={t('statement.sub')}
