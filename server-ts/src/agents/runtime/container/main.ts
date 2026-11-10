@@ -16,12 +16,22 @@ import { RuntimeAdapterRegistry } from '../adapters/registry.ts';
  * Subscription CLIs run on the workstation, not in this container.
  */
 const env = process.env;
-const region = (env.BERRY_AGENTCORE_REGION ?? env.AWS_REGION ?? '').trim();
+const region = (env.BERRY_AGENTCORE_REGION || env.BERRY_BEDROCK_REGION || env.AWS_REGION || '').trim();
 const accessKeyId = (env.BERRY_AGENTCORE_ACCESS_KEY_ID ?? env.BERRY_BEDROCK_ACCESS_KEY_ID ?? '').trim();
 const secretAccessKey = (env.BERRY_AGENTCORE_SECRET_ACCESS_KEY ?? env.BERRY_BEDROCK_SECRET_ACCESS_KEY ?? '').trim();
 const sessionToken = (env.BERRY_AGENTCORE_SESSION_TOKEN ?? env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
 const credentials: AwsCredentials | null =
    accessKeyId && secretAccessKey ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) } : null;
+// Berry's own Bedrock model signs with the Bedrock pair first: an AgentCore
+// invoker key may start AgentCore sessions and nothing else. Neither set (a
+// host with a role) leaves it to the default chain.
+const bedrockKeyId = (env.BERRY_BEDROCK_ACCESS_KEY_ID ?? '').trim();
+const bedrockSecret = (env.BERRY_BEDROCK_SECRET_ACCESS_KEY ?? '').trim();
+const bedrockToken = (env.BERRY_BEDROCK_SESSION_TOKEN ?? '').trim();
+const bedrockCredentials: AwsCredentials | null =
+   bedrockKeyId && bedrockSecret
+      ? { accessKeyId: bedrockKeyId, secretAccessKey: bedrockSecret, ...(bedrockToken ? { sessionToken: bedrockToken } : {}) }
+      : credentials;
 
 const modelFactory: ModelFactory = nativeModelUnavailable;
 
@@ -58,6 +68,7 @@ const server = createRuntimeServer({
    modelFactory,
    region,
    credentials,
+   bedrockCredentials,
    workRoot,
    ...(isolate ? { identities: new SessionIdentities(workRoot) } : {}),
    repository: snapshotRepository(),

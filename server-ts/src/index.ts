@@ -178,12 +178,14 @@ import { isApiTokenRuntime, takesBaseUrl } from './runtime/ai-runtime-catalog.ts
 import { lmStudioBaseUrl } from './runtime/lmstudio-endpoint.ts';
 import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, LMSTUDIO_NO_TOKEN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
+import { awsMicrovmApi, microvmHealth, microvmTransport, postgresMicrovmSessions } from './runtime/microvm-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { workstationKiro } from './runtime/workstation-kiro.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
-import { syncPlatformRuntime } from './runtime/runtimes.ts';
+import { configurePlatformModel } from './runtime/platform-model.ts';
+import { syncPlatformRuntime, type RuntimeHosts } from './runtime/runtimes.ts';
 import { ensureDiscovery } from './organization/discovery.ts';
 import { ensureOrganizationEverywhere } from './organization/provision.ts';
 import { autoseedWorkspace, loadDeploySkills, seedDefaultsEverywhere } from './seed/deploy.ts';
@@ -557,8 +559,9 @@ const gatewayRoute = config.agentCoreGateway
  */
 /**
  * Where tasks run (ADR-0014). The configured AgentCore Runtime by ARN when
- * there is one, else the same image on a URL (the local agent-runtime
- * service). A workspace's registered runtimes override it per agent.
+ * there is one, else a Lambda MicroVM per session when an image is named,
+ * else the same image on a URL (the local agent-runtime service). A
+ * workspace's registered runtimes override it per agent.
  */
 const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
    ? {
@@ -569,6 +572,15 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
         region: config.agentCore.region,
         endpointUrl: null,
      }
+   : config.microvm
+     ? {
+          id: null,
+          driver: 'microvm',
+          arn: config.microvm.imageArn,
+          qualifier: config.microvm.imageVersion ?? 'ACTIVE',
+          region: config.microvm.region,
+          endpointUrl: null,
+       }
    : config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
      ? {
           id: null,
@@ -580,6 +592,56 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
        }
      : null;
 
+/**
+ * Every host this deployment can run a task on, so an agent can be bound to
+ * one of them. The default is the first: AgentCore, then MicroVMs, then the
+ * local session router.
+ */
+const runtimeHosts: RuntimeHosts = {
+   default: defaultTarget,
+   all: [
+      ...(config.agentCore?.runtimeArn
+         ? [
+              {
+                 id: null,
+                 driver: 'agentcore' as const,
+                 arn: config.agentCore.runtimeArn,
+                 qualifier: 'DEFAULT',
+                 region: config.agentCore.region,
+                 endpointUrl: null,
+              },
+           ]
+         : []),
+      ...(config.microvm
+         ? [
+              {
+                 id: null,
+                 driver: 'microvm' as const,
+                 arn: config.microvm.imageArn,
+                 qualifier: config.microvm.imageVersion ?? 'ACTIVE',
+                 region: config.microvm.region,
+                 endpointUrl: null,
+              },
+           ]
+         : []),
+      ...(config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
+         ? [
+              {
+                 id: null,
+                 driver: 'http' as const,
+                 arn: null,
+                 qualifier: 'DEFAULT',
+                 region: null,
+                 endpointUrl: config.runtime.agentRuntimeUrl,
+              },
+           ]
+         : []),
+   ],
+};
+
+// Chat and the product's own single calls run on Berry's Bedrock model, when
+// the deployment names one; agent work stays on the workspace's providers.
+configurePlatformModel(config.bedrock ? { provider: 'bedrock', ...config.bedrock } : null);
 configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
 const hasAgentExecution = (workspaceId: string): Promise<boolean> =>
    agentExecutionAvailable(sql, {
@@ -629,7 +691,7 @@ const releaseTask = (issueId: string) =>
       {
          sql,
          transport: { stop: (input) => transport.stop(input) },
-         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, defaultTarget),
+         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, runtimeHosts),
          previews: previewEnvironments,
          report: (message, fields) => logger.info(message, fields),
       },
@@ -660,6 +722,10 @@ const reviewGate = new ReviewGate({
  */
 const recordUsage: UsageRecorder = recordTaskUsage;
 
+const microvmApi = config.microvm
+   ? awsMicrovmApi({ region: config.microvm.region, credentials: config.microvm.credentials })
+   : null;
+
 const transport = routingTransport({
    agentcore: config.agentCore
       ? agentCoreTransport({
@@ -667,6 +733,10 @@ const transport = routingTransport({
            ...(config.agentCore.credentials ? { credentials: config.agentCore.credentials } : {}),
         })
       : null,
+   microvm:
+      config.microvm && microvmApi
+         ? microvmTransport({ settings: config.microvm, api: microvmApi, sessions: postgresMicrovmSessions(sql) })
+         : null,
    http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
 
@@ -684,6 +754,7 @@ const executor = new RuntimeTaskExecutor({
         sql,
         transport,
         defaultTarget,
+        hosts: runtimeHosts,
         recordUsage,
         builder: new EnvelopeBuilder({
            sql,
@@ -832,7 +903,7 @@ const executor = new RuntimeTaskExecutor({
 
 // Every workspace sees the deployment's own runtime as a row it can bind
 // agents to and probe. A failure here costs the listing, never the boot.
-await syncPlatformRuntime(sql, defaultTarget).catch((error: unknown) =>
+await syncPlatformRuntime(sql, runtimeHosts).catch((error: unknown) =>
    logger.error('could not sync the platform runtime', {
       error: error instanceof Error ? error.message : String(error),
    })
@@ -897,7 +968,7 @@ const cancelPersonalRuntimeRun = async (runId: string): Promise<void> => {
       if (!(error instanceof RunTerminal)) throw error;
    });
    if (!run.runtime_session_id) return;
-   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, defaultTarget);
+   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, runtimeHosts);
    const stop = transport.stopStrict;
    if (!target || !stop) throw new Error('the runtime session stop cannot be confirmed');
    await stop({ target, runtimeSessionId: run.runtime_session_id });
@@ -924,7 +995,7 @@ registry.registerAll(
       autoseed: async (workspaceId) =>
          autoseedWorkspace(sql, workspaceId, {
             skills: deploySkills,
-            syncRuntime: () => syncPlatformRuntime(sql, defaultTarget, { workspaceId }),
+            syncRuntime: () => syncPlatformRuntime(sql, runtimeHosts, { workspaceId }),
             onError: (step, error) =>
                logger.error('could not autoseed workspace', {
                   workspaceId,
@@ -1263,12 +1334,18 @@ registry.registerAll(
          });
       },
       defaultTarget,
+      hosts: runtimeHosts,
       health: async (target) => {
          if (target.driver === 'http') {
             const response = await fetch(`${(target.endpointUrl ?? '').replace(/\/+$/, '')}/ping`, {
                signal: AbortSignal.timeout(10_000),
             });
             if (!response.ok) throw new Error(`the runtime answered ${response.status}`);
+            return;
+         }
+         if (target.driver === 'microvm') {
+            if (!config.microvm || !microvmApi) throw new Error('Lambda MicroVMs are not configured');
+            await microvmHealth(microvmApi, config.microvm);
             return;
          }
          if (!target.arn || !agentCore) throw new Error('AgentCore is not configured');
@@ -1674,9 +1751,11 @@ logger.info('Berry server listening', {
    // Named at boot so an operator can see where tasks are sent, without
    // reading the environment back.
    agentRuntime: defaultTarget
-      ? defaultTarget.driver === 'agentcore'
-         ? defaultTarget.arn
-         : defaultTarget.endpointUrl
+      ? defaultTarget.driver === 'http'
+         ? defaultTarget.endpointUrl
+         : defaultTarget.driver === 'microvm'
+           ? `microvm ${defaultTarget.arn}`
+           : defaultTarget.arn
       : 'none',
    // Named at boot because a server that admits runs but does not execute them
    // looks identical from outside until the first one sits queued forever.
@@ -1687,6 +1766,9 @@ logger.info('Berry server listening', {
    // Named at boot because recall is invisible from outside: an agent with no
    // memory and an agent whose store is misconfigured both just start fresh.
    runMemory: runMemory ? 'agentcore' : 'off',
+   // Named at boot: without it chat and the editors' AI help need a provider
+   // connected in every workspace.
+   platformModel: config.bedrock ? `bedrock ${config.bedrock.model} (${config.bedrock.region})` : 'off',
    // Named at boot so an operator can see whether a run can reach a
    // repository, without reading the environment back.
    integrations: connections

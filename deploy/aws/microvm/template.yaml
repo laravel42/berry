@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Berry agent runs on AWS Lambda MicroVMs. The bucket the runtime image's code
+  artifact is uploaded to, the build and execution roles, and an IAM user whose
+  key lets a Berry server outside AWS start, reach and end MicroVMs. The key is
+  stored in Secrets Manager, never in an output. The image itself is built by
+  deploy/aws/microvm/setup.sh.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+
+Parameters:
+  InvokerUserName:
+    Type: String
+    Default: berry-microvm-invoker
+    Description: IAM user the Berry server signs MicroVM calls with.
+  InvokerSecretName:
+    Type: String
+    Default: berry/microvm-invoker
+    Description: Secrets Manager secret that holds the invoker access key.
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    # Old artifacts are what earlier image versions were built from.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: Code artifacts (a zip with the runtime Dockerfile) that MicroVM image builds read.
+        must: Same region as the MicroVM image; builds refuse a cross-region artifact.
+    Properties:
+      BucketName: !Sub '${AWS::StackName}-artifacts-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old-artifacts
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            ExpirationInDays: 180
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub '${ArtifactBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+  # Assumed by Lambda while it builds the image: read the artifact, write logs.
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Berry MicroVM image build role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:microvm-image:*'
+      Policies:
+        - PolicyName: berry-microvm-build
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadCodeArtifact
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub '${ArtifactBucket.Arn}/microvm-images/*'
+              - Sid: WriteBuildLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda-microvms/*'
+
+  # Assumed inside each running VM: logs, and the Bedrock model Berry provides
+  # for chat (BERRY_BEDROCK_MODEL). The runtime reaches Berry over HTTPS with a
+  # task token and needs nothing else of the account.
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Berry MicroVM execution role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnLike:
+                aws:SourceArn: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:microvm-image:*'
+      Policies:
+        - PolicyName: berry-microvm-execution
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ShipLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda-microvms/*'
+              - Sid: PlatformModel
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:inference-profile/*'
+
+  # What the Berry server may do: start a VM per session, mint its proxy
+  # tokens, check on it and end it, and read whether the image is built.
+  InvokerUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Ref InvokerUserName
+      Policies:
+        - PolicyName: berry-microvm-invoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: Sessions
+                Effect: Allow
+                Action:
+                  - lambda:RunMicrovm
+                  - lambda:GetMicrovm
+                  - lambda:TerminateMicrovm
+                  - lambda:CreateMicrovmAuthToken
+                  - lambda:GetMicrovmImage
+                Resource: '*'
+              - Sid: DefaultConnectors
+                Effect: Allow
+                Action: lambda:PassNetworkConnector
+                Resource: !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:aws:network-connector:aws-network-connector:*'
+              - Sid: PassExecutionRole
+                Effect: Allow
+                Action: iam:PassRole
+                Resource: !GetAtt ExecutionRole.Arn
+                Condition:
+                  StringEquals:
+                    iam:PassedToService: lambda.amazonaws.com
+
+  InvokerKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName: !Ref InvokerUser
+
+  InvokerSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Ref InvokerSecretName
+      Description: Access key the Berry server signs MicroVM calls with
+      SecretString: !Sub '{"BERRY_MICROVM_ACCESS_KEY_ID":"${InvokerKey}","BERRY_MICROVM_SECRET_ACCESS_KEY":"${InvokerKey.SecretAccessKey}"}'
+
+Outputs:
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  BuildRoleArn:
+    Value: !GetAtt BuildRole.Arn
+  ExecutionRoleArn:
+    Value: !GetAtt ExecutionRole.Arn
+  InvokerSecretArn:
+    Value: !Ref InvokerSecret

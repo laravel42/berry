@@ -156,6 +156,10 @@ services:
          BERRY_BEDROCK_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
          BERRY_BEDROCK_ACCESS_KEY_ID: ${BERRY_BEDROCK_ACCESS_KEY_ID:-}
          BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
+         # Berry's own model for chat and the product's single calls, in every
+         # workspace. The runtime calls it with the BERRY_BEDROCK_* keys above
+         # (sessions), or its role on AgentCore and MicroVMs.
+         BERRY_BEDROCK_MODEL: ${BERRY_BEDROCK_MODEL:-}
          BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-}
          BERRY_RUN_CONCURRENCY: ${BERRY_RUN_CONCURRENCY:-2}
          # Optional: runs on a deployed AgentCore Runtime instead of the
@@ -170,6 +174,19 @@ services:
          BERRY_AGENTCORE_SESSION_TOKEN: ${BERRY_AGENTCORE_SESSION_TOKEN:-}
          # Optional: AgentCore Memory for cross-run recall.
          BERRY_AGENTCORE_MEMORY_ID: ${BERRY_AGENTCORE_MEMORY_ID:-}
+         # Optional: runs on Lambda MicroVMs, one VM per agent session, when
+         # an image is named and no AgentCore ARN is set. Keys unset fall back
+         # to the AgentCore pair, then the AWS default chain.
+         BERRY_MICROVM_IMAGE_ARN: ${BERRY_MICROVM_IMAGE_ARN:-}
+         BERRY_MICROVM_IMAGE_VERSION: ${BERRY_MICROVM_IMAGE_VERSION:-}
+         BERRY_MICROVM_EXECUTION_ROLE_ARN: ${BERRY_MICROVM_EXECUTION_ROLE_ARN:-}
+         BERRY_MICROVM_REGION: ${BERRY_MICROVM_REGION:-}
+         BERRY_MICROVM_IDLE_SECONDS: ${BERRY_MICROVM_IDLE_SECONDS:-}
+         BERRY_MICROVM_SUSPENDED_SECONDS: ${BERRY_MICROVM_SUSPENDED_SECONDS:-}
+         BERRY_MICROVM_LOG_GROUP: ${BERRY_MICROVM_LOG_GROUP:-}
+         BERRY_MICROVM_ACCESS_KEY_ID: ${BERRY_MICROVM_ACCESS_KEY_ID:-}
+         BERRY_MICROVM_SECRET_ACCESS_KEY: ${BERRY_MICROVM_SECRET_ACCESS_KEY:-}
+         BERRY_MICROVM_SESSION_TOKEN: ${BERRY_MICROVM_SESSION_TOKEN:-}
          # Previews, each at p-<id>-<app>.<preview domain>.
          BERRY_PREVIEW_DOMAIN: ${BERRY_PREVIEW_DOMAIN:-}
          BERRY_PREVIEW_SCHEME: ${BERRY_SCHEME:-http}

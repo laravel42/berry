@@ -141,6 +141,19 @@ export const taskEnvelopeSchema = z.object({
       })
       .nullable()
       .optional(),
+   /**
+    * The model Berry provides (src/runtime/platform-model.ts), for chat and
+    * the product's own single calls. The runtime calls it with the host's
+    * own AWS credentials; nothing secret travels here. Absent otherwise.
+    */
+   platformModel: z
+      .object({
+         provider: z.literal('bedrock'),
+         model: z.string().min(1).max(300),
+         region: z.string().min(1).max(40),
+      })
+      .nullable()
+      .optional(),
    runId: z.string().min(1),
    /** Human-readable `(agent, issue)` / `(agent, chat)` / `completion:<run>` key. */
    sessionKey: z.string().min(1),

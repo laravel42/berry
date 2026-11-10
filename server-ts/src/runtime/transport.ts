@@ -5,11 +5,11 @@ import type {
 } from './envelope.ts';
 import type { LifecycleEvent } from './lifecycle.ts';
 
-/** Where a task runs: an AgentCore Runtime by ARN, or the same image on a URL. */
+/** Where a task runs: an AgentCore Runtime by ARN, a Lambda MicroVM per session, or the same image on a URL. */
 export interface RuntimeTarget {
    /** The `agent_runtimes` row, or null for the deployment's configured default. */
    id: string | null;
-   driver: 'agentcore' | 'http';
+   driver: 'agentcore' | 'microvm' | 'http';
    arn: string | null;
    qualifier: string;
    region: string | null;
@@ -82,9 +82,17 @@ export class RunNotResumable extends Error {
    override readonly name = 'RunNotResumable';
 }
 
-export function routingTransport(transports: { agentcore: RuntimeTransport | null; http: RuntimeTransport }): RuntimeTransport {
+export function routingTransport(transports: {
+   agentcore: RuntimeTransport | null;
+   microvm?: RuntimeTransport | null;
+   http: RuntimeTransport;
+}): RuntimeTransport {
    const pick = (target: RuntimeTarget): RuntimeTransport => {
       if (target.driver === 'http') return transports.http;
+      if (target.driver === 'microvm') {
+         if (!transports.microvm) throw new RuntimeUnavailable('no Lambda MicroVM image is configured');
+         return transports.microvm;
+      }
       if (!transports.agentcore) throw new RuntimeUnavailable('no AgentCore credentials or region are configured');
       return transports.agentcore;
    };

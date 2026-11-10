@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
-import { syncPlatformRuntime } from './runtimes.ts';
+import { singleHost, syncPlatformRuntime } from './runtimes.ts';
 import { cleanupFixture, seedFixture, type Fixture } from './test-fixture.ts';
 import type { RuntimeTarget } from './transport.ts';
 
@@ -46,7 +46,7 @@ describe('syncPlatformRuntime', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
 
       // Scoped: test files share the database and run in parallel, and an
       // unscoped sync would rewrite, and race, every other file's workspaces.
-      await syncPlatformRuntime(sql, agentcore, { workspaceId: fixture!.workspaceId });
+      await syncPlatformRuntime(sql, singleHost(agentcore), { workspaceId: fixture!.workspaceId });
 
       const row = await platform();
       assert.equal(row.driver, 'agentcore');
@@ -61,10 +61,54 @@ describe('syncPlatformRuntime', { skip: url ? false : 'BERRY_TEST_DATABASE_URL i
          UPDATE agent_runtimes SET status = 'disabled', driver = 'http'
           WHERE workspace_id = ${fixture!.workspaceId} AND kind = 'platform'`;
       const scope = { workspaceId: fixture!.workspaceId };
-      await syncPlatformRuntime(sql, agentcore, scope);
-      await syncPlatformRuntime(sql, agentcore, scope);
+      await syncPlatformRuntime(sql, singleHost(agentcore), scope);
+      await syncPlatformRuntime(sql, singleHost(agentcore), scope);
       const row = await platform();
       assert.equal(row.driver, 'agentcore');
       assert.equal(row.status, 'disabled');
+   });
+
+   test('each configured host gets its own row, and a host that goes away takes its row with it', async () => {
+      const workspaceId = fixture!.workspaceId;
+      const scope = { workspaceId };
+      const local: RuntimeTarget = {
+         id: null,
+         driver: 'http',
+         arn: null,
+         qualifier: 'DEFAULT',
+         region: null,
+         endpointUrl: 'http://sessions:8080',
+      };
+      const microvm: RuntimeTarget = {
+         id: null,
+         driver: 'microvm',
+         arn: 'arn:aws:lambda:us-east-1:123456789012:microvm-image:berry-runtime',
+         qualifier: '1.0',
+         region: 'us-east-1',
+         endpointUrl: null,
+      };
+      await sql`DELETE FROM agent_runtimes WHERE workspace_id = ${workspaceId} AND kind = 'platform'`;
+
+      await syncPlatformRuntime(sql, { default: agentcore, all: [agentcore, microvm, local] }, scope);
+      const rows = await sql`
+         SELECT driver, name, is_default FROM agent_runtimes
+          WHERE workspace_id = ${workspaceId} AND kind = 'platform' ORDER BY driver`;
+      assert.deepEqual(
+         rows.map((row) => [row.driver, row.name]),
+         [
+            ['agentcore', 'AWS AgentCore'],
+            ['http', 'Local Docker'],
+            ['microvm', 'Lambda MicroVMs'],
+         ]
+      );
+      const defaults = rows.filter((row) => row.is_default).map((row) => row.driver);
+      // A workspace that already had a default keeps it; otherwise it is the default host's.
+      assert.ok(defaults.length <= 1);
+
+      await syncPlatformRuntime(sql, { default: microvm, all: [microvm] }, scope);
+      const left = await sql`
+         SELECT driver FROM agent_runtimes WHERE workspace_id = ${workspaceId} AND kind = 'platform'`;
+      // No configured host is missing a row, so neither leftover is reused: both go.
+      assert.deepEqual(left.map((row) => row.driver), ['microvm']);
    });
 });

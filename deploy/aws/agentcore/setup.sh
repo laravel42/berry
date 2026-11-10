@@ -40,10 +40,13 @@ REPO_NAME="${REPO_NAME:-bedrock-agentcore-berry-sandbox}"
 USER_NAME="${USER_NAME:-berry-agentcore-invoker}"
 SECRET_NAME="${SECRET_NAME:-berry/agentcore-invoker}"
 
-# What this stack already owns, by logical id (empty on a first run).
-OWNED="$(aws cloudformation list-stack-resources --region "$REGION" --stack-name "$STACK" \
-   --query 'StackResourceSummaries[].LogicalResourceId' --output text 2>/dev/null || true)"
-owned() { [[ " $OWNED " == *" $1 "* ]]; }
+# What this stack already owns, by logical id (empty on a first run). The CLI's
+# text output separates the ids with tabs; they are folded to single spaces so
+# owned() can match a whole id.
+OWNED=" $(aws cloudformation list-stack-resources --region "$REGION" --stack-name "$STACK" \
+   --query 'StackResourceSummaries[].LogicalResourceId' --output text 2>/dev/null \
+   | tr -s '[:space:]' ' ' || true) "
+owned() { [[ "$OWNED" == *" $1 "* ]]; }
 
 # A repository left by an earlier attempt is reused rather than recreated.
 CREATE_REPOSITORY=true

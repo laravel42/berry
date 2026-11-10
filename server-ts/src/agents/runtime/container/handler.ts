@@ -17,6 +17,7 @@ import { logRuntimePrompt } from '../prompt-log.ts';
 import { classify } from '../failure.ts';
 import { nativeModelUnavailable, type ModelFactory } from '../model.ts';
 import { apiTokenModelFactory } from '../api-token-model.ts';
+import { bedrockModelFactory } from '../bedrock-model.ts';
 import { AccountingPlugin } from '../plugins/accounting.ts';
 import { emitModelUsage } from './usage.ts';
 import { LedgerPlugin } from '../plugins/ledger.ts';
@@ -104,6 +105,8 @@ export interface HandlerDeps {
     * credential through modelFactory.
     */
    credentials?: AwsCredentials | null;
+   /** What Berry's own Bedrock model signs with; absent uses `credentials`. */
+   bedrockCredentials?: AwsCredentials | null;
    /** Where session workspaces live: `/mnt/workspace` in the image. */
    workRoot: string;
    /** Existing local folder, only for the desktop companion; never cloned or removed. */
@@ -219,13 +222,17 @@ export async function handleInvocation(
 }
 
 /**
- * An API-token run uses the sealed key on the envelope. Tests keep the
- * factory they injected (a scripted model); the image's
+ * An API-token run uses the sealed key on the envelope; a run on the model
+ * Berry provides calls Bedrock with this host's AWS credentials. Tests keep
+ * the factory they injected (a scripted model); the image's
  * `nativeModelUnavailable` is what production passes.
  */
 function modelFactoryFor(envelope: TaskEnvelope, deps: HandlerDeps): ModelFactory {
-   if (envelope.runtime?.executionMode !== 'direct_inference') return deps.modelFactory;
    if (deps.modelFactory !== nativeModelUnavailable) return deps.modelFactory;
+   if (envelope.platformModel) {
+      return bedrockModelFactory(envelope.platformModel, deps.bedrockCredentials ?? deps.credentials);
+   }
+   if (envelope.runtime?.executionMode !== 'direct_inference') return deps.modelFactory;
    return apiTokenModelFactory(envelope, deps.fetch ?? fetch);
 }
 
