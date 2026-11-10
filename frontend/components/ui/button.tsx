@@ -48,9 +48,14 @@ const buttonVariants = cva(
                'bg-settings-control text-status-danger hover:bg-settings-control-hover disabled:opacity-100 disabled:text-subtle-foreground',
             /** Settings ghost: muted ink, fills on hover. */
             'quiet': 'text-muted-foreground hover:bg-settings-control hover:text-foreground',
-            /** Filled track, same as the shell "Back to app" control. */
+            /** Filled track, same as the shell "Back to app" control.
+                Both heights are set, and that is the point: `size="default"`
+                carries a `min-h-(--ctl-h)` floor of 44px, and a `min-height`
+                beats a `height` no matter how important the `height` is. A
+                lone `!h-*` here looked like it set the size and did not.
+                A toolbar's `[&_button]:!h-[30px]` loses the same way. */
             'track':
-               '!h-[30px] !rounded-full border-0 bg-segment-track px-2.5 text-[var(--shell-text-muted)] shadow-none hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] data-[state=open]:!bg-[var(--brand-hairline)] data-[state=open]:!text-[var(--shell-text)]',
+               '!h-(--field-h) !min-h-(--field-h) !rounded-full border-0 bg-segment-track px-2.5 text-[var(--shell-text-muted)] shadow-none hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] data-[state=open]:!bg-[var(--brand-hairline)] data-[state=open]:!text-[var(--shell-text)]',
          },
          size: {
             default: 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
