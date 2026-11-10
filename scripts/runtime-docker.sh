@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds and runs the agent runtime as one local container (`pnpm runtime:docker`).
+# Builds and runs the agent runtime as one local container (`bun run runtime:docker`).
 #
 # Two things differ from a plain `docker run --env-file .env`:
 #
@@ -12,7 +12,7 @@
 #     user and a private workspace (BERRY_RUNTIME_ISOLATE_SESSIONS). A command
 #     can then read neither the runtime's environment nor another session's files.
 #
-# With --per-session (`pnpm runtime:sessions`) no container is started. The
+# With --per-session (`bun run runtime:sessions`) no container is started. The
 # runtime runs in this process and gives each session an in-process shell for
 # agent commands. Workspaces live under .runtime-sessions. AgentCore is
 # unchanged: there the microVM is the boundary and none of this applies.
@@ -33,8 +33,9 @@ allowed='^(BERRY_AGENTCORE_REGION|BERRY_AGENTCORE_ACCESS_KEY_ID|BERRY_AGENTCORE_
 [ -f "$env_file" ] || { echo "no env file at $env_file" >&2; exit 1; }
 
 # AgentCore needs arm64 (`deploy.sh`). Local sessions on an x86 host must not
-# build that platform under qemu: pnpm's arm64 binary has panicked there with
-# "Bad file descriptor" during install. Default to the host arch instead.
+# build that platform under qemu: the image's package install has panicked
+# there (pnpm's arm64 binary, with "Bad file descriptor"). Default to the host
+# arch instead.
 case "$(uname -m)" in
    aarch64|arm64) default_platform=linux/arm64 ;;
    *) default_platform=linux/amd64 ;;

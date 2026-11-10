@@ -18,6 +18,9 @@
 # ARM64 is required by AgentCore Runtime. Local x86 hosts can build with
 # --build-arg BERRY_RUNTIME_PLATFORM=linux/amd64.
 ARG BERRY_RUNTIME_PLATFORM=linux/arm64
+# Bun installs Berry's own dependencies below. Its own stage, on the same
+# platform as the image, so the binary copied out matches the image's processor.
+FROM --platform=${BERRY_RUNTIME_PLATFORM} oven/bun:1.4.4-slim AS bun
 FROM --platform=${BERRY_RUNTIME_PLATFORM} node:22-slim
 
 # The toolchain an agent's commands reach for: git to clone and push, ffmpeg for
@@ -51,8 +54,8 @@ RUN set -eu; \
 
 # The package managers a repository may have been written for, the same set the
 # preview image carries (sandbox/preview): the agent builds with what the
-# preview will run. pnpm is pinned because Berry's own install below uses it;
-# corepack still gives a repository the version its `packageManager` names.
+# preview will run. corepack gives a repository the version its
+# `packageManager` names.
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable \
    && corepack prepare pnpm@12.5.1 --activate \
@@ -128,12 +131,14 @@ RUN npm install -g expo@57.0.27 \
 ENV PIP_BREAK_SYSTEM_PACKAGES=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /opt/berry
-COPY package.json pnpm-lock.yaml ./
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
+COPY package.json bun.lock ./
 # The loop loads the Strands SDK, zod, and S3 for artifacts. The rest of this
-# manifest is the API (database, auth, control-plane clients). Native Bedrock
-# and Kilo clients are gone. pnpm would also install the SDK's optional peers,
-# including a local model runtime and its parsers, which this process never
-# imports. Required peers stay; the lockfile still pins every version.
+# manifest is the API (database, auth, control-plane clients), so it is cut
+# down to those three before installing. bun.lock (the server's own, from
+# `bun run lock:server`) still decides every version; Bun leaves out the SDK's
+# optional peers, a local model runtime and its parsers, which this process
+# never imports.
 RUN node <<'EOF'
 const fs = require('node:fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -152,24 +157,16 @@ for (const name of keep) {
    dependencies[name] = version;
 }
 pkg.dependencies = dependencies;
-pkg.packageManager = 'pnpm@12.5.1';
 delete pkg.devDependencies;
+// The patch is for the API's PGlite socket, which is not installed here.
+delete pkg.patchedDependencies;
+delete pkg.trustedDependencies;
 fs.writeFileSync('package.json', JSON.stringify(pkg));
 EOF
-# pnpm 12 rejects an unapproved dependency build. koffi's script only picks the
-# platform prebuild, so that package stays optional and the local-model peers do not.
-RUN printf '%s\n' \
-      'packages:' '  - .' \
-      'strictDepBuilds: false' \
-      'allowBuilds:' '  koffi: true' \
-      'ignoredOptionalDependencies:' \
-      '  - node-llama-cpp' \
-      '  - better-sqlite3' \
-      '  - "@node-llama-cpp/*"' \
-      > pnpm-workspace.yaml \
-   && printf '%s\n' 'auto-install-peers=true' 'store-dir=/tmp/pnpm-store' > .npmrc \
-   && pnpm install --prod \
-   && rm -rf /tmp/pnpm-store /root/.cache
+# Not --production, which freezes the lockfile: the cut-down manifest has to
+# be allowed to drop the API's packages from it. Versions still come from it.
+RUN bun install --omit dev \
+   && rm -rf /usr/local/bin/bun /root/.bun /root/.cache
 COPY tsconfig.json ./
 COPY src/agents ./src/agents
 COPY src/execution ./src/execution

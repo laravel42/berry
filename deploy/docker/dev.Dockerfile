@@ -1,4 +1,4 @@
-# The image local development runs in: Node, pnpm and the docker client, and no
+# The image local development runs in: Node, Bun and the docker client, and no
 # source. The repository is mounted over /repo, so an edit on the host is an
 # edit in the container and the watchers restart on it.
 #
@@ -16,6 +16,6 @@ RUN apt-get update \
    && apt-get install -y --no-install-recommends docker-ce-cli docker-buildx-plugin \
    && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable && corepack prepare pnpm@12.5.1 --activate
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# Bun installs and runs the scripts; Node runs the server and Next, as on the Mac.
+COPY --from=oven/bun:1.4.4-slim /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /repo
