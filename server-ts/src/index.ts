@@ -178,6 +178,7 @@ import { isApiTokenRuntime, takesBaseUrl } from './runtime/ai-runtime-catalog.ts
 import { lmStudioBaseUrl } from './runtime/lmstudio-endpoint.ts';
 import { CLAUDE_CLI_LOGIN, CODEX_CLI_LOGIN, CURSOR_CLI_LOGIN, GROK_CLI_LOGIN, KIMI_CLI_LOGIN, KIRO_CLI_LOGIN, LMSTUDIO_NO_TOKEN, QODER_CLI_LOGIN, type RuntimeControlRequest } from './runtime/envelope.ts';
 import { httpTransport } from './runtime/http-transport.ts';
+import { awsMicrovmApi, microvmHealth, microvmTransport, postgresMicrovmSessions } from './runtime/microvm-transport.ts';
 import { RuntimeTaskExecutor, type UsageRecorder, resolveTarget } from './runtime/task-executor.ts';
 import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { workstationKiro } from './runtime/workstation-kiro.ts';
@@ -557,8 +558,9 @@ const gatewayRoute = config.agentCoreGateway
  */
 /**
  * Where tasks run (ADR-0014). The configured AgentCore Runtime by ARN when
- * there is one, else the same image on a URL (the local agent-runtime
- * service). A workspace's registered runtimes override it per agent.
+ * there is one, else a Lambda MicroVM per session when an image is named,
+ * else the same image on a URL (the local agent-runtime service). A
+ * workspace's registered runtimes override it per agent.
  */
 const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
    ? {
@@ -569,6 +571,15 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
         region: config.agentCore.region,
         endpointUrl: null,
      }
+   : config.microvm
+     ? {
+          id: null,
+          driver: 'microvm',
+          arn: config.microvm.imageArn,
+          qualifier: config.microvm.imageVersion ?? 'ACTIVE',
+          region: config.microvm.region,
+          endpointUrl: null,
+       }
    : config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
      ? {
           id: null,
@@ -660,6 +671,10 @@ const reviewGate = new ReviewGate({
  */
 const recordUsage: UsageRecorder = recordTaskUsage;
 
+const microvmApi = config.microvm
+   ? awsMicrovmApi({ region: config.microvm.region, credentials: config.microvm.credentials })
+   : null;
+
 const transport = routingTransport({
    agentcore: config.agentCore
       ? agentCoreTransport({
@@ -667,6 +682,10 @@ const transport = routingTransport({
            ...(config.agentCore.credentials ? { credentials: config.agentCore.credentials } : {}),
         })
       : null,
+   microvm:
+      config.microvm && microvmApi
+         ? microvmTransport({ settings: config.microvm, api: microvmApi, sessions: postgresMicrovmSessions(sql) })
+         : null,
    http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
 
@@ -1271,6 +1290,11 @@ registry.registerAll(
             if (!response.ok) throw new Error(`the runtime answered ${response.status}`);
             return;
          }
+         if (target.driver === 'microvm') {
+            if (!config.microvm || !microvmApi) throw new Error('Lambda MicroVMs are not configured');
+            await microvmHealth(microvmApi, config.microvm);
+            return;
+         }
          if (!target.arn || !agentCore) throw new Error('AgentCore is not configured');
          await agentCoreRuntimeDriver({
             region: target.region ?? agentCore.region,
@@ -1674,9 +1698,11 @@ logger.info('Berry server listening', {
    // Named at boot so an operator can see where tasks are sent, without
    // reading the environment back.
    agentRuntime: defaultTarget
-      ? defaultTarget.driver === 'agentcore'
-         ? defaultTarget.arn
-         : defaultTarget.endpointUrl
+      ? defaultTarget.driver === 'http'
+         ? defaultTarget.endpointUrl
+         : defaultTarget.driver === 'microvm'
+           ? `microvm ${defaultTarget.arn}`
+           : defaultTarget.arn
       : 'none',
    // Named at boot because a server that admits runs but does not execute them
    // looks identical from outside until the first one sits queued forever.

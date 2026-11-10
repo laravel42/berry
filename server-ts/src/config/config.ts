@@ -57,6 +57,8 @@ export interface Config {
     */
    execution: ExecutionConfig | null;
    agentCore: AgentCoreConfig | null;
+   /** Agent runs on Lambda MicroVMs, one VM per session. Null when no image is named. */
+   microvm: MicrovmConfig | null;
    agentCoreGateway: AgentCoreGatewayConfig | null;
    /** AgentCore Identity's GitHub credential, usable without a gateway. */
    agentCoreGitCredential: AgentCoreGitCredentialConfig | null;
@@ -169,6 +171,21 @@ export interface AgentCoreGitCredentialConfig {
    userId: string | null;
    /** Browser destination after one-time consent; required by USER_FEDERATION. */
    returnUrl: string | null;
+}
+
+export interface MicrovmConfig {
+   region: string;
+   /** The MicroVM image the runtime was built into (`...:microvm-image:<name>`). */
+   imageArn: string;
+   /** A `major.minor` version; null runs the image's active version. */
+   imageVersion: string | null;
+   executionRoleArn: string | null;
+   /** No traffic for this long suspends a VM (at least 60 s). */
+   idleSeconds: number;
+   /** A suspended VM is terminated after this long. */
+   suspendedSeconds: number;
+   logGroup: string | null;
+   credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null;
 }
 
 export interface AgentCoreConfig {
@@ -462,6 +479,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       // would accept a token nothing can present.
       execution: executionConfig,
       agentCore: agentCore(env),
+      microvm: microvm(env),
       agentCoreGateway: agentCoreGateway(env),
       agentCoreGitCredential: agentCoreGitCredential(env),
       githubProvider: (env.GITHUB_PROVIDER ?? 'agentcore').trim() === 'legacy' ? 'legacy' : 'agentcore',
@@ -592,6 +610,53 @@ function agents(env: NodeJS.ProcessEnv): AgentConfig {
  * with half its settings is a substrate that fails at the first command, and
  * the factory says so by name rather than discovering it at run time.
  */
+/**
+ * Lambda MicroVMs for agent runs. Null unless an image is named. Credentials
+ * fall back to AgentCore's pair (same account, same kind of caller), then to
+ * the AWS default chain. `||` for the same reason as there: Compose passes an
+ * unset variable as an empty string.
+ */
+function microvm(env: NodeJS.ProcessEnv): MicrovmConfig | null {
+   const imageArn = (env.BERRY_MICROVM_IMAGE_ARN ?? '').trim();
+   if (!imageArn) return null;
+   const region = (
+      env.BERRY_MICROVM_REGION?.trim() ||
+      env.BERRY_AGENTCORE_REGION?.trim() ||
+      env.AWS_REGION?.trim() ||
+      // An image ARN names its region: arn:aws:lambda:<region>:<account>:microvm-image:<name>.
+      imageArn.split(':')[3] ||
+      ''
+   ).trim();
+   const accessKeyId = (
+      env.BERRY_MICROVM_ACCESS_KEY_ID?.trim() ||
+      env.BERRY_AGENTCORE_ACCESS_KEY_ID?.trim() ||
+      ''
+   ).trim();
+   const secretAccessKey = (
+      env.BERRY_MICROVM_SECRET_ACCESS_KEY?.trim() ||
+      env.BERRY_AGENTCORE_SECRET_ACCESS_KEY?.trim() ||
+      ''
+   ).trim();
+   const sessionToken = (
+      env.BERRY_MICROVM_SESSION_TOKEN?.trim() ||
+      env.BERRY_AGENTCORE_SESSION_TOKEN?.trim() ||
+      ''
+   ).trim();
+   return {
+      region,
+      imageArn,
+      imageVersion: (env.BERRY_MICROVM_IMAGE_VERSION ?? '').trim() || null,
+      executionRoleArn: (env.BERRY_MICROVM_EXECUTION_ROLE_ARN ?? '').trim() || null,
+      idleSeconds: Math.max(60, positiveInt(env.BERRY_MICROVM_IDLE_SECONDS, 900)),
+      suspendedSeconds: positiveInt(env.BERRY_MICROVM_SUSPENDED_SECONDS, 3600),
+      logGroup: (env.BERRY_MICROVM_LOG_GROUP ?? '').trim() || null,
+      credentials:
+         accessKeyId && secretAccessKey
+            ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }
+            : null,
+   };
+}
+
 function agentCore(env: NodeJS.ProcessEnv): AgentCoreConfig | null {
    const region = (
       env.BERRY_AGENTCORE_REGION ??
