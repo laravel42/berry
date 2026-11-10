@@ -88,14 +88,19 @@ export async function seedWorkspaceDefaults(
    // After the pack skills exist, so their labels are all named.
    const skillLabels = await ensureSkillLabelCatalog(sql, workspaceId);
 
-   // The platform row is the deployment's own runtime (syncPlatformRuntime).
-   // Without one there is nothing to bind to, and the agents stay unbound.
+   // A platform row is one of the deployment's own hosts (syncPlatformRuntime);
+   // agents go to the default one. Without any there is nothing to bind to,
+   // and the agents stay unbound.
    const bound = await sql`
       UPDATE agents AS agent
          SET runtime_id = platform.id, updated_at = now()
-        FROM agent_runtimes AS platform
-       WHERE platform.workspace_id = ${workspaceId} AND platform.kind = 'platform'
-         AND agent.workspace_id = ${workspaceId}
+        FROM (
+           SELECT id FROM agent_runtimes
+            WHERE workspace_id = ${workspaceId} AND kind = 'platform'
+            ORDER BY is_default DESC, created_at ASC
+            LIMIT 1
+        ) AS platform
+       WHERE agent.workspace_id = ${workspaceId}
          AND agent.archived_at IS NULL AND agent.runtime_id IS NULL
       RETURNING agent.id`;
 

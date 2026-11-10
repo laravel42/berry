@@ -184,7 +184,7 @@ import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { workstationKiro } from './runtime/workstation-kiro.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
-import { syncPlatformRuntime } from './runtime/runtimes.ts';
+import { syncPlatformRuntime, type RuntimeHosts } from './runtime/runtimes.ts';
 import { ensureDiscovery } from './organization/discovery.ts';
 import { ensureOrganizationEverywhere } from './organization/provision.ts';
 import { autoseedWorkspace, loadDeploySkills, seedDefaultsEverywhere } from './seed/deploy.ts';
@@ -591,6 +591,53 @@ const defaultTarget: RuntimeTarget | null = config.agentCore?.runtimeArn
        }
      : null;
 
+/**
+ * Every host this deployment can run a task on, so an agent can be bound to
+ * one of them. The default is the first: AgentCore, then MicroVMs, then the
+ * local session router.
+ */
+const runtimeHosts: RuntimeHosts = {
+   default: defaultTarget,
+   all: [
+      ...(config.agentCore?.runtimeArn
+         ? [
+              {
+                 id: null,
+                 driver: 'agentcore' as const,
+                 arn: config.agentCore.runtimeArn,
+                 qualifier: 'DEFAULT',
+                 region: config.agentCore.region,
+                 endpointUrl: null,
+              },
+           ]
+         : []),
+      ...(config.microvm
+         ? [
+              {
+                 id: null,
+                 driver: 'microvm' as const,
+                 arn: config.microvm.imageArn,
+                 qualifier: config.microvm.imageVersion ?? 'ACTIVE',
+                 region: config.microvm.region,
+                 endpointUrl: null,
+              },
+           ]
+         : []),
+      ...(config.runtime.agentRuntimeUrl && (config.runtime.authToken?.length ?? 0) >= 32
+         ? [
+              {
+                 id: null,
+                 driver: 'http' as const,
+                 arn: null,
+                 qualifier: 'DEFAULT',
+                 region: null,
+                 endpointUrl: config.runtime.agentRuntimeUrl,
+              },
+           ]
+         : []),
+   ],
+};
+
 configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
 const hasAgentExecution = (workspaceId: string): Promise<boolean> =>
    agentExecutionAvailable(sql, {
@@ -640,7 +687,7 @@ const releaseTask = (issueId: string) =>
       {
          sql,
          transport: { stop: (input) => transport.stop(input) },
-         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, defaultTarget),
+         target: (workspaceId, runtimeId) => resolveTarget(sql, workspaceId, runtimeId, runtimeHosts),
          previews: previewEnvironments,
          report: (message, fields) => logger.info(message, fields),
       },
@@ -703,6 +750,7 @@ const executor = new RuntimeTaskExecutor({
         sql,
         transport,
         defaultTarget,
+        hosts: runtimeHosts,
         recordUsage,
         builder: new EnvelopeBuilder({
            sql,
@@ -851,7 +899,7 @@ const executor = new RuntimeTaskExecutor({
 
 // Every workspace sees the deployment's own runtime as a row it can bind
 // agents to and probe. A failure here costs the listing, never the boot.
-await syncPlatformRuntime(sql, defaultTarget).catch((error: unknown) =>
+await syncPlatformRuntime(sql, runtimeHosts).catch((error: unknown) =>
    logger.error('could not sync the platform runtime', {
       error: error instanceof Error ? error.message : String(error),
    })
@@ -916,7 +964,7 @@ const cancelPersonalRuntimeRun = async (runId: string): Promise<void> => {
       if (!(error instanceof RunTerminal)) throw error;
    });
    if (!run.runtime_session_id) return;
-   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, defaultTarget);
+   const target = await resolveTarget(sql, run.workspace_id, run.runtime_id, runtimeHosts);
    const stop = transport.stopStrict;
    if (!target || !stop) throw new Error('the runtime session stop cannot be confirmed');
    await stop({ target, runtimeSessionId: run.runtime_session_id });
@@ -943,7 +991,7 @@ registry.registerAll(
       autoseed: async (workspaceId) =>
          autoseedWorkspace(sql, workspaceId, {
             skills: deploySkills,
-            syncRuntime: () => syncPlatformRuntime(sql, defaultTarget, { workspaceId }),
+            syncRuntime: () => syncPlatformRuntime(sql, runtimeHosts, { workspaceId }),
             onError: (step, error) =>
                logger.error('could not autoseed workspace', {
                   workspaceId,
@@ -1282,6 +1330,7 @@ registry.registerAll(
          });
       },
       defaultTarget,
+      hosts: runtimeHosts,
       health: async (target) => {
          if (target.driver === 'http') {
             const response = await fetch(`${(target.endpointUrl ?? '').replace(/\/+$/, '')}/ping`, {

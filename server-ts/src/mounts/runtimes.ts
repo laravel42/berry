@@ -35,7 +35,9 @@ import {
    RuntimeProtected,
    RuntimeRepository,
    RuntimeSealingUnavailable,
+   singleHost,
    type ProfileView,
+   type RuntimeHosts,
    type RuntimeView,
 } from '../runtime/runtimes.ts';
 import type { RuntimeTarget } from '../runtime/transport.ts';
@@ -178,6 +180,8 @@ export function runtimeMounts(options: {
    health: (target: RuntimeTarget) => Promise<void>;
    /** The deployment's own runtime, which a platform row stands for. */
    defaultTarget?: RuntimeTarget | null;
+   /** Every host the deployment runs; a platform row stands for the one of its driver. */
+   hosts?: RuntimeHosts;
    /** Writes a session lifecycle onto an AgentCore runtime. Absent without AgentCore. */
    applyLifecycle?: (arn: string, lifecycle: Lifecycle) => Promise<void>;
    /** Cancels an active run after its personal runtime connection is removed. */
@@ -762,7 +766,7 @@ export function runtimeMounts(options: {
       const user = context.get('user');
       const workspaceId = await scope(user.id, user.currentWorkspaceId, false);
       const view = await guard(repository.get(workspaceId, pathId(context.req.param('id'), 'Runtime')));
-      const target = repository.target(view, options.defaultTarget ?? null);
+      const target = repository.target(view, options.hosts ?? singleHost(options.defaultTarget ?? null));
       let error: string | null = target ? null : 'no runtime is configured behind this entry';
       if (target) {
          await options.health(target).catch((cause: unknown) => {
