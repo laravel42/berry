@@ -31,7 +31,10 @@ export function ProjectSidePanel({
    if (openPanel === 'hidden') return null;
 
    return (
-      <aside className="hidden xl:flex w-[380px] shrink-0 border-l h-full overflow-hidden bg-container">
+      <aside
+         data-detail-sidebar
+         className="hidden xl:flex w-[380px] shrink-0 border-l h-full overflow-hidden bg-container"
+      >
          {openPanel === 'insights' ? (
             <InsightsPanel issues={insightsIssues ?? issues} />
          ) : (

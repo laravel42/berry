@@ -55,7 +55,7 @@ export function IssueTitle({ issue }: { issue: Issue }) {
 
    if (!editing) {
       return (
-         <h1 className="min-w-0 text-balance font-display tracking-[-0.025em]">
+         <h1 data-detail-title className="min-w-0 text-balance font-display tracking-[-0.025em]">
             <button
                type="button"
                className="w-full cursor-text rounded-sm text-left outline-none hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/50"
@@ -74,6 +74,7 @@ export function IssueTitle({ issue }: { issue: Issue }) {
          value={draft}
          aria-label={t('edit')}
          data-heading="h1"
+         data-detail-title
          rows={1}
          className="field-sizing-content w-full resize-none overflow-hidden text-balance bg-transparent font-display tracking-[-0.025em] outline-none"
          onChange={(event) => setDraft(event.target.value)}

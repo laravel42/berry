@@ -66,9 +66,9 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-6 overflow-x-hidden overflow-y-auto">
+         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto">
             <Section title={t('title')}>
-               <div className="flex flex-col gap-0.375">
+               <div className="flex flex-col gap-0.75">
                   <AssigneeUser
                      user={issue.assignee}
                      issueId={issue.id}

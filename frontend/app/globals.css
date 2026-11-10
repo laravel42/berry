@@ -1026,6 +1026,37 @@ input[type='search'] {
    font-size: var(--text-base);
 }
 
+/* A task's or project's own page is where its text is read at length, so
+   the description reads a step up from the interface and the title leads. */
+[data-detail-description] .tiptap-ai-editor .ProseMirror {
+   font-size: var(--text-base);
+}
+
+[data-detail-title] {
+   font-size: 1.5rem;
+   line-height: 1.25;
+}
+
+/* The properties sidebar beside them, and the sections under the
+   description (a project's plan, milestones, tasks and updates; a task's
+   sub-tasks and activity), read at the same step.
+   Their controls take that size rather than their own, and section labels
+   stay one step below what they head. */
+[data-detail-sidebar],
+[data-detail-body] {
+   font-size: var(--text-base);
+   line-height: var(--text-base--line-height);
+}
+
+:is([data-detail-sidebar], [data-detail-body])
+   :is(button, input, textarea, select):not([data-detail-title]) {
+   font-size: inherit;
+}
+
+:is([data-detail-sidebar], [data-detail-body]) [data-heading='label'] {
+   font-size: var(--text-xs);
+}
+
 /* A create dialog's title sits a step above the h1 scale, so it leads. */
 [data-heading][data-create-title] {
    font-size: var(--text-xl);

@@ -40,7 +40,10 @@
       "upload": "Attach a file",
       "uploading": "Uploading…",
       "dropHere": "Drop files to attach them",
-      "uploadFailed": "The file could not be attached."
+      "uploadFailed": "The file could not be attached.",
+      "copy": "Copy description",
+      "nothingToCopy": "Nothing to copy",
+      "copyFailed": "The clipboard could not be reached."
    },
    "viewer": {
       "label": "Images on this task",

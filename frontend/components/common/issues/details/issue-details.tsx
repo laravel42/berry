@@ -244,7 +244,10 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   onScroll={(event) => rememberScroll(scrollKey, event.currentTarget.scrollTop)}
                   className="min-h-0 flex-1 overflow-y-auto"
                >
-                  <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5">
+                  <div
+                     data-detail-body
+                     className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5"
+                  >
                      <div className="flex flex-col gap-3">
                         <IssueTitle issue={issue} />
                         {/* Below `lg` the side panel has no room, so the same
@@ -260,6 +263,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                            </SheetTrigger>
                            <SheetContent
                               side="right"
+                              data-detail-sidebar
                               className="w-[min(320px,90vw)] gap-3 bg-container px-5 pt-4 pb-3.5 lg:hidden"
                               overlayClassName="lg:hidden"
                               aria-describedby={undefined}
@@ -321,7 +325,10 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
             </div>
 
             {sidebarOpen ? (
-               <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-3 pb-3.5 lg:flex">
+               <aside
+                  data-detail-sidebar
+                  className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-3 pb-3.5 lg:flex"
+               >
                   <div className="mb-3 flex justify-end">
                      <IssueQuickActions issueRef={issue.identifier} />
                   </div>

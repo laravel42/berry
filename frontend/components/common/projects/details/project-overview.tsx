@@ -1,5 +1,6 @@
 'use client';
 
+import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
 import { Button } from '@/components/ui/button';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
@@ -100,20 +101,26 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
       >
          <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-y-auto">
-               <div className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8">
+               <div
+                  className="mx-auto max-w-3xl px-6 py-6 pb-4 sm:px-8 sm:py-8"
+                  data-detail-description
+                  data-detail-body
+               >
                   <ProjectTitle project={project} />
-                  <TiptapAiEditor
-                     value={description}
-                     onChange={() => undefined}
-                     onBlur={(markdown) => {
-                        if (markdown.trim() === description.trim()) return;
-                        updateProjectDescription(project.id, markdown);
-                     }}
-                     placeholder="Add description…"
-                     aria-label="Project description"
-                     className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold"
-                     aiAssist={false}
-                  />
+                  <CollapsibleDescription>
+                     <TiptapAiEditor
+                        value={description}
+                        onChange={() => undefined}
+                        onBlur={(markdown) => {
+                           if (markdown.trim() === description.trim()) return;
+                           updateProjectDescription(project.id, markdown);
+                        }}
+                        placeholder="Add description…"
+                        aria-label="Project description"
+                        className="min-h-24 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold"
+                        aiAssist={false}
+                     />
+                  </CollapsibleDescription>
                   <div className="-mt-0.5 flex justify-end">
                      <Button
                         type="button"
@@ -210,7 +217,10 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
             </div>
          </div>
 
-         <aside className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex">
+         <aside
+            data-detail-sidebar
+            className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-6 pb-3.5 lg:flex"
+         >
             <ProjectPropertiesPanel project={project} detail={detail} issues={issues} compact />
          </aside>
       </div>
