@@ -209,7 +209,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                      <Menu size={16} strokeWidth={1.8} aria-hidden="true" />
                   </button>
                </div>
-               <div className="pointer-events-none fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] bottom-[calc(var(--app-inset-b)+0.25rem+2px)] z-50 flex h-9 items-center gap-2 *:pointer-events-auto">
+               <div className="pointer-events-none fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] bottom-[calc(var(--app-inset-b)+1rem+2px)] z-50 flex h-9 items-center gap-2 *:pointer-events-auto">
                   <ShellChatButton />
                </div>
             </div>

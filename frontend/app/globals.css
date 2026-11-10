@@ -30,15 +30,20 @@
    --font-display:
       var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-weight-normal: 300;
-   /* The body size. 13px with 1.2 line spacing, per the house style; every
-      other step below keeps its own measure. */
-   --text-xs: 0.8125rem;
+   /* The body size, 16px: `body` applies `text-xs`, so this step is what the
+      interface reads at, and every step below keeps its own measure.
+      The three steps above it moved with it rather than being left where they
+      were: `sm` carries h3/h4, `base` carries h2 and `lg` carries h1, so a
+      body size raised past them would have left a heading smaller than the
+      paragraph under it. `xl` and up are unchanged, which does compress the
+      top of the ladder — `lg` to `xl` is now 20px to 22px. */
+   --text-xs: 1rem;
    --text-xs--line-height: 1.45;
-   --text-sm: 0.8125rem;
+   --text-sm: 1rem;
    --text-sm--line-height: 1.45;
-   --text-base: 0.9375rem;
+   --text-base: 1.125rem;
    --text-base--line-height: 1.4;
-   --text-lg: 1.0625rem;
+   --text-lg: 1.25rem;
    --text-lg--line-height: 1.35;
    --text-xl: 1.375rem;
    --text-xl--line-height: 1.3;
@@ -617,6 +622,16 @@
       line-height: var(--text-3xl--line-height);
    }
 
+   /* Avatar initials, 14px: the one lettering the body size must not reach.
+      The fallback span fills a circle as small as 20px, so at the 16px body
+      size two capitals touch its edges — and unlike a label it cannot wrap or
+      truncate to cope. Line height is 1 for the same reason: the glyphs are
+      centred by the flex box around them, not by a leading. */
+   [data-slot='avatar-fallback'] {
+      font-size: 0.875rem;
+      line-height: 1;
+   }
+
    /* Titles stay on the interface face. Write the words as they should read;
       do not capitalize here — that rewrites identifiers (BER-286, API).
       Section labels are 11.5 / 700 in sentence case. */
@@ -1108,8 +1123,9 @@ input[type='search'] {
 /* ── .spark: a control worth noticing ────────────────────────────────
    Ledger redesign recipe (berry-redesign/ledger/components.css) ported to
    this theme's own tokens instead of the kit's --accent/--raised/--line-2.
-   A light travels the border in the brand berry (--pri-a → --pri-b) rather
-   than the rainbow sweep this replaced, and the label takes
+   A light travels the border in the brand berry (--spark-edge → --pri-b)
+   rather than the rainbow sweep this replaced, the control casts a berry
+   bloom on what is behind it, and the label takes
    --primary-text. This is for a SECONDARY control that invites an AI
    action — "Create with agent", "AI Workflow", "Fix with AI" — never the
    primary action on a screen, which already carries the gradient fill
@@ -1136,6 +1152,20 @@ input[type='search'] {
    position: relative;
    color: var(--primary-text);
    background: var(--card);
+
+   /* Art-directed, so named here rather than inlined below: `--spark-edge` is
+      the leading edge of the travelling light, a tint above --pri-a, and
+      `--spark-glow` is the bloom the control casts on the surface behind it.
+      Both are off the token scale on purpose and do not follow the theme. */
+   --spark-edge: #ff8dac;
+   --spark-glow: #9e1f45;
+   box-shadow: 0 0 24px 2px var(--spark-glow);
+
+   /* This control carries its own box: the recipe is drawn at one size, so
+      `size` sets only the gap on it. `height: auto` is what lets the padding
+      decide, over the fixed height a `size` utility would otherwise set. */
+   height: auto;
+   padding: 10px 20px;
 }
 
 .spark:hover {
@@ -1153,7 +1183,7 @@ input[type='search'] {
    background: conic-gradient(
       from var(--spark, 0deg),
       transparent 0 54%,
-      var(--pri-a) 76%,
+      var(--spark-edge) 76%,
       var(--pri-b) 84%,
       transparent 96%
    );
@@ -1171,6 +1201,9 @@ input[type='search'] {
 .spark.on {
    color: var(--foreground);
    background: var(--background);
+   /* The bloom goes with the ring: a selected control that still glowed
+      would read as pending rather than as chosen. */
+   box-shadow: none;
 }
 
 .spark.on::after {
