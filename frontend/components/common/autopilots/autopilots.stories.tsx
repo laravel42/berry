@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { expect, fn, waitFor, within } from 'storybook/test';
+import { expect, fn, waitFor } from 'storybook/test';
 import {
    autopilots,
    liveAgents,
@@ -9,7 +9,6 @@ import {
 } from '@/components/common/agents/stories-fixtures';
 import type { Autopilot } from '@/lib/autopilots';
 import Autopilots from './autopilots';
-import { DEFAULT_AUTOPILOT_CRITERIA } from './autopilots-filters';
 
 const assigneeName = (autopilot: Autopilot) =>
    liveAgents.find((agent) => agent.id === autopilot.assigneeId)?.name ?? 'Someone who is gone';
@@ -22,7 +21,6 @@ const meta = {
       autopilots,
       loaded: true,
       error: null,
-      criteria: DEFAULT_AUTOPILOT_CRITERIA,
       assigneeName,
       canEdit: true,
       onChanged: fn(),
@@ -54,32 +52,13 @@ export const List: Story = {
    },
 };
 
-/** Every column, newest first. */
-export const AllColumns: Story = {
-   args: {
-      criteria: {
-         sort: 'created',
-         sortDescending: true,
-         columns: ['status', 'trigger', 'lastRun', 'nextRun', 'mode', 'quota', 'updated'],
-      },
-   },
-};
-
-export const PauseFromMenu: Story = {
-   play: async ({ args, canvas, canvasElement, userEvent }) => {
-      const [firstMenu] = canvas.getAllByRole('button', { name: 'Loop actions' });
-      await userEvent.click(firstMenu!);
-      const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Pause' }));
+/** The switch on a card pauses its Loop in place. */
+export const PauseFromSwitch: Story = {
+   play: async ({ args, canvas, userEvent }) => {
+      const [firstSwitch] = canvas.getAllByRole('switch', { name: 'Pause' });
+      await userEvent.click(firstSwitch!);
       // PATCH /api/v1/autopilots/:id answers from MSW; then the page re-reads.
       await waitFor(() => expect(args.onChanged).toHaveBeenCalled());
-   },
-};
-
-export const BulkSelection: Story = {
-   play: async ({ canvas, userEvent }) => {
-      await userEvent.click(canvas.getByRole('checkbox', { name: 'Select every loop' }));
-      await expect(canvas.getByText('4 selected')).toBeVisible();
    },
 };
 

@@ -1,19 +1,29 @@
 'use client';
 
-import { ChevronLeft, Copy, Play } from 'lucide-react';
+import {
+   Archive,
+   ArchiveRestore,
+   Copy,
+   FileStack,
+   MoreHorizontal,
+   Pause,
+   Play,
+   TriangleAlert,
+} from 'lucide-react';
 import Link from 'next/link';
-import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
-import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { useFormatter, useTranslations } from 'next-intl';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { draftFromAutopilot } from '@/components/common/autopilots/autopilot-dialog';
+import { DeliveriesTable } from '@/components/common/autopilots/history-tabs';
 import { EmptyStateLoading } from '@/components/common/empty-state';
-import AutopilotDialog from '@/components/common/autopilots/autopilot-dialog';
-import { DeliveriesTable, RunsTable } from '@/components/common/autopilots/history-tabs';
-import TriggersTab from '@/components/common/autopilots/triggers-tab';
 import EventReceipts from '@/components/common/loops/event-receipts';
-import LoopRunStateBadge from '@/components/common/loops/run-state-badge';
+import { SectionCard, SoonPill } from '@/components/common/loops/loop-editor-parts';
+import LoopTriggerCard from '@/components/common/loops/loop-trigger-card';
+import { LoopEditorFields, draftReady } from '@/components/common/loops/loop-editor-fields';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import {
    AlertDialog,
@@ -26,45 +36,79 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+   DropdownMenu,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuSeparator,
+   DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import type { User } from '@/data/users';
 import { useAutopilot } from '@/hooks/use-autopilot';
 import {
    archiveAutopilot,
    describeAutopilotFailure,
+   describeReason,
    duplicateAutopilot,
    restoreAutopilot,
    runAutopilot,
    updateAutopilot,
-   type AutopilotDetail as Autopilot,
+   type AutopilotDraft,
+   type AutopilotRun,
+   type LoopRunState,
 } from '@/lib/autopilots';
 import { boardsIn, listBoards, type BoardSummary } from '@/lib/boards';
 import { WORKSPACE_SLUG } from '@/lib/config';
+import { loadWorkspaceMembers } from '@/lib/members';
 import { agentHasRuntime, getAgentCoverage, type AgentCoverage } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
 
-const TABS = ['overview', 'triggers', 'runs', 'events', 'deliveries'] as const;
-type DetailTab = (typeof TABS)[number];
+/** Runs shown before "Show all". */
+const RUNS_SHOWN = 8;
 
-const isTab = (value: string | null): value is DetailTab =>
-   value !== null && (TABS as readonly string[]).includes(value);
+/** A run's dot, by how it ended (or that it has not). */
+const RUN_DOT: Record<LoopRunState, string> = {
+   queued: 'bg-status-neutral',
+   running: 'bg-status-warning animate-pulse',
+   waiting_for_approval: 'bg-status-warning',
+   succeeded: 'bg-status-success',
+   failed: 'bg-status-danger',
+   canceled: 'bg-status-neutral',
+   timed_out: 'bg-status-danger',
+   skipped: 'bg-status-neutral',
+};
+
+function sameDraft(left: AutopilotDraft, right: AutopilotDraft): boolean {
+   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function formatDuration(ms: number): string {
+   const seconds = Math.max(0, Math.round(ms / 1000));
+   if (seconds < 60) return `${seconds}s`;
+   const minutes = Math.floor(seconds / 60);
+   if (minutes < 60) return `${minutes}m ${String(seconds % 60).padStart(2, '0')}s`;
+   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
 
 /**
- * One autopilot: whether it is on, what it will do, and everything it has
- * already done.
+ * One Loop, as the page it is edited on.
  *
- * Identity and the one primary action stay above the fold. Tabs carry the
- * work of configuring triggers and reading history — never the fact of what
- * this autopilot is.
+ * What it is (General), what starts it (Trigger), what it is told
+ * (Instructions) and what it may do (Access, Limits) sit on the left; what it
+ * has done (Run history) and the facts about it on the right. Fields are a
+ * draft until Save; a trigger is created or changed the moment it is, because
+ * the server keeps triggers apart from the Loop's own fields.
+ *
+ * Sections Berry cannot honour yet are shown dimmed and marked "Soon", so the
+ * page is complete without pretending.
  */
 export default function AutopilotDetail({ autopilotId }: { autopilotId: string }) {
    const t = useTranslations('loops');
+   const te = useTranslations('loops.editor');
    const router = useRouter();
-   const pathname = usePathname();
-   const searchParams = useSearchParams();
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId || WORKSPACE_SLUG;
    const inDrawer = useInDetailDrawer();
@@ -74,23 +118,30 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    const agents = useAgentsStore((state) => state.agents);
 
    const { autopilot, runs, deliveries, error, loading, reload } = useAutopilot(autopilotId);
-   const [editing, setEditing] = useState(false);
    const [archiving, setArchiving] = useState(false);
    const [coverage, setCoverage] = useState<AgentCoverage | null>(null);
    const [boards, setBoards] = useState<BoardSummary[]>([]);
+   const [people, setPeople] = useState<User[]>([]);
    const [busy, setBusy] = useState(false);
+   const [saving, setSaving] = useState(false);
+   const [allRuns, setAllRuns] = useState(false);
 
-   const view: DetailTab = isTab(searchParams?.get('view') ?? null)
-      ? (searchParams?.get('view') as DetailTab)
-      : 'overview';
+   // The draft follows the Loop as it is re-read (a run ending, someone else
+   // saving) until the person changes something; from then it is theirs.
+   const baseline = useMemo(() => (autopilot ? draftFromAutopilot(autopilot) : null), [autopilot]);
+   const [draft, setDraft] = useState<AutopilotDraft | null>(null);
+   const [touched, setTouched] = useState(false);
+   useEffect(() => {
+      if (baseline && !touched) setDraft(baseline);
+   }, [baseline, touched]);
+   const dirty = Boolean(touched && draft && baseline && !sameDraft(draft, baseline));
 
-   const setView = (next: DetailTab) => {
-      const params = new URLSearchParams(searchParams?.toString() ?? '');
-      if (next === 'overview') params.delete('view');
-      else params.set('view', next);
-      const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-   };
+   useEffect(() => {
+      if (!dirty) return;
+      const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+      window.addEventListener('beforeunload', warn);
+      return () => window.removeEventListener('beforeunload', warn);
+   }, [dirty]);
 
    useEffect(() => {
       let cancelled = false;
@@ -107,6 +158,14 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          },
          () => undefined
       );
+      if (workspaceId) {
+         void loadWorkspaceMembers(workspaceId).then(
+            (found) => {
+               if (!cancelled) setPeople(found);
+            },
+            () => undefined
+         );
+      }
       return () => {
          cancelled = true;
       };
@@ -116,7 +175,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       return <EmptyStateLoading label={t('detail.loading')} />;
    }
 
-   if (error || !autopilot) {
+   if (error || !autopilot || !draft) {
       return (
          <div className="flex min-h-64 flex-col items-center justify-center gap-4 px-8 py-16 text-center">
             <BerryMark size="lg" tone="neutral" state="crossed" label={t('detail.loadFailed')} />
@@ -136,7 +195,9 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       );
    }
 
+   const archived = autopilot.status === 'archived';
    const paused = autopilot.status === 'paused';
+   const editable = canEdit && !archived;
    const assigneeName =
       agents.find((agent) => agent.id === autopilot.assigneeId)?.name ?? autopilot.assigneeId;
    const runsOn = autopilot.assigneeType === 'agent' ? autopilot.assigneeId : undefined;
@@ -146,6 +207,13 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       : paused
         ? 'paused'
         : null;
+   const listensForEvents = autopilot.triggerKinds.includes('event');
+   const ready = draftReady(draft);
+
+   const patch = (next: Partial<AutopilotDraft>) => {
+      setTouched(true);
+      setDraft((current) => (current ? { ...current, ...next } : current));
+   };
 
    const act = async (work: () => Promise<unknown>, done: string) => {
       setBusy(true);
@@ -160,6 +228,26 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       }
    };
 
+   const save = async () => {
+      if (!dirty || !ready || saving) return;
+      setSaving(true);
+      try {
+         await updateAutopilot(autopilot.id, draft);
+         toast.success(te('saved'));
+         setTouched(false);
+         reload();
+      } catch (failure) {
+         toast.error(describeAutopilotFailure(failure));
+      } finally {
+         setSaving(false);
+      }
+   };
+
+   const discard = () => {
+      setTouched(false);
+      if (baseline) setDraft(baseline);
+   };
+
    const runNow = () =>
       act(async () => {
          const outcome = await runAutopilot(autopilot.id);
@@ -170,31 +258,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          }
       }, t('detail.queued'));
 
-   const board = boards.find((entry) => entry.id === autopilot.boardId);
-   const quotaLabel =
-      autopilot.quotaPeriod === 'none'
-         ? t('quota.none')
-         : t('quota.some', {
-              count: autopilot.quotaMax ?? 0,
-              period: t(`quota.${autopilot.quotaPeriod}`),
-           });
-
-   const tabLabel: Record<DetailTab, string> = {
-      overview: t('detail.tabOverview'),
-      triggers: t('detail.tabTriggers'),
-      runs: t('detail.tabRuns'),
-      events: t('detail.tabEvents'),
-      deliveries: t('detail.tabDeliveries'),
-   };
-   // Tabs that would only ever be empty for this Loop are left out.
-   const tabs = TABS.filter(
-      (tab) =>
-         (tab !== 'events' || autopilot.triggerKinds.includes('event')) &&
-         (tab !== 'deliveries' ||
-            autopilot.triggerKinds.includes('webhook') ||
-            deliveries.length > 0)
-   );
-
    const duplicate = () =>
       act(
          async () => {
@@ -204,204 +267,281 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
          t('row.duplicated', { name: autopilot.name })
       );
 
+   const restore = () =>
+      act(() => restoreAutopilot(autopilot.id), t('row.restored', { name: autopilot.name }));
+
+   const togglePaused = () =>
+      act(
+         () => updateAutopilot(autopilot.id, { status: paused ? 'active' : 'paused' }),
+         paused ? t('row.resumed') : t('row.paused')
+      );
+
+   const owner = autopilot.createdBy
+      ? (people.find((person) => person.id === autopilot.createdBy)?.name ?? t('row.someone'))
+      : t('row.someone');
+
+   const statePill = (
+      <span
+         className={cn(
+            'inline-flex h-5 shrink-0 items-center gap-1.5 rounded-[5px] bg-accent px-1.5 leading-none',
+            autopilot.status === 'active' ? 'text-status-success' : 'text-muted-foreground'
+         )}
+      >
+         <span
+            className={cn(
+               'size-1.5 rounded-full',
+               autopilot.status === 'active' ? 'bg-status-success' : 'bg-muted-foreground/60'
+            )}
+            aria-hidden
+         />
+         {t(`status.${autopilot.status}`)}
+      </span>
+   );
+
    return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-         <div className="border-b px-8 py-6">
-            {inDrawer ? null : (
-               <Link
-                  href={`/${orgId}/loops`}
-                  className="mb-4 inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
-               >
-                  <ChevronLeft className="size-3.5" aria-hidden />
-                  {t('title')}
-               </Link>
-            )}
+         <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b px-5">
+            <nav aria-label={t('title')} className="flex min-w-0 items-center gap-2.5">
+               {inDrawer ? null : (
+                  <>
+                     <Link
+                        href={`/${orgId}/loops`}
+                        data-heading="h1"
+                        className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                     >
+                        {t('title')}
+                     </Link>
+                     <span data-heading="h1" className="text-subtle-foreground" aria-hidden>
+                        /
+                     </span>
+                  </>
+               )}
+               <h1 className="m-0 truncate">{autopilot.name}</h1>
+            </nav>
+            {statePill}
 
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-               <div className="flex min-w-0 gap-4">
-                  <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-muted/40">
-                     <BerryMark
-                        size="lg"
-                        tone={paused ? 'neutral' : 'working'}
-                        state={paused ? 'hollow' : undefined}
-                        label={autopilot.name}
-                     />
-                  </span>
-                  <div className="min-w-0">
-                     <div className="flex flex-wrap items-center gap-2">
-                        <h1 className="font-medium leading-none">{autopilot.name}</h1>
-                        <span
-                           className={cn(
-                              'inline-flex items-center gap-1.5 rounded-md border px-2 py-1',
-                              paused
-                                 ? 'border-border/70 text-muted-foreground'
-                                 : 'border-border/70 text-foreground'
-                           )}
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+               {dirty ? (
+                  <>
+                     <span className="hidden text-subtle-foreground md:inline">
+                        {te('unsaved')}
+                     </span>
+                     <Button type="button" variant="ghost" disabled={saving} onClick={discard}>
+                        {te('discard')}
+                     </Button>
+                  </>
+               ) : null}
+               <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={busy || blocked !== null || !canEdit || archived}
+                  title={blocked ? t(`detail.blocked_${blocked}`) : undefined}
+                  onClick={() => void runNow()}
+               >
+                  <Play className="size-3" aria-hidden />
+                  {t('detail.runNow')}
+               </Button>
+               {canEdit ? (
+                  <DropdownMenu>
+                     <DropdownMenuTrigger asChild>
+                        <Button
+                           type="button"
+                           variant="secondary"
+                           size="icon"
+                           className="size-[30px]"
+                           aria-label={t('row.menu')}
+                           disabled={busy}
                         >
-                           <span
-                              className={cn(
-                                 'size-1.5 rounded-full',
-                                 paused ? 'bg-muted-foreground/40' : 'bg-status-success'
-                              )}
-                              aria-hidden
+                           <MoreHorizontal className="size-4" aria-hidden />
+                        </Button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent align="end" className="min-w-52">
+                        {archived ? (
+                           <DropdownMenuItem onClick={() => void restore()}>
+                              <ArchiveRestore className="size-4" aria-hidden />
+                              {t('row.restore')}
+                           </DropdownMenuItem>
+                        ) : (
+                           <>
+                              <DropdownMenuItem onClick={() => void duplicate()}>
+                                 <Copy className="size-4" aria-hidden />
+                                 {t('row.duplicate')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem disabled>
+                                 <FileStack className="size-4" aria-hidden />
+                                 {te('saveAsTemplate')}
+                                 <span className="ml-auto">
+                                    <SoonPill />
+                                 </span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => void togglePaused()}>
+                                 {paused ? (
+                                    <Play className="size-4" aria-hidden />
+                                 ) : (
+                                    <Pause className="size-4" aria-hidden />
+                                 )}
+                                 {paused ? t('row.resume') : t('row.pause')}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                 className="text-status-danger focus:text-status-danger"
+                                 onClick={() => setArchiving(true)}
+                              >
+                                 <Archive className="size-4" aria-hidden />
+                                 {t('row.delete')}
+                              </DropdownMenuItem>
+                           </>
+                        )}
+                     </DropdownMenuContent>
+                  </DropdownMenu>
+               ) : (
+                  <span className="text-muted-foreground">{t('row.locked')}</span>
+               )}
+               {editable ? (
+                  <Button
+                     type="button"
+                     disabled={!dirty || !ready || saving}
+                     title={dirty && !ready ? te('incomplete') : undefined}
+                     onClick={() => void save()}
+                  >
+                     {saving ? te('saving') : te('save')}
+                  </Button>
+               ) : null}
+            </div>
+         </header>
+
+         <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="mx-auto flex w-full max-w-[1160px] flex-col gap-5">
+               {blocked === 'noRuntime' ? (
+                  <Banner tone="warning">
+                     {t('detail.noRuntimeBanner', { name: assigneeName })}{' '}
+                     <span className="text-muted-foreground">{t('detail.noRuntimeHint')}</span>{' '}
+                     <Link
+                        href={`/${orgId}/settings/runtimes`}
+                        className="underline underline-offset-2"
+                     >
+                        {t('detail.runtimesLink')}
+                     </Link>
+                  </Banner>
+               ) : null}
+               {archived ? (
+                  <Banner
+                     tone="neutral"
+                     action={
+                        canEdit ? (
+                           <Button
+                              size="xs"
+                              variant="secondary"
+                              disabled={busy}
+                              onClick={() => void restore()}
+                           >
+                              {t('row.restore')}
+                           </Button>
+                        ) : null
+                     }
+                  >
+                     {t('detail.archivedBanner')}
+                  </Banner>
+               ) : null}
+
+               <div className="grid items-start gap-5 lg:grid-cols-3">
+                  <div className="flex min-w-0 flex-col gap-5 lg:col-span-2">
+                     <LoopEditorFields
+                        draft={draft}
+                        onPatch={patch}
+                        editable={editable}
+                        boards={boards}
+                        coverage={coverage}
+                        listensForEvents={listensForEvents}
+                        trigger={
+                           <LoopTriggerCard
+                              autopilot={autopilot}
+                              canEdit={editable}
+                              onChanged={reload}
                            />
-                           {t(`status.${autopilot.status}`)}
-                        </span>
-                     </div>
-                     <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
-                        <span className="truncate">{assigneeName}</span>
-                        <span aria-hidden>·</span>
-                        <span>{t(`access.${autopilot.accessMode}`)}</span>
-                        <span aria-hidden>·</span>
-                        <span>{t(`mode.${autopilot.executionMode}`)}</span>
-                        <span aria-hidden>·</span>
-                        <span>{t('detail.version', { version: autopilot.version })}</span>
-                     </p>
+                        }
+                     />
+                  </div>
+
+                  <div className="flex min-w-0 flex-col gap-5">
+                     <RunHistory
+                        runs={runs}
+                        orgId={orgId}
+                        all={allRuns}
+                        onShowAll={() => setAllRuns(true)}
+                     />
+
+                     <SectionCard title={te('versions')} hint={te('versionsHint')}>
+                        <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2.5 border-t border-border/60 px-4 py-2.5">
+                           <span className="font-medium">v{autopilot.version}</span>
+                           <span className="flex min-w-0 flex-col">
+                              <span className="truncate text-muted-foreground">
+                                 {te('currentVersion')}
+                              </span>
+                              <span className="truncate text-subtle-foreground">
+                                 {new Date(autopilot.updatedAt).toLocaleDateString()}
+                              </span>
+                           </span>
+                           <span className="text-status-success">{te('live')}</span>
+                        </div>
+                        <p className="flex items-center gap-2 border-t border-border/60 px-4 py-2.5 text-subtle-foreground">
+                           {te('versionHistory')}
+                           <SoonPill />
+                        </p>
+                     </SectionCard>
+
+                     <section
+                        className="overflow-hidden rounded-[10px] bg-settings-group"
+                        aria-label={te('details')}
+                     >
+                        <dl>
+                           <Detail label={te('owner')}>{owner}</Detail>
+                           <Detail label={t('detail.created')}>
+                              {new Date(autopilot.createdAt).toLocaleDateString()}
+                           </Detail>
+                           <Detail label={te('runs7')}>
+                              {autopilot.activity.failedLast7Days > 0
+                                 ? te('runsFailed', {
+                                      runs: autopilot.activity.runsLast7Days,
+                                      failed: autopilot.activity.failedLast7Days,
+                                   })
+                                 : autopilot.activity.runsLast7Days}
+                           </Detail>
+                           <Detail label={te('credits30')}>
+                              <span className="flex items-center gap-2">
+                                 —<SoonPill />
+                              </span>
+                           </Detail>
+                        </dl>
+                     </section>
                   </div>
                </div>
 
-               <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  {canEdit ? (
-                     <label className="mr-1 flex items-center gap-2 rounded-md border border-border/70 px-2.5 py-1.5">
-                        <Switch
-                           checked={!paused}
-                           disabled={busy}
-                           aria-label={t('detail.active')}
-                           onCheckedChange={(on) =>
-                              void act(
-                                 () =>
-                                    updateAutopilot(autopilot.id, {
-                                       status: on ? 'active' : 'paused',
-                                    }),
-                                 on ? t('row.resumed') : t('row.paused')
-                              )
-                           }
+               {listensForEvents ? (
+                  <SectionCard title={t('detail.tabEvents')}>
+                     <div className="border-t border-border/60">
+                        <EventReceipts
+                           autopilotId={autopilot.id}
+                           orgId={orgId}
+                           refresh={runs.length}
                         />
-                        <span className="text-muted-foreground">{t('detail.active')}</span>
-                     </label>
-                  ) : (
-                     <span className="text-muted-foreground">{t('row.locked')}</span>
-                  )}
-                  <Button
-                     type="button"
-                     size="sm"
-                     disabled={busy || blocked !== null || !canEdit}
-                     title={blocked ? t(`detail.blocked_${blocked}`) : undefined}
-                     onClick={() => void runNow()}
-                  >
-                     <Play className="size-3.5" aria-hidden />
-                     {t('detail.runNow')}
-                  </Button>
-                  {canEdit ? (
-                     <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => setEditing(true)}
-                     >
-                        {t('detail.edit')}
-                     </Button>
-                  ) : null}
-                  {canEdit ? (
-                     <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => void duplicate()}
-                        aria-label={t('row.duplicate')}
-                        title={t('row.duplicate')}
-                     >
-                        <Copy className="size-3.5" aria-hidden />
-                     </Button>
-                  ) : null}
-               </div>
+                     </div>
+                  </SectionCard>
+               ) : null}
+               {autopilot.triggerKinds.includes('webhook') || deliveries.length > 0 ? (
+                  <SectionCard title={t('detail.tabDeliveries')}>
+                     <div className="border-t border-border/60">
+                        <DeliveriesTable
+                           autopilotId={autopilot.id}
+                           deliveries={deliveries}
+                           canReplay={canEdit}
+                           onReplayed={reload}
+                        />
+                     </div>
+                  </SectionCard>
+               ) : null}
             </div>
-
-            {blocked === 'noRuntime' ? (
-               <p
-                  className="mt-4 flex flex-wrap items-center gap-2 rounded-md border border-status-warning/40 bg-status-warning/5 px-3 py-2"
-                  role="status"
-               >
-                  <span>{t('detail.noRuntimeBanner', { name: assigneeName })}</span>
-                  <span className="text-muted-foreground">{t('detail.noRuntimeHint')}</span>
-                  <Link
-                     href={`/${orgId}/settings/runtimes`}
-                     className="underline underline-offset-2"
-                  >
-                     {t('detail.runtimesLink')}
-                  </Link>
-               </p>
-            ) : null}
          </div>
-
-         <Tabs
-            value={view}
-            onValueChange={(value) => setView(value as DetailTab)}
-            className="flex min-h-0 flex-1 flex-col"
-         >
-            <div className="border-b px-8">
-               <TabsList className="h-10 gap-1 rounded-none bg-transparent p-0">
-                  {tabs.map((tab) => (
-                     <TabsTrigger
-                        key={tab}
-                        value={tab}
-                        className="rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
-                     >
-                        {tabLabel[tab]}
-                     </TabsTrigger>
-                  ))}
-               </TabsList>
-            </div>
-
-            <div className="min-h-0 flex-1 overflow-auto">
-               {view === 'overview' ? (
-                  <OverviewPanel
-                     autopilot={autopilot}
-                     assigneeName={assigneeName}
-                     boardName={board?.name}
-                     quotaLabel={quotaLabel}
-                     canEdit={canEdit}
-                     busy={busy}
-                     onArchive={() => setArchiving(true)}
-                     onRestore={() =>
-                        void restoreAutopilot(autopilot.id)
-                           .then(() => {
-                              toast.success(t('row.restored', { name: autopilot.name }));
-                              reload();
-                           })
-                           .catch((failure: unknown) =>
-                              toast.error(describeAutopilotFailure(failure))
-                           )
-                     }
-                  />
-               ) : null}
-               {view === 'triggers' ? (
-                  <TriggersTab autopilot={autopilot} canEdit={canEdit} onChanged={reload} />
-               ) : null}
-               {view === 'runs' ? <RunsTable runs={runs} orgId={orgId} /> : null}
-               {view === 'events' ? (
-                  <EventReceipts autopilotId={autopilot.id} orgId={orgId} refresh={runs.length} />
-               ) : null}
-               {view === 'deliveries' ? (
-                  <DeliveriesTable
-                     autopilotId={autopilot.id}
-                     deliveries={deliveries}
-                     canReplay={canEdit}
-                     onReplayed={reload}
-                  />
-               ) : null}
-            </div>
-         </Tabs>
-
-         <AutopilotDialog
-            open={editing}
-            onOpenChange={(open) => {
-               setEditing(open);
-               if (!open) reload();
-            }}
-            autopilot={autopilot}
-         />
 
          <AlertDialog open={archiving} onOpenChange={setArchiving}>
             <AlertDialogContent>
@@ -435,124 +575,135 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
    );
 }
 
-function OverviewPanel({
-   autopilot,
-   assigneeName,
-   boardName,
-   quotaLabel,
-   canEdit,
-   busy,
-   onArchive,
-   onRestore,
+function Banner({
+   tone,
+   action,
+   children,
 }: {
-   autopilot: Autopilot;
-   assigneeName: string;
-   boardName: string | undefined;
-   quotaLabel: string;
-   canEdit: boolean;
-   busy: boolean;
-   onArchive: () => void;
-   onRestore: () => void;
+   tone: 'warning' | 'neutral';
+   action?: ReactNode;
+   children: ReactNode;
 }) {
-   const t = useTranslations('loops');
+   return (
+      <p
+         role="status"
+         className={cn(
+            'flex flex-wrap items-center gap-2.5 rounded-[10px] px-3.5 py-2.5',
+            tone === 'warning'
+               ? 'border border-status-warning/40 bg-status-warning/10'
+               : 'bg-settings-group text-muted-foreground'
+         )}
+      >
+         {tone === 'warning' ? (
+            <TriangleAlert className="size-4 shrink-0 text-status-warning" aria-hidden />
+         ) : (
+            <Archive className="size-4 shrink-0 text-subtle-foreground" aria-hidden />
+         )}
+         <span className="min-w-0 flex-1 text-pretty">{children}</span>
+         {action}
+      </p>
+   );
+}
+
+function Detail({ label, children }: { label: string; children: ReactNode }) {
+   return (
+      <div className="flex h-[38px] items-center justify-between gap-3 border-t border-border/60 px-4 first:border-t-0">
+         <dt className="text-subtle-foreground">{label}</dt>
+         <dd className="truncate text-muted-foreground">{children}</dd>
+      </div>
+   );
+}
+
+/** What the Loop has done, newest first, each run one line that opens it. */
+function RunHistory({
+   runs,
+   orgId,
+   all,
+   onShowAll,
+}: {
+   runs: AutopilotRun[];
+   orgId: string;
+   all: boolean;
+   onShowAll: () => void;
+}) {
+   const te = useTranslations('loops.editor');
+   const tState = useTranslations('loops.runState');
+   const format = useFormatter();
+   const shown = all ? runs : runs.slice(0, RUNS_SHOWN);
 
    return (
-      <div className="mx-auto grid max-w-5xl gap-8 px-8 py-6 lg:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
-         <dl className="flex flex-col gap-4">
-            <div>
-               <dt className="text-muted-foreground">{t('detail.lastRun')}</dt>
-               <dd className="mt-0.5">
-                  {autopilot.activity.lastRun ? (
-                     <LoopRunStateBadge state={autopilot.activity.lastRun.state} />
-                  ) : (
-                     t('row.neverRan')
-                  )}
-               </dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.nextRun')}</dt>
-               <dd className="mt-0.5">
-                  {autopilot.status === 'active' && autopilot.activity.nextFireAt
-                     ? new Date(autopilot.activity.nextFireAt).toLocaleString()
-                     : '—'}
-               </dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.assignee')}</dt>
-               <dd className="mt-0.5 truncate">{assigneeName}</dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.accessMode')}</dt>
-               <dd className="mt-0.5">{t(`access.${autopilot.accessMode}`)}</dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.limits')}</dt>
-               <dd className="mt-0.5">
-                  {[
-                     t(`limits.${autopilot.concurrencyPolicy}`),
-                     autopilot.maxTurns ? t('limits.turns', { count: autopilot.maxTurns }) : null,
-                     autopilot.maxDurationMinutes
-                        ? t('limits.minutes', { count: autopilot.maxDurationMinutes })
-                        : null,
-                     autopilot.triggerKinds.includes('event')
-                        ? t('limits.chain', { count: autopilot.maxChainDepth })
-                        : null,
-                  ]
-                     .filter(Boolean)
-                     .join(' · ')}
-               </dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('columns.mode')}</dt>
-               <dd className="mt-0.5">{t(`mode.${autopilot.executionMode}`)}</dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.project')}</dt>
-               <dd className="mt-0.5 truncate">{boardName ?? '—'}</dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('columns.quota')}</dt>
-               <dd className="mt-0.5">{quotaLabel}</dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.created')}</dt>
-               <dd className="mt-0.5">{new Date(autopilot.createdAt).toLocaleDateString()}</dd>
-            </div>
-            <div>
-               <dt className="text-muted-foreground">{t('detail.updated')}</dt>
-               <dd className="mt-0.5">{new Date(autopilot.updatedAt).toLocaleDateString()}</dd>
-            </div>
-         </dl>
-
-         <div className="flex min-w-0 flex-col gap-8">
-            {autopilot.description ? (
-               <section className="min-w-0">
-                  <p className="text-muted-foreground">{autopilot.description}</p>
-               </section>
-            ) : null}
-            <section className="min-w-0">
-               <h2 className="font-medium">{t('detail.runbook')}</h2>
-               <pre className="mt-3 max-h-[min(28rem,60vh)] overflow-auto whitespace-pre-wrap rounded-md border border-border/70 bg-muted/20 p-4 leading-relaxed text-muted-foreground">
-                  {autopilot.promptTemplate}
-               </pre>
-            </section>
-
-            {canEdit ? (
-               <section className="border-t border-border/70 pt-6">
-                  <h2 className="font-medium">{t('detail.danger')}</h2>
-                  <p className="mt-1 text-muted-foreground">{t('detail.dangerHint')}</p>
-                  <Button
-                     size="sm"
-                     variant="secondary"
-                     className="mt-3"
-                     disabled={busy}
-                     onClick={autopilot.status === 'archived' ? onRestore : onArchive}
-                  >
-                     {autopilot.status === 'archived' ? t('row.restore') : t('row.delete')}
-                  </Button>
-               </section>
-            ) : null}
-         </div>
-      </div>
+      <SectionCard
+         title={te('runHistory')}
+         hint={runs.length > 0 ? te('runCount', { count: runs.length }) : undefined}
+      >
+         {runs.length === 0 ? (
+            <p className="border-t border-border/60 px-4 py-3.5 text-subtle-foreground">
+               {te('noRuns')}
+            </p>
+         ) : (
+            <ul>
+               {shown.map((run) => {
+                  const started = run.startedAt ?? run.createdAt;
+                  const duration = run.completedAt
+                     ? Date.parse(run.completedAt) - Date.parse(started)
+                     : null;
+                  const failed = run.state === 'failed' || run.state === 'timed_out';
+                  const detail =
+                     run.summary ?? (run.reasonCode ? describeReason(run.reasonCode) : null);
+                  return (
+                     <li key={run.id} className="border-t border-border/60">
+                        <Link
+                           href={`/${orgId}/loop/${run.autopilotId}/runs/${run.id}`}
+                           className="grid grid-cols-[6px_minmax(0,1fr)_auto] items-center gap-2.5 px-4 py-2.5 hover:bg-settings-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50"
+                        >
+                           <span
+                              className={cn('size-1.5 rounded-full', RUN_DOT[run.state])}
+                              aria-hidden
+                           />
+                           <span className="flex min-w-0 flex-col gap-px">
+                              <span
+                                 className={cn(
+                                    'truncate',
+                                    failed ? 'text-status-danger' : 'text-foreground'
+                                 )}
+                              >
+                                 {tState(run.state)}
+                                 {detail ? (
+                                    <span className="text-muted-foreground"> · {detail}</span>
+                                 ) : null}
+                              </span>
+                              <time
+                                 className="text-subtle-foreground"
+                                 dateTime={run.createdAt}
+                                 title={new Date(run.createdAt).toLocaleString()}
+                              >
+                                 {format.relativeTime(new Date(run.createdAt))}
+                              </time>
+                           </span>
+                           <span className="tabular-nums text-subtle-foreground">
+                              {duration !== null ? formatDuration(duration) : ''}
+                           </span>
+                        </Link>
+                     </li>
+                  );
+               })}
+            </ul>
+         )}
+         {!all && runs.length > RUNS_SHOWN ? (
+            <button
+               type="button"
+               onClick={onShowAll}
+               className="w-full border-t border-border/60 px-4 py-2.5 text-left text-muted-foreground hover:bg-settings-row-hover hover:text-foreground"
+            >
+               {te('showAllRuns', { count: runs.length })}
+            </button>
+         ) : null}
+         {runs.length > 0 ? (
+            <p className="flex items-center gap-2 border-t border-border/60 px-4 py-2.5 text-subtle-foreground">
+               {te('askAboutRun')}
+               <SoonPill />
+            </p>
+         ) : null}
+      </SectionCard>
    );
 }

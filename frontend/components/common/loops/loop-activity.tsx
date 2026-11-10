@@ -1,6 +1,6 @@
 'use client';
 
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useFormatter, useTranslations } from 'next-intl';
@@ -12,79 +12,76 @@ import { Button } from '@/components/ui/button';
 import { describeAutopilotFailure, retryLoopRun, type WorkspaceLoopRun } from '@/lib/autopilots';
 import { WORKSPACE_SLUG } from '@/lib/config';
 
-interface Props {
-   recent: WorkspaceLoopRun[];
-   attention: WorkspaceLoopRun[];
-   canRetry: boolean;
-   onChanged: () => void;
+function useRunHref() {
+   const params = useParams<{ orgId?: string }>();
+   const orgId = params?.orgId || WORKSPACE_SLUG;
+   return (run: WorkspaceLoopRun) => `/${orgId}/loop/${run.autopilotId}/runs/${run.id}`;
 }
 
 /**
- * What the workspace's Loops have been doing, above the list: failures that
- * still need someone, and the latest runs. Absent when there is neither, so
- * a quiet workspace is not handed two empty boxes.
+ * Failed runs that still need someone, above the Loops. Absent when there are
+ * none: a strip that says "all good" is a strip people learn to skip.
  */
-export default function LoopActivity({ recent, attention, canRetry, onChanged }: Props) {
-   const t = useTranslations('loops.activity');
-   if (recent.length === 0 && attention.length === 0) return null;
-   return (
-      <div className="grid grid-cols-1 gap-3 border-b px-6 py-4 lg:grid-cols-2">
-         {attention.length > 0 ? (
-            <section
-               aria-labelledby="loops-attention"
-               className="min-w-0 rounded-[10px] bg-settings-group"
-            >
-               <h2
-                  id="loops-attention"
-                  data-heading="label"
-                  className="flex items-center gap-2 px-4 pt-3 text-status-danger"
-               >
-                  {t('attention', { count: attention.length })}
-               </h2>
-               <ul className="py-1">
-                  {attention.slice(0, 5).map((run) => (
-                     <ActivityRow
-                        key={run.id}
-                        run={run}
-                        canRetry={canRetry}
-                        onChanged={onChanged}
-                     />
-                  ))}
-               </ul>
-            </section>
-         ) : null}
-         <section
-            aria-labelledby="loops-recent"
-            className={`min-w-0 rounded-[10px] bg-settings-group ${attention.length === 0 ? 'lg:col-span-2' : ''}`}
-         >
-            <h2 id="loops-recent" data-heading="label" className="px-4 pt-3 text-subtle-foreground">
-               {t('recent')}
-            </h2>
-            <ul className="py-1">
-               {recent.slice(0, attention.length > 0 ? 5 : 6).map((run) => (
-                  <ActivityRow key={run.id} run={run} canRetry={false} onChanged={onChanged} />
-               ))}
-            </ul>
-         </section>
-      </div>
-   );
-}
-
-function ActivityRow({
-   run,
+export function LoopAttention({
+   runs,
    canRetry,
    onChanged,
 }: {
-   run: WorkspaceLoopRun;
+   runs: WorkspaceLoopRun[];
    canRetry: boolean;
    onChanged: () => void;
 }) {
    const t = useTranslations('loops.activity');
    const format = useFormatter();
-   const params = useParams<{ orgId?: string }>();
-   const orgId = params?.orgId || WORKSPACE_SLUG;
-   const [busy, setBusy] = useState(false);
+   const href = useRunHref();
+   if (runs.length === 0) return null;
 
+   return (
+      <section
+         aria-labelledby="loops-attention"
+         className="overflow-hidden rounded-xl border border-status-danger/30 bg-status-danger/[0.06]"
+      >
+         <h2
+            id="loops-attention"
+            className="flex items-center gap-2 px-4 pt-3 pb-1 font-medium text-status-danger"
+         >
+            <TriangleAlert className="size-4" aria-hidden />
+            {t('attention', { count: runs.length })}
+         </h2>
+         <ul className="pb-1.5">
+            {runs.slice(0, 5).map((run) => (
+               <li
+                  key={run.id}
+                  className="flex min-w-0 items-center gap-2.5 px-4 py-1.5 hover:bg-status-danger/[0.06]"
+               >
+                  <LoopRunStateBadge state={run.state} compact />
+                  <Link
+                     href={href(run)}
+                     className="flex min-w-0 flex-1 items-baseline gap-2 focus-visible:underline focus-visible:outline-none"
+                  >
+                     <span className="max-w-[45%] shrink-0 truncate font-medium">
+                        {run.autopilotName}
+                     </span>
+                     {run.reasonMessage ? (
+                        <span className="min-w-0 truncate text-muted-foreground">
+                           {run.reasonMessage}
+                        </span>
+                     ) : null}
+                  </Link>
+                  <time className="shrink-0 text-subtle-foreground" dateTime={run.createdAt}>
+                     {format.relativeTime(new Date(run.createdAt))}
+                  </time>
+                  {canRetry ? <RetryButton run={run} onChanged={onChanged} /> : null}
+               </li>
+            ))}
+         </ul>
+      </section>
+   );
+}
+
+function RetryButton({ run, onChanged }: { run: WorkspaceLoopRun; onChanged: () => void }) {
+   const t = useTranslations('loops.activity');
+   const [busy, setBusy] = useState(false);
    const retry = async () => {
       setBusy(true);
       try {
@@ -97,40 +94,67 @@ function ActivityRow({
          setBusy(false);
       }
    };
+   return (
+      <Button
+         size="xs"
+         variant="secondary"
+         disabled={busy}
+         onClick={() => void retry()}
+         aria-label={t('retryNamed', { name: run.autopilotName })}
+      >
+         <RotateCcw className="size-3.5" aria-hidden />
+         {t('retry')}
+      </Button>
+   );
+}
+
+/** The latest runs across every Loop, newest first, as a short timeline. */
+export function RecentLoopRuns({ runs }: { runs: WorkspaceLoopRun[] }) {
+   const t = useTranslations('loops.activity');
+   const format = useFormatter();
+   const href = useRunHref();
 
    return (
-      <li className="group flex min-w-0 items-center gap-2 px-4 py-1.5 hover:bg-settings-row-hover">
-         <LoopRunStateBadge state={run.state} compact />
-         <Link
-            href={`/${orgId}/loop/${run.autopilotId}/runs/${run.id}`}
-            className="flex min-w-0 flex-1 items-center gap-2 focus-visible:outline-none focus-visible:underline"
-         >
-            {/* The name wins the space; the reason takes what is left. */}
-            <span className="max-w-[60%] shrink-0 truncate font-medium">{run.autopilotName}</span>
-            {run.issueIdentifier ? (
-               <span className="shrink-0 text-muted-foreground">{run.issueIdentifier}</span>
-            ) : null}
-            {run.reasonCode ? (
-               <span className="hidden min-w-0 truncate text-muted-foreground sm:inline">
-                  {run.reasonMessage}
-               </span>
-            ) : null}
-         </Link>
-         <time className="shrink-0 text-muted-foreground" dateTime={run.createdAt}>
-            {format.relativeTime(new Date(run.createdAt))}
-         </time>
-         {canRetry ? (
-            <Button
-               size="xs"
-               variant="ghost"
-               disabled={busy}
-               onClick={() => void retry()}
-               aria-label={t('retryNamed', { name: run.autopilotName })}
-            >
-               <RotateCcw className="size-3.5" aria-hidden />
-               {t('retry')}
-            </Button>
-         ) : null}
-      </li>
+      <section aria-labelledby="loops-recent" className="flex min-w-0 flex-col">
+         <h2 id="loops-recent" data-heading="label" className="mb-3 text-subtle-foreground">
+            {t('recent')}
+         </h2>
+         {runs.length === 0 ? (
+            <p className="text-subtle-foreground">{t('noneYet')}</p>
+         ) : (
+            <ol className="relative flex flex-col">
+               {runs.slice(0, 12).map((run, index, shown) => (
+                  <li key={run.id} className="relative flex min-w-0 gap-3 pb-4 last:pb-0">
+                     {index < shown.length - 1 ? (
+                        <span
+                           className="absolute top-5 bottom-0 left-[7px] w-px bg-border"
+                           aria-hidden
+                        />
+                     ) : null}
+                     <LoopRunStateBadge state={run.state} compact className="relative mt-0.5" />
+                     <Link
+                        href={href(run)}
+                        className="flex min-w-0 flex-1 flex-col gap-0.5 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                     >
+                        <span className="truncate font-medium hover:underline">
+                           {run.autopilotName}
+                        </span>
+                        <span className="flex min-w-0 items-center gap-1.5 text-subtle-foreground">
+                           <time dateTime={run.createdAt}>
+                              {format.relativeTime(new Date(run.createdAt))}
+                           </time>
+                           {run.issueIdentifier ? (
+                              <>
+                                 <span aria-hidden>·</span>
+                                 <span className="truncate">{run.issueIdentifier}</span>
+                              </>
+                           ) : null}
+                        </span>
+                     </Link>
+                  </li>
+               ))}
+            </ol>
+         )}
+      </section>
    );
 }

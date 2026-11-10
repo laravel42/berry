@@ -8,9 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import Autopilots from '@/components/common/autopilots/autopilots';
 import AutopilotsFilters, {
-   DEFAULT_AUTOPILOT_CRITERIA,
    useAutopilotFilterColumns,
-   type AutopilotCriteria,
    type AutopilotScope,
 } from '@/components/common/autopilots/autopilots-filters';
 import {
@@ -18,7 +16,7 @@ import {
    ListFilterBar,
    useListFilters,
 } from '@/components/common/filters/list-filters';
-import LoopActivity from '@/components/common/loops/loop-activity';
+import { LoopAttention, RecentLoopRuns } from '@/components/common/loops/loop-activity';
 import { PageKpiHeader, type Kpi } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
@@ -63,7 +61,6 @@ export default function Loops() {
 
    const [people, setPeople] = useState<User[]>([]);
    const [templates, setTemplates] = useState<LoopTemplate[]>([]);
-   const [criteria, setCriteria] = useState<AutopilotCriteria>(DEFAULT_AUTOPILOT_CRITERIA);
    const [filters, setFilters] = useState<FiltersState>([]);
    const [query, setQuery] = useState('');
 
@@ -187,8 +184,6 @@ export default function Loops() {
             ) : null}
          </PageKpiHeader>
          <AutopilotsFilters
-            criteria={criteria}
-            onChange={setCriteria}
             filter={filter}
             scope={scope}
             onScopeChange={(next) => {
@@ -203,47 +198,68 @@ export default function Loops() {
          />
          <ListFilterBar filter={filter} />
          {projectId ? (
-            <div className="flex items-center gap-2 border-b px-6 py-2 text-muted-foreground">
-               {t('projectScope')}
-               <Button asChild size="xs" variant="ghost">
-                  <Link href={`/${orgId}/loops`} aria-label={t('projectScopeClear')}>
+            <div className="flex items-center gap-2 border-b px-6 py-2">
+               <span className="inline-flex h-6 items-center gap-1 rounded-full bg-accent pr-1 pl-2.5 text-muted-foreground">
+                  {t('projectScope')}
+                  <Link
+                     href={`/${orgId}/loops`}
+                     aria-label={t('projectScopeClear')}
+                     className="rounded-full p-0.5 hover:bg-background hover:text-foreground"
+                  >
                      <X className="size-3.5" aria-hidden />
-                     {t('projectScopeClear')}
                   </Link>
-               </Button>
+               </span>
             </div>
          ) : null}
       </>
    );
 
+   const showActivity = scope === 'all' && live.autopilots.length > 0;
+
    return (
       <MainLayout header={header}>
-         <div className="flex h-full min-h-0 flex-col">
-            {scope === 'all' && live.autopilots.length > 0 ? (
-               <LoopActivity
-                  recent={activity.recent}
-                  attention={activity.attention}
-                  canRetry={canEdit}
-                  onChanged={reload}
-               />
-            ) : null}
-            <div className="min-h-0 flex-1">
-               <Autopilots
-                  autopilots={shown}
-                  loaded={source.loaded}
-                  error={source.error}
-                  criteria={criteria}
-                  assigneeName={assigneeName}
-                  canEdit={canEdit}
-                  narrowed={filter.filters.length > 0 || query.trim() !== '' || projectId !== null}
-                  onCriteriaChange={setCriteria}
-                  archived={scope === 'archived'}
-                  templates={templates}
-                  onChanged={reload}
-                  onUseTemplate={(template) =>
-                     router.push(`/${orgId}/loops/new?template=${encodeURIComponent(template.key)}`)
-                  }
-               />
+         <div className="h-full min-h-0 overflow-y-auto">
+            <div
+               className={
+                  showActivity
+                     ? 'grid gap-8 px-6 py-5 xl:grid-cols-[minmax(0,1fr)_18rem]'
+                     : 'px-6 py-5'
+               }
+            >
+               <div className="flex min-w-0 flex-col gap-4">
+                  {showActivity ? (
+                     <LoopAttention
+                        runs={activity.attention}
+                        canRetry={canEdit}
+                        onChanged={reload}
+                     />
+                  ) : null}
+                  <Autopilots
+                     autopilots={shown}
+                     loaded={source.loaded}
+                     error={source.error}
+                     assigneeName={assigneeName}
+                     canEdit={canEdit}
+                     narrowed={
+                        filter.filters.length > 0 || query.trim() !== '' || projectId !== null
+                     }
+                     archived={scope === 'archived'}
+                     templates={templates}
+                     onChanged={reload}
+                     onUseTemplate={(template) =>
+                        router.push(
+                           `/${orgId}/loops/new?template=${encodeURIComponent(template.key)}`
+                        )
+                     }
+                  />
+               </div>
+               {showActivity ? (
+                  <aside className="hidden min-w-0 xl:block">
+                     <div className="sticky top-0">
+                        <RecentLoopRuns runs={activity.recent} />
+                     </div>
+                  </aside>
+               ) : null}
             </div>
          </div>
       </MainLayout>

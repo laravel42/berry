@@ -167,31 +167,38 @@ function AutopilotFrame({
    );
 }
 
+/** An existing Loop's editable fields, in one fixed shape so two drafts compare. */
+export function draftFromAutopilot(autopilot: Autopilot): AutopilotDraft {
+   const { name, description, assigneeType, assigneeId, promptTemplate, executionMode } = autopilot;
+   return {
+      name,
+      description,
+      assigneeType,
+      assigneeId,
+      promptTemplate,
+      executionMode,
+      boardId: autopilot.boardId,
+      projectId: autopilot.projectId,
+      issueId: autopilot.issueId,
+      quotaPeriod: autopilot.quotaPeriod,
+      quotaMax: autopilot.quotaMax,
+      accessMode: autopilot.accessMode,
+      concurrencyPolicy: autopilot.concurrencyPolicy,
+      maxTurns: autopilot.maxTurns,
+      maxDurationMinutes: autopilot.maxDurationMinutes,
+      maxChainDepth: autopilot.maxChainDepth,
+      allowAgentEvents: autopilot.allowAgentEvents,
+      templateKey: autopilot.templateKey,
+   } satisfies AutopilotDraft;
+}
+
 function initialDraft(autopilot?: Autopilot, seed?: LoopSeed | null): AutopilotDraft {
-   if (autopilot) {
-      const { name, description, assigneeType, assigneeId, promptTemplate, executionMode } =
-         autopilot;
-      return {
-         name,
-         description,
-         assigneeType,
-         assigneeId,
-         promptTemplate,
-         executionMode,
-         boardId: autopilot.boardId,
-         projectId: autopilot.projectId,
-         issueId: autopilot.issueId,
-         quotaPeriod: autopilot.quotaPeriod,
-         quotaMax: autopilot.quotaMax,
-         accessMode: autopilot.accessMode,
-         concurrencyPolicy: autopilot.concurrencyPolicy,
-         maxTurns: autopilot.maxTurns,
-         maxDurationMinutes: autopilot.maxDurationMinutes,
-         maxChainDepth: autopilot.maxChainDepth,
-         allowAgentEvents: autopilot.allowAgentEvents,
-         templateKey: autopilot.templateKey,
-      } satisfies AutopilotDraft;
-   }
+   if (autopilot) return draftFromAutopilot(autopilot);
+   return draftFromSeed(seed);
+}
+
+/** A new Loop's fields, from a template, a drafted sentence, or nothing. */
+export function draftFromSeed(seed?: LoopSeed | null): AutopilotDraft {
    return {
       name: seed?.name ?? '',
       description: seed?.description ?? null,
