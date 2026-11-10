@@ -4,7 +4,6 @@ import { Issue } from '@/data/issues';
 import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 import { useRef, type Ref } from 'react';
 import { useDrag } from 'react-dnd';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
@@ -19,8 +18,8 @@ import { motion } from 'motion/react';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
 import { IssueContextMenu } from './issue-context-menu';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { useCyclesStore } from '@/store/cycles-store';
+import { useIssueHref } from './use-issue-href';
 
 function CycleBadge({ cycleId }: { cycleId: string }) {
    const name = useCyclesStore((state) => state.getCycleById(cycleId)?.name);
@@ -67,7 +66,7 @@ function IssueLineView({
    rowRef: Ref<HTMLDivElement>;
    isDragging: boolean;
 }) {
-   const { orgId } = useParams<{ orgId: string }>();
+   const issueHref = useIssueHref();
    const { displayProperties } = useDisplaySettingsStore();
    const liveRun = useIssueLiveRun(issue);
 
@@ -107,7 +106,7 @@ function IssueLineView({
                    what the hover highlight has been promising. The controls
                    above are lifted over it. */}
                <Link
-                  href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
+                  href={issueHref(issue.identifier)}
                   draggable={false}
                   onClick={(event) => {
                      if (isDragging) event.preventDefault();

@@ -6,7 +6,7 @@ import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useIssueHref } from './use-issue-href';
 import { useEffect, useRef, useState } from 'react';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
@@ -17,7 +17,7 @@ import { LabelBadge } from './label-badge';
 import { IssuePriorityPicker } from './issue-pickers';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { IssueContextMenu } from './issue-context-menu';
-import { WORKSPACE_SLUG } from '@/lib/config';
+
 import { cn } from '@/lib/utils';
 
 export const IssueDragType = 'ISSUE';
@@ -96,7 +96,7 @@ export function IssueGrid({
 }: IssueGridProps) {
    const cardRef = useRef<HTMLDivElement>(null);
    const insertBeforeIdRef = useRef<string | null | undefined>(undefined);
-   const { orgId } = useParams<{ orgId: string }>();
+   const issueHref = useIssueHref();
    const { displayProperties } = useDisplaySettingsStore();
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null);
@@ -228,7 +228,7 @@ export function IssueGrid({
                          -- is kept by the whole thing. Priority and assignee
                          sit above it as their own controls. */}
                      <Link
-                        href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
+                        href={issueHref(issue.identifier)}
                         className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                         draggable={false}
                         onClick={(event) => {
