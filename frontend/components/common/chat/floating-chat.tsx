@@ -311,10 +311,13 @@ export function FloatingChat() {
          data-step-body="prose"
          className={[
             'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
-            // Bottom ~3.1rem: the Agents launcher sits under the panel.
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
+            // The bottom edge clears the Agents launcher, which is what
+            // opens this window: `--shell-launcher-clear` is that control's
+            // corner plus its height plus a gap, so the button stays visible
+            // under the panel instead of sitting on top of it.
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[var(--shell-launcher-clear)] sm:rounded-lg',
             expanded
-               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[calc(4rem-15px)]'
+               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[var(--shell-launcher-clear)]'
                : minimised
                  ? 'sm:w-[var(--chat-w)]'
                  : 'sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',

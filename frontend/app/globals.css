@@ -982,6 +982,21 @@
    --app-inset-b: 8px; /* frame bottom */
    --app-inset-l: 0px;
    --app-frame: #111113;
+
+   /* The Agents launcher's own corner, and what has to stay clear of it.
+      Two places read these: the launcher strip in berry-shell.tsx anchors
+      itself at `--shell-launcher-b`, and the floating chat window lifts its
+      bottom edge by the whole of `--shell-launcher-clear`.
+
+      They used to be written out separately, and did not agree: the launcher
+      was inset-aware (`calc(var(--app-inset-b) + 1rem + 2px)`) while the
+      window sat at a flat `calc(4rem - 15px)` that ignored the frame and was
+      shorter than the control it was meant to clear, so the chat opened with
+      the button on top of it. `--shell-launcher-h` is the button, which sizes
+      to its own padding rather than to the 36px strip around it. */
+   --shell-launcher-b: calc(var(--app-inset-b) + 1rem + 2px);
+   --shell-launcher-h: 2.75rem;
+   --shell-launcher-clear: calc(var(--shell-launcher-b) + var(--shell-launcher-h) + 0.5rem);
 }
 
 html {
