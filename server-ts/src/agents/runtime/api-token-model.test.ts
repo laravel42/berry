@@ -79,20 +79,48 @@ test('Gemini SAFETY is a content block, not a successful empty reply', () => {
    assert.equal(reply.blocked, true);
 });
 
-test('OpenAI chat completions map tools and do not put the token on the URL', () => {
+test('OpenAI uses the Responses API, maps tools, and keeps the token off the URL', () => {
    const request = buildRequest(
-      { runtimeId: 'openai', model: 'gpt-4.1', token: TOKEN },
-      [user('hi')],
-      { toolSpecs: [{ name: 'probe', description: 'probe' }] }
+      { runtimeId: 'openai', model: 'gpt-5.6-sol', token: TOKEN },
+      [user('hi'), assistantTools('probe', 'call_1', { status: 'x' }), toolResult('call_1', 'ok')],
+      { systemPrompt: 'Be brief.', toolSpecs: [{ name: 'probe', description: 'probe' }] }
    );
-   assert.equal(request.url, 'https://api.openai.com/v1/chat/completions');
+   assert.equal(request.url, 'https://api.openai.com/v1/responses');
    assert.doesNotMatch(request.url, /secret/);
    assert.equal(request.headers.authorization, `Bearer ${TOKEN}`);
+   assert.equal(request.body.instructions, 'Be brief.');
+   assert.equal(request.body.store, false);
+   // No reasoning effort is sent: the model keeps its default, which tools accept here.
+   assert.equal('reasoning_effort' in request.body, false);
+   assert.deepEqual(request.body.tools, [
+      { type: 'function', name: 'probe', description: 'probe', parameters: { type: 'object', properties: {} } },
+   ]);
+   assert.deepEqual(request.body.input, [
+      { role: 'user', content: 'hi' },
+      { type: 'function_call', call_id: 'call_1', name: 'probe', arguments: '{"status":"x"}' },
+      { type: 'function_call_output', call_id: 'call_1', output: 'ok' },
+   ]);
    const reply = readReply('openai', {
+      output: [
+         { type: 'reasoning', summary: [] },
+         { type: 'message', content: [{ type: 'output_text', text: 'done' }] },
+         { type: 'function_call', call_id: 'call_2', name: 'probe', arguments: '{"a":1}' },
+      ],
+      usage: { input_tokens: 2, output_tokens: 3, input_tokens_details: { cached_tokens: 1 } },
+   });
+   assert.equal(reply.text, 'done');
+   assert.deepEqual(reply.tools, [{ id: 'call_2', name: 'probe', input: { a: 1 } }]);
+   assert.deepEqual(reply.usage, { inputTokens: 2, outputTokens: 3, cacheReadInputTokens: 1 });
+   assert.equal(reply.blocked, false);
+});
+
+test('xAI stays on chat completions', () => {
+   const request = buildRequest({ runtimeId: 'xai', model: 'grok-4', token: TOKEN }, [user('hi')]);
+   assert.equal(request.url, 'https://api.x.ai/v1/chat/completions');
+   const reply = readReply('xai', {
       choices: [{ message: { content: 'done', tool_calls: [{ id: 't1', function: { name: 'probe', arguments: '{"a":1}' } }] } }],
       usage: { prompt_tokens: 2, completion_tokens: 3 },
    });
-   assert.equal(reply.text, 'done');
    assert.deepEqual(reply.tools, [{ id: 't1', name: 'probe', input: { a: 1 } }]);
 });
 
