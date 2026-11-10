@@ -103,8 +103,9 @@ Resources:
                   - logs:PutLogEvents
                 Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda-microvms/*'
 
-  # Assumed inside each running VM. Logs only: the runtime reaches Berry over
-  # HTTPS with a task token and needs nothing else of the account.
+  # Assumed inside each running VM: logs, and the Bedrock model Berry provides
+  # for chat (BERRY_BEDROCK_MODEL). The runtime reaches Berry over HTTPS with a
+  # task token and needs nothing else of the account.
   ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -133,6 +134,14 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda-microvms/*'
+              - Sid: PlatformModel
+                Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+                  - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:inference-profile/*'
 
   # What the Berry server may do: start a VM per session, mint its proxy
   # tokens, check on it and end it, and read whether the image is built.

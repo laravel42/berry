@@ -1,3 +1,4 @@
+import { platformModelFor } from './platform-model.ts';
 import { z } from 'zod';
 import type { Sql } from '../db/pool.ts';
 import type { RunMemory } from '../agentcore/memory.ts';
@@ -317,9 +318,21 @@ export class EnvelopeBuilder {
       const sessionKey = runtime && task.aiRuntimeConnectionId
          ? `${baseSessionKey}:connection:${task.aiRuntimeConnectionId}`
          : baseSessionKey;
+      // Chat and the product's own single calls run on the model Berry
+      // provides, when the deployment has one and no provider was chosen.
+      const platform = runtime
+         ? null
+         : platformModelFor({
+              kind: task.kind,
+              purpose: task.completionSpec?.purpose,
+              chatSessionId: task.chatSessionId,
+              issueId: task.issueId,
+           });
       const { model, tier, fallback } = runtime
          ? { model: runtime.model, tier: null, fallback: null }
-         : await this.#model(task, agent, profile.model);
+         : platform
+           ? { model: platform.model, tier: null, fallback: null }
+           : await this.#model(task, agent, profile.model);
       // An agent task carries its extensions; a completion is one model call
       // and carries none.
       const extensions =
@@ -336,6 +349,7 @@ export class EnvelopeBuilder {
       const base = {
          runId: task.runId,
          ...(runtime ? { runtime } : {}),
+         ...(platform ? { platformModel: platform } : {}),
          sessionKey,
          runtimeSessionId: runtimeSessionIdFor(sessionKey),
          agent: {

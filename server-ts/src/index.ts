@@ -184,6 +184,7 @@ import { routingTransport, type RuntimeTarget } from './runtime/transport.ts';
 import { workstationKiro } from './runtime/workstation-kiro.ts';
 import { runtimeMounts } from './mounts/runtimes.ts';
 import { organizationMounts } from './mounts/organization.ts';
+import { configurePlatformModel } from './runtime/platform-model.ts';
 import { syncPlatformRuntime, type RuntimeHosts } from './runtime/runtimes.ts';
 import { ensureDiscovery } from './organization/discovery.ts';
 import { ensureOrganizationEverywhere } from './organization/provision.ts';
@@ -638,6 +639,9 @@ const runtimeHosts: RuntimeHosts = {
    ],
 };
 
+// Chat and the product's own single calls run on Berry's Bedrock model, when
+// the deployment names one; agent work stays on the workspace's providers.
+configurePlatformModel(config.bedrock ? { provider: 'bedrock', ...config.bedrock } : null);
 configureTaskExecution({ nativeExecution: defaultTarget !== null, workstationKeys: WORKSTATION_RUNTIME_KEYS });
 const hasAgentExecution = (workspaceId: string): Promise<boolean> =>
    agentExecutionAvailable(sql, {
@@ -1762,6 +1766,9 @@ logger.info('Berry server listening', {
    // Named at boot because recall is invisible from outside: an agent with no
    // memory and an agent whose store is misconfigured both just start fresh.
    runMemory: runMemory ? 'agentcore' : 'off',
+   // Named at boot: without it chat and the editors' AI help need a provider
+   // connected in every workspace.
+   platformModel: config.bedrock ? `bedrock ${config.bedrock.model} (${config.bedrock.region})` : 'off',
    // Named at boot so an operator can see whether a run can reach a
    // repository, without reading the environment back.
    integrations: connections

@@ -156,6 +156,10 @@ services:
          BERRY_BEDROCK_REGION: ${BERRY_BEDROCK_REGION:-us-east-1}
          BERRY_BEDROCK_ACCESS_KEY_ID: ${BERRY_BEDROCK_ACCESS_KEY_ID:-}
          BERRY_BEDROCK_SECRET_ACCESS_KEY: ${BERRY_BEDROCK_SECRET_ACCESS_KEY:-}
+         # Berry's own model for chat and the product's single calls, in every
+         # workspace. The runtime calls it with the BERRY_BEDROCK_* keys above
+         # (sessions), or its role on AgentCore and MicroVMs.
+         BERRY_BEDROCK_MODEL: ${BERRY_BEDROCK_MODEL:-}
          BERRY_AGENT_DEFAULT_MODEL: ${BERRY_AGENT_DEFAULT_MODEL:-}
          BERRY_RUN_CONCURRENCY: ${BERRY_RUN_CONCURRENCY:-2}
          # Optional: runs on a deployed AgentCore Runtime instead of the

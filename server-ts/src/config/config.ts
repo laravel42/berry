@@ -59,6 +59,11 @@ export interface Config {
    agentCore: AgentCoreConfig | null;
    /** Agent runs on Lambda MicroVMs, one VM per session. Null when no image is named. */
    microvm: MicrovmConfig | null;
+   /**
+    * The light Amazon Bedrock model Berry provides to every workspace for chat
+    * and the product's own single calls. Null when `BERRY_BEDROCK_MODEL` is unset.
+    */
+   bedrock: { model: string; region: string } | null;
    agentCoreGateway: AgentCoreGatewayConfig | null;
    /** AgentCore Identity's GitHub credential, usable without a gateway. */
    agentCoreGitCredential: AgentCoreGitCredentialConfig | null;
@@ -480,6 +485,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       execution: executionConfig,
       agentCore: agentCore(env),
       microvm: microvm(env),
+      bedrock: bedrock(env),
       agentCoreGateway: agentCoreGateway(env),
       agentCoreGitCredential: agentCoreGitCredential(env),
       githubProvider: (env.GITHUB_PROVIDER ?? 'agentcore').trim() === 'legacy' ? 'legacy' : 'agentcore',
@@ -610,6 +616,14 @@ function agents(env: NodeJS.ProcessEnv): AgentConfig {
  * with half its settings is a substrate that fails at the first command, and
  * the factory says so by name rather than discovering it at run time.
  */
+/** The platform Bedrock model. The runtime image holds the AWS credentials, not this server. */
+function bedrock(env: NodeJS.ProcessEnv): { model: string; region: string } | null {
+   const model = (env.BERRY_BEDROCK_MODEL ?? '').trim();
+   if (!model) return null;
+   const region = (env.BERRY_BEDROCK_REGION?.trim() || env.AWS_REGION?.trim() || 'us-east-1').trim();
+   return { model, region };
+}
+
 /**
  * Lambda MicroVMs for agent runs. Null unless an image is named. Credentials
  * fall back to AgentCore's pair (same account, same kind of caller), then to
