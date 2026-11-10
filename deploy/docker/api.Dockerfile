@@ -32,6 +32,12 @@ COPY server-ts/migrations ./migrations
 # The preview image's source, where the server looks for it. The release
 # pulls that image ready-made; this is what a host without it builds from.
 COPY server-ts/sandbox/preview ./sandbox/preview
+# The bundled plugins Settings → Connect offers, and the SDK their images build
+# against. The server looks for them beside its own folder, as in the
+# repository (server-ts/../plugins, ../packages/plugin-sdk), which from /app is
+# the filesystem root. Sources only: each plugin's image installs its own.
+COPY plugins /plugins
+COPY packages/plugin-sdk /packages/plugin-sdk
 
 ENV NODE_ENV=production
 ENV API_ADDR=0.0.0.0:4000

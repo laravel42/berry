@@ -123,7 +123,8 @@ export class BerryStack extends Stack {
       const image = (name: string, directory: string, file: string, exclude: string[] = [], buildArgs: Record<string, string> = {}) =>
          new ecrAssets.DockerImageAsset(this, `${name}Image`, { directory, file, platform, buildArgs, exclude: [...NOT_CONTEXT, ...exclude], ignoreMode: IgnoreMode.DOCKER });
       const images = {
-         api: image('Api', repository, 'deploy/docker/api.Dockerfile', ['frontend', 'packages', 'scripts', '**/*.test.ts']),
+         // The plugin SDK stays: the bundled plugins in the image build against it.
+         api: image('Api', repository, 'deploy/docker/api.Dockerfile', ['frontend', 'packages/*', '!packages/plugin-sdk', 'scripts', '**/*.test.ts']),
          // The root lockfile names the server's patched dependency, and the build renders
          // the marketing site, so the patch and its build script stay in the context.
          web: image('Web', repository, 'deploy/docker/web.Dockerfile', ['server-ts/*', '!server-ts/package.json', '!server-ts/patches', 'scripts/*', '!scripts/prepare-marketing.mjs']),
