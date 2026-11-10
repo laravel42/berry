@@ -152,10 +152,10 @@ pg_dump -h 127.0.0.1 -U <user> --schema-only --no-owner --no-privileges berry \
   | psql -h 127.0.0.1 -U <user> -d berry_test -q
 
 BERRY_TEST_DATABASE_URL='postgres://<user>@127.0.0.1:5432/berry_test?sslmode=disable' \
-  pnpm test:server
+  bun run test:server
 ```
 
-Without the variable the suite skips these tests and still passes, so `pnpm
+Without the variable the suite skips these tests and still passes, so `bun run
 test:server` works on a machine with no database running.
 
 ## History

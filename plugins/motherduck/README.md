@@ -16,5 +16,5 @@ Berry starts the container and assigns PORT. The image is `berry-plugin-motherdu
 The manual process is only for working on the plugin itself. Set PORT to an open port before starting the process by hand:
 
 ```sh
-pnpm --filter @berry/plugin-motherduck start
+bun run --filter @berry/plugin-motherduck start
 ```

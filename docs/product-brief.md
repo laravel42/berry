@@ -98,8 +98,8 @@ actually has, so the UI can switch off what is missing.
 
 `apps/desktop` is an Electron window onto this web UI. It can start the
 server beside the window against PGlite or host Postgres (`DATABASE_URL`),
-either from this checkout (`pnpm dev:desktop`) or from a staged bundle inside
-the packaged app (`pnpm package:desktop`). A bundled start merges a login-shell
+either from this checkout (`bun run dev:desktop`) or from a staged bundle inside
+the packaged app (`bun run package:desktop`). A bundled start merges a login-shell
 `PATH` so subscription CLIs remain visible when the window is opened from
 Finder. It does not
 embed a model or a credential store. Berry ships no user-machine CLI,

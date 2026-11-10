@@ -1,7 +1,7 @@
 # Architecture
 
-- 2026-09-14 — **Supersedes all entries below.** One repo, three pnpm
-  workspaces: `server-ts` (Node 22, no build step), `frontend` (Next.js), and
+- 2026-09-14 — **Supersedes all entries below.** One repo, three
+  workspaces (Bun since 2026-11-09, pnpm before): `server-ts` (Node 22, no build step), `frontend` (Next.js), and
   `packages/plugin-sdk`. ADR-0014 is current: Berry is the control plane and
   imports no model SDK; agent loops run in an AgentCore Runtime container or
   the same image over HTTP. Docker Compose is removed entirely — host

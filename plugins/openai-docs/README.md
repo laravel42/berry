@@ -16,5 +16,5 @@ Berry starts this plugin in Docker when an agent run needs it and assigns `PORT`
 The manual process is only for working on the plugin itself. Set `PORT` to a free port, then start the plugin:
 
 ```sh
-pnpm --filter @berry/plugin-openai-docs start
+bun run --filter @berry/plugin-openai-docs start
 ```

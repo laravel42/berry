@@ -5,7 +5,7 @@ Everything Docker runs for Berry is in one file, [`compose.yaml`](../../compose.
 | | Services | Run with |
 | --- | --- | --- |
 | **Self-host** (Dokploy, or any Docker host) | `postgres`, `api`, `sessions`, `web`, plus `preflight` and `runtime-image`, which run once and exit | `docker compose up -d --build` |
-| **Local development** | `dev-postgres`, `dev-api`, `dev-sessions`, `dev-web`, `dev-runtime-image` (profile `dev`) | `pnpm dev:docker` |
+| **Local development** | `dev-postgres`, `dev-api`, `dev-sessions`, `dev-web`, plus `dev-install` and `dev-runtime-image`, which run once and exit (profile `dev`) | `bun run dev:docker` |
 
 The images are built from this folder: `api.Dockerfile` (the API and the session router), `web.Dockerfile` (the web app), `dev.Dockerfile` with `dev-start.sh` (development). The agent runtime image is `server-ts/sandbox/agentcore/Dockerfile`.
 
@@ -102,19 +102,19 @@ The API and the session router hold the server's Docker socket, which is root on
 One command instead of three terminals:
 
 ```bash
-pnpm dev:docker          # Ctrl+C stops it; pnpm dev:docker:down removes the containers
+bun run dev:docker          # Ctrl+C stops it; bun run dev:docker:down removes the containers
 ```
 
-That is `docker compose -p berry-dev --profile dev up --build dev-api dev-sessions dev-web`; the database and the runtime image come along as dependencies.
+That is `docker compose -p berry-dev --profile dev up --build dev-api dev-sessions dev-web`; the database, the runtime image and `dev-install` come along as dependencies. `dev-install` runs `bun install` for the server and the web app (and the marketing site, which the web app builds first) before anything starts, so the services never install into the same `node_modules` at once.
 
 | Service | What it runs | Where |
 | --- | --- | --- |
 | `dev-web` | `next dev` | http://localhost:3000 |
 | `dev-api` | migrations, then `node --watch` | http://localhost:4000 (previews at `*.preview.localhost:4000`) |
-| `dev-sessions` | the session router (what `pnpm runtime:sessions` runs) | http://localhost:8080 |
+| `dev-sessions` | the session router (what `bun run runtime:sessions` runs) | http://localhost:8080 |
 | `dev-postgres` | PostgreSQL 16 | inside the compose network (volume `postgres`) |
 
-`dev-web`, `dev-api` and `dev-sessions` run from the working tree, mounted into the containers, so an edit on the Mac restarts the API or reloads the page as it does today. They read the repository's `.env` except `DATABASE_URL`, which compose points at `dev-postgres`. The Mac database is not used. `pnpm dev:server` on the host still uses `.env` as before.
+`dev-web`, `dev-api` and `dev-sessions` run from the working tree, mounted into the containers, so an edit on the Mac restarts the API or reloads the page as it does today. They read the repository's `.env` except `DATABASE_URL`, which compose points at `dev-postgres`. The Mac database is not used. `bun run dev:server` on the host still uses `.env` as before.
 
 The project is named `berry-dev` (the `-p` in the scripts), so it is apart from a self-hosted stack on the same machine, and a stack started from the old `deploy/local` keeps its database and installed dependencies: the volume names did not change.
 
@@ -138,8 +138,8 @@ Until events arrive, restart a service to pick up edits: `docker compose -p berr
 ### Before the first run
 
 - A Docker engine running (Docker Desktop, Colima or OrbStack). PostgreSQL runs in this stack; the Mac database is not required.
-- Nothing else on ports 3000, 4000 and 8080: stop `pnpm dev:server`, `pnpm dev:frontend` and `pnpm runtime:sessions` first. Run Berry one way or the other, not both.
-- Not an Apple Silicon Mac (an Intel Mac, or x86 Linux): `BERRY_RUNTIME_PLATFORM=linux/amd64 pnpm dev:docker`.
+- Nothing else on ports 3000, 4000 and 8080: stop `bun run dev:server`, `bun run dev:frontend` and `bun run runtime:sessions` first. Run Berry one way or the other, not both.
+- Not an Apple Silicon Mac (an Intel Mac, or x86 Linux): `BERRY_RUNTIME_PLATFORM=linux/amd64 bun run dev:docker`.
 
 The first run builds the dev image and the agent runtime image and installs dependencies into Docker volumes: several minutes. Later runs start in seconds.
 
@@ -152,8 +152,8 @@ The first run builds the dev image and the agent runtime image and installs depe
 
 Also:
 
-- The API applies pending migrations when it starts. On the Mac that is a separate `pnpm db:migrate`.
-- `node_modules` live in Docker volumes, not in the working tree, because some packages ship per-platform binaries. After changing dependencies, restart the service; to start clean, `pnpm dev:docker:down -v`.
+- The API applies pending migrations when it starts. On the Mac that is a separate `bun run db:migrate`.
+- `node_modules` live in Docker volumes, not in the working tree, because some packages ship per-platform binaries. After changing dependencies, run `bun run dev:docker` again (it reinstalls first); to start clean, `bun run dev:docker:down -v`.
 - The web app builds into `frontend/.next-docker`, apart from the Mac's `.next`.
 - Editing a file the API imports restarts it, which abandons agent runs in flight, exactly as `node --watch` does on the Mac.
 
@@ -164,6 +164,6 @@ docker compose -p berry-dev logs -f dev-api
 docker compose -p berry-dev restart dev-web
 ```
 
-- **The API says PostgreSQL is not answering:** `docker compose -p berry-dev logs dev-postgres`, then restart `dev-api`. To wipe this stack's database: `pnpm dev:docker:down -v`.
+- **The API says PostgreSQL is not answering:** `docker compose -p berry-dev logs dev-postgres`, then restart `dev-api`. To wipe this stack's database: `bun run dev:docker:down -v`.
 - **Sign-in with GitHub fails, or the page shows API errors:** the `dev-api` container is not up. Its log says why.
-- **Page reloads feel slow:** file events cross the Mac-to-container boundary. If that bothers you, run the web app on the Mac (`pnpm dev:frontend`) and keep the API and sessions in Docker: `docker compose -p berry-dev --profile dev up dev-api dev-sessions`, with `BERRY_API_ORIGIN=http://localhost:4000` as it is in `.env`.
+- **Page reloads feel slow:** file events cross the Mac-to-container boundary. If that bothers you, run the web app on the Mac (`bun run dev:frontend`) and keep the API and sessions in Docker: `docker compose -p berry-dev --profile dev up dev-api dev-sessions`, with `BERRY_API_ORIGIN=http://localhost:4000` as it is in `.env`.

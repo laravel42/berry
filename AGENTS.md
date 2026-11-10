@@ -41,7 +41,7 @@ delegation rules and required reviewers — see
 
 ## Repository shape
 
-One Git repo, five pnpm workspace packages: `frontend`, `server-ts`,
+One Git repo, five Bun workspace packages: `frontend`, `server-ts`,
 `packages/plugin-sdk`, `apps/mobile`, and `apps/desktop`. They do **not** share a formatter, lint
 config, or validation workflow. Know which workspace you are in before you
 write code. Never run one workspace's tools over another.
@@ -67,8 +67,8 @@ against PGlite in the app data directory, or a `postgres://` `DATABASE_URL` /
 IAM auth is `DATABASE_IAM_AUTH=true` (tokens minted per connection; not a static
 URL password; not used with `pglite:`). Artifacts go under
 `<userData>/artifacts`, and the web app is served on `127.0.0.1:4174`.
-`pnpm dev:desktop` walks to this checkout and runs `next dev`.
-`pnpm package:desktop` copies `@berry/server` and the Next standalone build
+`bun run dev:desktop` walks to this checkout and runs `next dev`.
+`bun run package:desktop` copies `@berry/server` and the Next standalone build
 into Electron `extraResources` (`Resources/berry`) with a Node binary, so the
 `.app` does not need the git repo. A bundled start merges a login-shell
 `PATH` onto the GUI default so subscription CLIs on Homebrew are visible.
@@ -255,33 +255,33 @@ record what is in scope.
 
 ```bash
 # Setup (from repo root; local default is PGlite)
-cp .env.example .env && pnpm install
+cp .env.example .env && bun install
 
 # Repository checks
 python3 scripts/check-no-model-in-server.py
 python3 scripts/check-locale-catalogues.py
 
 # Server
-pnpm typecheck:server
-pnpm test:server
-pnpm db:migrate         # needs DATABASE_URL
-pnpm db:seed            # development dataset; idempotent
-pnpm dev:server
+bun run typecheck:server
+bun run test:server
+bun run db:migrate         # needs DATABASE_URL
+bun run db:seed            # development dataset; idempotent
+bun run dev:server
 
 # Plugin SDK and installable plugins (plugins/)
-pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
-pnpm test:plugins && pnpm typecheck:plugins
+bun run test:plugin-sdk && bun run typecheck:plugin-sdk
+bun run test:plugins && bun run typecheck:plugins
 
 # Frontend
-cd frontend && pnpm lint && pnpm build:check
+cd frontend && bun run lint && bun run build:check
 ```
 
-`pnpm build` in `frontend/` and `next dev` share `.next/`, so a build while the
-dev server runs corrupts its manifests. Use `pnpm build:check`, which writes to
+`bun run build` in `frontend/` and `next dev` share `.next/`, so a build while the
+dev server runs corrupts its manifests. Use `bun run build:check`, which writes to
 `.next-verify` instead.
 
 Database-backed server tests self-skip when `BERRY_TEST_DATABASE_URL` is unset,
-so a fresh `pnpm test:server` stays green offline. Keep it that way. Never
+so a fresh `bun run test:server` stays green offline. Keep it that way. Never
 point it at your everyday development database: creating a workspace
 provisions a protected Orchestrator agent that cannot be deleted.
 

@@ -16,5 +16,5 @@ Berry starts this plugin in Docker when an agent run needs it and assigns the li
 The manual process is only for working on the plugin itself. Berry assigns `PORT`. This process reads that variable and does not listen on a fixed port.
 
 ```sh
-pnpm --filter @berry/plugin-heygen start
+bun run --filter @berry/plugin-heygen start
 ```

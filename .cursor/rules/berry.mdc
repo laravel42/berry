@@ -32,7 +32,7 @@ format one with another.
   Valkey relay exists but is not wired anywhere; realtime works by polling
   `outbox_events`.
 - Model SDKs (Bedrock, Strands) are allowed only under
-  `server-ts/src/agents/runtime/`, enforced by `pnpm check:models`.
+  `server-ts/src/agents/runtime/`, enforced by `bun run check:models`.
 - Migrations in `server-ts/migrations` are forward-only, checksummed and
   immutable. Never edit an applied one; add a new one.
 - The wire shape is a contract: cursors, idempotency fingerprints and the error
@@ -44,7 +44,7 @@ format one with another.
   schema. No new `Linear*` identifiers.
 - `strict` on, no `any` except vendored `frontend/components/data-table-filter/**`.
 - English-only i18n. Repo-wide gates, not per-package lint:
-  `pnpm check:models` and `python3 scripts/check-locale-catalogues.py`.
+  `bun run check:models` and `python3 scripts/check-locale-catalogues.py`.
 
 ## No longer true
 

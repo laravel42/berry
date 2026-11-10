@@ -16,5 +16,5 @@ Berry starts this plugin in Docker when an agent run needs it and assigns the li
 The manual process is only for working on the plugin itself. Set `PORT` to a free port, then:
 
 ```sh
-pnpm --filter @berry/plugin-webflow start
+bun run --filter @berry/plugin-webflow start
 ```

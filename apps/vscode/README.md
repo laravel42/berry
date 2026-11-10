@@ -60,13 +60,13 @@ vscode.dev are unsupported.
 
 ## Development
 
-Prerequisites: desktop VS Code 1.95+, Node.js 22 and pinned pnpm 12.5.1.
+Prerequisites: desktop VS Code 1.95+, Node.js 22 and Bun 1.4.4.
 From the repository root:
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm --filter @berry/vscode typecheck
-pnpm --filter @berry/vscode test
+bun install --frozen-lockfile
+bun run --filter @berry/vscode typecheck
+bun run --filter @berry/vscode test
 code apps/vscode
 ```
 
@@ -85,7 +85,7 @@ signatures consistent with the VS Code APIs when adding host features.
 This package owns its toolchain; use 3-space indentation and single quotes.
 
 If F5 has no Berry configuration, open `apps/vscode` itself. If the build
-cannot find pnpm, ensure VS Code inherits its PATH. Rebuild and restart the
+cannot find bun, ensure VS Code inherits its PATH. Rebuild and restart the
 host after activation errors. Interactive F5 and live hosted API checks are
 separate from the automated Node suite.
 

@@ -16,5 +16,5 @@ The container is started by Berry when an agent run needs this plugin. PORT is a
 The manual process is only for working on the plugin itself:
 
 ```sh
-PORT=8787 pnpm --filter @berry/plugin-similarweb start
+PORT=8787 bun run --filter @berry/plugin-similarweb start
 ```

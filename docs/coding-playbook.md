@@ -8,7 +8,7 @@ works today.
 
 ## Repository shape: one repo, five workspace packages (`frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, `apps/desktop`), no shared toolchain
 
-Berry is a single pnpm workspace containing five independently tooled
+Berry is a single Bun workspace containing five independently tooled
 packages: `frontend`, `server-ts`, `packages/plugin-sdk`, `apps/mobile`, and
 `apps/desktop`. They do **not** share a formatter, lint config, or language target.
 Know which workspace you are in before you write code.
@@ -23,13 +23,13 @@ Know which workspace you are in before you write code.
 | Tests | `node --test` | none — lint + `build:check` | `node --test` |
 | Package | `@berry/server` | `berry-frontend` | `@berry/plugin-sdk` |
 
-Installable plugins live in `plugins/` (`plugins/*` in the pnpm workspace),
+Installable plugins live in `plugins/` (`plugins/*` in the Bun workspace),
 one package per plugin. `packages/plugin-sdk` is the toolkit they import.
 `plugins/customerio` connects an agent to the Customer.io MCP server.
 
 `apps/desktop` compiles TypeScript to `dist/` and runs Electron. Match the
 server style (3-space, single quotes). It loads the frontend and does not
-import the server. `pnpm --filter @berry/desktop package` stages
+import the server. `bun run --filter @berry/desktop package` stages
 `resources/berry` (server sources + production `node_modules`, Next
 `output: 'standalone'`, a Node binary) and packs it with electron-builder
 `extraResources`; the packaged main process starts from that tree,
@@ -40,7 +40,7 @@ so workstation CLIs remain visible when the `.app` is opened from Finder.
 
 **Never run one workspace's formatter or linter over another.** Berry is the
 control plane for agent execution and imports no model SDK outside
-`server-ts/src/agents/runtime/`; `pnpm check:models` enforces this repo-wide.
+`server-ts/src/agents/runtime/`; `bun run check:models` enforces this repo-wide.
 
 ## Server style
 
@@ -91,14 +91,14 @@ control plane for agent execution and imports no model SDK outside
 ### Formatting & linting
 
 ```sh
-pnpm typecheck:server   # tsc --noEmit
-pnpm test:server        # node --test
+bun run typecheck:server   # tsc --noEmit
+bun run test:server        # node --test
 ```
 
 ```sh
 cd frontend
-pnpm lint       # ESLint
-pnpm format     # prettier --write .
+bun run lint       # ESLint
+bun run format     # prettier --write .
 ```
 
 Prettier settings (`.prettierrc`): 3-space `tabWidth`, single quotes,
@@ -179,7 +179,7 @@ it after commit.
 **A migration.** Add a new numbered `*.up.sql` in `server-ts/migrations/`
 (the runner reads only `.up.sql`). Never edit an applied migration — migrations
 are forward-only and SHA-256 checksummed by `src/migrate`; a checksum or name
-mismatch on an already-applied file makes `pnpm db:migrate` exit non-zero.
+mismatch on an already-applied file makes `bun run db:migrate` exit non-zero.
 
 **An agent tool.** Add it under `src/runtime/agent-tools/` (core tools) or
 `src/organization/tools.ts` (organization tools like `delegate_to_agent`,
@@ -209,7 +209,7 @@ shipped locale.
 
 ## Testing
 
-**Server.** `pnpm test:server` runs `node --test` over `src/**/*.test.ts` (and
+**Server.** `bun run test:server` runs `node --test` over `src/**/*.test.ts` (and
 the sandbox docker runtime tests). Database-backed tests are gated on
 `BERRY_TEST_DATABASE_URL` and self-skip without it, so the default suite
 stays offline and green — see `server-ts/ROUTING.md` for how to build a
@@ -232,19 +232,19 @@ Conventions drawn from the existing suite:
 - Name the test after the guarantee, not the function.
 
 **Frontend.** Storybook browser interaction tests are configured in
-`vitest.config.ts`; lint and `build:check` remain the release gates. The gates are `pnpm lint` (ESLint)
-and `pnpm build:check` (`next build` into a separate `.next-verify` output,
+`vitest.config.ts`; lint and `build:check` remain the release gates. The gates are `bun run lint` (ESLint)
+and `bun run build:check` (`next build` into a separate `.next-verify` output,
 so it won't corrupt a running `next dev`; do not run plain `build` while dev
-is running). Verify UI changes by running `pnpm dev:frontend` and confirming
+is running). Verify UI changes by running `bun run dev:frontend` and confirming
 the affected view.
 
 **Repo-wide checks:**
 
 ```sh
 python3 scripts/check-locale-catalogues.py   # English catalogues well-formed; no extra locales
-pnpm check:models                            # no model SDK imports in server-ts/src outside agents/runtime/
-pnpm test:plugin-sdk && pnpm typecheck:plugin-sdk
-pnpm test:plugins && pnpm typecheck:plugins
+bun run check:models                            # no model SDK imports in server-ts/src outside agents/runtime/
+bun run test:plugin-sdk && bun run typecheck:plugin-sdk
+bun run test:plugins && bun run typecheck:plugins
 ```
 
 ## Commits
@@ -271,9 +271,9 @@ type(scope): imperative summary (BERR-NN)
 - PR title mirrors the merge commit (`type(scope): summary (BERR-NN)`). The
   body links the issue, states intent, and lists the verification you ran.
 - Before requesting review, confirm the workspace's gates are green:
-  - **Server:** `pnpm typecheck:server`, `pnpm test:server`, and
+  - **Server:** `bun run typecheck:server`, `bun run test:server`, and
     `python3 scripts/check-no-model-in-server.py`.
-  - **Frontend:** `pnpm lint` and `pnpm build:check`; the changed view was
+  - **Frontend:** `bun run lint` and `bun run build:check`; the changed view was
     exercised manually.
 - Agent-delivered work is released by the person, either task by task or once
   per plan. No agent tool can set `done`, `cancelled`, or merge. With AutoGate,
