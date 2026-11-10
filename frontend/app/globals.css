@@ -27,12 +27,44 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+   /* Two faces, split by job. Inter reads the interface: rows, labels, prose,
+      every control. JetBrains Mono titles it, and is also what machine text
+      is set in (`font-mono`, `[data-identifier]`, `[data-figure]`, the code
+      editor, the run console, the transcript) -- one face covering both is
+      deliberate, because a title here names a thing the system holds.
+
+      Both are shipped in app/fonts and bound in app/layout.tsx rather than
+      fetched: next/font/google breaks under Turbopack once the font URL
+      carries its own query string, and a self-hosted file costs no
+      third-party request and no swap flash.
+
+      The lockup is on NEITHER. It is the brand asset's own outlines
+      (components/brand/berry-mark.tsx), so no face reaches it and changing
+      one here cannot move it. */
    --font-sans:
       var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-mono: var(--font-jetbrains-mono);
-   --font-display:
-      var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-   --font-weight-normal: 300;
+   --font-display: var(--font-jetbrains-mono);
+   /* --- Weight floor ------------------------------------------------------
+      400 is the lightest weight in this interface. Below it Inter goes faint
+      and the text stops holding its own against the surface, which is a
+      legibility floor and not a taste: a 300 row on the dark container was
+      already hard to read, and the page used to be set at 100.
+
+      The floor is enforced here rather than by deleting every `font-light`
+      and `font-thin`, because a rule in one place cannot be undone by the
+      next component that reaches for a light utility: all four sub-400 steps
+      resolve to 400, so those classes are now no-ops rather than hazards.
+      `font-normal` in particular used to mean 300, so a component asking for
+      normal text got light text.
+
+      This does NOT catch an arbitrary value -- `[font-weight:100]` writes the
+      declaration directly and bypasses the scale. There are none left; do not
+      add one. */
+   --font-weight-thin: 400;
+   --font-weight-extralight: 400;
+   --font-weight-light: 400;
+   --font-weight-normal: 400;
    /* The body size, 16px: `body` applies `text-xs`, so this step is what the
       interface reads at, and every step below keeps its own measure.
       The three steps above it moved with it rather than being left where they
@@ -170,6 +202,13 @@
       from it so the lockup can be exactly the brand asset without repainting
       every word of body copy. */
    --lockup-ink: #161616;
+   /* The isotipo's berry, and the lockup's final period. The asset paints it
+      #c74a5e on BOTH colourways: only the ink flips. It is NOT --berry
+      (#b84355), which is the product's interactive brand colour and a step
+      darker, so the mark drawn with --berry read duller than the asset it is
+      supposed to be. Declared per theme beside --lockup-ink, not once, so the
+      pair that comes off the asset stays in one place. */
+   --lockup-berry: #c74a5e;
    --secondary: #f5f5f5;
    --secondary-foreground: #010101;
    --muted: #f0f0f0;
@@ -297,6 +336,8 @@
    --primary-text: #f0738f;
    --berry: var(--brand-berry);
    --lockup-ink: #f0edea;
+   /* Same berry on both colourways; see the light block. */
+   --lockup-berry: #c74a5e;
    --secondary: #1a1a1d;
    --secondary-foreground: #f6f6f7;
    --muted: #17171a;
@@ -412,6 +453,7 @@
    --color-hairline: var(--brand-hairline);
    --color-berry: var(--berry);
    --color-lockup-ink: var(--lockup-ink);
+   --color-lockup-berry: var(--lockup-berry);
    --color-button-primary: var(--button-primary);
    --color-button-primary-hover: var(--button-primary-hover);
    --color-button-primary-foreground: var(--button-primary-foreground);
@@ -641,6 +683,23 @@
       do not capitalize here — that rewrites identifiers (BER-286, API).
       Section labels are 11.5 / 700 in sentence case. */
 
+   /* Titles are set in the mono face, the body in Inter. One face names
+      things and the other reads them, which is also why a title needs no
+      colour or rule to separate it from the rows under it.
+
+      Listed by the same selectors the sizes above use, so a heading cannot
+      take a step on the scale without taking the face with it. The lockup is
+      absent on purpose: it is drawn, not set, so no rule here reaches it. */
+   h1,
+   h2,
+   h3,
+   h4,
+   [data-heading],
+   [data-detail-title],
+   [data-create-title] {
+      font-family: var(--font-mono);
+   }
+
    /* Headings carry weight over the 400 body so a page title, a dialog title
       and a section title read as a different role from the row text beside
       them, not merely a different size. h2 is the heavier step. */
@@ -648,8 +707,7 @@
    h3,
    [data-heading='h1'],
    [data-heading='h3'],
-   [data-heading='display'],
-   [data-wordmark] {
+   [data-heading='display'] {
       font-weight: 600;
    }
 
@@ -752,23 +810,18 @@
       line-height: inherit;
    }
 
-   /* The one size set outside the scale above. The wordmark is a logo lockup,
-      not running text: the word is drawn to sit against the mark beside it, so
-      it has to scale with the mark and not with the surrounding UI. Kept here
-      rather than inline in the component so the exception stays visible next
-      to the rule it departs from. */
-   /* Wordmark type size is set on the element to match berry.pm (23px at md).
-      The attributes stay so stories and tests can still target the lockup. */
-   [data-wordmark] {
-      font-family: var(--font-dm-serif-display), 'DM Serif Display', serif;
-      font-weight: 400;
-   }
+   /* The wordmark used to be the one size set outside the scale above, because
+      the word was live text in DM Serif Display that had to scale with the
+      mark rather than with the UI. It is the brand asset's own outlines now
+      (components/brand/berry-mark.tsx), so there is no type to size and no
+      exception to document: `[data-wordmark]` stays on the element only so
+      stories and tests can still target the lockup.
 
-   /* The second exception: a headline figure. A page opens with the one number
+      The exception below is a headline figure. A page opens with the one number
       it is about, and a Usage panel is read from its figure, so that number is
       set at poster size and the other text stays on the scale. Named sizes
-      here rather than utilities in the components, for the same reason as the
-      wordmark: the departure stays next to the rule. */
+      here rather than utilities in the components, so the departure stays
+      next to the rule it departs from. */
    [data-figure] {
       font-family: var(--font-mono);
       font-weight: 700;
@@ -1302,13 +1355,15 @@ input[type='search'] {
 }
 
 /* A skill's instructions are read as body, so a heading inside the editor
-   does not take the 500 the scale gives h1–h3. */
+   does not take the 500 the scale gives h1–h3. Body here is the 400 floor,
+   not the 100 this was written at: the attribute keeps its name so the markup
+   that sets it still selects, but there is no sub-400 text left. */
 [data-font-weight='100'] .ProseMirror,
 [data-font-weight='100'] .ProseMirror h1,
 [data-font-weight='100'] .ProseMirror h2,
 [data-font-weight='100'] .ProseMirror h3,
 [data-font-weight='100'] .ProseMirror h4 {
-   font-weight: 100;
+   font-weight: 400;
 }
 
 .tiptap-ai-editor .ProseMirror h1 {

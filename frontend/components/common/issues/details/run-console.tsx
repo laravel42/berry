@@ -233,7 +233,13 @@ export function RunConsole({ issueId }: { issueId: string }) {
    const actionClass = 'shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground';
 
    return (
-      <section className="absolute inset-0 z-30 flex flex-col bg-container" aria-label={t('title')}>
+      // `font-mono` is declared here rather than inherited: the console read
+      // as a terminal only because the shell painted everything in mono. The
+      // shell no longer does, and this pane is machine output.
+      <section
+         className="absolute inset-0 z-30 flex flex-col bg-container font-mono"
+         aria-label={t('title')}
+      >
          <div className="flex min-h-8 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-5 py-1 text-muted-foreground">
             <div
                ref={strip}

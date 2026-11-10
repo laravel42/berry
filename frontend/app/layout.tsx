@@ -29,13 +29,11 @@ const inter = localFont({
    display: 'swap',
 });
 
-/** Wordmark lockup only — same face as berry.pm (`apps/web`). */
-const dmSerifDisplay = localFont({
-   src: './fonts/dm-serif-display-400-latin.woff2',
-   variable: '--font-dm-serif-display',
-   weight: '400',
-   display: 'swap',
-});
+// DM Serif Display is deliberately NOT loaded. It existed for one thing, the
+// wordmark, which set "berry." as live text in that face. The lockup is the
+// brand asset's own outlines now (components/brand/berry-mark.tsx), so nothing
+// renders in it, and shipping a webfont with no reader costs a request for an
+// empty result. The files stay in app/fonts for whoever needs them next.
 
 export const metadata: Metadata = {
    title: {
@@ -67,7 +65,7 @@ export default async function RootLayout({
    return (
       <html
          lang={locale}
-         className={`${inter.variable} ${jetBrainsMono.variable} ${dmSerifDisplay.variable} ${theme === 'dark' ? 'dark' : ''}`}
+         className={`${inter.variable} ${jetBrainsMono.variable} ${theme === 'dark' ? 'dark' : ''}`}
          suppressHydrationWarning
       >
          <body className="antialiased" suppressHydrationWarning>

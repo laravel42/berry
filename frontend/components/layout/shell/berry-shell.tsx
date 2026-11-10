@@ -102,7 +102,14 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
             // `--shell-strip` is what the canvas reserves above the page.
             // Nothing does now, but the chat window still reads it, so it is
             // set to zero rather than removed from under it.
-            className="grid h-full min-h-0 w-full grid-cols-[minmax(0,1fr)] overflow-hidden font-mono font-light text-[var(--shell-text)] [--shell-strip:0px] lg:grid-cols-[auto_minmax(0,1fr)]"
+            // No face or weight of its own. `font-mono` here painted the whole
+            // app in the mono face, so `body`'s Inter never reached a screen
+            // inside the shell and the titles had no face to be set in; mono is
+            // now the title face plus what is actually machine text
+            // (`font-mono`, `[data-identifier]`, `[data-figure]`, the code
+            // editor, the console, the transcript). `font-light` is gone with
+            // it: 400 is the floor (see the weight scale in globals.css).
+            className="grid h-full min-h-0 w-full grid-cols-[minmax(0,1fr)] overflow-hidden text-[var(--shell-text)] [--shell-strip:0px] lg:grid-cols-[auto_minmax(0,1fr)]"
          >
             <ShellRail
                ref={railRef}
