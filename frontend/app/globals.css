@@ -1254,15 +1254,21 @@ input[type='search'] {
    line-height: 1.25;
 }
 
-/* The properties sidebar beside them, and the sections under the
-   description (a project's plan, milestones, tasks and updates; a task's
-   sub-tasks and activity), read at the same step.
-   Their controls take that size rather than their own, and section labels
-   stay one step below what they head. */
-[data-detail-sidebar],
-[data-detail-body] {
-   font-size: var(--text-base);
-   line-height: var(--text-base--line-height);
+/* The detail column and the properties sidebar beside it read at the body
+   size, 16px: the sections around the description (a project's plan,
+   milestones, tasks and updates; a task's sub-tasks, comments and activity)
+   and the sidebar's own narrow rows (assignee, status, labels, milestone,
+   blocked by, details) are interface, not prose.
+
+   They used to sit one step above the body, which was a 1px lift while the
+   body was 13px. At 16px that step is 18px, large enough to truncate a name
+   in the 292px sidebar and to make a comment read as a heading. The
+   description keeps the step, below, because it is the one text here read at
+   length. A section label lands on the same size as the rows it heads, so
+   weight and the dim tone tell them apart. */
+:is([data-detail-sidebar], [data-detail-body]) {
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
 }
 
 :is([data-detail-sidebar], [data-detail-body])
@@ -1270,6 +1276,9 @@ input[type='search'] {
    font-size: inherit;
 }
 
+/* Not redundant with the size above: a section label is an `h2`, and the base
+   layer sizes every `h2` at `--text-base`, which an inherited size does not
+   beat. This is what holds a label on the column's own size. */
 :is([data-detail-sidebar], [data-detail-body]) [data-heading='label'] {
    font-size: var(--text-xs);
 }
