@@ -203,7 +203,10 @@ export function buildRequest(
       case 'gemini':
          return geminiRequest(options, messages, stream);
       case 'openai':
-         return openAiRequest('https://api.openai.com/v1/chat/completions', bearer(options.token), options, messages, stream);
+         // The Responses API: OpenAI's reasoning models refuse function tools
+         // on chat completions while a reasoning effort applies, and they apply
+         // one by default.
+         return openAiResponsesRequest(options, messages, stream);
       case 'xai':
          return openAiRequest('https://api.x.ai/v1/chat/completions', bearer(options.token), options, messages, stream);
       case 'lmstudio': {
@@ -226,6 +229,7 @@ export function readReply(runtimeId: string, body: unknown): ProviderReply {
       case 'gemini':
          return readGemini(body);
       case 'openai':
+         return readOpenAiResponses(body);
       case 'xai':
       case 'lmstudio':
          return readOpenAi(body);
@@ -289,6 +293,33 @@ function openAiRequest(
       ...openAiToolChoice(stream),
    };
    return { url, headers, body };
+}
+
+function openAiResponsesRequest(
+   options: Required<Pick<ApiTokenModelOptions, 'model' | 'token'>> & Pick<ApiTokenModelOptions, 'maxTokens' | 'temperature'>,
+   messages: Message[],
+   stream?: StreamOptions
+): { url: string; headers: Record<string, string>; body: Record<string, unknown> } {
+   const tools = (stream?.toolSpecs ?? []).map((spec) => ({
+      type: 'function',
+      name: spec.name,
+      description: spec.description,
+      parameters: spec.inputSchema ?? { type: 'object', properties: {} },
+   }));
+   const system = systemText(stream?.systemPrompt);
+   const body: Record<string, unknown> = {
+      model: options.model,
+      input: responsesInput(messages),
+      ...(system ? { instructions: system } : {}),
+      ...(options.maxTokens ? { max_output_tokens: options.maxTokens } : {}),
+      ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+      ...(tools.length > 0 ? { tools } : {}),
+      ...responsesToolChoice(stream),
+      // Stateless: the whole conversation is sent every turn, and nothing is
+      // kept on OpenAI's side to be referred to later.
+      store: false,
+   };
+   return { url: 'https://api.openai.com/v1/responses', headers: bearer(options.token), body };
 }
 
 function anthropicRequest(
@@ -401,6 +432,42 @@ function openAiMessages(
    return out;
 }
 
+/**
+ * The conversation as Responses API input items: a message per turn's text,
+ * then its tool calls; a tool's result is its own item, matched by call id.
+ */
+function responsesInput(messages: Message[]): Array<Record<string, unknown>> {
+   const out: Array<Record<string, unknown>> = [];
+   for (const message of messages) {
+      const data = message.toJSON();
+      const role = data.role === 'assistant' ? 'assistant' : 'user';
+      const texts: string[] = [];
+      const calls: Array<Record<string, unknown>> = [];
+      const results: Array<Record<string, unknown>> = [];
+      for (const block of data.content) {
+         if ('text' in block && typeof block.text === 'string' && block.text !== '') texts.push(block.text);
+         if ('toolUse' in block && block.toolUse) {
+            calls.push({
+               type: 'function_call',
+               call_id: block.toolUse.toolUseId,
+               name: block.toolUse.name,
+               arguments: JSON.stringify(block.toolUse.input ?? {}),
+            });
+         }
+         if ('toolResult' in block && block.toolResult) {
+            results.push({
+               type: 'function_call_output',
+               call_id: block.toolResult.toolUseId,
+               output: toolResultText(block.toolResult.content),
+            });
+         }
+      }
+      if (texts.length > 0) out.push({ role, content: texts.join('\n') });
+      out.push(...calls, ...results);
+   }
+   return out;
+}
+
 function anthropicMessages(messages: Message[]): Array<Record<string, unknown>> {
    const out: Array<Record<string, unknown>> = [];
    for (const message of messages) {
@@ -479,6 +546,14 @@ function openAiToolChoice(stream?: StreamOptions): Record<string, unknown> {
    return { tool_choice: 'auto' };
 }
 
+function responsesToolChoice(stream?: StreamOptions): Record<string, unknown> {
+   const choice = stream?.toolChoice;
+   if (!choice) return {};
+   if ('any' in choice) return { tool_choice: 'required' };
+   if ('tool' in choice) return { tool_choice: { type: 'function', name: choice.tool.name } };
+   return { tool_choice: 'auto' };
+}
+
 function anthropicToolChoice(stream?: StreamOptions): Record<string, unknown> {
    const choice = stream?.toolChoice;
    if (!choice) return {};
@@ -548,6 +623,47 @@ function readOpenAi(body: unknown): ProviderReply {
             : {}),
       },
       blocked: false,
+   };
+}
+
+function readOpenAiResponses(body: unknown): ProviderReply {
+   const root = asRecord(body);
+   const usage = asRecord(root?.usage);
+   const tools: ProviderReply['tools'] = [];
+   const texts: string[] = [];
+   let refused = false;
+   for (const item of arrayOf(root?.output)) {
+      const type = text(item.type);
+      if (type === 'message') {
+         for (const part of arrayOf(item.content)) {
+            if (text(part.type) === 'output_text') {
+               const value = text(part.text);
+               if (value) texts.push(value);
+            }
+            if (text(part.type) === 'refusal') refused = true;
+         }
+      }
+      if (type === 'function_call') {
+         const name = text(item.name);
+         if (!name) continue;
+         tools.push({
+            id: text(item.call_id) ?? text(item.id) ?? `call_${tools.length + 1}`,
+            name,
+            input: parseJsonObject(text(item.arguments) ?? '{}'),
+         });
+      }
+   }
+   const incomplete = text(asRecord(root?.incomplete_details)?.reason);
+   const cached = number(asRecord(usage?.input_tokens_details)?.cached_tokens);
+   return {
+      text: texts.join(''),
+      tools,
+      usage: {
+         inputTokens: number(usage?.input_tokens),
+         outputTokens: number(usage?.output_tokens),
+         ...(cached > 0 ? { cacheReadInputTokens: cached } : {}),
+      },
+      blocked: (refused && texts.length === 0 && tools.length === 0) || incomplete === 'content_filter',
    };
 }
 
