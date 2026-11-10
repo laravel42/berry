@@ -4,9 +4,9 @@
  *
  * It answers the product's own single calls (chat, the editors' AI help, a
  * project's draft, milestones and tasks generated from a brief, a Loop drafted
- * from a sentence) whatever the workspace has connected. The work agents do on
- * tasks, and the calls where an agent decides about that work (triage, plans,
- * the review gate), stay on the workspace's own AI providers.
+ * from a sentence) and everything the Orchestrator does, whatever the
+ * workspace has connected. The work other agents do on tasks, plans and the
+ * review gate stay on the workspace's own AI providers.
  *
  * The server never calls Bedrock: it names the model on the envelope, and the
  * runtime image calls it with the host's own AWS credentials (its environment
@@ -42,14 +42,19 @@ export function configurePlatformModel(model: PlatformModel | null): void {
 /**
  * The platform model a task runs on, or null when it uses the workspace's
  * providers. A chat reply is an agent task on a conversation with no issue.
+ * Everything the Orchestrator does (routing, triage, and any task given to
+ * it) runs on the platform model too: it is Berry's own router.
  */
 export function platformModelFor(task: {
    kind: 'agent' | 'completion';
    purpose?: string | null | undefined;
    chatSessionId?: string | null | undefined;
    issueId?: string | null | undefined;
+   /** The run's agent is the workspace's Orchestrator (`agents.protected`). */
+   orchestrator?: boolean | undefined;
 }): PlatformModel | null {
    if (!configured) return null;
+   if (task.orchestrator) return configured;
    if (task.kind === 'completion') return task.purpose && PLATFORM_MODEL_PURPOSES.has(task.purpose) ? configured : null;
    return task.chatSessionId && !task.issueId ? configured : null;
 }

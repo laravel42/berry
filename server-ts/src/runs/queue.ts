@@ -147,12 +147,14 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
 
       // Chat and the product's own single calls run on the platform model when
       // the deployment has one; no workspace provider is selected for them.
+      const [agentRow] = await tx`SELECT protected FROM agents WHERE id = ${input.agentId}`;
       const onPlatformModel =
          platformModelFor({
             kind: input.kind,
             purpose: input.purpose,
             chatSessionId: input.chatSessionId,
             issueId,
+            orchestrator: agentRow?.protected === true,
          }) !== null;
       const aiRuntime =
          input.forceNativeRuntime || onPlatformModel

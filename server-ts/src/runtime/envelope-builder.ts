@@ -168,6 +168,8 @@ export interface TaskRow {
 }
 
 export interface AgentConfig {
+   /** The workspace's Orchestrator, which runs on Berry's platform model. */
+   orchestrator?: boolean;
    maxTurns?: number;
    maxOutputTokens?: number;
    id: string;
@@ -327,6 +329,7 @@ export class EnvelopeBuilder {
               purpose: task.completionSpec?.purpose,
               chatSessionId: task.chatSessionId,
               issueId: task.issueId,
+              orchestrator: agent.orchestrator === true,
            });
       const { model, tier, fallback } = runtime
          ? { model: runtime.model, tier: null, fallback: null }
@@ -768,7 +771,7 @@ export class EnvelopeBuilder {
 
    async #agent(agentId: string): Promise<AgentConfig> {
       const [row] = await this.#deps.sql`
-         SELECT id, name, instructions, model_name, model_provider, model_tier, fallback_model, permissions, runtime_profile_id, role_key, role_contract, manifest_limits
+         SELECT id, name, instructions, model_name, model_provider, model_tier, fallback_model, permissions, runtime_profile_id, role_key, role_contract, manifest_limits, protected
            FROM agents WHERE id = ${agentId} AND archived_at IS NULL`;
       if (!row) throw new Error(`agent ${agentId} does not exist`);
       const name = row.name as string;
@@ -783,6 +786,7 @@ export class EnvelopeBuilder {
          ...(turns.length ? { maxTurns: Math.min(...turns) } : {}),
          ...(output.length ? { maxOutputTokens: Math.min(...output) } : {}),
          id: row.id as string,
+         orchestrator: row.protected === true,
          name,
          instructions:
             ((row.instructions as string | null) ?? '').trim() ||

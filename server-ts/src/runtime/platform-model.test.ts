@@ -19,6 +19,15 @@ test('chat replies and the product calls run on the platform model', () => {
    }
 });
 
+test('everything the Orchestrator does runs on the platform model', () => {
+   configurePlatformModel(bedrock);
+   assert.equal(platformModelFor({ kind: 'completion', purpose: 'triage', orchestrator: true }), bedrock);
+   assert.equal(platformModelFor({ kind: 'completion', purpose: 'completion', orchestrator: true }), bedrock);
+   assert.equal(platformModelFor({ kind: 'agent', issueId: 'issue-1', orchestrator: true }), bedrock);
+   configurePlatformModel(null);
+   assert.equal(platformModelFor({ kind: 'agent', issueId: 'issue-1', orchestrator: true }), null);
+});
+
 test('agent work and agent decisions stay on the workspace providers', () => {
    configurePlatformModel(bedrock);
    assert.equal(platformModelFor({ kind: 'agent', issueId: 'issue-1' }), null);
