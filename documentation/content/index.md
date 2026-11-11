@@ -7,6 +7,7 @@ An agent can help implement and review work, but a person decides when to accept
 | You want to… | Start with |
 | --- | --- |
 | Install Berry | [Quick start](quickstart.html) |
+| Run your first task with an agent | [User guide](user-guide.html) |
 | Learn the workspace | [Work tracking](work-tracking.html) |
 | Plan a feature or project | [Planning and automation](planning.html) |
 | Understand the Orchestrator | [The agent organization](organization.html) |

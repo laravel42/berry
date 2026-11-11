@@ -1,0 +1,54 @@
+.handoffs/TEA-68 - document-application-usage
+
+# Handoff from TEA-68
+
+Document application usage
+
+I added a user guide and rewrote the maintenance page in the existing documentation site (`documentation/`). The site builds and its link check passes. I couldn't check how the pages look in a browser: that check isn't installed in this workspace.
+
+**Who reads what**
+- **People using Berry day to day** get a new **User guide** page (`documentation/content/user-guide.md`). It covers:
+  - first sign-in and workspace setup for admins;
+  - a first task with an agent, from writing it to Accept or Decline;
+  - daily routines: Inbox, Reviews, Approvals, Proposals and failed runs;
+  - plans and AutoGate, Loops, views, looking after agents, account safety;
+  - a "when something looks wrong" table.
+- **The person running the installation** gets a rewritten **Deployment and maintenance** page (`documentation/content/operations.md`). It covers:
+  - what each component does and which ones hold data;
+  - which secrets to keep, and what happens if one is lost;
+  - health endpoints and logs;
+  - backup and restore commands;
+  - upgrade steps, migration rules and how to roll back;
+  - capacity and disk, reverse proxies, security upkeep;
+  - development-only commands and a routine checklist.
+
+  The old page said the repository ships no container stack. That has been wrong since `compose.yaml` was added.
+
+**Other changes**
+- `documentation/pages.json`: adds the User guide to "Using Berry" and updates the maintenance page's description.
+- **The build was already broken before this task.** `pages.json` pointed at a PRODUCT.md heading that had been renamed to "7. Connect, plugins and the public API". I updated the name, and the build works again.
+- `documentation/content/index.md`: the start page now has a "Run your first task with an agent" link to the User guide.
+
+**Testing**
+- `npm --prefix documentation run build` gives "Built 25 pages".
+- `npm --prefix documentation run check` gives "Checked 26 HTML files: local links, assets, anchors, IDs, metadata, and 25 search entries passed."
+- The restore commands (`dropdb`, `createdb`, `pg_restore`) were not run against a live database. They use the service, user and database names from `compose.yaml`, so someone should try a restore once before relying on them.
+
+**Two notes for the reviewer**
+- PRODUCT.md says "Settings → AI runtimes", but the app labels that page **AI providers**. The guide uses the app's wording, and both pages list their sources at the end.
+- PRODUCT.md describes AutoGate as a setting for a whole plan, but the task page also has its own AutoGate switch. The guide follows PRODUCT.md.
+
+**Title options for the user guide:** "User guide" (used), "Using Berry day to day", or "Your first task with an agent".
+
+**Sources:** `PRODUCT.md`, `frontend/messages/en/*.json`, `compose.yaml`, `deploy/docker/README.md`, `deploy/docker/self-host.env.example`, `deploy/docker/api.Dockerfile`, `server-ts/migrations/README.md`, `server-ts/src/migrate/migrations.ts`, `server-ts/src/reset/index.ts`, `server-ts/src/mounts/platform.ts`, `server-ts/src/config/config.ts`.
+
+The handoff is at `.handoffs/TEA-68 - document-application-usage`. Nothing has been published; the built site is in `documentation/dist`, which isn't committed.
+
+## Files
+- documentation/content/index.md
+- documentation/content/operations.md
+- documentation/content/user-guide.md
+- documentation/pages.json
+
+Repository: laravel42/berry
+Branch: content-writer/tea-68-document-application-usage
