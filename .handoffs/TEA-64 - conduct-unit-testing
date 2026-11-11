@@ -1,0 +1,30 @@
+.handoffs/TEA-64 - conduct-unit-testing
+
+# Handoff from TEA-64
+
+Conduct unit testing
+
+I haven't written any new unit tests: the features this task is meant to test don't exist yet. TEA-63 ("Develop core functionalities") is the task that should produce them. It is blocked with no code and no acceptance criteria, waiting on a product decision in TEA-71. That decision is which desktop app this is (the existing Electron app in `apps/desktop`, Expo web inside Electron, or a native Expo desktop app) and which features count as "core". Writing tests now would mean making up requirements.
+
+I set TEA-64 to depend on TEA-63 and marked it blocked, so it will start by itself once TEA-63 is finished. I didn't open a second product question, because TEA-71 already asks the Product Lead the same thing.
+
+**What I checked today (commit `7cad1e8`, Node 22.23.4, after `bun install --frozen-lockfile`)**
+
+| App | Command | Result |
+| --- | --- | --- |
+| `apps/desktop` (Electron) | `cd apps/desktop && bun run test` | 35 of 35 tests pass, across `test/cli.test.ts`, `test/stack.test.ts` and `test/url.test.ts` |
+| `apps/desktop` | `bun run typecheck` | clean |
+| `apps/mobile` (Expo SDK 57) | `bun run typecheck` | clean; this app has no unit tests and no test script |
+
+Before installing dependencies, one test in `stack.test.ts` failed: "finds the Next CLI installed for this repo", with the error "Next.js is not installed". It passes after the install, so it's a setup issue, not a defect.
+
+**What changed in the repo:** only `.handoffs/TEA-64 - conduct-unit-testing`. It records the results above and the plan for the next run:
+- Write tests from TEA-63's acceptance criteria before reading its code.
+- If the Electron app is chosen, add the tests under `apps/desktop/test/` in the same style as the existing ones.
+- If an Expo option is chosen, `apps/mobile` first needs a test runner. That's a dependency change and has to be recorded on the task.
+- Run the commands above again to catch regressions.
+
+**What's needed to unblock this:** the Product Lead answers TEA-71, and TEA-63 delivers features with acceptance criteria.
+
+Repository: laravel42/berry
+Branch: qa-engineer/tea-64-conduct-unit-testing
