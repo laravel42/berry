@@ -1,7 +1,7 @@
 'use client';
 
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
-import { InsightsPanel } from '@/components/common/issues/insights-panel';
+import { InsightsPanel } from '@/components/common/issues/insights-panel-lazy';
 import { IssueTable } from '@/components/common/issues/issue-table';
 import { applyIssueFilters } from '@/components/common/issues/issue-filter-columns';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
