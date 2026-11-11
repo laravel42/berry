@@ -41,10 +41,10 @@ describe('/api/v1/plugins', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
                return (row?.slug as string | undefined) ?? null;
             },
             oauthStates: new PluginOAuthStateStore({ sql, sealer }),
-            oauthClient: {
-               clientId: 'google-client.apps.googleusercontent.com',
-               clientSecret: 'google-secret',
-            },
+            oauthClients: async (provider) =>
+               provider === 'google'
+                  ? { clientId: 'google-client.apps.googleusercontent.com', clientSecret: 'google-secret' }
+                  : { clientId: 'Iv23-github-app', clientSecret: 'github-secret' },
             fetchImpl: (input, init) => oauthFetch(input, init),
          })
       );
@@ -333,6 +333,59 @@ describe('/api/v1/plugins', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is no
       const opened = await new PluginRepository({ sql, sealer }).openSecrets(world.workspaceId, installed.installation.id);
       assert.equal(opened.API_KEY, 'gmail-access-token');
       assert.equal(opened.REFRESH_TOKEN, 'gmail-refresh-token');
+      assert.equal((await call(`/installations/${installed.installation.id}`, tokens.owner, { method: 'DELETE' })).status, 204);
+      oauthFetch = fetch;
+   });
+
+   test('GitHub OAuth uses the GitHub App client, never the Google one', async () => {
+      const packages = await bundledPluginPackages();
+      const github = packages.find((pkg) => pkg.manifest.key === 'github');
+      assert.ok(github);
+      oauthFetch = async (input, init) => {
+         const target = String(input);
+         if (target === 'https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp') {
+            return new Response(
+               JSON.stringify({ authorization_servers: ['https://github.com/login/oauth'] }),
+               { status: 200 }
+            );
+         }
+         if (target === 'https://github.com/.well-known/oauth-authorization-server/login/oauth') {
+            return new Response(
+               JSON.stringify({
+                  authorization_endpoint: 'https://github.com/login/oauth/authorize',
+                  token_endpoint: 'https://github.com/login/oauth/access_token',
+               }),
+               { status: 200 }
+            );
+         }
+         if (target === 'https://github.com/login/oauth/access_token') {
+            const body = new URLSearchParams(String(init?.body));
+            assert.equal(body.get('code'), 'gh-code');
+            assert.equal(body.get('client_id'), 'Iv23-github-app');
+            assert.equal(body.get('client_secret'), 'github-secret');
+            return new Response(JSON.stringify({ access_token: 'gh-access-token' }), { status: 200 });
+         }
+         return new Response(null, { status: 404 });
+      };
+      const created = await call('/installations', tokens.owner, {
+         method: 'POST',
+         body: JSON.stringify({ package: github }),
+      });
+      assert.equal(created.status, 201);
+      const installed = (await created.json()) as { installation: { id: string } };
+      const started = await call(`/installations/${installed.installation.id}/oauth`, tokens.owner, { method: 'POST' });
+      assert.equal(started.status, 200);
+      const { authorizeUrl } = (await started.json()) as { authorizeUrl: string };
+      const authorize = new URL(authorizeUrl);
+      assert.equal(authorize.origin, 'https://github.com');
+      assert.equal(authorize.searchParams.get('client_id'), 'Iv23-github-app');
+      const callback = await app.request(
+         `/api/v1/plugins/oauth/callback?code=gh-code&state=${encodeURIComponent(authorize.searchParams.get('state') ?? '')}`
+      );
+      const location = new URL(callback.headers.get('location') ?? '');
+      assert.equal(location.searchParams.get('status'), 'connected');
+      const opened = await new PluginRepository({ sql, sealer }).openSecrets(world.workspaceId, installed.installation.id);
+      assert.equal(opened.API_KEY, 'gh-access-token');
       assert.equal((await call(`/installations/${installed.installation.id}`, tokens.owner, { method: 'DELETE' })).status, 204);
       oauthFetch = fetch;
    });

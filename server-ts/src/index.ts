@@ -1140,7 +1140,13 @@ registry.registerAll(
          return (row?.slug as string | undefined) ?? null;
       },
       oauthStates: pluginOAuthStates,
-      ...(config.integrations.googleOAuth ? { oauthClient: config.integrations.googleOAuth } : {}),
+      // Each provider gets only its own client: Google's for Google's
+      // authorization server, the GitHub App's for GitHub's.
+      oauthClients: async (provider) => {
+         if (provider === 'google') return config.integrations.googleOAuth;
+         if (provider === 'github') return githubApp ? githubApp.oauthClient() : null;
+         return null;
+      },
    })
 );
 // Plugin hooks run in every server process; the cursor and schedule rows are
