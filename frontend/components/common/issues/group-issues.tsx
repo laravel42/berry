@@ -1,7 +1,8 @@
 'use client';
 
+import { BoardColumn, BoardColumnBody, BoardColumnHeader, columnTone } from '../board-column';
 import type { Issue } from '@/data/issues';
-import { statusTone, type Status, type StatusTone } from '@/data/status';
+import type { Status, StatusTone } from '@/data/status';
 import { useIssuesStore } from '@/store/issues-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { cn } from '@/lib/utils';
@@ -9,7 +10,6 @@ import { useVirtualRows } from '@/lib/use-virtual-rows';
 import { ChevronDown, Plus } from 'lucide-react';
 import { FC, ReactNode, useRef } from 'react';
 import { useDrop } from 'react-dnd';
-import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { IssueDragType, IssueGrid } from './issue-grid';
@@ -53,20 +53,10 @@ const VIRTUALIZE_ABOVE = 40;
 const ESTIMATED_CARD_HEIGHT = 104;
 
 /**
- * Header tint per tone: a wash of the status's own `--status-*` token over
- * the container (tokens in globals.css), so the column agrees with the glyph
- * in both themes. The board column takes the fuller wash, the list group bar
- * the lighter one. A group that is not a status (assignee, priority, ...)
- * has no tone of its own and stays neutral.
+ * The list group bar takes the lighter wash of the same semantic tone the
+ * board column takes (`COLUMN_TINT`, in `board-column.tsx`), so a status reads
+ * the same in both layouts.
  */
-const COLUMN_TINT: Record<StatusTone, string> = {
-   neutral: 'bg-column-tint-neutral',
-   info: 'bg-column-tint-info',
-   warning: 'bg-column-tint-warning',
-   success: 'bg-column-tint-success',
-   danger: 'bg-column-tint-danger',
-};
-
 const GROUP_TINT: Record<StatusTone, string> = {
    neutral: 'bg-group-tint-neutral',
    info: 'bg-group-tint-info',
@@ -74,12 +64,6 @@ const GROUP_TINT: Record<StatusTone, string> = {
    success: 'bg-group-tint-success',
    danger: 'bg-group-tint-danger',
 };
-
-function groupTone(group: IssueGroupDescriptor): StatusTone {
-   return group.status ? statusTone(group.status) : 'neutral';
-}
-
-const BOARD_COLUMN_BODY_BG = 'var(--board-column-body)';
 
 function GroupHeaderBar({
    group,
@@ -132,20 +116,13 @@ function GroupHeaderBar({
       </Button>
    );
 
-   const tone = groupTone(group);
+   const tone = columnTone(group.status);
 
    if (isViewTypeGrid) {
       return (
-         <div
-            data-column-tint={tone}
-            className={cn(
-               'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1',
-               COLUMN_TINT[tone]
-            )}
-         >
-            <div className="flex min-w-0 items-center gap-2">{label}</div>
-            <div className="flex shrink-0 items-center">{createButton}</div>
-         </div>
+         <BoardColumnHeader tone={tone} action={createButton}>
+            {label}
+         </BoardColumnHeader>
       );
    }
 
@@ -228,12 +205,9 @@ export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesPr
 
    if (isViewTypeGrid) {
       return (
-         <div className="bg-container flex h-full w-[278px] shrink-0 flex-col overflow-hidden rounded-lg">
-            <div className="sticky top-0 z-10 h-9 w-full shrink-0 rounded-t-lg bg-container">
-               {header}
-            </div>
+         <BoardColumn header={header}>
             <IssueGridList issues={issues} status={group.status} onDropIssue={onDropIssue} />
-         </div>
+         </BoardColumn>
       );
    }
 
@@ -282,30 +256,15 @@ const IssueGridList: FC<{
    const visible = windowed ? issues.slice(virtual.start, virtual.end) : issues;
 
    return (
-      <div
+      <BoardColumnBody
          ref={(node) => {
             ref.current = node;
             virtual.ref.current = node;
          }}
-         className={cn(
-            'relative flex min-h-0 flex-1 flex-col space-y-1.5 overflow-y-auto rounded-b-lg p-1.5 transition-shadow no-scrollbar',
-            isOverColumn && issues.length > 0 && 'ring-2 ring-inset ring-primary/35'
-         )}
-         style={{ backgroundColor: BOARD_COLUMN_BODY_BG }}
+         isOver={isOverColumn}
+         isOverEmpty={isOverEmpty}
+         isEmpty={issues.length === 0}
       >
-         <AnimatePresence>
-            {isOverEmpty && issues.length === 0 && (
-               <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                  className="pointer-events-none flex flex-1 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4"
-               >
-                  <p className="font-medium text-muted-foreground">Drop to move here</p>
-               </motion.div>
-            )}
-         </AnimatePresence>
          {windowed ? <div style={{ height: virtual.offset }} aria-hidden /> : null}
          {visible.map((issue, index) => (
             <IssueGrid
@@ -325,6 +284,6 @@ const IssueGridList: FC<{
                aria-hidden
             />
          ) : null}
-      </div>
+      </BoardColumnBody>
    );
 };

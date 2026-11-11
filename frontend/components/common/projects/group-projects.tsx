@@ -1,15 +1,14 @@
 'use client';
 
+import { BoardColumn, BoardColumnBody, BoardColumnHeader, columnTone } from '../board-column';
 import { Button } from '@/components/ui/button';
 import type { Project } from '@/data/projects';
-import { statusTone, type Status, type StatusTone } from '@/data/status';
-import { cn } from '@/lib/utils';
+import type { Status } from '@/data/status';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { Plus } from 'lucide-react';
 import { FC, ReactNode, useRef } from 'react';
 import { useDrop } from 'react-dnd';
-import { AnimatePresence, motion } from 'motion/react';
 import { ProjectDragType, ProjectGrid } from './project-grid';
 
 export interface ProjectGroupDescriptor {
@@ -32,67 +31,39 @@ interface GroupProjectsProps {
    count: number;
 }
 
-const BOARD_COLUMN_BODY_BG = 'var(--board-column-body)';
-
-/**
- * Header tint per tone: a wash of the status's own `--status-*` token over
- * the container (tokens in globals.css), the same one the task board's
- * columns take, so the two boards agree. A group that is not a status has no
- * tone of its own and stays neutral.
- */
-const COLUMN_TINT: Record<StatusTone, string> = {
-   neutral: 'bg-column-tint-neutral',
-   info: 'bg-column-tint-info',
-   warning: 'bg-column-tint-warning',
-   success: 'bg-column-tint-success',
-   danger: 'bg-column-tint-danger',
-};
-
-function groupTone(group: ProjectGroupDescriptor): StatusTone {
-   return group.status ? statusTone(group.status) : 'neutral';
-}
-
 function GroupHeaderBar({ group, count }: { group: ProjectGroupDescriptor; count: number }) {
    const { openModal } = useCreateProjectStore();
-   const tone = groupTone(group);
 
    return (
-      <div
-         data-column-tint={tone}
-         className={cn(
-            'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1',
-            COLUMN_TINT[tone]
-         )}
+      <BoardColumnHeader
+         tone={columnTone(group.status)}
+         action={
+            <Button
+               className="size-5"
+               size="icon"
+               variant="ghost"
+               aria-label={`Create project in ${group.name}`}
+               onClick={(event) => {
+                  event.stopPropagation();
+                  openModal(group.status);
+               }}
+            >
+               <Plus className="size-3.5" />
+            </Button>
+         }
       >
-         <div className="flex min-w-0 items-center gap-2">
-            {group.icon}
-            <span className="font-medium">{group.name}</span>
-            <span className="text-muted-foreground">{count}</span>
-         </div>
-         <Button
-            className="size-5"
-            size="icon"
-            variant="ghost"
-            aria-label={`Create project in ${group.name}`}
-            onClick={(event) => {
-               event.stopPropagation();
-               openModal(group.status);
-            }}
-         >
-            <Plus className="size-3.5" />
-         </Button>
-      </div>
+         {group.icon}
+         <span className="font-medium">{group.name}</span>
+         <span className="text-muted-foreground">{count}</span>
+      </BoardColumnHeader>
    );
 }
 
 export function GroupProjects({ group, projects, count }: GroupProjectsProps) {
    return (
-      <div className="bg-container flex h-full w-[278px] shrink-0 flex-col overflow-hidden rounded-lg">
-         <div className="sticky top-0 z-10 h-9 w-full shrink-0 rounded-t-lg bg-container">
-            <GroupHeaderBar group={group} count={count} />
-         </div>
+      <BoardColumn header={<GroupHeaderBar group={group} count={count} />}>
          <ProjectGridList projects={projects} status={group.status} />
-      </div>
+      </BoardColumn>
    );
 }
 
@@ -120,30 +91,15 @@ const ProjectGridList: FC<{ projects: Project[]; status?: Status }> = ({ project
    drop(ref);
 
    return (
-      <div
+      <BoardColumnBody
          ref={ref}
-         className={cn(
-            'relative flex min-h-0 flex-1 flex-col space-y-1.5 overflow-y-auto rounded-b-lg p-1.5 transition-shadow no-scrollbar',
-            isOverColumn && projects.length > 0 && 'ring-2 ring-inset ring-primary/35'
-         )}
-         style={{ backgroundColor: BOARD_COLUMN_BODY_BG }}
+         isOver={isOverColumn}
+         isOverEmpty={isOverEmpty}
+         isEmpty={projects.length === 0}
       >
-         <AnimatePresence>
-            {isOverEmpty && projects.length === 0 && (
-               <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                  className="pointer-events-none flex flex-1 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4"
-               >
-                  <p className="font-medium text-muted-foreground">Drop to move here</p>
-               </motion.div>
-            )}
-         </AnimatePresence>
          {projects.map((project) => (
             <ProjectGrid key={project.id} project={project} columnStatus={status} />
          ))}
-      </div>
+      </BoardColumnBody>
    );
 };
