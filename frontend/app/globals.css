@@ -681,7 +681,7 @@
 
    /* Titles stay on the interface face. Write the words as they should read;
       do not capitalize here — that rewrites identifiers (BER-286, API).
-      Section labels are 11.5 / 700 in sentence case. */
+      Section labels are the body size at 600/700, in sentence case. */
 
    /* Titles are set in the mono face, the body in Inter. One face names
       things and the other reads them, which is also why a title needs no
@@ -774,12 +774,20 @@
       line-height: 1rem;
    }
 
-   /* Section labels inside a page ("Sub-tasks", "Files", "Activity"): tracked
-      caps one step below the body, so they read as labels for a group and
-      not as the rail's section headings, which are a shell element. */
+   /* Section labels ("Sub-tasks", "Files", "Activity", and the folds that
+      open a rail or sidebar section).
+
+      The body size, not a step under it. These were 11.5px, which was a
+      readable caption when the body was 13px and is a caption no longer at
+      16px: a label the same colour as nothing else on the surface, three
+      steps smaller than the rows it heads, stopped reading as a heading and
+      started reading as fine print. Weight and the dim tone are what separate
+      a label from its rows now. The detail column and sidebar used to carry
+      their own override of this line for exactly that reason; it is gone,
+      because the base value is the one they wanted. */
    [data-heading='label'] {
-      font-size: 0.71875rem;
-      line-height: 1rem;
+      font-size: var(--text-xs);
+      line-height: var(--text-xs--line-height);
       font-weight: 600;
       letter-spacing: 0;
       text-transform: none;
@@ -1342,13 +1350,6 @@ input[type='search'] {
 :is([data-detail-sidebar], [data-detail-body])
    :is(button, input, textarea, select):not([data-detail-title]) {
    font-size: inherit;
-}
-
-/* Not redundant with the size above: a section label is an `h2`, and the base
-   layer sizes every `h2` at `--text-base`, which an inherited size does not
-   beat. This is what holds a label on the column's own size. */
-:is([data-detail-sidebar], [data-detail-body]) [data-heading='label'] {
-   font-size: var(--text-xs);
 }
 
 /* A create dialog's title sits a step above the h1 scale, so it leads. */
