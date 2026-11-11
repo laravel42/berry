@@ -13,7 +13,7 @@ import {
    type ToolSpec,
 } from '@strands-agents/sdk';
 import { LMSTUDIO_NO_TOKEN, type TaskEnvelope } from '../../runtime/envelope.ts';
-import { ensureLmStudioContext } from './lmstudio-load.ts';
+import { ensureLmStudioContext, lmStudioErrorMessage } from './lmstudio-load.ts';
 import type { ModelFactory } from './model.ts';
 
 /**
@@ -184,6 +184,15 @@ async function invokeProvider(
       throw new ApiTokenCallError('The model provider returned an unreadable reply.', response.status);
    }
    if (!response.ok) {
+      if (options.runtimeId === 'lmstudio') {
+         // LM Studio's body is `{"error": "<sentence>"}`, a string the generic
+         // reader skipped, which left "rejected the request" and no reason.
+         const reason = lmStudioErrorMessage(body);
+         throw new ApiTokenCallError(
+            reason ? `LM Studio refused the request: ${reason}` : `LM Studio refused the request (HTTP ${response.status}).`,
+            response.status
+         );
+      }
       throw new ApiTokenCallError(providerMessage(body) ?? 'The model provider rejected the request.', response.status);
    }
    const reply = readReply(options.runtimeId, body);
@@ -784,7 +793,8 @@ function toolResultText(content: unknown): string {
 function providerMessage(body: unknown): string | null {
    const root = asRecord(body);
    const error = asRecord(root?.error);
-   const message = text(error?.message) ?? text(root?.message);
+   // Some OpenAI-compatible servers answer `{"error": "<sentence>"}`.
+   const message = text(error?.message) ?? text(root?.message) ?? text(root?.error);
    if (!message) return null;
    return message.length > 300 ? `${message.slice(0, 300)}…` : message;
 }
