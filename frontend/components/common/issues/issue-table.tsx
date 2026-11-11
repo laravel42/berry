@@ -617,7 +617,11 @@ export function IssueTable({
       }
       switch (column as BuiltInColumn) {
          case 'identifier':
-            return <span className="truncate text-muted-foreground">{issue.identifier}</span>;
+            return (
+               <span data-identifier className="truncate text-muted-foreground">
+                  {issue.identifier}
+               </span>
+            );
          case 'status':
             return <IssueStatusPicker issue={issue} />;
          case 'priority':

@@ -36,7 +36,9 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
       <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <IssuePriorityPicker issue={issue} />
-            <span className="min-w-0 truncate text-subtle-foreground">{issue.identifier}</span>
+            <span data-identifier className="min-w-0 truncate text-subtle-foreground">
+               {issue.identifier}
+            </span>
             {issue.autoGate ? <AutoGateMark /> : null}
             <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
                {format(new Date(issue.createdAt), 'MMM dd')}
@@ -212,7 +214,14 @@ export function IssueGrid({
                            <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
                         ) : null}
                         {displayProperties.id ? (
-                           <span className="min-w-0 truncate whitespace-nowrap text-subtle-foreground">
+                           /* `data-identifier` is the hook for a task's ref:
+                              the rule in globals.css gives it the mono face
+                              and tabular figures, so BER-9 and BER-11 line up
+                              down a column. */
+                           <span
+                              data-identifier
+                              className="min-w-0 truncate whitespace-nowrap text-subtle-foreground"
+                           >
                               {issue.identifier}
                            </span>
                         ) : null}

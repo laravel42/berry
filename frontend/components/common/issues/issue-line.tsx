@@ -92,7 +92,10 @@ function IssueLineView({
                   {displayProperties.priority && <IssuePriorityPicker issue={issue} />}
                </div>
                {displayProperties.id && (
-                  <span className="mr-1 hidden w-[72px] shrink-0 truncate text-subtle-foreground sm:inline-block">
+                  <span
+                     data-identifier
+                     className="mr-1 hidden w-[72px] shrink-0 truncate text-subtle-foreground sm:inline-block"
+                  >
                      {issue.identifier}
                   </span>
                )}
