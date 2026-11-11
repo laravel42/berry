@@ -1,0 +1,42 @@
+.handoffs/TEA-71 - decision-tea-63-asks-me-to-implement-the-core-functionalities-of-the-desktop-app
+
+# Handoff from TEA-71
+
+Decision: TEA-63 asks me to "implement the core functionalities of the desktop application", but there is no spec to build from, and the project brief conflicts with what the repo already has.
+
+1. No spec. The
+
+I decided what I'm allowed to decide here and sent the rest to a person: TEA-63 stays on hold, and Electron vs Expo is now a question on TEA-71. TEA-71 stays blocked until they answer. No app code was changed.
+
+**Why it went to a person.** The project brief says "Develop a desktop application using the Expo framework." Keeping the Electron app means dropping Expo from the brief, which changes the agreed scope. That isn't my call. The repo confirms the conflict the Software Engineer described:
+- **`apps/desktop` is the desktop app we already have.** It is an Electron app that packages for macOS, Windows and Linux. Today it has no notifications, no badge, no deep links and no tray.
+- **`apps/mobile` is the only Expo app.** It targets iOS and Android, runs on local fixture data, and mobile is out of scope for this project.
+- **Expo has no first-party desktop target, and react-native has no maintained Linux desktop target.** So option C can't meet the brief's goal of working on the major desktop operating systems.
+
+**What I decided:**
+- **TEA-63 waits (option D).** No code gets written until the platform is chosen. I left a comment on TEA-63 saying so.
+- **I recommended option A to the person:** keep the Electron app in `apps/desktop`. It already runs on all three operating systems and needs the least new work. B (the Expo web build inside the Electron shell) and C (native Expo desktop) only make sense if Expo is a firm commitment, and then the CTO has to decide the platform first.
+
+**What I wrote:**
+- **`docs/product/desktop-core-features.md`:** the user problem and measurable outcome, the options with effort and risk, and a ready-to-build spec for option A. I've labelled the user problem an assumption, because no research or analytics back it. The spec has four features, each with testable rules and acceptance criteria:
+  - **F1, notifications:** desktop notifications for new inbox items and review gates. They stay quiet while the window is focused, group into one notification above 3 items, can be turned off from a menu item, and open the item when clicked.
+  - **F2, unread badge:** the dock/taskbar badge shows the unread count from the existing `GET /api/v1/inbox/unread-count`. It refreshes within 10 s, clears at 0, and shows "99+" above 99.
+  - **F3, deep links:** `berry://<orgId>/<path>` opens that page in the existing window, whether or not the app is already running. Links that don't resolve to a page in the app are rejected.
+  - **F4, reconnect:** when the server drops, the window shows the retry page within 10 s, retries automatically with backoff, and returns to the same page.
+  
+  It also covers what is out of scope (tray mode, auto-update, code signing) and edge cases such as expired sessions, sleep/wake and denied notification permission.
+- **The TEA-71 handoff:** what was decided, how to check the doc's claims against the repo, and next steps for each answer.
+
+**After the person answers:**
+- **If A:** the doc becomes TEA-63's spec, and TEA-60 and TEA-62 can close as covered by it.
+- **If B or C:** the CTO decides the platform and TEA-62 picks the stack before any code. The feature list still applies, but its file paths don't.
+
+**Risk:** TEA-65 (integration testing), TEA-67 (deployment scripts), TEA-68 (usage docs) and TEA-69 (monitoring) are already in progress without a platform decision. They need re-checking if the answer isn't A.
+
+Nothing needed running for this. You can check the doc's claims about the repo in `apps/desktop/package.json`, `apps/desktop/src/main.ts`, `apps/mobile/README.md` and `server-ts/src/mounts/inbox.ts`.
+
+## Files
+- docs/product/desktop-core-features.md
+
+Repository: laravel42/berry
+Branch: product-lead/tea-71-decision-tea-63-asks-me-to
