@@ -19,13 +19,18 @@ import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
 import {
    AtSign,
+   Cloud,
+   Container,
    CornerDownRight,
+   Cpu,
    GitMerge,
    MessageSquare,
+   Server,
    ShieldCheck,
    Timer,
    Wand2,
    Zap,
+   type LucideIcon,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState, type ReactNode } from 'react';
@@ -135,6 +140,7 @@ export function RunSummary({ run, runs }: { run: RunRecord; runs: readonly RunRe
                {name}
             </MetaBadge>
             <RunModel run={run} />
+            <RunHostBadge run={run} />
             {trigger ? (
                <MetaBadge
                   truncate={false}
@@ -215,6 +221,29 @@ export function RunModel({ run }: { run: RunRecord }) {
          title={label}
          truncate={false}
       />
+   );
+}
+
+/** The host's kind, by its driver: a local container, AgentCore, or a MicroVM. */
+const HOST_ICON: Record<string, LucideIcon> = { http: Container, agentcore: Cloud, microvm: Cpu };
+
+/**
+ * Where the run executes, after its model. A pill rather than the bordered
+ * badges beside it, in its own tone: it names the machine, not the agent.
+ */
+export function RunHostBadge({ run }: { run: RunRecord }) {
+   const t = useTranslations('issueDetail.log');
+   const host = run.runtime;
+   if (!host) return null;
+   const Icon = HOST_ICON[host.driver] ?? Server;
+   return (
+      <span
+         title={t('runsOn', { name: host.name })}
+         className="inline-flex shrink-0 items-center gap-1 rounded-full bg-iris/12 px-2 py-0.5 font-medium tracking-wide text-iris uppercase"
+      >
+         <Icon className="size-3" aria-hidden />
+         <span className="whitespace-nowrap">{host.name}</span>
+      </span>
    );
 }
 

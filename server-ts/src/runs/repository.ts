@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
-import type { Run } from './ledger.ts';
+import { RUN_HOST_COLUMNS, runHostFrom, type Run } from './ledger.ts';
 import { resolveAiRuntimeSelection } from '../runtime/ai-runtimes.ts';
 
 /**
@@ -44,6 +44,7 @@ const RUN_COLUMNS = `r.id, r.issue_id, r.board_id, COALESCE(r.workspace_id, b.wo
    r.currency, r.failure_code, r.failure_message, r.failure_retryable, r.dispatch_state,
    r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id, r.ai_runtime_agent,
    r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
+   ${RUN_HOST_COLUMNS},
    r.created_at, r.started_at, r.completed_at`;
 
 // LEFT: a chat or completion run has no board.
@@ -317,6 +318,7 @@ function toRun(row: Record<string, unknown>): Run {
       aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
       aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
       aiRuntimeAccountName: (row.ai_runtime_account_name as string | null) ?? null,
+      runtime: runHostFrom(row),
       dispatchState: row.dispatch_state as string,
       createdAt: toRFC3339(row.created_at as string)!,
       startedAt: toRFC3339(row.started_at as string | null),

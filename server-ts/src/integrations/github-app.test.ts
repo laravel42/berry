@@ -59,6 +59,7 @@ describe('the manifest', () => {
       );
       assert.deepEqual(manifest.callback_urls, [
          'http://localhost:3000/api/v1/integrations/callback/github',
+         'http://localhost:3000/api/v1/plugins/oauth/callback',
       ]);
    });
 
@@ -72,6 +73,7 @@ describe('the manifest', () => {
       assert.deepEqual(split.callback_urls, [
          'http://localhost:3000/api/v1/integrations/callback/github',
          'http://localhost:4000/api/v1/integrations/callback/github',
+         'http://localhost:4000/api/v1/plugins/oauth/callback',
       ]);
       assert.equal(
          manifest.setup_url,

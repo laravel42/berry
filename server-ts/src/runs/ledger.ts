@@ -119,6 +119,8 @@ export interface Run {
    aiRuntimeUserId: string | null;
    aiRuntimeAccountId: string | null;
    aiRuntimeAccountName: string | null;
+   /** The run host it was dispatched to (Local Docker, AgentCore, MicroVMs), once one was chosen. */
+   runtime: RunHost | null;
    dispatchState: string;
    createdAt: string;
    startedAt: string | null;
@@ -917,6 +919,29 @@ export class RunLedger {
  * makes two concurrent appends queue instead of colliding on
  * `run_events (run_id, sequence)`.
  */
+/** Where a run executes: one of the workspace's run hosts. */
+export interface RunHost {
+   id: string;
+   name: string;
+   driver: string;
+}
+
+/**
+ * The run host columns a run query selects. Scalar subqueries rather than a
+ * join, so a `FOR UPDATE` on the run never locks the host's row too.
+ */
+export const RUN_HOST_COLUMNS = `r.runtime_id,
+   (SELECT ar.name FROM agent_runtimes AS ar WHERE ar.id = r.runtime_id) AS runtime_name,
+   (SELECT ar.driver FROM agent_runtimes AS ar WHERE ar.id = r.runtime_id) AS runtime_driver`;
+
+/** The run host from a row selected with `RUN_HOST_COLUMNS`; null until dispatch picks one. */
+export function runHostFrom(row: Record<string, unknown>): RunHost | null {
+   const id = row.runtime_id as string | null | undefined;
+   const name = row.runtime_name as string | null | undefined;
+   if (!id || !name) return null;
+   return { id, name, driver: (row.runtime_driver as string | null) ?? '' };
+}
+
 async function lockRun(tx: Sql, runId: string): Promise<Run> {
    const [row] = await tx`
       SELECT r.id, r.issue_id, r.board_id,
@@ -927,6 +952,7 @@ async function lockRun(tx: Sql, runId: string): Promise<Run> {
              r.failure_code, r.failure_message, r.failure_retryable,
              r.source, r.requested_by, r.ai_runtime_key, r.ai_model_id, r.ai_runtime_agent,
              r.ai_runtime_user_id, r.ai_runtime_account_id, r.ai_runtime_account_name,
+             ${tx.unsafe(RUN_HOST_COLUMNS)},
              r.dispatch_state, r.created_at, r.started_at, r.completed_at
         FROM runs AS r
        WHERE r.id = ${runId}
@@ -968,6 +994,7 @@ async function lockRun(tx: Sql, runId: string): Promise<Run> {
       aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
       aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
       aiRuntimeAccountName: (row.ai_runtime_account_name as string | null) ?? null,
+      runtime: runHostFrom(row),
       dispatchState: row.dispatch_state as string,
       createdAt: toRFC3339(row.created_at as string) ?? '',
       startedAt: toRFC3339(row.started_at as string | null),

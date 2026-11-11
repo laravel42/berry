@@ -87,30 +87,7 @@ function ScmMark({ provider, className }: { provider: ScmProvider; className?: s
    );
 }
 
-/**
- * Chooses a GitHub or GitLab repository, over a plain value.
- *
- * Split from the project-bound wrapper below because the create dialog has no
- * project to update yet — it holds a pending choice until the project exists.
- * Both need the same list, search and failure states, and having two would mean
- * one of them quietly falling behind.
- *
- * The list is loaded when the picker opens rather than with the page. It costs
- * an upstream call and most people looking at a project are not relinking it,
- * so paying for it on every view would be a request nobody asked for.
- */
-export function RepositoryPicker({
-   value,
-   valueProvider,
-   onSelect,
-   disabled,
-   pending = false,
-   placeholder = 'Link a repository',
-   variant = 'ghost',
-   size = 'sm',
-   className = 'w-full px-0',
-   side,
-}: {
+type RepositoryPickerProps = {
    value?: string;
    /** Which host the current value came from; defaults to GitHub when omitted. */
    valueProvider?: ScmProvider;
@@ -127,6 +104,83 @@ export function RepositoryPicker({
    className?: string;
    /** Where the list opens. The project row opens downward; chat opens up. */
    side?: 'top' | 'bottom';
+};
+
+const HOST_LABEL: Record<ScmProvider, string> = { github: 'GitHub', gitlab: 'GitLab' };
+
+/** The connected hosts, in the order the pickers show them. */
+function connectedProviders(connected: { github: boolean; gitlab: boolean }): ScmProvider[] {
+   const providers: ScmProvider[] = [];
+   if (connected.github) providers.push('github');
+   if (connected.gitlab) providers.push('gitlab');
+   return providers;
+}
+
+/**
+ * Chooses a GitHub or GitLab repository, over a plain value.
+ *
+ * Split from the project-bound wrapper below because the create dialog has no
+ * project to update yet — it holds a pending choice until the project exists.
+ * Both need the same list, search and failure states, and having two would mean
+ * one of them quietly falling behind.
+ *
+ * The list is loaded when the picker opens rather than with the page. It costs
+ * an upstream call and most people looking at a project are not relinking it,
+ * so paying for it on every view would be a request nobody asked for.
+ */
+export function RepositoryPicker(props: RepositoryPickerProps) {
+   const connected = useConnectedScm();
+   // Nothing to link until an SCM is connected: the button would only open a
+   // picker the server refuses. Stay hidden until that is known so the row
+   // does not flash in.
+   if (!connected.ready) return null;
+   const providers = connectedProviders(connected);
+   if (providers.length === 0) return null;
+   return <RepositoryPickerView {...props} providers={providers} />;
+}
+
+/**
+ * One "Link a repository" per connected host, so each lists only its own
+ * repositories and one host that cannot load never hides another's list.
+ *
+ * A project links at most one repository: linking on one host clears the
+ * other, server-side. So while a repository is linked only its host's picker
+ * shows — Unlink there brings the others back.
+ */
+export function RepositoryPickers(props: RepositoryPickerProps) {
+   const connected = useConnectedScm();
+   if (!connected.ready) return null;
+   const providers = connectedProviders(connected);
+   if (providers.length === 0) return null;
+   if (props.value) {
+      const linked = props.valueProvider ?? 'github';
+      return <RepositoryPickerView {...props} providers={[linked]} />;
+   }
+   // The same label on every row: each trigger carries its host's mark.
+   return (
+      <>
+         {providers.map((provider) => (
+            <RepositoryPickerView key={provider} {...props} providers={[provider]} />
+         ))}
+      </>
+   );
+}
+
+function RepositoryPickerView({
+   value,
+   valueProvider,
+   onSelect,
+   disabled,
+   pending = false,
+   placeholder = 'Link a repository',
+   variant = 'ghost',
+   size = 'sm',
+   className = 'w-full px-0',
+   side,
+   providers,
+}: RepositoryPickerProps & {
+   /** The hosts this picker lists and can create on. */
+   providers: ScmProvider[];
 }) {
    const [open, setOpen] = useState(false);
    const [repositories, setRepositories] = useState<ListedRepository[]>([]);
@@ -136,43 +190,54 @@ export function RepositoryPicker({
    const [error, setError] = useState<string | null>(null);
    const [creating, setCreating] = useState(false);
    const [query, setQuery] = useState('');
-   const connected = useConnectedScm();
    const activeProvider: ScmProvider = valueProvider ?? 'github';
+   const listsGitHub = providers.includes('github');
+   const idleMark: ScmProvider = listsGitHub ? 'github' : (providers[0] ?? 'github');
 
    // The list is loaded once per opening and kept. Reload stays out of the
    // search row until that request ends, then it is there to fetch again.
+   //
+   // Each host is loaded on its own: a GitLab token that was revoked must not
+   // take the GitHub list down with it. An empty list and a list that failed
+   // to load look identical, and the fixes are opposite — so a failure's
+   // reason is shown, beside whatever the other hosts returned.
    const load = useCallback(async () => {
       setLoading(true);
       setError(null);
-      try {
-         const listed: ListedRepository[] = [];
-         let githubAccess: GitHubAccess | null = null;
-         if (connected.github) {
-            const listing = await loadGitHubRepositories();
-            githubAccess = listing.access;
-            for (const repository of listing.repositories) {
-               listed.push({ ...repository, provider: 'github' });
-            }
+      const results = await Promise.allSettled(
+         providers.map(async (provider) => {
+            const listing =
+               provider === 'gitlab'
+                  ? await loadGitLabRepositories()
+                  : await loadGitHubRepositories();
+            return { provider, listing };
+         })
+      );
+      const listed: ListedRepository[] = [];
+      const failures: string[] = [];
+      let githubAccess: GitHubAccess | null = null;
+      for (const [index, result] of results.entries()) {
+         const provider = providers[index] ?? 'github';
+         if (result.status === 'rejected') {
+            const cause: unknown = result.reason;
+            failures.push(
+               cause instanceof BerryApiError
+                  ? cause.message
+                  : `${HOST_LABEL[provider]} repositories could not be loaded.`
+            );
+            continue;
          }
-         if (connected.gitlab) {
-            const listing = await loadGitLabRepositories();
-            for (const repository of listing.repositories) {
-               listed.push({ ...repository, provider: 'gitlab' });
-            }
+         if (provider === 'github') githubAccess = result.value.listing.access;
+         for (const repository of result.value.listing.repositories) {
+            listed.push({ ...repository, provider });
          }
-         setRepositories(listed);
-         setAccess(githubAccess);
-      } catch (cause) {
-         // An empty list and a list that failed to load look identical, and
-         // the fixes are opposite — so the reason is shown, not hidden.
-         setError(
-            cause instanceof BerryApiError ? cause.message : 'Repositories could not be loaded.'
-         );
-      } finally {
-         setLoading(false);
-         setLoaded(true);
       }
-   }, [connected.github, connected.gitlab]);
+      setRepositories(listed);
+      setAccess(githubAccess);
+      setError(failures.length > 0 ? failures.join('\n') : null);
+      setLoading(false);
+      setLoaded(true);
+   }, [providers]);
 
    useEffect(() => {
       if (open && repositories.length === 0 && !loading && !error) void load();
@@ -208,17 +273,7 @@ export function RepositoryPicker({
       [choose]
    );
 
-   const createProviders = useMemo(() => {
-      const providers: ScmProvider[] = [];
-      if (connected.github) providers.push('github');
-      if (connected.gitlab) providers.push('gitlab');
-      return providers;
-   }, [connected.github, connected.gitlab]);
-
-   // Nothing to link until an SCM is connected: the button would only open a
-   // picker the server refuses. Stay hidden until that is known so the row
-   // does not flash in.
-   if (!connected.ready || (!connected.github && !connected.gitlab)) return null;
+   const createProviders = providers;
 
    // `modal`: the picker also opens inside the create-project dialog, whose
    // scroll lock stops wheel events reaching anything outside it, this
@@ -249,13 +304,7 @@ export function RepositoryPicker({
                      <Loader2 className="size-3 shrink-0 animate-spin" />
                   ) : (
                      <ScmMark
-                        provider={
-                           value
-                              ? activeProvider
-                              : connected.gitlab && !connected.github
-                                ? 'gitlab'
-                                : 'github'
-                        }
+                        provider={value ? activeProvider : idleMark}
                         className="size-3 shrink-0 text-muted-foreground"
                      />
                   )
@@ -265,13 +314,7 @@ export function RepositoryPicker({
                         <Loader2 className="size-4 animate-spin" />
                      ) : (
                         <ScmMark
-                           provider={
-                              value
-                                 ? activeProvider
-                                 : connected.gitlab && !connected.github
-                                   ? 'gitlab'
-                                   : 'github'
-                           }
+                           provider={value ? activeProvider : idleMark}
                            className="size-4 text-muted-foreground"
                         />
                      )}
@@ -294,7 +337,11 @@ export function RepositoryPicker({
             ) : (
                <Command shouldFilter={false}>
                   <CommandInput
-                     placeholder="Search repositories…"
+                     placeholder={
+                        providers.length === 1
+                           ? `Search ${HOST_LABEL[providers[0] ?? 'github']} repositories…`
+                           : 'Search repositories…'
+                     }
                      value={query}
                      onValueChange={setQuery}
                      trailing={
@@ -318,11 +365,16 @@ export function RepositoryPicker({
                         <div className="flex items-center gap-2 px-3 py-4 text-muted-foreground">
                            <Loader2 className="size-4 animate-spin" /> Loading…
                         </div>
-                     ) : error ? (
-                        <div className="px-3 py-4 text-destructive">{error}</div>
                      ) : (
                         <>
-                           <CommandEmpty>No repository found.</CommandEmpty>
+                           {error ? (
+                              <div className="whitespace-pre-line px-3 py-2 text-destructive">
+                                 {error}
+                              </div>
+                           ) : null}
+                           {error && repositories.length === 0 ? null : (
+                              <CommandEmpty>No repository found.</CommandEmpty>
+                           )}
                            <CommandGroup>
                               {createProviders.length > 0 && query.trim() === '' ? (
                                  <CommandItem
@@ -369,7 +421,7 @@ export function RepositoryPicker({
                    app is installed the list speaks for itself. A list from the
                    person's GitHub sign-in is not that case: sign-in asks for
                    `repo`, so it already includes their private repositories. */}
-                  {connected.github &&
+                  {listsGitHub &&
                   access &&
                   !access.installed &&
                   access.source !== 'sign-in' &&
@@ -392,7 +444,7 @@ export function RepositoryPicker({
                         ) : null}
                      </div>
                   ) : null}
-                  {connected.github && access && access.installed && access.canPush === false ? (
+                  {listsGitHub && access && access.installed && access.canPush === false ? (
                      <div className="border-t px-3 py-2 text-muted-foreground">
                         Read-only access: runs can clone but not push.{' '}
                         {access.manageUrl ? (
@@ -674,12 +726,14 @@ export function RepositorySelector({ project }: { project: Project }) {
    );
 
    return (
-      <RepositoryPicker
-         value={value}
-         valueProvider={valueProvider}
-         onSelect={(choice) => void save(choice)}
-         disabled={saving}
-         pending={saving}
-      />
+      <div className="flex w-full min-w-0 flex-col">
+         <RepositoryPickers
+            value={value}
+            valueProvider={valueProvider}
+            onSelect={(choice) => void save(choice)}
+            disabled={saving}
+            pending={saving}
+         />
+      </div>
    );
 }

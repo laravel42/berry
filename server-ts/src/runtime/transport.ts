@@ -75,6 +75,15 @@ export class RuntimeUnavailable extends Error {
 }
 
 /**
+ * The host cannot run this task as set up: an address it must call is one it
+ * can never reach. Retrying changes nothing until someone changes the setup.
+ */
+export class RuntimeMisconfigured extends Error {
+   override readonly name = 'RuntimeMisconfigured';
+   readonly retryable = false;
+}
+
+/**
  * The runtime does not hold the run any more: it was reaped, restarted, or
  * kept only newer frames. Nothing was read, so the run is abandoned as before.
  */

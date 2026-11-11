@@ -180,6 +180,16 @@ RUN npm install -g expo@57.0.27 \
 # pip installs into that user's own site-packages.
 ENV PIP_BREAK_SYSTEM_PACKAGES=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Pillow and fontTools for page work: an Open Graph image drawn in the page's
+# own font, and a web font subset to the characters a page uses
+# (`pyftsubset … --flavor=woff2`, which needs brotli). A landing-page run
+# reached for both, found neither, and fell back to ffmpeg's drawtext.
+# From wheels rather than Debian: Debian's fonttools pulls in scipy, sympy and
+# a second compiler toolchain, near 1 GB, where these wheels are about 55 MB.
+# --only-binary keeps a missing wheel a build error instead of a compile.
+RUN pip install --no-cache-dir --only-binary=:all: \
+      pillow==13.0.0 fonttools==4.67.0 brotli==1.2.0
+
 WORKDIR /opt/berry
 COPY --from=deps /opt/berry/package.json /opt/berry/bun.lock ./
 COPY --from=deps /opt/berry/node_modules ./node_modules

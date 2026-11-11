@@ -139,7 +139,8 @@
       "tab": "Run {n}",
       "tabReview": "Review",
       "tabReviewN": "Review {n}",
-      "agent": "Agent"
+      "agent": "Agent",
+      "runsOn": "Runs on {name}"
    },
    "usage": {
       "title": "Usage",
