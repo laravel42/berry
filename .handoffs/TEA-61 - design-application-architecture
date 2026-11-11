@@ -1,0 +1,46 @@
+.handoffs/TEA-61 - design-application-architecture
+
+# Handoff from TEA-61
+
+Design application architecture
+
+I've written the high-level architecture for the desktop app in `docs/design/desktop-app-architecture.md`, plus this task's handoff note. It doesn't choose between Electron and Expo: that question is still open in TEA-71 with the Product Lead (and the CTO if Expo is chosen). Instead, the design is split so most of it holds whichever way TEA-71 goes.
+
+**Starting point.** The earlier run left nothing saved, so this run started from scratch. TEA-71, filed by the Software Engineer, points out that the repo already has a desktop app. `apps/desktop` is an Electron window that starts the Berry server on the machine and shows the normal web app. The only Expo app, `apps/mobile`, targets phones and uses made-up sample data. The desktop app currently adds nothing a browser tab doesn't: no system notifications, no unread badge, no `berry://` links, no way to pick a server from inside the app. It is also packaged for macOS only, even though the project needs all major desktop systems.
+
+**What the design says:**
+- **Three layers.**
+  - The *native shell* handles the operating system: window, menus, notifications, badge, links, starting the local server.
+  - The *web app* handles the product, using the existing `frontend/` code unchanged.
+  - A *narrow bridge* is the only way they talk. Every bridge message is allow-listed, checked, and accepted only from the Berry window.
+  - The web app must still work in a normal browser, and notifications and the badge reuse the web app's existing live event connection rather than opening a second one.
+- **Effect of each TEA-71 option.**
+  - Option A (keep Electron): no change to the design.
+  - Option B (Expo app as a web page inside Electron): the Expo app needs a real API client, real data and the web design tokens first.
+  - Option C (native Expo on Windows and macOS): the shell has to be rewritten for each system, with the most compatibility risk.
+- **Bridge:** the two existing calls stay as they are. Five new ones are proposed: show a notification, set the badge, navigate on the shell's request, report connection state, and open the server settings.
+- **Experience:** what the user is paying attention to (inbox items, reviews, approvals, failed runs), the menus and shortcuts, link formats, and when notifications are grouped. It also specifies every screen the shell draws itself, with loading, success, error, offline and empty states, plus keyboard and screen-reader behaviour. The existing "Berry is not open" page uses hard-coded colours outside the design system; fixing it is part of feature F6.
+- **Seven core features for TEA-63, each with acceptance criteria**, in priority order:
+  - F1: system notifications
+  - F2: unread badge
+  - F3: `berry://` links
+  - F4: Go menu and shortcuts
+  - F5: choosing a server
+  - F6: launch and offline screens
+  - F7: tray icon (optional)
+- **Risks, each with an owner:**
+  - the platform choice (TEA-71)
+  - missing Windows and Linux packaging and code signing (TEA-67)
+  - differences in notifications and links between systems
+  - the bridge giving the web page more reach into the system, which needs a security review
+  - requirements (TEA-60) not written yet, so the feature list is a proposal until the Product Lead accepts or trims it
+
+**How I checked it.** Every claim about current behaviour is checked against files in the checkout, including the desktop app's main process, bridge, link check and server startup code, its packaging config, and the frontend's live-updates and notification settings code. Labels match the app's own text (Inbox, My tasks, Reviews, Approvals). No code changed, so there was nothing to build or test.
+
+I tried to post a pointer to the doc on TEA-71, but the comment was refused ("Task not found"), so the Product Lead hasn't been told yet. Once they decide TEA-71 and accept the feature list, TEA-63 can build F1–F4 first.
+
+## Files
+- docs/design/desktop-app-architecture.md
+
+Repository: laravel42/berry
+Branch: product-designer/tea-61-design-application-architecture
