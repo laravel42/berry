@@ -1,4 +1,4 @@
-import { platformModelFor } from './platform-model.ts';
+import { platformModelFallback, platformModelFor } from './platform-model.ts';
 import { z } from 'zod';
 import type { Sql } from '../db/pool.ts';
 import type { RunMemory } from '../agentcore/memory.ts';
@@ -244,10 +244,26 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
       SELECT id, workspace_id, agent_id, issue_id, board_id, chat_session_id, kind, source,
              prompt, completion_spec, runtime_id, origin, ai_runtime_key, ai_model_id,
              ai_runtime_agent, ai_runtime_connection_id, ai_runtime_user_id, ai_runtime_account_id,
-             ai_runtime_account_name, requested_by
+             ai_runtime_account_name, requested_by,
+             (SELECT protected FROM agents WHERE agents.id = runs.agent_id) AS orchestrator
         FROM runs WHERE id = ${runId}`;
    if (!row) throw new Error(`run ${runId} does not exist`);
    const origin = row.origin;
+   const completionSpec = (row.completion_spec as CompletionSpec | null) ?? null;
+   // An AI helper or Orchestrator run always goes to Berry's Bedrock model
+   // when the deployment has one, so whatever provider the row carries (a
+   // retained selection, a run queued before the switch, a chat with a model
+   // picked) is dropped here: the envelope, the host the executor picks, a
+   // resume and a stop all see a run with no provider.
+   const onPlatformModel =
+      platformModelFor({
+         kind: row.kind as TaskRow['kind'],
+         purpose: completionSpec?.purpose,
+         chatSessionId: (row.chat_session_id as string | null) ?? null,
+         issueId: (row.issue_id as string | null) ?? null,
+         orchestrator: row.orchestrator === true,
+      }) !== null;
+   const provider = (value: unknown): string | null => (onPlatformModel ? null : ((value as string | null) ?? null));
    const namedRepository =
       typeof origin === 'object' && origin !== null ? (origin as { repository?: unknown }).repository : null;
    return {
@@ -266,15 +282,15 @@ export async function loadTask(sql: Sql, runId: string): Promise<TaskRow> {
             ? namedRepository
             : null,
       fresh: typeof origin === 'object' && origin !== null && (origin as { fresh?: unknown }).fresh === true,
-      completionSpec: (row.completion_spec as CompletionSpec | null) ?? null,
+      completionSpec,
       runtimeId: (row.runtime_id as string | null) ?? null,
-      aiRuntimeId: (row.ai_runtime_key as AiRuntimeId | null) ?? null,
-      aiModelId: (row.ai_model_id as string | null) ?? null,
-      aiRuntimeAgent: (row.ai_runtime_agent as string | null) ?? null,
-      aiRuntimeConnectionId: (row.ai_runtime_connection_id as string | null) ?? null,
-      aiRuntimeUserId: (row.ai_runtime_user_id as string | null) ?? null,
-      aiRuntimeAccountId: (row.ai_runtime_account_id as string | null) ?? null,
-      aiRuntimeAccountName: (row.ai_runtime_account_name as string | null) ?? null,
+      aiRuntimeId: provider(row.ai_runtime_key) as AiRuntimeId | null,
+      aiModelId: provider(row.ai_model_id),
+      aiRuntimeAgent: provider(row.ai_runtime_agent),
+      aiRuntimeConnectionId: provider(row.ai_runtime_connection_id),
+      aiRuntimeUserId: provider(row.ai_runtime_user_id),
+      aiRuntimeAccountId: provider(row.ai_runtime_account_id),
+      aiRuntimeAccountName: provider(row.ai_runtime_account_name),
       requestedBy: (row.requested_by as string | null) ?? null,
    };
 }
@@ -309,7 +325,19 @@ export class EnvelopeBuilder {
       const { task } = input;
       const agent = await this.#underLoopPolicy(task.runId, await this.#agent(task.agentId));
       const profile = await this.#profile(agent.runtimeProfileId, task.workspaceId);
-      const runtime = await this.#runtime(task);
+      // The AI helpers (chat and the product's single calls) and everything
+      // the Orchestrator does always run on Berry's Bedrock model when the
+      // deployment has one, even when the run carries a provider (a retry
+      // that kept its selection, a run queued before the switch, a chat with
+      // a model picked): that provider is not looked at.
+      const required = platformModelFor({
+         kind: task.kind,
+         purpose: task.completionSpec?.purpose,
+         chatSessionId: task.chatSessionId,
+         issueId: task.issueId,
+         orchestrator: agent.orchestrator === true,
+      });
+      const runtime = required ? null : await this.#runtime(task);
       const baseSessionKey = sessionKeyFor({
          kind: task.kind, runId: task.runId, agentId: task.agentId, issueId: task.issueId, chatSessionId: task.chatSessionId,
          ...(task.fresh ? { fresh: true } : {}),
@@ -320,17 +348,9 @@ export class EnvelopeBuilder {
       const sessionKey = runtime && task.aiRuntimeConnectionId
          ? `${baseSessionKey}:connection:${task.aiRuntimeConnectionId}`
          : baseSessionKey;
-      // Chat and the product's own single calls run on the model Berry
-      // provides, when the deployment has one and no provider was chosen.
-      const platform = runtime
-         ? null
-         : platformModelFor({
-              kind: task.kind,
-              purpose: task.completionSpec?.purpose,
-              chatSessionId: task.chatSessionId,
-              issueId: task.issueId,
-              orchestrator: agent.orchestrator === true,
-           });
+      // Any other task no provider was chosen for runs there too: the runtime
+      // image has no model of its own.
+      const platform = required ?? (runtime ? null : platformModelFallback());
       const { model, tier, fallback } = runtime
          ? { model: runtime.model, tier: null, fallback: null }
          : platform

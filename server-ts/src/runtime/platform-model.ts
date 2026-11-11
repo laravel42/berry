@@ -58,3 +58,15 @@ export function platformModelFor(task: {
    if (task.kind === 'completion') return task.purpose && PLATFORM_MODEL_PURPOSES.has(task.purpose) ? configured : null;
    return task.chatSessionId && !task.issueId ? configured : null;
 }
+
+/**
+ * The model a task runs on when no workspace provider was selected for it.
+ *
+ * The runtime image has no model of its own, so a run that reaches it with
+ * neither a provider nor a platform model can only fail. With Bedrock
+ * configured, such a run calls it directly instead: any agent works in a
+ * workspace that has connected nothing. A connected provider still wins.
+ */
+export function platformModelFallback(): PlatformModel | null {
+   return configured;
+}
