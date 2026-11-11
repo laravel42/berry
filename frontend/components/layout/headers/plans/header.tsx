@@ -18,7 +18,7 @@ function HeaderOptions() {
    };
 
    return (
-      <div className="flex h-[44px] w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5">
+      <div className="flex h-[52px] w-full flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5">
          <div className="flex shrink-0 items-center gap-3">
             <Tabs value={scope} onValueChange={(value) => setScope(value as PlansScope)}>
                <TabsList aria-label={t('header.title')}>

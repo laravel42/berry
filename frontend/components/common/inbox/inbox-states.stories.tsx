@@ -6,6 +6,12 @@ const meta = {
    component: InboxPanel,
    tags: ['ai-generated', 'needs-work'],
    args: { title: 'Loading your notifications…' },
+   argTypes: {
+      state: {
+         control: 'select',
+         options: ['solid', 'hollow', 'crossed', 'empty'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="h-[360px] w-[480px] border bg-container">

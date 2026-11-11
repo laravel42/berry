@@ -233,6 +233,12 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
             <Button
                size="xs"
                variant="secondary"
+               /* `has-[>svg]:px-4` as well as `px-4`: `size="xs"` narrows a
+                  button that carries an icon to 8px, and that rule out-ranks
+                  a plain `px-*` because `:has()` adds specificity. Without
+                  the pair the label sits 8px from the edge of a 48px
+                  control. */
+               className="h-12 px-4 has-[>svg]:px-4"
                aria-label={t('attachTitle')}
                title={t('attachTitle')}
             >
@@ -402,7 +408,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
 
                <div className="flex flex-wrap items-center gap-2">
                   <Input
-                     className="h-8 min-w-[180px] flex-1"
+                     className="h-12 min-w-[180px] flex-1"
                      placeholder={t('addPlaceholder')}
                      value={title}
                      onChange={(event) => setTitle(event.target.value)}
@@ -411,6 +417,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   <Button
                      size="xs"
                      variant="secondary"
+                     className="h-12 px-4 has-[>svg]:px-4"
                      disabled={!title.trim() || adding}
                      onClick={add}
                   >

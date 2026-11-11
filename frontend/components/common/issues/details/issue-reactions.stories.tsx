@@ -13,6 +13,12 @@ const meta = {
    component: ReactionBar,
    tags: ['ai-generated', 'needs-work'],
    args: { target: 'issue', id: 'BERR-42' },
+   argTypes: {
+      target: {
+         control: 'select',
+         options: ['issue', 'comment'],
+      },
+   },
    beforeEach: ({ msw }) => {
       msw.use(
          http.get('*/api/v1/:target/:id/reactions', () => HttpResponse.json({ nodes: groups })),

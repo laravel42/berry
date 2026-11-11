@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, fn } from 'storybook/test';
+import { expect, fn, within } from 'storybook/test';
 import { chatAgents, chatRoster, chatThreads, chatUser } from './chat-fixtures';
 import { ChatSidebar } from './chat-sidebar';
 
@@ -45,9 +45,10 @@ export const Default: Story = {};
 
 /** New chat opens the roster; choosing an agent starts that conversation. */
 export const NewChat: Story = {
-   play: async ({ args, canvas, userEvent }) => {
+   play: async ({ args, canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'New chat' }));
-      await userEvent.click(await canvas.findByRole('menuitem', { name: 'Backend Engineer' }));
+      const menu = within(canvasElement.ownerDocument.body);
+      await userEvent.click(await menu.findByRole('menuitem', { name: 'Backend Engineer' }));
       await expect(args.onNewChat).toHaveBeenCalled();
    },
 };

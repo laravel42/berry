@@ -20,6 +20,7 @@ import {
 } from '@/components/common/projects/members-picker';
 import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import {
    Dialog,
    DialogContent,
@@ -49,7 +50,7 @@ import { useMilestonesStore } from '@/store/milestones-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, isValid, parseISO } from 'date-fns';
-import { Check, ChevronRight, Sparkles, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronRight, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -382,18 +383,16 @@ export function CreateProjectDialog() {
                   <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
                      {/* Open, the assistant panel is the agent; the button would only repeat it. */}
                      {assistant ? null : (
-                        <span className="ai-animated-border mr-auto h-7">
-                           <Button
-                              type="button"
-                              variant="outline"
-                              size="xxs"
-                              className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
-                              onClick={() => setAssistant(true)}
-                           >
-                              <Sparkles className="size-3.5" aria-hidden="true" />
-                              Create with agent
-                           </Button>
-                        </span>
+                        <Button
+                           type="button"
+                           variant="ai"
+                           size="md"
+                           className="mr-auto"
+                           onClick={() => setAssistant(true)}
+                        >
+                           <SparkIcon className="size-3.5" />
+                           Create with agent
+                        </Button>
                      )}
                      <Button
                         type="submit"

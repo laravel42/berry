@@ -1,9 +1,9 @@
+import { CHIP_GEOMETRY } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 
 /** Shared chrome for compact identity chips (runtime, agent, why a run started). */
-export const META_BADGE =
-   'inline-flex max-w-full items-center gap-1.5 rounded-md border bg-background px-1.5 py-0.5 text-foreground';
+export const META_BADGE = cn(CHIP_GEOMETRY, 'max-w-full border bg-background text-foreground');
 
 export function MetaBadge({
    icon,

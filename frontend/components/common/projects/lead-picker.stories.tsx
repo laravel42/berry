@@ -14,6 +14,12 @@ const meta = {
       onChange: fn(),
       children: <LeadAvatarButton lead={andrea} />,
    },
+   argTypes: {
+      menuWidth: {
+         control: 'select',
+         options: ['trigger', 'menu'],
+      },
+   },
    render: function Render(args) {
       const [lead, setLead] = useState<User | null | undefined>(args.lead);
       return (

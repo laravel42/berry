@@ -105,7 +105,8 @@ export const Active: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('button', { name: 'Edit the title' })).toBeVisible();
-      await expect(canvas.getByText(milestoneActive.title)).toBeVisible();
+      // The pending approval also links back to this milestone by title; scope to the heading.
+      await expect(canvas.getByRole('heading', { name: milestoneActive.title })).toBeVisible();
       // The plan list arrives from /api/v1/milestones/:id/plans.
       await expect(await canvas.findByText('Plan v2')).toBeVisible();
    },

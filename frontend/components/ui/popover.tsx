@@ -17,12 +17,20 @@ function PopoverContent({
    className,
    align = 'center',
    sideOffset = 4,
+   pointerThrough = false,
    ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+}: React.ComponentProps<typeof PopoverPrimitive.Content> & {
+   /** For a popover that only reports something: lets clicks reach whatever it
+    *  is laid over, so it cannot block the form it describes. Only for content
+    *  with nothing interactive in it. Paired with a rule in app/globals.css,
+    *  because the element that captures the click is a wrapper Radix owns. */
+   pointerThrough?: boolean;
+}) {
    return (
       <PopoverPrimitive.Portal>
          <PopoverPrimitive.Content
             data-slot="popover-content"
+            data-pointer-through={pointerThrough ? '' : undefined}
             align={align}
             sideOffset={sideOffset}
             className={cn(
@@ -39,4 +47,33 @@ function PopoverAnchor({ ...props }: React.ComponentProps<typeof PopoverPrimitiv
    return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />;
 }
 
-export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor };
+/**
+ * Points the popover at what it is about, for a popover that the user did not
+ * open themselves. A menu needs no arrow -- the user just clicked the thing it
+ * belongs to, so the tie is obvious. Feedback that appears on its own does need
+ * one, or it reads as a floating card that happens to be nearby.
+ *
+ * Radix draws the arrow as one filled polygon, so it cannot carry the content's
+ * 1px border on its two slanted sides. Rather than fake that with a rotated
+ * square, this fills with the border colour and covers all but the outer edge
+ * with a `--popover`-filled inset, which leaves a hairline that reads as the
+ * border running around the point.
+ */
+function PopoverArrow({
+   className,
+   ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Arrow>) {
+   return (
+      <PopoverPrimitive.Arrow
+         data-slot="popover-arrow"
+         width={14}
+         height={7}
+         className={cn('fill-border', className)}
+         {...props}
+      >
+         <polygon points="1.6,0 12.4,0 7,5.4" className="fill-popover" />
+      </PopoverPrimitive.Arrow>
+   );
+}
+
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor, PopoverArrow };

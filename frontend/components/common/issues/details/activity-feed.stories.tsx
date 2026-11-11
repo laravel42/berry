@@ -128,10 +128,9 @@ type Story = StoryObj<typeof meta>;
 
 export const Conversation: Story = {
    play: async ({ canvas }) => {
-      // The mention started a run, drawn under the comment that asked for it.
-      await expect(
-         await canvas.findByText(/Backend Engineer · started a run from this comment/)
-      ).toBeInTheDocument();
+      // Runs live in their own console now; the mention's result reads as a
+      // regular comment from the agent, with no separate "started a run" marker.
+      await expect((await canvas.findAllByText('Backend Engineer')).length).toBeGreaterThan(0);
       await expect(canvas.getByText('1 resolved thread')).toBeInTheDocument();
       await expect(canvas.getByRole('button', { name: /1 reply/ })).toHaveAttribute(
          'aria-expanded',

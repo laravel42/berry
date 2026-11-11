@@ -12,7 +12,7 @@ export function ProjectBadge({ project }: { project: Project }) {
       >
          <Badge
             variant="outline"
-            className="max-w-full min-w-0 shrink gap-1.5 overflow-hidden rounded-full bg-background text-muted-foreground"
+            className="max-w-full min-w-0 shrink overflow-hidden bg-background text-muted-foreground"
          >
             <project.icon size={16} className="shrink-0" />
             <span className="min-w-0 truncate">{project.name}</span>

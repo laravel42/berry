@@ -6,6 +6,7 @@ import { useSessionStore } from '@/store/session-store';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { LocaleSync } from './locale-sync';
+import { ThemeSync } from './theme-sync';
 
 // Routes that must render for an anonymous visitor. `/login` is the legacy
 // entry that forwards to `/sign-in`, the one sign-in page; keep it here so a
@@ -103,6 +104,7 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
    return (
       <>
          <LocaleSync />
+         <ThemeSync />
          {children}
       </>
    );

@@ -8,6 +8,12 @@ const meta = {
    component: IssueListSkeleton,
    tags: ['ai-generated', 'needs-work'],
    args: { mode: 'list' },
+   argTypes: {
+      mode: {
+         control: 'select',
+         options: ['list', 'grid', 'table'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="h-[420px] w-[760px] overflow-hidden border">

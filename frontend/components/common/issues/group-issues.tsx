@@ -108,8 +108,12 @@ function GroupHeaderBar({
             />
          ) : null}
          {group.icon}
-         <span className="font-medium">{group.name}</span>
-         <span className="text-muted-foreground">{count}</span>
+         {/* A group header names a column of the board, so it takes the title
+             face (JetBrains Mono) like every other heading. It is a `span` and
+             not an `h*`: the header is a button that collapses the group, and
+             the base layer's heading rules go by element. */}
+         <span className="font-mono font-medium">{group.name}</span>
+         <span className="font-mono text-muted-foreground tabular-nums">{count}</span>
       </>
    );
 

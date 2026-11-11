@@ -6,7 +6,7 @@ import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useIssueHref } from './use-issue-href';
 import { useEffect, useRef, useState } from 'react';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
@@ -17,7 +17,7 @@ import { LabelBadge } from './label-badge';
 import { IssuePriorityPicker } from './issue-pickers';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { IssueContextMenu } from './issue-context-menu';
-import { WORKSPACE_SLUG } from '@/lib/config';
+
 import { cn } from '@/lib/utils';
 
 export const IssueDragType = 'ISSUE';
@@ -36,7 +36,9 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
       <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <IssuePriorityPicker issue={issue} />
-            <span className="min-w-0 truncate text-subtle-foreground">{issue.identifier}</span>
+            <span data-identifier className="min-w-0 truncate text-subtle-foreground">
+               {issue.identifier}
+            </span>
             {issue.autoGate ? <AutoGateMark /> : null}
             <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
                {format(new Date(issue.createdAt), 'MMM dd')}
@@ -96,7 +98,7 @@ export function IssueGrid({
 }: IssueGridProps) {
    const cardRef = useRef<HTMLDivElement>(null);
    const insertBeforeIdRef = useRef<string | null | undefined>(undefined);
-   const { orgId } = useParams<{ orgId: string }>();
+   const issueHref = useIssueHref();
    const { displayProperties } = useDisplaySettingsStore();
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null);
@@ -212,7 +214,14 @@ export function IssueGrid({
                            <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
                         ) : null}
                         {displayProperties.id ? (
-                           <span className="min-w-0 truncate whitespace-nowrap text-subtle-foreground">
+                           /* `data-identifier` is the hook for a task's ref:
+                              the rule in globals.css gives it the mono face
+                              and tabular figures, so BER-9 and BER-11 line up
+                              down a column. */
+                           <span
+                              data-identifier
+                              className="min-w-0 truncate whitespace-nowrap text-subtle-foreground"
+                           >
                               {issue.identifier}
                            </span>
                         ) : null}
@@ -228,7 +237,7 @@ export function IssueGrid({
                          -- is kept by the whole thing. Priority and assignee
                          sit above it as their own controls. */}
                      <Link
-                        href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
+                        href={issueHref(issue.identifier)}
                         className="block outline-none before:absolute before:inset-0 before:rounded-lg focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                         draggable={false}
                         onClick={(event) => {

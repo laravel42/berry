@@ -40,6 +40,12 @@ const meta = {
       workspaceId: 'ws-1',
    },
    render: (args) => <Controlled {...args} />,
+   argTypes: {
+      sendVariant: {
+         control: 'select',
+         options: ['primary', 'secondary'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="w-[560px] bg-[var(--shell-canvas)] pt-40 text-[var(--shell-text)]">

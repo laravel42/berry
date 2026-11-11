@@ -9,7 +9,7 @@ import { useNotificationsStore } from '@/store/notifications-store';
 import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { ShellBadge, badgeText } from './shell-badge';
-import { ShellIcon, shellNavRow } from './shell-icon';
+import { ShellIcon, ShellNavIcon, shellNavRow } from './shell-icon';
 import { ShellSectionFold } from './shell-section-fold';
 import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 
@@ -68,11 +68,14 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onInbox ? 'page' : undefined}
                   className={shellNavRow(onInbox)}
                >
-                  <ShellIcon path={INBOX_ICON} />
+                  <ShellNavIcon on={onInbox}>
+                     <ShellIcon path={INBOX_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('inbox')}
                   <ShellBadge
                      count={inboxUnread}
                      label={t('inboxUnread', { count: badgeText(inboxUnread) })}
+                     hot
                   />
                </Link>
             </li>
@@ -83,7 +86,9 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onIssues ? 'page' : undefined}
                   className={shellNavRow(onIssues)}
                >
-                  <ShellIcon path={TASKS_ICON} />
+                  <ShellNavIcon on={onIssues}>
+                     <ShellIcon path={TASKS_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('myIssues')}
                </Link>
             </li>
@@ -94,11 +99,14 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
                   aria-current={onReviews ? 'page' : undefined}
                   className={shellNavRow(onReviews)}
                >
-                  <ShellIcon path={REVIEWS_ICON} />
+                  <ShellNavIcon on={onReviews}>
+                     <ShellIcon path={REVIEWS_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('reviews')}
                   <ShellBadge
                      count={openReviews}
                      label={t('reviewsWaiting', { count: openReviews })}
+                     hot
                   />
                </Link>
             </li>

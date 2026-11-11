@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { formatCombo } from '@/lib/shortcuts';
 import { cn } from '@/lib/utils';
 import { useShellStore } from '@/store/shell-store';
@@ -21,8 +21,8 @@ import { useUiPrefsStore } from '@/store/ui-prefs-store';
  * on and opens. Disabled on the chat page, which is this window's full-size
  * counterpart.
  *
- * Quiet `bg-container` chip with a thin rotating brand-colour border
- * (same motion as `.ai-animated-border`).
+ * Quiet chip with the `.spark` ring: a thin rotating brand-colour border,
+ * the ledger redesign's control for a secondary AI action.
  */
 export function ShellChatButton() {
    const t = useTranslations('shell');
@@ -55,36 +55,29 @@ export function ShellChatButton() {
         : label;
 
    return (
-      <span
-         className={cn(
-            'ai-animated-border shell-agents-launcher h-6 origin-center scale-[1.3]',
-            onChatPage && 'opacity-40'
-         )}
+      <Button
+         type="button"
+         variant="ai"
+         size="md"
+         onClick={() => {
+            if (!floatingEnabled) setFloatingChat(true);
+            toggleChat();
+         }}
+         disabled={onChatPage}
+         aria-label={label}
+         aria-expanded={open}
+         title={title}
+         data-open={open ? 'true' : undefined}
+         className={cn('relative data-[open=true]:text-foreground', onChatPage && 'opacity-40')}
       >
-         <Button
-            type="button"
-            variant="outline"
-            size="xxs"
-            onClick={() => {
-               if (!floatingEnabled) setFloatingChat(true);
-               toggleChat();
-            }}
-            disabled={onChatPage}
-            aria-label={label}
-            aria-expanded={open}
-            title={title}
-            data-open={open ? 'true' : undefined}
-            className="relative h-full min-h-0 border-0 bg-container shadow-none hover:bg-container hover:text-foreground data-[open=true]:bg-container data-[open=true]:text-foreground"
-         >
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            {t('nav.agents')}
-            {unread > 0 && !open ? (
-               <span
-                  aria-hidden="true"
-                  className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--brand-azure)]"
-               />
-            ) : null}
-         </Button>
-      </span>
+         <SparkIcon className="size-3.5" />
+         {t('nav.agents')}
+         {unread > 0 && !open ? (
+            <span
+               aria-hidden="true"
+               className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--brand-azure)]"
+            />
+         ) : null}
+      </Button>
    );
 }

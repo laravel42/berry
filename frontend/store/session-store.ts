@@ -6,6 +6,7 @@ import { AUTO_LOGIN_EMAIL } from '@/lib/config';
 import { listBoards, selectBoardId } from '@/lib/boards';
 import { toUiUser } from '@/lib/catalog';
 import { isLocale, type Locale } from '@/lib/i18n/locales';
+import { isThemePreference, type ThemePreference } from '@/lib/theme/theme';
 import { selectWorkspace } from '@/lib/workspaces';
 
 export type SessionStatus = 'booting' | 'anonymous' | 'ready';
@@ -30,6 +31,10 @@ interface SessionState {
    preferredLocale: Locale | null;
    /** Settings calls this after saving, so LocaleSync does not revert the choice. */
    setPreferredLocale: (locale: Locale) => void;
+   /** The account's theme preference, from bootstrap; null when anonymous. */
+   preferredTheme: ThemePreference | null;
+   /** Settings calls this after saving, so ThemeSync does not revert the choice. */
+   setPreferredTheme: (theme: ThemePreference) => void;
    error: string | null;
    hydrateFromStorage: () => Promise<void>;
    signOut: () => Promise<void>;
@@ -75,7 +80,10 @@ const toSessionWorkspace = (workspace: BootstrapWorkspace): SessionWorkspace => 
 });
 
 async function loadReadyState(): Promise<
-   Pick<SessionState, 'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale'>
+   Pick<
+      SessionState,
+      'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale' | 'preferredTheme'
+   >
 > {
    const bootstrap = await fetchBootstrap();
    const workspace = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
@@ -94,6 +102,9 @@ async function loadReadyState(): Promise<
       preferredLocale: isLocale(bootstrap.user.settings.locale)
          ? bootstrap.user.settings.locale
          : null,
+      preferredTheme: isThemePreference(bootstrap.user.settings.theme)
+         ? bootstrap.user.settings.theme
+         : null,
    };
 }
 
@@ -104,6 +115,7 @@ const ANONYMOUS = {
    workspaces: [] as SessionWorkspace[],
    boardId: null,
    preferredLocale: null,
+   preferredTheme: null,
    error: null,
 };
 
@@ -114,9 +126,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
    workspaces: [],
    boardId: null,
    preferredLocale: null,
+   preferredTheme: null,
    error: null,
 
    setPreferredLocale: (locale) => set({ preferredLocale: locale }),
+
+   setPreferredTheme: (theme) => set({ preferredTheme: theme }),
 
    hydrateFromStorage: async () => {
       // The session is a cookie the browser sends on its own, so "is anyone

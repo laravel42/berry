@@ -7,6 +7,26 @@ const meta = {
    component: Button,
    tags: ['ai-generated'],
    args: { children: 'Create task', onClick: fn() },
+   argTypes: {
+      variant: {
+         control: 'select',
+         options: [
+            'default',
+            'destructive',
+            'outline',
+            'secondary',
+            'ghost',
+            'link',
+            'gate',
+            'dark',
+            'ai',
+         ],
+      },
+      size: {
+         control: 'select',
+         options: ['default', 'xxs', 'xs', 'sm', 'md', 'lg', 'icon'],
+      },
+   },
 } satisfies Meta<typeof Button>;
 
 export default meta;

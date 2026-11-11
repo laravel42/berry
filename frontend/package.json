@@ -9,6 +9,7 @@
       "build:check": "bun run prepare:marketing && NEXT_DIST_DIR=.next-verify next build",
       "start": "next start",
       "lint": "eslint .",
+      "test": "vitest run",
       "format": "prettier --write .",
       "storybook": "storybook dev -p 6006",
       "build-storybook": "storybook build"
@@ -74,6 +75,7 @@
       "livekit-client": "^2.23.0",
       "lucide-react": "^1.46.0",
       "motion": "^13.4.0",
+      "morphicons": "2.0.2",
       "next": "16.4.1",
       "next-intl": "^4.14.5",
       "nuqs": "^2.10.1",

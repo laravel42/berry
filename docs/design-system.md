@@ -50,9 +50,9 @@ consume semantic state names rather than raw colors.
 | `danger` | `#E0645A` | Error |
 | `urgent` | `#D9584F` | Urgent priority |
 
-Berry Dark is the only shipped theme: `app/layout.tsx` sets `className="dark"` on
-`<html>`. Light tokens still live on `:root` so a future inversion has a home; they
-are not a product theme and there is no appearance switch. The inherited
+Both themes ship. `app/layout.tsx` puts `dark` on `<html>` only when the preference
+resolves that way, read server-side from a cookie, so `:root`'s light tokens are a
+product theme rather than a home for a future inversion. The inherited
 `pure-light`, `magic-blue`, `classic-dark`, and custom theme variants are not Berry
 themes. The shell (rail and top bar) is dark chrome and sets its own text colour;
 `MainLayout` resets `text-foreground` at the page boundary so a page never inherits
@@ -77,6 +77,18 @@ A status never carries a colour of its own. `data/status.tsx` gives each one a *
 group bar - reads the matching `--status-*` token, so a column cannot disagree with the
 mark beside it in either theme. In review and Blocked are warning, Done is success, In
 progress is info, and Backlog, Todo and Cancelled are neutral.
+
+The isotipo is the authority for the mark's two tones, and the semantic tokens point at
+the palette rather than restating it. `--berry` and `--ring` had both drifted to a
+hardcoded per-theme pair (`#c41e4b` / `#e85075`) while `--brand-berry`, `app/icon.svg` and
+the `berry` row above all said `#c74a5e`; they now read `var(--brand-berry)`, so there is
+one brand red and no second place to change it.
+
+`--lockup-ink` is the isotipo's other tone -- `#161616` on light, `#f0edea` on dark -- and
+it colours the mark's brackets and the lockup's word. It is deliberately not `--foreground`:
+the asset's ink is warmer, and the lockup can be exactly the brand without repainting every
+word of body copy. `public/isotipo.svg`, `isotipo_light.svg`, `logotipo.svg` and
+`logotipo_light.svg` are the source files, and all four reduce to these two tokens.
 
 Berry is never an error color. Destructive/error actions use the separate `status-danger`
 token. Status marks retain one bracket silhouette; the berry dot, label, and optional
@@ -196,6 +208,26 @@ and `Tooltip`.
 Keep their Radix behavior, semantic slots, focus rings, disabled treatment, invalid state,
 portal behavior, and keyboard support. Visual changes should happen through semantic tokens
 and CVA variants, not through feature-local forks.
+
+Two additions to `Popover` are worth knowing, because they are what a popover needs to be
+*feedback* rather than a menu:
+
+- `PopoverArrow` ties the popover to what it is about. A menu needs no arrow — the user just
+  clicked the thing it belongs to. A popover that appears on its own does, or it reads as a
+  card that happens to be nearby.
+- `pointerThrough` lets clicks pass through content that holds nothing interactive, so it
+  cannot stand in front of the form it describes. Radix positions the content inside a
+  wrapper it owns and keeps that wrapper clickable, so this pairs with a `:has()` rule in
+  `app/globals.css`; a class on the content alone does not do it.
+
+Anchor such a popover with `PopoverAnchor` rather than `PopoverTrigger`, and prevent
+`onOpenAutoFocus`: a field is not a button, and feedback must never take the focus it is
+pointing at. `PasswordField` is the worked example.
+
+The Berry bracket is also the product's checkmark. `BerryMark` with `state="empty"` draws
+`[ ]` and `state="solid"` draws `[*]`, so a satisfied condition is marked by a **shape**
+appearing rather than by a colour changing — which is what the accessibility contract below
+requires. State the condition in words alongside it; the dot is never the only signal.
 
 ### Product components and patterns
 

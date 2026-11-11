@@ -34,7 +34,7 @@ import { useSessionStore } from '@/store/session-store';
 import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useIssueHref } from './use-issue-href';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
@@ -125,7 +125,7 @@ function TitleCell({
    expanded: boolean;
    onToggle: () => void;
 }) {
-   const { orgId } = useParams<{ orgId: string }>();
+   const issueHref = useIssueHref();
    const updateIssue = useIssuesStore((state) => state.updateIssue);
    const liveRun = useIssueLiveRun(issue);
    const [editing, setEditing] = useState(false);
@@ -190,7 +190,7 @@ function TitleCell({
             // target rather than the width of the words in it.
             <Link
                className="flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-               href={`/${orgId}/issue/${issue.identifier}`}
+               href={issueHref(issue.identifier)}
                onDoubleClick={(event) => {
                   event.preventDefault();
                   setEditing(true);
@@ -617,7 +617,11 @@ export function IssueTable({
       }
       switch (column as BuiltInColumn) {
          case 'identifier':
-            return <span className="truncate text-muted-foreground">{issue.identifier}</span>;
+            return (
+               <span data-identifier className="truncate text-muted-foreground">
+                  {issue.identifier}
+               </span>
+            );
          case 'status':
             return <IssueStatusPicker issue={issue} />;
          case 'priority':

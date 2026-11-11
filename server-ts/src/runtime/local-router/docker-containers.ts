@@ -149,7 +149,7 @@ function cli(args: string[]): Promise<string> {
 function run(args: string[], stdin?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
    return new Promise((resolve) => {
       const child = execFile('docker', args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
-         const status = (error as ExecFileException | null)?.status;
+         const status = (error as ExecFileException | null)?.code;
          resolve({
             stdout: stdout ?? '',
             stderr: stderr ?? '',

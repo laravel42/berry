@@ -102,7 +102,14 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
             // `--shell-strip` is what the canvas reserves above the page.
             // Nothing does now, but the chat window still reads it, so it is
             // set to zero rather than removed from under it.
-            className="grid h-full min-h-0 w-full grid-cols-[minmax(0,1fr)] overflow-hidden font-mono font-light text-[var(--shell-text)] [--shell-strip:0px] lg:grid-cols-[auto_minmax(0,1fr)]"
+            // No face or weight of its own. `font-mono` here painted the whole
+            // app in the mono face, so `body`'s Inter never reached a screen
+            // inside the shell and the titles had no face to be set in; mono is
+            // now the title face plus what is actually machine text
+            // (`font-mono`, `[data-identifier]`, `[data-figure]`, the code
+            // editor, the console, the transcript). `font-light` is gone with
+            // it: 400 is the floor (see the weight scale in globals.css).
+            className="grid h-full min-h-0 w-full grid-cols-[minmax(0,1fr)] overflow-hidden text-[var(--shell-text)] [--shell-strip:0px] lg:grid-cols-[auto_minmax(0,1fr)]"
          >
             <ShellRail
                ref={railRef}
@@ -209,7 +216,11 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                      <Menu size={16} strokeWidth={1.8} aria-hidden="true" />
                   </button>
                </div>
-               <div className="pointer-events-none fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] bottom-[calc(var(--app-inset-b)+0.25rem+2px)] z-50 flex h-9 items-center gap-2 *:pointer-events-auto">
+               {/* `--shell-launcher-b` rather than the calc spelled out here:
+                the floating chat has to clear this control, and it can only
+                do that from the same number. See the launcher block in
+                globals.css. */}
+               <div className="pointer-events-none fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] bottom-[var(--shell-launcher-b)] z-50 flex h-9 items-center gap-2 *:pointer-events-auto">
                   <ShellChatButton />
                </div>
             </div>

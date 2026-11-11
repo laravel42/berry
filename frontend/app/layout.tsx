@@ -12,13 +12,28 @@ const jetBrainsMono = localFont({
    display: 'swap',
 });
 
-/** Wordmark lockup only — same face as berry.pm (`apps/web`). */
-const dmSerifDisplay = localFont({
-   src: './fonts/dm-serif-display-400-latin.woff2',
-   variable: '--font-dm-serif-display',
-   weight: '400',
+// The prose face. Shipped rather than fetched for the same reason, and because
+// until now the stack fell through to -apple-system, so the redesign's type
+// only looked right on a Mac. Upright only: `italic` is synthesised, as it
+// already is for the mono above.
+//
+// Both variables go on <html>, not <body>: next/font emits a class name, and
+// :root is <html>, so binding them there is what lets @theme resolve
+// `--font-sans: var(--font-inter)` on the same element. Bound on <body> the
+// @theme declaration resolves against an undefined value and silently
+// computes to nothing.
+const inter = localFont({
+   src: './fonts/inter-variable.woff2',
+   variable: '--font-inter',
+   weight: '100 900',
    display: 'swap',
 });
+
+// DM Serif Display is deliberately NOT loaded. It existed for one thing, the
+// wordmark, which set "berry." as live text in that face. The lockup is the
+// brand asset's own outlines now (components/brand/berry-mark.tsx), so nothing
+// renders in it, and shipping a webfont with no reader costs a request for an
+// empty result. The files stay in app/fonts for whoever needs them next.
 
 export const metadata: Metadata = {
    title: {
@@ -33,6 +48,9 @@ import { SessionGate } from '@/components/layout/session-gate';
 import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale } from 'next-intl/server';
+import { cookies } from 'next/headers';
+
+import { THEME_COOKIE, resolveTheme } from '@/lib/theme/theme';
 
 export default async function RootLayout({
    children,
@@ -40,14 +58,17 @@ export default async function RootLayout({
    children: React.ReactNode;
 }>) {
    const locale = await getLocale();
+   // Decided on the server from a cookie, exactly as the locale is: the class
+   // is in the first byte, so light mode needs no inline script and has
+   // nothing to reconcile during hydration. ThemeSync maintains the cookie.
+   const theme = resolveTheme((await cookies()).get(THEME_COOKIE)?.value);
    return (
-      // Berry is dark only, so the theme is a static class rather than a
-      // provider: next-themes injected an inline script React 19 refuses to run.
-      <html lang={locale} className="dark" suppressHydrationWarning>
-         <body
-            className={`${jetBrainsMono.variable} ${dmSerifDisplay.variable} antialiased`}
-            suppressHydrationWarning
-         >
+      <html
+         lang={locale}
+         className={`${inter.variable} ${jetBrainsMono.variable} ${theme === 'dark' ? 'dark' : ''}`}
+         suppressHydrationWarning
+      >
+         <body className="antialiased" suppressHydrationWarning>
             <NextIntlClientProvider>
                <NuqsAdapter>
                   <SessionGate>

@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { Issue } from '@/data/issues';
 import type { LabelInterface } from '@/data/labels';
 import { priorities } from '@/data/priorities';
@@ -51,7 +52,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { RiEditLine } from '@remixicon/react';
 import { format } from 'date-fns';
-import { CheckIcon, ChevronRight, Loader2, Plus, Sparkles, TagIcon, X } from 'lucide-react';
+import { CheckIcon, ChevronRight, Loader2, Plus, TagIcon, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -566,27 +567,21 @@ export function CreateNewIssue() {
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
                <div className="flex min-w-0 items-center gap-3">
-                  <span
-                     className="ai-animated-border h-7"
-                     aria-disabled={improveDisabled || undefined}
+                  <Button
+                     type="button"
+                     variant="ai"
+                     size="md"
+                     disabled={improveDisabled}
+                     aria-busy={improving || undefined}
+                     onClick={() => void improveDescription()}
                   >
-                     <Button
-                        type="button"
-                        variant="outline"
-                        size="xxs"
-                        className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground disabled:opacity-100 disabled:bg-background disabled:text-muted-foreground"
-                        disabled={improveDisabled}
-                        aria-busy={improving || undefined}
-                        onClick={() => void improveDescription()}
-                     >
-                        {improving ? (
-                           <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                        ) : (
-                           <Sparkles className="size-3.5" aria-hidden />
-                        )}
-                        {improving ? t('improving') : t('improve')}
-                     </Button>
-                  </span>
+                     {improving ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                     ) : (
+                        <SparkIcon className="size-3.5" />
+                     )}
+                     {improving ? t('improving') : t('improve')}
+                  </Button>
                   {draft.assignee?.type === 'agent' ? (
                      <CreatePluginSelect
                         workspaceId={workspaceId}

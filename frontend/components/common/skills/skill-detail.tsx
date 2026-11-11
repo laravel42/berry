@@ -413,8 +413,12 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                   </div>
                   {editable ? (
                      <div
+                        /* The attribute is the hook the editor rule in
+                           globals.css selects on, which is why it keeps the
+                           name it was written with. The `[font-weight:100]`
+                           beside it is gone: 400 is the floor. */
                         data-font-weight="100"
-                        className="min-h-0 flex-1 overflow-y-auto px-4 py-3 [font-weight:100]"
+                        className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
                      >
                         <TiptapAiEditor
                            value={body}

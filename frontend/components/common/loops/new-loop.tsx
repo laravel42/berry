@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
@@ -191,7 +191,7 @@ export default function NewLoop() {
             >
                <div className="mx-auto flex w-full max-w-3xl flex-col items-center">
                   <span className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-card text-primary shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_40%,transparent),0_10px_30px_-14px_var(--primary)]">
-                     <Sparkles className="size-5" aria-hidden />
+                     <SparkIcon className="size-5" />
                   </span>
                   <h2 data-heading="display" className="text-center text-balance">
                      {t('heading')}
@@ -238,7 +238,7 @@ export default function NewLoop() {
                               onClick={() => void draft()}
                               disabled={prompt.trim().length < 3 || drafting}
                            >
-                              <Sparkles className="size-4" aria-hidden />
+                              <SparkIcon className="size-4" />
                               {drafting ? t('drafting') : t('draft')}
                            </Button>
                         </div>

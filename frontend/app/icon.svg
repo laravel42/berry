@@ -1,20 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
    <style>
+      /* The official isotipo's two colourways. The brackets carry the tone,
+         the dot is the same berry in both. */
       .bracket {
-         stroke: #111113;
+         fill: #161616;
       }
       @media (prefers-color-scheme: dark) {
          .bracket {
-            stroke: #f8f8f4;
+            fill: #f0edea;
          }
       }
    </style>
    <path
       class="bracket"
-      d="M20 10H10V54H20M44 10H54V54H44"
-      stroke-width="6"
-      stroke-linecap="butt"
-      stroke-linejoin="miter"
+      d="M18.75,10.42V0H0v100h18.75v-10.42h-8.33V10.42h8.33ZM81.25,0v10.42h8.33v79.17h-8.33v10.42h18.75V0h-18.75Z"
    />
-   <circle cx="32" cy="32" r="10" fill="#c74a5e" />
+   <circle cx="50" cy="50" r="25.16" fill="#c74a5e" />
 </svg>

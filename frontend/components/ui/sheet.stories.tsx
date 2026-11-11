@@ -36,6 +36,12 @@ function Example({ side = 'right', open }: { side?: Side; open?: boolean }) {
 const meta = {
    component: Example,
    tags: ['ai-generated', 'needs-work'],
+   argTypes: {
+      side: {
+         control: 'select',
+         options: ['top', 'right', 'bottom', 'left'],
+      },
+   },
 } satisfies Meta<typeof Example>;
 
 export default meta;

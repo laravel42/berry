@@ -40,6 +40,28 @@ export const Overview: Story = {
 
 export const ActivitySelected: Story = { args: { defaultValue: 'activity' } };
 
+/** The flat, underlined variant used inside a bordered header (autopilots, reviews). */
+export const Underline: Story = {
+   render: (args) => (
+      <div className="w-[420px] border-b">
+         <Tabs {...args} variant="underline">
+            <TabsList>
+               <TabsTrigger value="overview">Overview</TabsTrigger>
+               <TabsTrigger value="activity">Activity</TabsTrigger>
+               <TabsTrigger value="runs">Runs</TabsTrigger>
+            </TabsList>
+         </Tabs>
+      </div>
+   ),
+   play: async ({ canvas, userEvent }) => {
+      await userEvent.click(canvas.getByRole('tab', { name: 'Runs' }));
+      await expect(canvas.getByRole('tab', { name: 'Runs' })).toHaveAttribute(
+         'aria-selected',
+         'true'
+      );
+   },
+};
+
 export const DisabledTab: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('tab', { name: 'Runs' })).toBeDisabled();

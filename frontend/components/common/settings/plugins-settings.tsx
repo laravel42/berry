@@ -200,7 +200,7 @@ export default function PluginsSettings() {
             </>
          }
       >
-         <div className="px-5 py-5">
+         <div className="px-5 py-5 space-y-4">
             {plugins.error ? (
                <SettingsCard>
                   <SettingsEmpty title={plugins.error} />

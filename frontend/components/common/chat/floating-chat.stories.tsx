@@ -58,7 +58,7 @@ export const StartAConversation: Story = {
    },
    play: async ({ canvas }) => {
       await expect(
-         await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
+         await canvas.findByRole('textbox', { name: 'Plan, search, build anything' })
       ).toBeVisible();
    },
 };

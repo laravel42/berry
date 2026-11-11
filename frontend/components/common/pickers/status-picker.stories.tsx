@@ -17,6 +17,12 @@ const meta = {
       onChange: fn(),
       variant: 'icon',
    },
+   argTypes: {
+      variant: {
+         control: 'select',
+         options: ['icon', 'chip', 'row'],
+      },
+   },
    render: function Render(args) {
       const [value, setValue] = useState(args.status);
       return (

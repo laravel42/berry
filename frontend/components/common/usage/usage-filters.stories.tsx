@@ -23,6 +23,12 @@ const meta = {
       lastUpdated: new Date('2026-09-18T11:58:00Z'),
       loading: false,
    },
+   argTypes: {
+      timeframe: {
+         control: 'select',
+         options: ['window', 'live'],
+      },
+   },
    beforeEach: () => {
       useProjectsStore.setState({ projects });
    },
