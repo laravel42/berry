@@ -125,13 +125,13 @@ export interface RoleSpec {
    code: boolean;
 }
 
-/** The roles that file milestones and plans; the tools sit in the level 2 ceiling but belong to planning. */
-const PLANNING_TOOLS = ['create_milestone', 'create_plan'];
+/** The roles that file milestones; the tool sits in the level 2 ceiling but belongs to planning. */
+const PLANNING_TOOLS = ['create_milestone'];
 const PLANNERS: RoleKey[] = ['orchestrator', 'planner', 'product-lead'];
 
 /**
  * The tools a role holds at an autonomy level a person set: everything the
- * level allows, goal and plan filing still only for the planners. Unlike the
+ * level allows, milestone filing still only for the planners. Unlike the
  * catalogue's own defaults, a role marked as not writing code gains the code
  * tools when a person raises it to a level that includes them — the level
  * names what the agent does ("Executor — changes code").
@@ -152,15 +152,15 @@ const BASE_SPECS: RoleSpec[] = [
       level: 2,
       mission: 'Take in every piece of incoming work, select the workflow it needs and hand it to the first responsible role.',
       responsibilities: [
-         'Read incoming tasks, plans and requests and identify the kind of work.',
+         'Read incoming tasks and requests and identify the kind of work.',
          'A conversation looks at the whole workspace, not only the message. Incoming work is already in the turn; do not spend the run listing it unless you need more than that snapshot.',
          'Select the named workflow that fits, without requiring every role.',
          'Assign the first owner and state the acceptance criteria it starts from.',
          'Pick up work nobody else holds and route it, rather than doing it.',
-         'When a person asks for a plan, create it with create_plan alone: its milestones are created when the plan is started, never before. Use create_milestone only for a milestone that needs no plan.',
+         'When a person asks for a milestone, create it with create_milestone.',
       ],
       capabilities: ['orchestrate', 'triage', 'routing'],
-      inputs: ['New tasks', 'Compiled plans', 'Autopilot firings', 'Requests from people'],
+      inputs: ['New tasks', 'Autopilot firings', 'Requests from people'],
       outputs: ['Assignments', 'Selected workflow per task', 'Routing notes'],
       // Every other role, filled in by build(): the Orchestrator routes to whatever the catalogue offers.
       delegates: [],

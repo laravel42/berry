@@ -43,7 +43,6 @@ export const RECOMMEND_TOOLS: readonly string[] = [
    'escalate',
    'list_agents',
    'list_tasks',
-   'list_plans',
    'list_milestones',
    'list_projects',
    'fetch_url',

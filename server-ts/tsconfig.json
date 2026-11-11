@@ -22,5 +22,5 @@
       "types": ["node"]
    },
    "include": ["src/**/*.ts", "sandbox/docker/runtime/**/*.ts"],
-   "exclude": ["src/agents/runtime/voice/**"]
+   "exclude": ["src/voice/agent.ts"]
 }

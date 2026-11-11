@@ -177,8 +177,6 @@ describe('acting on named tasks', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       assert.equal(projects.some((row) => row.id === foreign!.id), false);
       const milestones = (await ok('list_milestones', unbound('orchestrator'), {})).milestones as Array<{ title: string }>;
       assert.equal(milestones.some((row) => row.title === 'See the board'), true);
-      const plans = await ok('list_plans', unbound('orchestrator'), {});
-      assert.ok(Array.isArray(plans.plans));
    });
 
    test('list_agents names every agent with the id and role key the other tools take', async () => {

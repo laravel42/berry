@@ -25,20 +25,7 @@ const goalIssues = storyIssues
       linkedAt: '2026-09-02T11:20:00Z',
    }));
 
-const goalPlans = [
-   {
-      id: 'plan-7',
-      status: 'accepted',
-      source: 'planner',
-      version: 2,
-      generationStatus: 'succeeded',
-      validationStatus: 'passed',
-      compileStatus: 'succeeded',
-      createdAt: '2026-09-01T08:40:00Z',
-   },
-];
-
-/** The four reads the page makes, answered for whichever goal the story shows. */
+/** The three reads the page makes, answered for whichever goal the story shows. */
 function goalHandlers(options: { empty?: boolean } = {}) {
    const milestones = [milestoneActive, milestoneCompleted];
    return [
@@ -65,9 +52,6 @@ function goalHandlers(options: { empty?: boolean } = {}) {
          HttpResponse.json({ nodes: options.empty ? [] : goalIssues })
       ),
       http.get('*/api/v1/milestones/:id/approvals', () => HttpResponse.json({ nodes: [] })),
-      http.get('*/api/v1/milestones/:id/plans', () =>
-         HttpResponse.json({ nodes: options.empty ? [] : goalPlans })
-      ),
    ];
 }
 
@@ -96,7 +80,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Tasks from the store, a pending approval and the plan that made the goal. */
+/** Tasks from the store and a pending approval. */
 export const Active: Story = {
    beforeEach: () => {
       useApprovalsStore.setState({
@@ -106,14 +90,12 @@ export const Active: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('button', { name: 'Edit the title' })).toBeVisible();
       await expect(canvas.getByText(milestoneActive.title)).toBeVisible();
-      // The plan list arrives from /api/v1/milestones/:id/plans.
-      await expect(await canvas.findByText('Plan v2')).toBeVisible();
    },
 };
 
 export const Completed: Story = { args: { milestoneId: milestoneCompleted.id } };
 
-/** A goal with no tasks or plan yet. */
+/** A goal with no tasks yet. */
 export const NothingLinked: Story = {
    args: { milestoneId: milestoneCompleted.id },
    beforeEach: ({ msw }) => {

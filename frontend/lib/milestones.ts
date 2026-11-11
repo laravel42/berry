@@ -67,23 +67,11 @@ export const milestoneApprovalRefSchema = z.object({
    requestedAt: z.string().nullish(),
 });
 
-export const milestonePlanRefSchema = z.object({
-   id: z.string(),
-   status: z.string(),
-   source: z.string().nullish(),
-   version: z.number().nullish(),
-   generationStatus: z.string().nullish(),
-   validationStatus: z.string().nullish(),
-   compileStatus: z.string().nullish(),
-   createdAt: z.string(),
-});
-
 export type MilestoneStatus = z.infer<typeof milestoneStatusSchema>;
 export type MilestoneProgress = z.infer<typeof milestoneProgressSchema>;
 export type Milestone = z.infer<typeof milestoneSchema>;
 export type MilestoneIssueRef = z.infer<typeof milestoneIssueRefSchema>;
 export type MilestoneApprovalRef = z.infer<typeof milestoneApprovalRefSchema>;
-export type MilestonePlanRef = z.infer<typeof milestonePlanRefSchema>;
 
 function parseMilestone(json: unknown): Milestone {
    const parsed = milestoneSchema.safeParse(json);
@@ -241,13 +229,6 @@ export function listMilestoneApprovals(milestoneId: string): Promise<MilestoneAp
    return listNodes(
       `/api/v1/milestones/${encodeURIComponent(milestoneId)}/approvals`,
       milestoneApprovalRefSchema
-   );
-}
-
-export function listMilestonePlans(milestoneId: string): Promise<MilestonePlanRef[]> {
-   return listNodes(
-      `/api/v1/milestones/${encodeURIComponent(milestoneId)}/plans`,
-      milestonePlanRefSchema
    );
 }
 

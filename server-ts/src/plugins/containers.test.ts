@@ -26,7 +26,7 @@ test('a plugin without a Dockerfile is not started', async () => {
          return { code: 0, output: '' };
       },
    });
-   assert.equal(await containers.ensure({ key: 'plain' }), null);
+   assert.equal(await containers.ensure({ key: 'plain', port: undefined }), null);
    assert.deepEqual(calls, []);
 });
 
@@ -41,7 +41,7 @@ test('a running container is reused', async () => {
          return { code: 0, output: '127.0.0.1:49152\n' };
       },
    });
-   assert.equal(await containers.ensure({ key: 'customerio' }), 'http://127.0.0.1:49152');
+   assert.equal(await containers.ensure({ key: 'customerio', port: undefined }), 'http://127.0.0.1:49152');
    assert.deepEqual(calls, [['port', 'berry-plugin-customerio', `${ASSIGNED_PLUGIN_PORT}/tcp`]]);
 });
 
@@ -58,7 +58,7 @@ test('a missing container is built and started', async () => {
          return { code: 0, output: '' };
       },
    });
-   assert.equal(await containers.ensure({ key: 'customerio' }), 'http://127.0.0.1:49153');
+   assert.equal(await containers.ensure({ key: 'customerio', port: undefined }), 'http://127.0.0.1:49153');
    assert.equal(calls[1]?.[0], 'build');
    assert.ok(calls[1]?.includes(`sdk=${sdk}`));
    assert.equal(calls[3]?.[0], 'run');

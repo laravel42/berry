@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { ProjectActivityFeedList } from './project-activity-section';
 import { ProjectGoalsSection } from './project-milestones-section';
-import { ProjectPlanSection } from './project-plan-section';
 import { ProjectTitle } from './project-title';
 import { ProjectPropertiesPanel } from './project-properties-panel';
 import { ProjectTasksSection } from './project-tasks-section';
@@ -141,7 +140,6 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   </div>
 
                   <div className="mt-4 [&>*:first-child]:mt-0">
-                     <ProjectPlanSection projectId={projectId} />
                      <ProjectGoalsSection projectId={projectId} />
                   </div>
 

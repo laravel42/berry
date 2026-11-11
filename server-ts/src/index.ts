@@ -56,7 +56,6 @@ import { attachmentMounts } from './mounts/attachments.ts';
 import { projectMounts, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
 import { integrationMounts } from './mounts/integrations.ts';
-import { PlanTriage } from './plans/triage.ts';
 import { createScm } from './scm/provider-factory.ts';
 import { ScmInbound } from './scm/inbound.ts';
 import { WebhookDeliveries } from './scm/webhook.ts';
@@ -90,11 +89,6 @@ import {
    ProjectMilestoneTaskGenerator,
 } from './projects/generate-tasks.ts';
 import { RuntimeCompletion } from './runtime/completion.ts';
-import { planMounts, type PlanOptions } from './mounts/plans.ts';
-import { registerPlanningTools } from './plans/agent-tools.ts';
-import { PlanAnswerRepository } from './plans/answers.ts';
-import { PlanRepository } from './plans/repository.ts';
-import { PlanGenerator } from './plans/generator.ts';
 import { ConversationRepository } from './conversations/repository.ts';
 import { InboxRepository } from './inbox/repository.ts';
 import { ApprovalRepository } from './approvals/repository.ts';
@@ -171,6 +165,7 @@ import { AgentRepository } from './agents/repository.ts';
 import type { ModelSource } from './agents/catalog.ts';
 import { createLogger } from './observability/log.ts';
 import { AgentCoreRunMemory, nullRunMemory } from './agentcore/memory.ts';
+import { registerMilestoneTool } from './runtime/agent-tools/milestone-tool.ts';
 import { agentToolMounts } from './runtime/agent-tools/mount.ts';
 import { agentCoreTransport } from './runtime/agentcore-transport.ts';
 import { EnvelopeBuilder } from './runtime/envelope-builder.ts';
@@ -1259,38 +1254,8 @@ const companion = new Companion(sql, executor);
 registry.register(companionMount({ sql, sessions, companion, idempotency }));
 const companionSweep = setInterval(() => { void companion.sweep().catch(error => logger.error('companion sweep failed', { error: String(error) })); }, 15_000);
 companionSweep.unref();
-const planOptions: PlanOptions = {
-   sessions,
-   plans: new PlanRepository(sql),
-   answers: new PlanAnswerRepository(sql),
-   // Completion admission selects a connected subscription model or refuses
-   // immediately when this deployment has no native compute host.
-   generator:
-      new PlanGenerator({
-           sql,
-           completion,
-           defaultModel: config.runtime.defaultModel,
-           maxRepairs: config.agents?.maxRepairs ?? 2,
-           maxCriticRounds: config.agents?.maxCriticRounds ?? 1,
-        }),
-   // Routing needs the same credential planning does: it is the
-   // orchestrator reading the roster and deciding, not a lookup table.
-   triage:
-      new PlanTriage({
-           sql,
-           completion,
-           defaultModel: config.runtime.defaultModel,
-        }),
-   // Its own repository rather than the request path's: a routed task is
-   // admitted outside any request, after the response has gone.
-   runs: new RunRepository(sql),
-   boards,
-   idempotency,
-   sql,
-   logger,
-};
-// `create_milestone` and `create_plan`: the same planner a person's request reaches.
-registerPlanningTools({ sql, milestones, boards, plans: planOptions, scm: scmSync });
+// `create_milestone`: an agent files a milestone for the person who asked.
+registerMilestoneTool({ sql, milestones, boards, scm: scmSync });
 // Berry's tools for a running task, behind its task token (not a session).
 registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    ...(scm.provisioning ? { github: async (workspaceId: string, owner?: string | null) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }) } : {}),
@@ -1428,7 +1393,6 @@ registry.registerAll(
 );
 registry.registerAll(pinMounts({ sessions, sql }));
 registry.registerAll(joinLinkMounts({ sessions, sql }));
-registry.registerAll(planMounts(planOptions));
 const conversationRepository = new ConversationRepository(sql);
 // Once per process: a finished chat task posts its reply into the session.
 // It hooks the ledger's terminal notification.
