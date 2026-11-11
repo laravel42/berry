@@ -18,6 +18,12 @@
     "description": "Understand the records Berry already uses to organize work."
   },
   {
+    "slug": "user-guide",
+    "title": "User guide",
+    "group": "Using Berry",
+    "description": "Set up a workspace, run your first task with an agent, and keep up with daily reviews and approvals."
+  },
+  {
     "slug": "work-tracking",
     "title": "Work tracking",
     "group": "Using Berry",
@@ -77,7 +83,7 @@
     "group": "Using Berry",
     "description": "Connect repositories, tools, and services to your workspace.",
     "source": "PRODUCT.md",
-    "section": "7. Integrations, API and plugins"
+    "section": "7. Connect, plugins and the public API"
   },
   {
     "slug": "runtime",
@@ -101,7 +107,7 @@
     "slug": "operations",
     "title": "Deployment and maintenance",
     "group": "Operate Berry",
-    "description": "Operate the product server, database, storage, and execution runtime deliberately."
+    "description": "Back up, restore, upgrade, monitor and maintain a self-hosted Berry installation."
   },
   {
     "slug": "api",
