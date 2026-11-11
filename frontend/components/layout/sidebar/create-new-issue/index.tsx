@@ -1,7 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { useRunConfirm } from '@/components/common/issues/run-confirm-dialog';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { StatusPicker, type StatusOption } from '@/components/common/pickers/status-picker';

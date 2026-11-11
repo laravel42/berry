@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { AgentMarkdown } from '@/components/common/agent-markdown';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';

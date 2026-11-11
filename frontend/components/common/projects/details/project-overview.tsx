@@ -1,7 +1,7 @@
 'use client';
 
 import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { Button } from '@/components/ui/button';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useShortcut } from '@/components/layout/shortcut-provider';

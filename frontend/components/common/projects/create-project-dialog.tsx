@@ -1,7 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { PickerChipButton } from '@/components/common/pickers/option-picker';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';

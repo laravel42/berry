@@ -13,7 +13,7 @@ import { keepPluginMentions, stripPluginMentions } from '@/lib/plugins';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { Button } from '@/components/ui/button';
 import { Check, Copy, ImageIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
