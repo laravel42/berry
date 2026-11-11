@@ -1,0 +1,27 @@
+.handoffs/TEA-63 - develop-core-functionalities
+
+# Handoff from TEA-63
+
+Develop core functionalities
+
+I haven't written any code for TEA-63. The task has no spec to build from, and the project brief conflicts with what's already in the repo, so I've asked the Product Lead to decide and the task is blocked until they answer.
+
+**Why I stopped**
+- **No spec.** TEA-63 says only "Implement the core functionalities of the desktop application", with no acceptance criteria and no files. The tasks that should supply them haven't delivered yet:
+  - TEA-60 (requirements) and TEA-62 (tech stack) are unassigned and not started.
+  - TEA-61 (architecture, Product Designer) is in progress but has nothing saved.
+- **Conflict with the repo.** The project is "Generate an expo desktop app", but Berry already has a desktop app in `apps/desktop`, and it's built on Electron, not Expo:
+  - It opens the Berry web UI in a desktop window and starts the server and web app itself, using a built-in database or a host Postgres.
+  - It also has a bridge to command-line tools on the machine, packaging, and tests.
+- **Expo has no built-in desktop target.** The only Expo app is `apps/mobile`, which runs on sample data and is documented as iOS/Android only. An "Expo desktop app" would mean adding a new platform alongside Electron. That's a platform decision for the CTO; I shouldn't make it on my own.
+
+**Options I gave the Product Lead**
+- **A (recommended, together with D):** keep the Electron app and give TEA-63 a named list of desktop features with acceptance criteria. Examples: native notifications, a menu-bar badge, `berry://` deep links, an offline/reconnect state. It already runs on macOS, Windows and Linux, which covers the project's goal of working on the major desktop systems.
+- **B:** run the mobile Expo app's web build inside the Electron window, wired to the real API instead of sample data. Needs a CTO decision.
+- **C:** build a native Expo desktop app (react-native-windows/macos). This is the biggest effort and carries the most risk of problems across operating systems. Needs a CTO decision and the tech-stack choice from TEA-62 first.
+- **D:** wait for TEA-60, TEA-61 and TEA-62, then re-file TEA-63 with acceptance criteria.
+
+**Handoff:** I wrote `.handoffs/TEA-63 - develop-core-functionalities`. It describes the existing desktop app file by file, how to run its tests (`bun run test` and `bun run typecheck` in `apps/desktop`), and what not to touch until the decision is made. Nothing was built or tested in this run, since there was no code change to check.
+
+Repository: laravel42/berry
+Branch: software-engineer/tea-63-develop-core-functionalities
