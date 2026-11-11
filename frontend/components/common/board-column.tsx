@@ -93,7 +93,9 @@ export function BoardColumnBody({
       <div
          ref={ref}
          className={cn(
-            'relative flex min-h-0 flex-1 flex-col space-y-1.5 overflow-y-auto rounded-b-lg p-1.5 transition-shadow no-scrollbar',
+            // All four corners: the body is its own surface, separated from the
+            // header by the column's gap, so a square top edge read as a cut.
+            'relative flex min-h-0 flex-1 flex-col space-y-1.5 overflow-y-auto rounded-lg p-1.5 transition-shadow no-scrollbar',
             isOver && !isEmpty && 'ring-2 ring-inset ring-primary/35'
          )}
          style={{ backgroundColor: BOARD_COLUMN_BODY_BG }}
