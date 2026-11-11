@@ -3,15 +3,18 @@ import { test } from 'node:test';
 import { sampleEnvelope } from './envelope.test.ts';
 import { encodeLifecycle, type LifecycleEvent } from './lifecycle.ts';
 import {
+   assertReachableFromAws,
    awsMicrovmApi,
    microvmHealth,
    microvmTransport,
+   privateToThisMachine,
+   withCallbackOrigin,
    type MicrovmApi,
    type MicrovmSession,
    type MicrovmSessions,
    type MicrovmSettings,
 } from './microvm-transport.ts';
-import { RunNotResumable, RuntimeUnavailable, type RuntimeTarget } from './transport.ts';
+import { RunNotResumable, RuntimeMisconfigured, RuntimeUnavailable, type RuntimeTarget } from './transport.ts';
 
 const settings: MicrovmSettings = {
    region: 'us-east-1',
@@ -346,4 +349,92 @@ test('when AWS cannot say which version is active, a running VM is kept', async 
    await drain(transport.invoke({ target, envelope, signal: new AbortController().signal }));
 
    assert.equal(calls.some((call) => call.startsWith('terminate') || call.startsWith('run')), false);
+});
+
+test('privateToThisMachine names the addresses a VM in AWS can never reach', () => {
+   for (const url of [
+      'http://localhost:4000',
+      'http://127.0.0.1:4000',
+      'http://host.docker.internal:4000',
+      'http://192.168.0.152:1234/v1',
+      'http://10.0.0.5',
+      'http://172.17.0.1:1234',
+      'http://berry:4000',
+      'http://studio.local:1234',
+      'http://[::1]:4000',
+   ]) {
+      assert.equal(privateToThisMachine(url), true, url);
+   }
+   for (const url of ['https://berry.example.com', 'https://lmstudio.example.com/v1', 'http://172.32.0.1', 'https://1.1.1.1']) {
+      assert.equal(privateToThisMachine(url), false, url);
+   }
+});
+
+test('withCallbackOrigin moves Berry and its own MCP servers to the public callback, nothing else', () => {
+   const envelope = sampleEnvelope({
+      berry: { apiUrl: 'http://host.docker.internal:4000', token: 't' },
+   });
+   envelope.agent.mcpServers = [
+      { name: 'plugin', url: 'http://host.docker.internal:4000/api/v1/plugins/mcp/x', transport: 'streamable_http', headers: {}, allowedTools: null },
+      { name: 'other', url: 'https://mcp.example.com/mcp', transport: 'streamable_http', headers: {}, allowedTools: null },
+   ];
+   const moved = withCallbackOrigin(envelope, 'https://berry.example.com/ignored-path');
+   assert.equal(moved.berry.apiUrl, 'https://berry.example.com');
+   assert.deepEqual(
+      moved.agent.mcpServers.map((server) => server.url),
+      ['https://berry.example.com/api/v1/plugins/mcp/x', 'https://mcp.example.com/mcp']
+   );
+   // The original envelope is not changed.
+   assert.equal(envelope.berry.apiUrl, 'http://host.docker.internal:4000');
+});
+
+test('assertReachableFromAws refuses a local Berry callback and a local LM Studio, with what to do', () => {
+   assert.throws(
+      () => assertReachableFromAws(sampleEnvelope({ berry: { apiUrl: 'http://host.docker.internal:4000', token: 't' } })),
+      (error: unknown) => error instanceof RuntimeMisconfigured && /BERRY_MICROVM_CALLBACK_URL/.test(error.message)
+   );
+   const lmstudio = sampleEnvelope({
+      runtime: {
+         id: 'lmstudio',
+         executionMode: 'direct_inference',
+         provider: 'LM Studio',
+         billing: 'unknown',
+         model: 'google/gemma-4-26b-a4b',
+         credential: { type: 'api_key', token: 'x', accountId: null, accountName: null, baseUrl: 'http://localhost:1234/v1' },
+      },
+   });
+   assert.throws(
+      () => assertReachableFromAws(lmstudio),
+      (error: unknown) => error instanceof RuntimeMisconfigured && /LM Studio at localhost:1234/.test(error.message)
+   );
+   assert.doesNotThrow(() => assertReachableFromAws(sampleEnvelope()));
+});
+
+test('an invoke that could not reach Berry is refused before any VM starts', async () => {
+   const { api, calls } = fakeApi();
+   const runtime = fakeRuntime();
+   const transport = microvmTransport({ settings, api, sessions: memorySessions(), fetch: runtime.doFetch, sleep: noSleep });
+   const envelope = sampleEnvelope({ berry: { apiUrl: 'http://host.docker.internal:4000', token: 't' } });
+   await assert.rejects(
+      drain(transport.invoke({ target, envelope, signal: new AbortController().signal })),
+      RuntimeMisconfigured
+   );
+   assert.deepEqual(calls, []);
+});
+
+test('with a callback URL the VM is sent the public address instead', async () => {
+   const { api } = fakeApi();
+   const runtime = fakeRuntime();
+   const transport = microvmTransport({
+      settings,
+      api,
+      sessions: memorySessions(),
+      fetch: runtime.doFetch,
+      sleep: noSleep,
+      callbackUrl: 'https://berry.example.com',
+   });
+   const envelope = sampleEnvelope({ berry: { apiUrl: 'http://host.docker.internal:4000', token: 't' } });
+   await drain(transport.invoke({ target, envelope, signal: new AbortController().signal }));
+   const invoke = runtime.seen.find((request) => request.url.endsWith('/invocations'));
+   assert.equal(JSON.parse(invoke!.body!).berry.apiUrl, 'https://berry.example.com');
 });

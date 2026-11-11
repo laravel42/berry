@@ -17,7 +17,13 @@ import { AiRuntimeEnvelopeError, loadTask, type DeliveryPlan, type EnvelopeBuild
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
 import { LifecycleStreamError, type LifecycleEvent, type TaskDelivery, type TaskMessage, type TaskResult } from './lifecycle.ts';
 import { directRecorder, ledgerRecorder, type TaskRecorder } from './recorders.ts';
-import { RunNotResumable, RuntimeUnavailable, type RuntimeTarget, type RuntimeTransport } from './transport.ts';
+import {
+   RunNotResumable,
+   RuntimeMisconfigured,
+   RuntimeUnavailable,
+   type RuntimeTarget,
+   type RuntimeTransport,
+} from './transport.ts';
 import type { WorkstationKiro } from './workstation-kiro.ts';
 import { scheduleReview } from '../runs/followups.ts';
 import { parseRepository } from '../agents/checkout.ts';
@@ -361,6 +367,10 @@ export class RuntimeTaskExecutor implements Executor {
             return null;
          }
          if (abort.aborted) return await this.#cancel(task, recorder, usage, target, envelopeSession);
+         if (error instanceof RuntimeMisconfigured) {
+            log?.failed(error.message);
+            return await this.#fail(task, recorder, usage, { code: 'RUNTIME_MISCONFIGURED', message: error.message, retryable: false });
+         }
          if (error instanceof RuntimeUnavailable) {
             log?.failed(error.message);
             return await this.#fail(task, recorder, usage, { code: 'RUNTIME_UNAVAILABLE', message: error.message, retryable: true });
@@ -429,6 +439,9 @@ export class RuntimeTaskExecutor implements Executor {
             return null;
          }
          if (signal.aborted) return await this.#cancel(task, recorder, usage, target, session);
+         if (error instanceof RuntimeMisconfigured) {
+            return await this.#fail(task, recorder, usage, { code: 'RUNTIME_MISCONFIGURED', message: error.message, retryable: false });
+         }
          if (error instanceof RuntimeUnavailable) {
             return await this.#fail(task, recorder, usage, { code: 'RUNTIME_UNAVAILABLE', message: error.message, retryable: true });
          }

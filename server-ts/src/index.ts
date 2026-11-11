@@ -735,7 +735,12 @@ const transport = routingTransport({
       : null,
    microvm:
       config.microvm && microvmApi
-         ? microvmTransport({ settings: config.microvm, api: microvmApi, sessions: postgresMicrovmSessions(sql) })
+         ? microvmTransport({
+              settings: config.microvm,
+              api: microvmApi,
+              sessions: postgresMicrovmSessions(sql),
+              callbackUrl: config.microvm.callbackUrl,
+           })
          : null,
    http: httpTransport({ token: config.runtime.authToken, endpointUrl: config.runtime.agentRuntimeUrl }),
 });
