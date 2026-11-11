@@ -12,6 +12,7 @@ import {
    lstatSync,
    mkdirSync,
    rmSync,
+   statSync,
    symlinkSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -46,19 +47,40 @@ if (!existsSync(path.join(webDir, 'package.json'))) {
    process.exit(1);
 }
 
-// Its own install (apps/web/bun.lock), outside the root workspace.
+// Its own install (apps/web/bun.lock), outside the root workspace, so a root
+// `bun install` never reaches it. Without it `bun x astro` fetches a loose
+// Astro that cannot resolve astro/tsconfigs/strict.
+if (!existsSync(path.join(webDir, 'node_modules', 'astro'))) {
+   const install = spawnSync('bun', ['install'], {
+      cwd: webDir,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+   });
+   if (install.status !== 0) {
+      process.exit(install.status ?? 1);
+   }
+}
+
+const indexFile = path.join(distDir, 'index.html');
+const builtBefore = existsSync(indexFile) ? statSync(indexFile).mtimeMs : 0;
+
 const build = spawnSync('bun', ['x', 'astro', 'build'], {
    cwd: webDir,
    stdio: 'inherit',
    shell: process.platform === 'win32',
 });
-if (build.status !== 0) {
+
+// Astro finishes the build and then trips a libuv assertion while tearing down
+// on Windows (UV_HANDLE_CLOSING, exit 9), which used to fail dev and build. A
+// freshly written index.html is the proof the build itself ran, so only a
+// missing or stale one is a real failure.
+const built = existsSync(indexFile) && statSync(indexFile).mtimeMs > builtBefore;
+if (!built) {
+   console.error('prepare-marketing: apps/web/dist/index.html was not built');
    process.exit(build.status ?? 1);
 }
-
-if (!existsSync(path.join(distDir, 'index.html'))) {
-   console.error('prepare-marketing: apps/web/dist/index.html was not built');
-   process.exit(1);
+if (build.status !== 0) {
+   console.warn(`prepare-marketing: astro exited ${build.status} after writing dist; continuing`);
 }
 
 mkdirSync(marketingDir, { recursive: true });

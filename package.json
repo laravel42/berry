@@ -20,7 +20,8 @@
    ],
    "scripts": {
       "prepare": "husky",
-      "dev:all": "bun run dev:server & bun run dev:frontend & wait",
+      "dev:all": "node scripts/dev-all.mjs",
+      "install:web": "bun install --cwd apps/web",
       "dev:frontend": "bun run --cwd frontend dev",
       "prepare:marketing": "bun run --cwd frontend prepare:marketing",
       "dev:mobile": "bun run --cwd apps/mobile start",
