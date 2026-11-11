@@ -1029,23 +1029,29 @@ input[type='search'] {
 /* A task's or project's own page is where its text is read at length, so
    the description reads a step up from the interface and the title leads. */
 [data-detail-description] .tiptap-ai-editor .ProseMirror {
-   font-size: var(--text-base);
+   font-size: var(--text-xs);
+}
+
+[data-detail-description] .tiptap-ai-editor .ProseMirror p:empty:not(:only-child) {
+   display: none;
 }
 
 [data-detail-title] {
-   font-size: 1.5rem;
-   line-height: 1.25;
+   font-size: var(--text-xl);
+   line-height: var(--text-xl--line-height);
 }
 
-/* The properties sidebar beside them, and the sections under the
-   description (a project's plan, milestones, tasks and updates; a task's
-   sub-tasks and activity), read at the same step.
-   Their controls take that size rather than their own, and section labels
-   stay one step below what they head. */
-[data-detail-sidebar],
+/* Detail sidebars and the working sections under a description (plans,
+   milestones, tasks, updates and activity) use the compact interface scale.
+   Their controls take the surrounding size rather than their own. */
+[data-detail-sidebar] {
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
+}
+
 [data-detail-body] {
-   font-size: var(--text-base);
-   line-height: var(--text-base--line-height);
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
 }
 
 :is([data-detail-sidebar], [data-detail-body])
@@ -1055,6 +1061,16 @@ input[type='search'] {
 
 :is([data-detail-sidebar], [data-detail-body]) [data-heading='label'] {
    font-size: var(--text-xs);
+}
+
+[data-comment-card] {
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
+}
+
+[data-activity-event] {
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
 }
 
 /* A create dialog's title sits a step above the h1 scale, so it leads. */

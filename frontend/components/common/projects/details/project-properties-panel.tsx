@@ -123,7 +123,7 @@ function PropertyRow({ label, children }: { label: string; children: React.React
 function SidebarSection({ title, children }: { title: string; children: React.ReactNode }) {
    return (
       <div>
-         <DetailSectionLabel className="mb-2">{title}</DetailSectionLabel>
+         <DetailSectionLabel className="mb-1 pb-1">{title}</DetailSectionLabel>
          {children}
       </div>
    );
@@ -145,7 +145,9 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
       <div className="flex h-full min-h-0 flex-col">
          <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto">
             <SidebarSection title="Properties">
-               <div className="flex flex-col gap-0.75">
+               {/* `!`: Button's size padding is not merged with a caller's
+                   `px-0`, so only an important override reaches the edge. */}
+               <div className="flex flex-col [&_button]:pl-0!">
                   <div className="flex min-w-0 items-center">
                      <LeadPicker
                         lead={project.lead}

@@ -171,7 +171,7 @@ function CommentBody({
 
 function EventRow({ item }: { item: EventItem }) {
    return (
-      <div className="flex items-center gap-2.5 py-1.5 text-muted-foreground">
+      <div data-activity-event className="flex items-center gap-2.5 py-1 text-muted-foreground">
          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent p-0.5">
             {item.actor.role === 'Application' ? (
                <BerryMark
@@ -367,6 +367,7 @@ function CommentCard({
    return (
       <div
          data-comment-id={comment.id}
+         data-comment-card
          className={cn(
             'rounded-sm border border-border/60 bg-container px-2 py-1 transition-colors',
             isAgent && 'border-actor-agent/40',
