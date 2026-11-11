@@ -159,7 +159,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                   className={cn(
                      'group relative flex w-full cursor-grab flex-col rounded-lg bg-void px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
                      'border border-[var(--board-card-line)] shadow-sm',
-                     'hover:bg-base',
+                     'hover:border-[var(--board-card-hover-line)] hover:bg-[var(--board-card-hover)] hover:shadow-md',
                      columnStatus === undefined && 'cursor-default',
                      isOver && 'ring-1 ring-primary/40',
                      isOver && dropEdge === 'top' && 'mt-1',

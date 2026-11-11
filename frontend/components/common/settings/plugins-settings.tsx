@@ -29,22 +29,30 @@ import { cn } from '@/lib/utils';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import MainLayout from '@/components/layout/main-layout';
 import { useSessionStore } from '@/store/session-store';
-import { ChevronRight, Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import PluginDetail from './plugin-detail';
 import { PluginConfigForm } from './plugin-config-form';
+import {
+   groupByPluginCategory,
+   isSourceControlPlugin,
+   pluginCategoryColor,
+   PLUGIN_CATEGORY_ICON,
+   PLUGIN_CATEGORY_LABEL,
+   type PluginCategory,
+} from './plugin-categories';
 import { PLUGIN_LOGOS } from './plugin-logos';
 import { SettingsCard, SettingsEmpty, SettingsRow, SettingsTile, StatusIndicator } from './shared';
 import { useSettingsResource } from './use-settings-resource';
 
-type PluginFilter = 'all' | 'installed' | 'available';
+type PluginFilter = 'installed' | 'available';
 
-const PLUGIN_FILTERS: PluginFilter[] = ['all', 'installed', 'available'];
+const PLUGIN_FILTERS: PluginFilter[] = ['installed', 'available'];
 
 const FILTER_LABEL: Record<PluginFilter, string> = {
-   all: 'All',
    installed: 'Installed',
    available: 'Available',
 };
@@ -73,13 +81,20 @@ export default function PluginsSettings() {
       () => (workspaceId ? loadPluginCatalog(workspaceId) : Promise.resolve([])),
       [workspaceId]
    );
-   const installedKeys = new Set((plugins.value ?? []).map((plugin) => plugin.key));
-   const catalogOpen = (catalog.value ?? []).filter((item) => item.preview.available !== false);
-   const catalogClosed = (catalog.value ?? []).filter((item) => item.preview.available === false);
+   // Source control hosts connect under Settings → Source control, not here.
+   const installed = (plugins.value ?? []).filter((plugin) => !isSourceControlPlugin(plugin.key));
+   const catalogItems = (catalog.value ?? []).filter(
+      (item) => !isSourceControlPlugin(item.preview.key)
+   );
+   const installedKeys = new Set(installed.map((plugin) => plugin.key));
+   const catalogOpen = catalogItems.filter((item) => item.preview.available !== false);
+   const catalogClosed = catalogItems.filter((item) => item.preview.available === false);
    const available = catalogOpen.filter((item) => !installedKeys.has(item.preview.key));
    const unavailable = catalogClosed.filter((item) => !installedKeys.has(item.preview.key));
    const [query, setQuery] = useState('');
-   const [filter, setFilter] = useState<PluginFilter>('all');
+   // Until someone picks a tab: what is installed, or the catalog when nothing is.
+   const [chosenFilter, setFilter] = useState<PluginFilter | null>(null);
+   const filter: PluginFilter = chosenFilter ?? (installed.length > 0 ? 'installed' : 'available');
    const needle = query.trim().toLowerCase();
    const matches = (name: string, key: string, description: string) =>
       needle === '' ||
@@ -87,7 +102,7 @@ export default function PluginsSettings() {
       key.toLowerCase().includes(needle) ||
       description.toLowerCase().includes(needle);
    const catalogDescription = new Map(
-      (catalog.value ?? []).map((item) => [item.preview.key, item.preview.description])
+      catalogItems.map((item) => [item.preview.key, item.preview.description])
    );
    const visibleAvailable = available.filter((item) =>
       matches(item.preview.name, item.preview.key, item.preview.description)
@@ -95,16 +110,14 @@ export default function PluginsSettings() {
    const visibleUnavailable = unavailable.filter((item) =>
       matches(item.preview.name, item.preview.key, item.preview.description)
    );
-   const visibleInstalled = (plugins.value ?? []).filter((plugin) =>
+   const visibleInstalled = installed.filter((plugin) =>
       matches(plugin.name, plugin.key, catalogDescription.get(plugin.key) || plugin.description)
    );
-   const shownAvailable = filter === 'installed' ? [] : visibleAvailable;
-   const shownUnavailable =
-      filter === 'installed' || filter === 'available' ? [] : visibleUnavailable;
-   const shownInstalled = filter === 'available' ? [] : visibleInstalled;
+   const shownAvailable = filter === 'available' ? visibleAvailable : [];
+   const shownUnavailable = filter === 'available' ? visibleUnavailable : [];
+   const shownInstalled = filter === 'installed' ? visibleInstalled : [];
    const filterCount: Record<PluginFilter, number> = {
-      all: available.length + unavailable.length + (plugins.value ?? []).length,
-      installed: (plugins.value ?? []).length,
+      installed: installed.length,
       available: available.length,
    };
 
@@ -139,6 +152,57 @@ export default function PluginsSettings() {
       const { authorizeUrl } = await startPluginOAuth(workspaceId, installationId);
       window.location.assign(authorizeUrl);
    };
+
+   // Installed plugins are few and listed flat. The catalog is grouped by
+   // category: the ones to install, then the ones this deployment cannot run.
+   const installedCards = shownInstalled.map((plugin) => (
+      <PluginCard
+         key={plugin.id}
+         pluginKey={plugin.key}
+         title={plugin.name}
+         description={catalogDescription.get(plugin.key) || plugin.description}
+         onOpen={() => setOpenPlugin({ id: plugin.id, name: plugin.name })}
+         status={
+            <StatusIndicator status={plugin.enabled ? 'connected' : 'off'}>
+               {plugin.enabled ? 'Enabled' : 'Disabled'}
+            </StatusIndicator>
+         }
+      />
+   ));
+   const cards: { key: string; card: ReactNode }[] = [
+      ...shownAvailable.map((item) => ({
+         key: item.preview.key,
+         card: (
+            <PluginCard
+               key={item.preview.key}
+               pluginKey={item.preview.key}
+               title={item.preview.name}
+               description={item.preview.description || item.preview.key}
+               onOpen={() => {
+                  if (busy) return;
+                  setPreview(item.preview);
+                  setSource({ package: item.package });
+                  setConfig({});
+                  setSecretDrafts({});
+               }}
+            />
+         ),
+      })),
+      ...shownUnavailable.map((item) => ({
+         key: item.preview.key,
+         card: (
+            <PluginCard
+               key={item.preview.key}
+               pluginKey={item.preview.key}
+               title={item.preview.name}
+               description={item.preview.description || item.preview.key}
+               unavailable
+               status={<StatusIndicator status="off">Unavailable</StatusIndicator>}
+            />
+         ),
+      })),
+   ];
+   const groups = groupByPluginCategory(cards, (entry) => entry.key);
 
    const install = async () => {
       if (!source || !preview) return;
@@ -200,7 +264,25 @@ export default function PluginsSettings() {
             </>
          }
       >
-         <div className="px-5 py-5">
+         {groups.length > 0 ? (
+            <div className="divide-y-[3px] divide-background">
+               {groups.map((group) => (
+                  <PluginCategoryGroup
+                     key={group.category}
+                     category={group.category}
+                     count={group.items.length}
+                  >
+                     {group.items.map((entry) => entry.card)}
+                  </PluginCategoryGroup>
+               ))}
+            </div>
+         ) : null}
+         {installedCards.length > 0 ? (
+            <div className="grid grid-cols-1 items-start gap-3 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3">
+               {installedCards}
+            </div>
+         ) : null}
+         <div className={cn('px-5', groups.length > 0 ? 'empty:hidden' : 'py-5')}>
             {plugins.error ? (
                <SettingsCard>
                   <SettingsEmpty title={plugins.error} />
@@ -212,7 +294,7 @@ export default function PluginsSettings() {
                </SettingsCard>
             ) : null}
             {!plugins.loading &&
-            (plugins.value ?? []).length === 0 &&
+            installed.length === 0 &&
             available.length === 0 &&
             unavailable.length === 0 ? (
                <SettingsCard>
@@ -220,58 +302,23 @@ export default function PluginsSettings() {
                </SettingsCard>
             ) : null}
             {!plugins.loading &&
+            filter === 'installed' &&
+            installed.length === 0 &&
+            (available.length > 0 || unavailable.length > 0) ? (
+               <SettingsCard>
+                  <SettingsEmpty title="Nothing installed yet. Pick one under Available." />
+               </SettingsCard>
+            ) : null}
+            {!plugins.loading &&
             shownAvailable.length === 0 &&
             shownUnavailable.length === 0 &&
             shownInstalled.length === 0 &&
-            ((plugins.value ?? []).length > 0 || available.length > 0 || unavailable.length > 0) ? (
+            (filter === 'installed'
+               ? installed.length > 0
+               : available.length + unavailable.length > 0) ? (
                <SettingsCard>
                   <SettingsEmpty title="Nothing matches." />
                </SettingsCard>
-            ) : null}
-            {shownAvailable.length > 0 ||
-            shownUnavailable.length > 0 ||
-            shownInstalled.length > 0 ? (
-               <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {shownInstalled.map((plugin) => (
-                     <PluginCard
-                        key={plugin.id}
-                        pluginKey={plugin.key}
-                        title={plugin.name}
-                        description={catalogDescription.get(plugin.key) || plugin.description}
-                        onOpen={() => setOpenPlugin({ id: plugin.id, name: plugin.name })}
-                        status={
-                           <StatusIndicator status={plugin.enabled ? 'connected' : 'off'}>
-                              {plugin.enabled ? 'Enabled' : 'Disabled'}
-                           </StatusIndicator>
-                        }
-                     />
-                  ))}
-                  {shownAvailable.map((item) => (
-                     <PluginCard
-                        key={item.preview.key}
-                        pluginKey={item.preview.key}
-                        title={item.preview.name}
-                        description={item.preview.description || item.preview.key}
-                        onOpen={() => {
-                           if (busy) return;
-                           setPreview(item.preview);
-                           setSource({ package: item.package });
-                           setConfig({});
-                           setSecretDrafts({});
-                        }}
-                     />
-                  ))}
-                  {shownUnavailable.map((item) => (
-                     <PluginCard
-                        key={item.preview.key}
-                        pluginKey={item.preview.key}
-                        title={item.preview.name}
-                        description={item.preview.description || item.preview.key}
-                        unavailable
-                        status={<StatusIndicator status="off">Unavailable</StatusIndicator>}
-                     />
-                  ))}
-               </div>
             ) : null}
             {signingSecret ? (
                <div className="flex flex-col gap-2.5 rounded-[10px] bg-settings-group px-4 py-3.5">
@@ -399,6 +446,52 @@ export default function PluginsSettings() {
             </DetailDrawerShell>
          </div>
       </MainLayout>
+   );
+}
+
+/**
+ * One category of the catalog, opened and closed the same way a skills label
+ * group is: a sticky tinted header with a chevron, the category and a count.
+ */
+function PluginCategoryGroup({
+   category,
+   count,
+   children,
+}: {
+   category: PluginCategory;
+   count: number;
+   children: ReactNode;
+}) {
+   const Icon = PLUGIN_CATEGORY_ICON[category];
+   return (
+      <Collapsible defaultOpen className="group/plugin-group bg-container">
+         <div
+            className="sticky top-0 z-10 h-9 w-full bg-container"
+            style={{ '--category': pluginCategoryColor(category) } as CSSProperties}
+         >
+            <div className="flex h-full w-full items-center border-l-[3px] border-[var(--category)] bg-[color-mix(in_oklab,var(--category)_14%,var(--container))] pl-[21px] pr-6">
+               <CollapsibleTrigger asChild>
+                  <button
+                     type="button"
+                     className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  >
+                     <ChevronDown
+                        aria-hidden
+                        className="size-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/plugin-group:-rotate-90"
+                     />
+                     <Icon aria-hidden className="size-4 shrink-0 text-[var(--category)]" />
+                     <span className="truncate font-medium">{PLUGIN_CATEGORY_LABEL[category]}</span>
+                     <span className="text-muted-foreground">{count}</span>
+                  </button>
+               </CollapsibleTrigger>
+            </div>
+         </div>
+         <CollapsibleContent>
+            <div className="grid grid-cols-1 items-start gap-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
+               {children}
+            </div>
+         </CollapsibleContent>
+      </Collapsible>
    );
 }
 

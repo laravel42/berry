@@ -149,6 +149,11 @@
       its first colour, and an edge that matches the column disappears, where
       one that fell back to white would blaze. */
    --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
+   /* A hovered card lifts above the column rather than toward it: the card
+      rests darker than the column (`--brand-void`), and hovering to the
+      column's own colour made it vanish into it. Its edge brightens with it. */
+   --board-card-hover: color-mix(in oklab, var(--board-column-body) 92%, #ffffff);
+   --board-card-hover-line: color-mix(in oklab, var(--board-column-body) 84%, #ffffff);
    /* Board column and list group header tints. A status column takes a wash
       of its own semantic tone over the container, so the header agrees with
       the glyph beside it: In review and Blocked wear warning, Done wears
