@@ -39,9 +39,12 @@ import {
    isOrchestrator,
    setAgentAccess,
    updateAgentConfig,
+   updateAgentContract,
    type Agent,
    type Tier,
 } from '@/lib/agents';
+import { AutonomyLevelChip } from '@/components/common/agents/autonomy-level-chip';
+import type { AutonomyLevel } from '@/lib/autonomy-level';
 import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
 import { cn } from '@/lib/utils';
 import {
@@ -78,8 +81,15 @@ interface BulkReport {
    failures: string[];
 }
 
+const AUTONOMY_LEVELS: AutonomyLevel[] = [1, 2, 3, 4, 5];
+
+/** An agent a bulk change leaves alone on purpose, with the reason the report shows. */
+class BulkSkipped extends Error {
+   override readonly name = 'BulkSkipped';
+}
+
 const reason = (error: unknown, fallback: string) =>
-   error instanceof BerryApiError ? error.message : fallback;
+   error instanceof BerryApiError || error instanceof BulkSkipped ? error.message : fallback;
 
 /**
  * The agents table.
@@ -94,6 +104,7 @@ export default function Agents() {
    const common = useTranslations('agentsChat.common');
    const detail = useTranslations('agentsChat.detail');
    const tiers = useTranslations('agentsChat.detail.tiers');
+   const org = useTranslations('organization');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
 
@@ -137,6 +148,7 @@ export default function Agents() {
    const [bulkAccessOpen, setBulkAccessOpen] = useState(false);
    const [bulkRuntimeOpen, setBulkRuntimeOpen] = useState(false);
    const [bulkTierOpen, setBulkTierOpen] = useState(false);
+   const [bulkLevelOpen, setBulkLevelOpen] = useState(false);
    const [bulkReport, setBulkReport] = useState<BulkReport | null>(null);
    const [busy, setBusy] = useState(false);
    const [runtimes, setRuntimes] = useState<Runtime[]>([]);
@@ -289,6 +301,24 @@ export default function Agents() {
             config.model = null;
          }
          upsertAgent(await updateAgentConfig(agent.id, config));
+      });
+   };
+
+   /**
+    * Puts the selection on one autonomy level, as the Role tab does: the
+    * server gives each agent the tools and permissions the level allows. The
+    * Orchestrator is locked, and a plain agent has no role contract to carry
+    * a level, so both are reported rather than attempted.
+    */
+   const bulkLevel = (next: AutonomyLevel) => {
+      setBulkLevelOpen(false);
+      void bulk(t('errorTitle'), async (agent) => {
+         if (isOrchestrator(agent)) throw new BulkSkipped(t('bulkLevelLocked'));
+         if (!agent.roleKey || !agent.contract) throw new BulkSkipped(t('bulkLevelNotRole'));
+         if (agent.contract.autonomy_level === next) return;
+         upsertAgent(
+            await updateAgentContract(agent.id, { ...agent.contract, autonomy_level: next })
+         );
       });
    };
 
@@ -523,6 +553,37 @@ export default function Agents() {
                                           </span>
                                           <span className="text-muted-foreground">
                                              {tiers(`outcome.${name}`)}
+                                          </span>
+                                       </CommandItem>
+                                    ))}
+                                 </CommandGroup>
+                              </CommandList>
+                           </Command>
+                        </PopoverContent>
+                     </Popover>
+                     <Popover open={bulkLevelOpen} onOpenChange={setBulkLevelOpen}>
+                        <PopoverTrigger asChild>
+                           <Button size="sm" variant="secondary" disabled={busy}>
+                              {t('bulkLevel')}
+                           </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" side="top" className="w-96 p-0">
+                           <Command>
+                              <CommandList>
+                                 <CommandGroup>
+                                    {AUTONOMY_LEVELS.map((level) => (
+                                       <CommandItem
+                                          key={level}
+                                          disabled={busy}
+                                          onSelect={() => bulkLevel(level)}
+                                          className="items-start gap-3"
+                                       >
+                                          <AutonomyLevelChip
+                                             level={level}
+                                             className="inline-flex shrink-0 items-center rounded-md px-2 py-1"
+                                          />
+                                          <span className="text-muted-foreground">
+                                             {org(`levels.${String(level) as `${AutonomyLevel}`}`)}
                                           </span>
                                        </CommandItem>
                                     ))}
