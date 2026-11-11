@@ -11,7 +11,7 @@ import { ActiveRunExists } from './repository.ts';
  * create/edit). When enqueue is skipped or refused after the assignee is
  * written, the task sits ready and nobody comes for it. This is the
  * catch-up: the same admission assignment uses, so the dispatcher has a
- * row to claim.
+ * row to claim. A task whose last run ended in failure is not that case.
  */
 export async function pickupReadyAgentTasks(
    sql: Sql,
@@ -50,6 +50,23 @@ export async function pickupReadyAgentTasks(
          AND NOT EXISTS (
             SELECT 1 FROM approvals
              WHERE issue_id = i.id AND kind = 'escalation' AND status = 'pending'
+         )
+         -- Not a task whose last run just failed or was stopped. Ending a run
+         -- puts the task back in todo with no run, which is exactly what this
+         -- looks for: picked up again, a failure that repeats became a new
+         -- run on every tick (68 in 18 seconds). A retryable failure gets its
+         -- one bounded retry from retryAfterFault; anything else waits for a
+         -- person. Any edit after the end (reassign, move, restart) moves
+         -- updated_at past it, and the task is eligible again.
+         AND NOT EXISTS (
+            SELECT 1 FROM (
+               SELECT r.status, r.completed_at FROM runs AS r
+                WHERE r.issue_id = i.id
+                ORDER BY r.created_at DESC
+                LIMIT 1
+            ) AS latest
+             WHERE latest.status IN ('failed', 'cancelled')
+               AND latest.completed_at >= i.updated_at
          )
          ${scoped ? sql`AND b.workspace_id IN ${sql(ids)}` : sql``}
        ORDER BY i.updated_at ASC
