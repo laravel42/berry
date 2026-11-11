@@ -4,7 +4,7 @@ import { parseResponse } from './parse-response';
 
 const pinSchema = z.object({
    id: z.string(),
-   targetType: z.enum(['issue', 'view', 'project', 'plan']),
+   targetType: z.enum(['issue', 'view', 'project']),
    targetId: z.string(),
    position: z.number(),
    title: z.string(),

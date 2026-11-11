@@ -5,7 +5,7 @@ import { ApprovalCard } from '@/components/common/approvals/approval-card';
 import { DescriptionTextarea } from '@/components/common/editor/description-textarea';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueLine } from '@/components/common/issues/issue-line';
-import { Pill, SectionHeading } from '@/components/common/plans/plan-sections';
+import { Pill, SectionHeading } from '@/components/common/pill';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useMilestone } from '@/hooks/use-milestone';
 import { APPROVAL_STATUS, GOAL_STATUS, statusLook, uiStatusFromApi } from '@/lib/catalog';
@@ -15,12 +15,10 @@ import {
    describeMilestoneStatusReason,
    listMilestoneApprovals,
    listMilestoneIssues,
-   listMilestonePlans,
    updateWorkspaceMilestone,
    type Milestone,
    type MilestoneApprovalRef,
    type MilestoneIssueRef,
-   type MilestonePlanRef,
 } from '@/lib/milestones';
 import { cn } from '@/lib/utils';
 import { canEditProduct } from '@/lib/workspace-role';
@@ -53,10 +51,9 @@ function whenText(iso: string | null | undefined): string {
 interface GoalLists {
    issues: MilestoneIssueRef[];
    approvals: MilestoneApprovalRef[];
-   plans: MilestonePlanRef[];
 }
 
-const EMPTY_LISTS: GoalLists = { issues: [], approvals: [], plans: [] };
+const EMPTY_LISTS: GoalLists = { issues: [], approvals: [] };
 
 /** Everything hanging off a goal, re-read when the stream says something moved. */
 function useMilestoneLists(milestoneId: string): { lists: GoalLists; loaded: boolean } {
@@ -72,10 +69,9 @@ function useMilestoneLists(milestoneId: string): { lists: GoalLists; loaded: boo
          void Promise.all([
             listMilestoneIssues(milestoneId).catch(() => []),
             listMilestoneApprovals(milestoneId).catch(() => []),
-            listMilestonePlans(milestoneId).catch(() => []),
-         ]).then(([issues, approvals, plans]) => {
+         ]).then(([issues, approvals]) => {
             if (cancelled) return;
-            setLists({ issues, approvals, plans });
+            setLists({ issues, approvals });
             setLoaded(true);
          });
       };
@@ -85,7 +81,6 @@ function useMilestoneLists(milestoneId: string): { lists: GoalLists; loaded: boo
          if (
             !type.startsWith('issue.') &&
             !type.startsWith('approval.') &&
-            !type.startsWith('plan.') &&
             !(type.startsWith('milestone.') || type.startsWith('goal.'))
          ) {
             return;
@@ -110,7 +105,7 @@ function WorkSection({ refs, orgId }: { refs: MilestoneIssueRef[]; orgId: string
          <SectionHeading title="Work" count={refs.length} />
          {refs.length === 0 ? (
             <p className="mt-2 text-muted-foreground">
-               This goal groups no tasks yet. Link work to it, or start a plan from its project.
+               This goal groups no tasks yet. Link work to it from its project.
             </p>
          ) : (
             <div className="mt-2 overflow-hidden rounded-md border border-border/60 bg-background">
@@ -190,49 +185,6 @@ function ApprovalsSection({
    );
 }
 
-/**
- * The plan this goal came from. There is no "plan this goal" action: planning
- * is what makes a goal, so a second plan would make a second goal rather than
- * change this one.
- */
-function PlansSection({ refs, orgId }: { refs: MilestonePlanRef[]; orgId: string }) {
-   return (
-      <section className="mt-8">
-         <SectionHeading title={refs.length === 1 ? 'Plan' : 'Plans'} count={refs.length} />
-         {refs.length === 0 ? (
-            <p className="mt-2 text-muted-foreground">No plan is recorded for this milestone.</p>
-         ) : (
-            <ul className="mt-2 space-y-1.5">
-               {refs.map((ref) => (
-                  <li key={ref.id}>
-                     <Link
-                        href={`/${orgId}/plan/${ref.id}`}
-                        className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border border-border/60 bg-background px-3 py-2 hover:bg-accent/45"
-                     >
-                        <span className="font-medium">
-                           Plan{ref.version ? ` v${ref.version}` : ''}
-                        </span>
-                        <Pill>{ref.status}</Pill>
-                        {ref.generationStatus && ref.generationStatus !== 'succeeded' && (
-                           <Pill tone="attention">{ref.generationStatus}</Pill>
-                        )}
-                        {ref.compileStatus && ref.compileStatus !== 'not_started' && (
-                           <Pill tone={ref.compileStatus === 'succeeded' ? 'complete' : 'neutral'}>
-                              {ref.compileStatus === 'succeeded' ? 'started' : ref.compileStatus}
-                           </Pill>
-                        )}
-                        <span className="ml-auto text-muted-foreground">
-                           {whenText(ref.createdAt)}
-                        </span>
-                     </Link>
-                  </li>
-               ))}
-            </ul>
-         )}
-      </section>
-   );
-}
-
 function Properties({ goal }: { goal: Milestone }) {
    const projects = useProjectsStore((state) => state.projects);
    const members = useMembersStore((state) => state.members);
@@ -306,7 +258,7 @@ function GoalDescription({ goal, readOnly }: { goal: Milestone; readOnly: boolea
 
 /**
  * A goal and everything that serves it: the tasks, the approvals it waits
- * on and the plans that proposed it, with the progress the server counts
+ * on, with the progress the server counts
  * rather than a client-side estimate.
  */
 export default function GoalOverview({ milestoneId }: { milestoneId: string }) {
@@ -365,7 +317,6 @@ export default function GoalOverview({ milestoneId }: { milestoneId: string }) {
 
                   <WorkSection refs={lists.issues} orgId={orgId} />
                   <ApprovalsSection refs={lists.approvals} milestoneId={goal.id} orgId={orgId} />
-                  <PlansSection refs={lists.plans} orgId={orgId} />
                </div>
             </div>
          </div>
