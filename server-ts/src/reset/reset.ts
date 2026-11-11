@@ -120,6 +120,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    'adk_session_events',
    'adk_sessions',
    'runs',
+   // Which MicroVM held which runtime session; the sessions are gone with the runs.
+   'runtime_microvms',
    // Conversations and the agent's own asks and drafts.
    'call_sessions',
    'conversation_messages',
@@ -153,6 +155,8 @@ export const EMPTIED_TABLES: readonly string[] = [
    'issue_project_links',
    'issue_property_values',
    'issues',
+   // After the issues, so no issue.cycle_id is rewritten to null on the way out.
+   'cycles',
    'project_resources',
    // A project's sealed build variables (migration 204) go with the project.
    'project_preview_env',
@@ -200,6 +204,7 @@ export const EMPTIED_TABLES: readonly string[] = [
    'plugin_storage',
    'plugin_tokens',
    'plugin_tool_approvals',
+   'plugin_oauth_states',
    'plugin_installations',
    // Bookkeeping.
    'idempotency_records',
