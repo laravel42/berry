@@ -122,8 +122,6 @@ export interface CompletionSpec {
    model: string | null;
    /** A multi-turn exchange before the prompt (chat replies). */
    transcript?: TranscriptMessage[];
-   /** The plan a planner, critic or repair call was for. */
-   planId?: string;
    /** The task an AutoGate review call was for, so its console can list it. */
    issueId?: string;
 }

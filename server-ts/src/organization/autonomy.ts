@@ -18,7 +18,6 @@ const LEVEL_1 = [
    // Read-only: who is in the workspace, and what a public page says.
    'list_agents',
    'list_tasks',
-   'list_plans',
    'list_milestones',
    'list_projects',
    'fetch_url',
@@ -47,9 +46,8 @@ const LEVEL_2 = [
    'link_tasks',
    // Only a repository Berry's GitHub access can already see, as a person's picker.
    'link_project_repository',
-   // Filed for the person who asked, and only if they could have; a plan stays a proposal.
+   // Filed for the person who asked, and only if they could have.
    'create_milestone',
-   'create_plan',
 ] as const;
 
 const LEVEL_3 = [...LEVEL_2, 'run_command', 'collect_file'] as const;
@@ -92,7 +90,6 @@ const UNVOUCHED_REACH = [
    'fetch_url',
    'list_agents',
    'list_tasks',
-   'list_plans',
    'list_milestones',
    'list_projects',
    'browse_repository',

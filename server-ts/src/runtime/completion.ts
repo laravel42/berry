@@ -104,7 +104,7 @@ export async function runCompletionTask(
       agentRole?: string;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
-      subject?: { planId?: string; issueId?: string };
+      subject?: { issueId?: string };
       /**
        * This call's own budget, overriding the deployment's.
        *
@@ -135,7 +135,7 @@ async function runOnce(
       schema: z.ZodType | null;
       transcript?: TranscriptMessage[];
       signal?: AbortSignal;
-      subject?: { planId?: string; issueId?: string };
+      subject?: { issueId?: string };
    },
    agentId: string,
    model: string | null,
@@ -153,7 +153,6 @@ async function runOnce(
          : null,
       model,
       ...(input.transcript ? { transcript: input.transcript } : {}),
-      ...(input.subject?.planId ? { planId: input.subject.planId } : {}),
       ...(input.subject?.issueId ? { issueId: input.subject.issueId } : {}),
    };
    let runId = '';
@@ -229,8 +228,8 @@ async function runOnce(
 
 type Call = {
    workspaceId: string;
-   /** What the call is for, filed on its run so a plan or task transcript can find it. */
-   subject?: { planId?: string; issueId?: string } | undefined;
+   /** What the call is for, filed on its run so a task transcript can find it. */
+   subject?: { issueId?: string } | undefined;
    model: string;
    system: string;
    purpose?: string;

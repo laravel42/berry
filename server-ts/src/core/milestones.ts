@@ -566,35 +566,6 @@ export class MilestoneRepository {
       }));
    }
 
-   async listPlans(milestoneId: string, limit = 100) {
-      const rows = await this.sql`
-         SELECT id, status::text AS status, source::text AS source, current_version,
-                generation_status::text AS generation_status,
-                validation_status::text AS validation_status,
-                compile_status::text AS compile_status, created_at
-           FROM plans
-          WHERE milestone_id = ${milestoneId}
-             -- A plan names one goal but can create several; the others
-             -- reach it through their tasks, which remember both.
-             OR EXISTS (SELECT 1 FROM plan_issues AS made
-                          JOIN milestone_issues AS membership ON membership.issue_id = made.issue_id
-                         WHERE made.plan_id = plans.id AND membership.milestone_id = ${milestoneId})
-          ORDER BY created_at DESC, id DESC
-          LIMIT ${limit}`;
-      return rows.map((row) => ({
-         id: row.id as string,
-         // `pending_approval` is the only status spelled differently on the
-         // wire, and it is the one a plan sits in longest.
-         status: row.status === 'pending_approval' ? 'pendingApproval' : (row.status as string),
-         source: row.source as string,
-         version: Number(row.current_version),
-         generationStatus: row.generation_status as string,
-         validationStatus: row.validation_status as string,
-         compileStatus: row.compile_status as string,
-         createdAt: toRFC3339(row.created_at as string) ?? '',
-      }));
-   }
-
    /**
     * One goal fact, in the collaboration envelope every workspace-scoped event
     * uses: {id, type, occurredAt, workspaceId, aggregateType, aggregateId,
