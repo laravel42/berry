@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -43,10 +44,15 @@ import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
-import { VoiceSessionModal } from './voice-session-modal';
 import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
+
+// LiveKit and its styles load with the voice session, not with the chat route.
+const VoiceSessionModal = dynamic(
+   () => import('./voice-session-modal').then((m) => m.VoiceSessionModal),
+   { ssr: false }
+);
 
 const PAGE = 50;
 
@@ -103,7 +109,14 @@ export function Chat() {
    const [title, setTitle] = useState('');
    const [deleting, setDeleting] = useState(false);
    const [voiceOpen, setVoiceOpen] = useState(false);
+   // The voice session mounts on its first open, so its chunk is fetched only
+   // then, and stays mounted afterwards so closing it behaves as before.
+   const [voiceMounted, setVoiceMounted] = useState(false);
    const voiceAvailable = useVoiceAgentsAvailable();
+   const openVoice = () => {
+      setVoiceMounted(true);
+      setVoiceOpen(true);
+   };
 
    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const pendingRenames = useRef(new Map<string, PendingRename>());
@@ -703,11 +716,9 @@ export function Chat() {
                {...(activeId ? { conversationId: activeId } : {})}
                {...(activeAgent ? { agent: activeAgent } : {})}
                answering={stage !== null}
-               onVoice={
-                  voiceAvailable && workspaceId && activeAgent ? () => setVoiceOpen(true) : null
-               }
+               onVoice={voiceAvailable && workspaceId && activeAgent ? openVoice : null}
             />
-            {workspaceId && activeAgent ? (
+            {workspaceId && activeAgent && voiceMounted ? (
                <VoiceSessionModal
                   open={voiceOpen}
                   onOpenChange={setVoiceOpen}
