@@ -5,7 +5,6 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
-import { ArtifactViewer } from '@/components/common/issues/details/artifact-viewer';
 import { AttachedFileList } from '@/components/common/issues/details/file-list';
 import { Button } from '@/components/ui/button';
 import {
@@ -69,6 +68,7 @@ import {
    Unlock,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -612,6 +612,14 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
 
 // ------------------------------------------------------------------ listing
 
+/**
+ * The file viewer, with CodeMirror and the markdown renderer inside it: its
+ * chunk is fetched when a file is first opened, not with the task page.
+ */
+const ArtifactViewer = dynamic(() =>
+   import('@/components/common/issues/details/artifact-viewer').then((m) => m.ArtifactViewer)
+);
+
 export function ActivityFeedList({
    comments,
    events,
@@ -812,16 +820,19 @@ export function ActivityFeedList({
                )
             )}
          </div>
-         <ArtifactViewer
-            issueRef={issueRef}
-            artifacts={openArtifact?.files ?? []}
-            index={openArtifact?.index ?? null}
-            onIndexChange={(index) =>
-               setOpenArtifact((current) =>
-                  current && index !== null ? { ...current, index } : null
-               )
-            }
-         />
+         {/* Mounted only while a file is open, so its chunk waits for the first one. */}
+         {openArtifact ? (
+            <ArtifactViewer
+               issueRef={issueRef}
+               artifacts={openArtifact.files}
+               index={openArtifact.index}
+               onIndexChange={(index) =>
+                  setOpenArtifact((current) =>
+                     current && index !== null ? { ...current, index } : null
+                  )
+               }
+            />
+         ) : null}
       </div>
    );
 }

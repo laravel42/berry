@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { CodeEditor } from '@/components/ui/code-editor';
+import { CodeEditor } from '@/components/ui/code-editor-lazy';
 import { loadPreviewEnv, savePreviewEnv, type PreviewEnvFile } from '@/lib/preview-environment';
 import type { EditorView } from '@codemirror/view';
 import { Loader2, LockKeyhole } from 'lucide-react';
