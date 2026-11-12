@@ -1079,15 +1079,17 @@ export function ActivityCommentComposer({
                </div>
                <Button
                   size="icon"
-                  // Secondary: on a task in review the decision bar holds the
-                  // page's one primary action, and a comment is not it.
-                  className="mb-0.5 size-8 flex-none bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
+                  // The default variant's berry gradient and white glyph. A
+                  // `bg-*` override here only set the colour under that
+                  // gradient image, so it never showed; its text colour did,
+                  // and left a black glyph on berry in the light theme.
+                  className="mb-0.5 size-8 flex-none disabled:opacity-40"
                   aria-label={sendLabel}
                   title={sendLabel}
                   onClick={send}
                   disabled={!canSend}
                >
-                  <SendHorizonal className="size-3.5" aria-hidden />
+                  <SendHorizonal className="size-4" strokeWidth={2.4} aria-hidden />
                </Button>
             </div>
 
