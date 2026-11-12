@@ -1346,6 +1346,22 @@ input[type='search'] {
    display: none;
 }
 
+/* Disabled drops the invitation entirely: no bloom, no travelling ring, no
+   hover fill. A dimmed control that still glowed read as busy, not as
+   unavailable. */
+.spark:disabled,
+.spark[aria-disabled='true'] {
+   /* A still hairline in place of the ring, so the control keeps its shape. */
+   box-shadow: inset 0 0 0 1px var(--border);
+   background: var(--card);
+   color: var(--muted-foreground);
+}
+
+.spark:disabled::after,
+.spark[aria-disabled='true']::after {
+   display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
    .spark::after {
       animation: none;
