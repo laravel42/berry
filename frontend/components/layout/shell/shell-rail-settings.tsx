@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ChevronLeft } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { settingsNav } from '@/components/layout/sidebar/nav-settings';
 import { isNavItemActive } from '@/lib/nav-active';
-import { ShellNavIcon } from './shell-icon';
+import { ShellNavIcon, shellNavRow } from './shell-icon';
+import { ShellSectionFold } from './shell-section-fold';
 
 /**
  * Settings mode for the rail.
@@ -23,6 +24,11 @@ import { ShellNavIcon } from './shell-icon';
  * light Circle sidebar, which would sit wrong in the dark rail and, being
  * outside SidebarProvider here, would throw.
  *
+ * Rows, spacing and group headings are the workspace rail's own
+ * (`shellNavRow`, `ShellSectionFold`), so the two modes read as one rail. Each
+ * group folds; every group starts open, and a choice lasts while the rail is
+ * mounted.
+ *
  * `trailing` is the rail's close control below `lg`, placed on the back row
  * so the overlay has a visible way out whatever the rail is showing.
  */
@@ -30,9 +36,11 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
    const pathname = usePathname() ?? '';
    const t = useTranslations('workspaceAdmin');
 
+   const [folded, setFolded] = useState<Record<string, boolean>>({});
+
    return (
-      <div className="flex flex-col gap-0.5 px-2.5 pt-3.5 pb-3.5">
-         <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="flex flex-col pb-3.5">
+         <div className="flex items-center justify-between gap-2 px-3 pt-3.5 pb-1">
             <Link
                href={`/${orgId}/tasks`}
                className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-[7px] bg-segment-track px-2.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] lg:h-[30px] lg:min-h-0"
@@ -44,14 +52,15 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
          </div>
 
          {settingsNav.map((group) => (
-            <div key={group.labelKey} className="flex flex-col gap-0.5">
-               <div
-                  data-settings-type="small"
-                  className="px-2.5 pt-4 pb-1 font-semibold text-[var(--shell-text-dim)]"
-               >
-                  {t(`groups.${group.labelKey}`)}
-               </div>
-               <ul className="flex flex-col gap-0.5">
+            <ShellSectionFold
+               key={group.labelKey}
+               heading={t(`groups.${group.labelKey}`)}
+               open={!folded[group.labelKey]}
+               onOpenChange={(open) =>
+                  setFolded((current) => ({ ...current, [group.labelKey]: !open }))
+               }
+            >
+               <ul className="flex flex-col gap-0 px-3 lg:gap-1">
                   {group.items.map((item) => {
                      const href = `/${orgId}${item.url}`;
                      const active = isNavItemActive(pathname, href);
@@ -61,7 +70,7 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
                               data-shell-nav
                               href={href}
                               aria-current={active ? 'page' : undefined}
-                              className={settingsNavRow(active)}
+                              className={shellNavRow(active)}
                            >
                               <ShellNavIcon on={active}>
                                  <item.icon className="size-[13px] flex-none" />
@@ -72,19 +81,8 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
                      );
                   })}
                </ul>
-            </div>
+            </ShellSectionFold>
          ))}
       </div>
    );
-}
-
-/** A settings rail row: 30px, radius 7; the active page sits on the input fill. */
-function settingsNavRow(on: boolean): string {
-   return [
-      'flex min-h-11 items-center gap-2.5 rounded-[7px] px-2.5 transition-colors lg:h-[30px] lg:min-h-0',
-      'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]',
-      on
-         ? 'bg-segment-track text-[var(--shell-text)]'
-         : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]',
-   ].join(' ');
 }
