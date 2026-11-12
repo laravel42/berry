@@ -23,6 +23,7 @@ import type { Status } from '@/data/status';
 import { quickCreateIssue } from '@/lib/issue-tracking';
 import { describePatchFailure, patchBoardIssue, setIssueProject } from '@/lib/issues';
 import { setIssueProperty } from '@/lib/properties';
+import { isSameValue } from '@/lib/same-value';
 import { useVirtualRows } from '@/lib/use-virtual-rows';
 import { cn } from '@/lib/utils';
 import { useFilterStore } from '@/store/filter-store';
@@ -35,7 +36,7 @@ import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useIssueHref } from './use-issue-href';
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
@@ -206,8 +207,20 @@ function TitleCell({
    );
 }
 
+/*
+ * The cells below take the row's issue, which the store keeps as the same
+ * object until that task changes, so each is memoized and skips the renders
+ * the table makes for other rows.
+ */
+
 /** The start or due day. Each bounds the other, so a start never falls after the due date. */
-function DateCell({ issue, field }: { issue: Issue; field: 'startDate' | 'dueDate' }) {
+const DateCell = memo(function DateCell({
+   issue,
+   field,
+}: {
+   issue: Issue;
+   field: 'startDate' | 'dueDate';
+}) {
    const updateIssue = useIssuesStore((state) => state.updateIssue);
    const start = issue.startDate?.slice(0, 10);
    const due = issue.dueDate?.slice(0, 10);
@@ -233,9 +246,9 @@ function DateCell({ issue, field }: { issue: Issue; field: 'startDate' | 'dueDat
          }}
       />
    );
-}
+});
 
-function ProjectCell({ issue }: { issue: Issue }) {
+const ProjectCell = memo(function ProjectCell({ issue }: { issue: Issue }) {
    const projects = useProjectsStore((state) => state.projects);
    const updateIssueProject = useIssuesStore((state) => state.updateIssueProject);
 
@@ -265,9 +278,9 @@ function ProjectCell({ issue }: { issue: Issue }) {
          </SelectContent>
       </Select>
    );
-}
+});
 
-function LabelsCell({ issue }: { issue: Issue }) {
+const LabelsCell = memo(function LabelsCell({ issue }: { issue: Issue }) {
    const labels = useLabelsStore((state) => state.labels);
    const { addIssueLabel, removeIssueLabel } = useIssuesStore();
 
@@ -322,19 +335,31 @@ function LabelsCell({ issue }: { issue: Issue }) {
          </PopoverContent>
       </Popover>
    );
-}
+});
 
-function PropertyCell({
-   issue,
-   propertyId,
-   value,
-   options,
-}: {
+interface PropertyCellProps {
    issue: Issue;
    propertyId: string;
    value: string;
    options: { id: string; name: string }[];
-}) {
+}
+
+/** `options` falls back to a fresh `[]` for a field with no definition, so it is compared by content. */
+function samePropertyCellProps(previous: PropertyCellProps, next: PropertyCellProps): boolean {
+   return (
+      previous.issue === next.issue &&
+      previous.propertyId === next.propertyId &&
+      previous.value === next.value &&
+      isSameValue(previous.options, next.options)
+   );
+}
+
+const PropertyCell = memo(function PropertyCell({
+   issue,
+   propertyId,
+   value,
+   options,
+}: PropertyCellProps) {
    const [current, setCurrent] = useState(value);
 
    useEffect(() => {
@@ -372,7 +397,7 @@ function PropertyCell({
          </SelectContent>
       </Select>
    );
-}
+}, samePropertyCellProps);
 
 /** The last row: type a title, press Enter, the task lands on the board. */
 function QuickAddRow() {

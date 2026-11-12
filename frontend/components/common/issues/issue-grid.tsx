@@ -7,7 +7,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useIssueHref } from './use-issue-href';
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
@@ -19,6 +19,7 @@ import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { IssueContextMenu } from './issue-context-menu';
 
 import { cn } from '@/lib/utils';
+import { isSameValue } from '@/lib/same-value';
 
 export const IssueDragType = 'ISSUE';
 
@@ -89,7 +90,7 @@ export function CustomDragLayer() {
    );
 }
 
-export function IssueGrid({
+function IssueGridCard({
    issue,
    index,
    columnIssueIds,
@@ -276,3 +277,21 @@ export function IssueGrid({
       </div>
    );
 }
+
+/**
+ * A card renders when its own task, its place in the column or the drop it
+ * performs changes. The column's ids are rebuilt on every render, so they are
+ * compared by content; the drop callback is compared by reference, because a
+ * stale one would apply the grouping the board had before.
+ */
+function sameIssueGridProps(previous: IssueGridProps, next: IssueGridProps): boolean {
+   return (
+      previous.issue === next.issue &&
+      previous.index === next.index &&
+      isSameValue(previous.columnStatus, next.columnStatus) &&
+      isSameValue(previous.columnIssueIds, next.columnIssueIds) &&
+      previous.onDropIssue === next.onDropIssue
+   );
+}
+
+export const IssueGrid = memo(IssueGridCard, sameIssueGridProps);

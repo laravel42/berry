@@ -4,7 +4,7 @@ import { Issue } from '@/data/issues';
 import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useRef, type Ref } from 'react';
+import { memo, useRef, type Ref } from 'react';
 import { useDrag } from 'react-dnd';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AutoGateMark } from './auto-gate-mark';
@@ -17,6 +17,7 @@ import { motion } from 'motion/react';
 
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
+import { isSameValue } from '@/lib/same-value';
 import { IssueContextMenu } from './issue-context-menu';
 import { useCyclesStore } from '@/store/cycles-store';
 import { useIssueHref } from './use-issue-href';
@@ -187,12 +188,7 @@ function DraggableIssueLine({ issue, layoutId = false, order = [] }: IssueLinePr
    );
 }
 
-export function IssueLine({
-   issue,
-   layoutId = false,
-   order = [],
-   draggable = false,
-}: IssueLineProps) {
+function IssueLineRow({ issue, layoutId = false, order = [], draggable = false }: IssueLineProps) {
    if (draggable) {
       return <DraggableIssueLine issue={issue} layoutId={layoutId} order={order} />;
    }
@@ -206,3 +202,19 @@ export function IssueLine({
       />
    );
 }
+
+/**
+ * The store keeps an unchanged issue as the same object, so a row only renders
+ * when its own task does. `order` is rebuilt by the list on every render, so
+ * it is compared by its ids rather than by the array.
+ */
+function sameIssueLineProps(previous: IssueLineProps, next: IssueLineProps): boolean {
+   return (
+      previous.issue === next.issue &&
+      previous.layoutId === next.layoutId &&
+      previous.draggable === next.draggable &&
+      isSameValue(previous.order, next.order)
+   );
+}
+
+export const IssueLine = memo(IssueLineRow, sameIssueLineProps);
