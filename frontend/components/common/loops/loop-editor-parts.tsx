@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
+import { SegmentIndicator, useSegmentGroupId } from '@/components/ui/segment-indicator';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
@@ -133,6 +134,7 @@ export function InsetSegments<T extends string>({
    disabled?: boolean;
    onChange?: (value: T) => void;
 }) {
+   const groupId = useSegmentGroupId();
    return (
       <div
          role="radiogroup"
@@ -150,12 +152,11 @@ export function InsetSegments<T extends string>({
                   disabled={disabled}
                   onClick={() => onChange?.(option.value)}
                   className={cn(
-                     'h-[26px] min-w-0 flex-1 truncate rounded-[5px] px-2 font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
-                     on
-                        ? 'bg-segment-selected text-foreground'
-                        : 'text-muted-foreground enabled:hover:text-foreground'
+                     'relative isolate h-[26px] min-w-0 flex-1 truncate rounded-[5px] px-2 font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
+                     on ? 'text-foreground' : 'text-muted-foreground enabled:hover:text-foreground'
                   )}
                >
+                  {on ? <SegmentIndicator layoutId={groupId} /> : null}
                   {option.label}
                </button>
             );

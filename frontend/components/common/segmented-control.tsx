@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { SegmentIndicator, useSegmentGroupId } from '@/components/ui/segment-indicator';
 import type { ReactNode } from 'react';
 
 export interface SegmentedOption<T extends string | number> {
@@ -25,6 +26,7 @@ interface SegmentedControlProps<T extends string | number> {
  *
  * Each segment is a toggle button with `aria-pressed`. It changes how data
  * is shown, never what is saved; for a setting that persists, use a `Select`.
+ * The selected fill is one `SegmentIndicator` that slides between segments.
  */
 export function SegmentedControl<T extends string | number>({
    'aria-label': label,
@@ -34,6 +36,7 @@ export function SegmentedControl<T extends string | number>({
    className,
    size = 'default',
 }: SegmentedControlProps<T>) {
+   const groupId = useSegmentGroupId();
    return (
       <div
          role="group"
@@ -54,15 +57,17 @@ export function SegmentedControl<T extends string | number>({
                   data-settings-type={size === 'md' ? 'segment' : undefined}
                   onClick={() => onValueChange(option.value)}
                   className={cn(
-                     'inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
+                     'relative isolate inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
                      size === 'md' ? 'h-full gap-1.5 px-2.5 leading-none' : 'h-6 px-3',
-                     active
-                        ? size === 'md'
-                           ? 'bg-settings-segment-on text-foreground'
-                           : 'bg-segment-selected text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                     active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                   )}
                >
+                  {active ? (
+                     <SegmentIndicator
+                        layoutId={groupId}
+                        className={size === 'md' ? 'bg-settings-segment-on' : undefined}
+                     />
+                  ) : null}
                   {option.label}
                </button>
             );
