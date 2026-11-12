@@ -182,7 +182,9 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                <div
                   className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
                      settingsMode
-                        ? 'rounded-[12px]'
+                        ? // Framed on the dark theme only; on light the canvas
+                          // already stands off the grey frame by its fill.
+                          'rounded-[12px] dark:lg:border dark:lg:border-[var(--shell-line)]'
                         : 'rounded-[10px] lg:border-l lg:border-[var(--shell-line)]'
                   }`}
                >
