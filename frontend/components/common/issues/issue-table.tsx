@@ -36,7 +36,7 @@ import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useIssueHref } from './use-issue-href';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
@@ -113,7 +113,9 @@ function readLayout(): StoredLayout | null {
 /*                                   Cells                                    */
 /* -------------------------------------------------------------------------- */
 
-function TitleCell({
+/* Memoized like the cells below: the toggle takes the row's id rather than
+   closing over it, so the table hands every row the same stable callback. */
+const TitleCell = memo(function TitleCell({
    issue,
    depth,
    expandable,
@@ -124,7 +126,7 @@ function TitleCell({
    depth: number;
    expandable: boolean;
    expanded: boolean;
-   onToggle: () => void;
+   onToggle: (issueId: string) => void;
 }) {
    const issueHref = useIssueHref();
    const updateIssue = useIssuesStore((state) => state.updateIssue);
@@ -156,7 +158,7 @@ function TitleCell({
          {expandable ? (
             <button
                type="button"
-               onClick={onToggle}
+               onClick={() => onToggle(issue.id)}
                aria-label={expanded ? 'Collapse sub-tasks' : 'Expand sub-tasks'}
                className="text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -205,7 +207,7 @@ function TitleCell({
          )}
       </span>
    );
-}
+});
 
 /*
  * The cells below take the row's issue, which the store keeps as the same
@@ -477,6 +479,15 @@ export function IssueTable({
    });
    const [dragging, setDragging] = useState<Column | null>(null);
    const [collapsed, setCollapsed] = useState<string[]>([]);
+   // One callback for every row, so the memoized title cells keep skipping
+   // the renders the table makes for other rows.
+   const toggleCollapsed = useCallback((issueId: string) => {
+      setCollapsed((previous) =>
+         previous.includes(issueId)
+            ? previous.filter((id) => id !== issueId)
+            : [...previous, issueId]
+      );
+   }, []);
 
    useEffect(() => {
       const stored = readLayout();
@@ -762,13 +773,7 @@ export function IssueTable({
                               depth={entry.row.depth}
                               expandable={entry.row.expandable}
                               expanded={entry.row.expanded}
-                              onToggle={() =>
-                                 setCollapsed((previous) =>
-                                    previous.includes(entry.row.issue.id)
-                                       ? previous.filter((id) => id !== entry.row.issue.id)
-                                       : [...previous, entry.row.issue.id]
-                                 )
-                              }
+                              onToggle={toggleCollapsed}
                            />
                            {visible.map((column) => (
                               <span key={column} className="min-w-0 truncate">

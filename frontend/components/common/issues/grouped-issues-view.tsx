@@ -277,6 +277,22 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
       ]
    );
 
+   /* One drop handler per group, kept until `applyGroupValue` changes. The
+      cards compare it by reference, so a fresh closure every render would
+      re-render every card; a new grouping or value list still replaces them
+      all, so no card keeps the drop the board had before. */
+   const dropFor = useMemo(() => {
+      const handlers = new Map<string, (issue: Issue) => void>();
+      return (groupId: string): ((issue: Issue) => void) => {
+         let handler = handlers.get(groupId);
+         if (!handler) {
+            handler = applyGroupValue(groupId);
+            handlers.set(groupId, handler);
+         }
+         return handler;
+      };
+   }, [applyGroupValue]);
+
    /* Dragging towards the edge of the board scrolls it, so a card can reach a
       column that is not on screen without being dropped halfway. */
    const scrollerRef = useRef<HTMLDivElement>(null);
@@ -326,7 +342,7 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                            group={entry.group}
                            issues={entry.issues}
                            count={entry.issues.length}
-                           onDropIssue={applyGroupValue(entry.group.id)}
+                           onDropIssue={dropFor(entry.group.id)}
                         />
                      ))}
                      {manuallyHidden.length + emptied.length > 0 && (
@@ -366,7 +382,7 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                   group={entry.group}
                   issues={entry.issues}
                   count={entry.issues.length}
-                  onDropIssue={applyGroupValue(entry.group.id)}
+                  onDropIssue={dropFor(entry.group.id)}
                />
             ))}
             {showFooter && listGroups.length > 0 && (
