@@ -74,7 +74,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
          className={cn(
             'inline-flex w-fit items-center text-muted-foreground',
             variant === 'pill'
-               ? 'h-7 justify-center rounded-[7px] bg-segment-track p-0.5'
+               ? 'h-8 justify-center rounded-[8px] bg-segment-track p-[3px]'
                : 'h-10 gap-1 bg-transparent p-0',
             className
          )}
@@ -95,9 +95,9 @@ function TabsTrigger({
       <TabsPrimitive.Trigger
          data-slot="tabs-trigger"
          className={cn(
-            "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-primary/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+            "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium transition-[color,box-shadow] focus-visible:ring-2 focus-visible:ring-foreground/20 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
             variant === 'pill'
-               ? 'relative isolate h-6 rounded-[5px] px-3 transition-colors hover:text-foreground data-[state=active]:text-foreground'
+               ? 'relative isolate h-[26px] rounded-[5px] px-3 transition-colors data-[slot=tabs-trigger]:!h-[26px] hover:text-foreground data-[state=active]:text-foreground'
                : 'h-10 rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none',
             className
          )}

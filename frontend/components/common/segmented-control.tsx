@@ -42,8 +42,10 @@ export function SegmentedControl<T extends string | number>({
          role="group"
          aria-label={label}
          className={cn(
-            'flex w-fit items-center rounded-[7px] bg-segment-track p-0.5',
-            size === 'md' ? 'h-[30px] gap-0.5 overflow-hidden' : 'h-7',
+            'flex w-fit items-center bg-segment-track',
+            size === 'md'
+               ? 'h-[30px] gap-0.5 overflow-hidden rounded-[7px] p-0.5'
+               : 'h-8 rounded-[8px] p-[3px]',
             className
          )}
       >
@@ -57,8 +59,10 @@ export function SegmentedControl<T extends string | number>({
                   data-settings-type={size === 'md' ? 'segment' : undefined}
                   onClick={() => onValueChange(option.value)}
                   className={cn(
-                     'relative isolate inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
-                     size === 'md' ? 'h-full gap-1.5 px-2.5 leading-none' : 'h-6 px-3',
+                     'relative isolate inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
+                     size === 'md'
+                        ? 'h-full gap-1.5 px-2.5 leading-none'
+                        : 'h-[26px] px-3 [&[aria-pressed]]:!h-[26px]',
                      active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                   )}
                >
