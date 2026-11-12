@@ -182,7 +182,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                <div
                   className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
                      settingsMode
-                        ? 'rounded-[12px] lg:border lg:border-[var(--shell-line)]'
+                        ? 'rounded-[12px]'
                         : 'rounded-[10px] lg:border-l lg:border-[var(--shell-line)]'
                   }`}
                >
