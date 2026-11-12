@@ -1017,7 +1017,12 @@ export function ActivityCommentComposer({
 
    return (
       <div className={cn('flex flex-col', className)}>
-         <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/15 px-2.5 py-1.5">
+         <div
+            className={cn(
+               'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
+               focused ? 'border-primary' : 'border-border'
+            )}
+         >
             <div className="flex items-end gap-2">
                <Button
                   type="button"
@@ -1105,7 +1110,12 @@ export function ActivityCommentComposer({
                   ))}
                </ul>
             ) : null}
+         </div>
 
+         {/* The states sit under the box, in a line kept for them whether or
+             not one is showing, so the box does not jump when "Draft saved"
+             appears with the first keystroke. */}
+         <div className="flex min-h-7 flex-col gap-1 pt-1 pl-1">
             {note ? (
                <p className="text-muted-foreground">
                   {t('note')} · {t('noteHint')}
