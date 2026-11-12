@@ -12,7 +12,7 @@ function Checkbox({
    ...props
 }: React.ComponentProps<typeof CheckboxPrimitive.Root> & {
    /**
-    * `settings`: a 16px box with a dark check. A disabled checked box is dimmed
+    * `settings`: a 16px box, filled with the primary colour when checked. A disabled checked box is dimmed
     * (it is covered by a broader choice, such as Full access).
     */
    variant?: 'default' | 'settings';
@@ -21,10 +21,10 @@ function Checkbox({
       <CheckboxPrimitive.Root
          data-slot="checkbox"
          className={cn(
-            'peer shrink-0 cursor-pointer border outline-none transition-shadow data-[state=checked]:border-status-success data-[state=checked]:bg-status-success focus-visible:border-ring disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
+            'peer shrink-0 cursor-pointer border outline-none transition-shadow data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus-visible:border-ring disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
             variant === 'settings'
-               ? 'size-4 rounded-[4px] border-settings-field-focus text-void disabled:opacity-100 disabled:data-[state=checked]:border-settings-check-dim disabled:data-[state=checked]:bg-settings-check-dim'
-               : 'size-3.5 rounded-[3px] border-input shadow-xs data-[state=checked]:text-background disabled:opacity-50',
+               ? 'size-4 rounded-[4px] border-settings-field-focus disabled:opacity-100 disabled:data-[state=checked]:border-settings-check-dim disabled:data-[state=checked]:bg-settings-check-dim'
+               : 'size-3.5 rounded-[3px] border-input shadow-xs disabled:opacity-50',
             className
          )}
          {...props}
