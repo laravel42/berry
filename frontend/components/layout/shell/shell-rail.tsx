@@ -143,6 +143,7 @@ export function ShellRail({
       <nav
          ref={ref}
          id="shell-rail"
+         data-shell-chrome
          aria-label={t('rail.workspace')}
          // Off screen and out of the tab order while closed below `lg`.
          // Opening switches visibility at once, so focus can move in on the

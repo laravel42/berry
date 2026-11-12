@@ -1013,6 +1013,40 @@
    --shell-launcher-clear: calc(var(--shell-launcher-b) + var(--shell-launcher-h) + 0.5rem);
 }
 
+/* The light rail. In the light theme the frame around the workspace (the
+   rail, its collapsed column and the inset border) takes a light ramp, so the
+   chrome no longer sits as a dark band beside a light page. Scoped to
+   `[data-shell-chrome]` rather than redefining `--shell-*` on :root: chat and
+   the floating chat window read the same tokens and stay on the dark ramp.
+   Menus the rail opens are portalled out of it, so they keep the popover
+   theme. The dark theme is untouched. */
+:root:not(.dark) {
+   --app-frame: #f4f4f5;
+}
+
+:root:not(.dark) [data-shell-chrome] {
+   --shell-rail: #f4f4f5;
+   --shell-canvas: #ffffff;
+   --shell-surface: #ffffff;
+   --shell-hover: #e8e8eb;
+   --shell-line: #e4e4e7;
+   --shell-line-strong: #d4d4d8;
+   --shell-text: #18181b;
+   --shell-text-muted: #52525b;
+   --shell-text-dim: #71717a;
+   --shell-text-faint: #a1a1aa;
+   --segment-track: #e8e8eb;
+   --segment-selected: #ffffff;
+   /* Hover fill of the settings rail's back control. */
+   --brand-hairline: #d4d4d8;
+   /* The current destination's glyph box: the kit's light button, a dark
+      fill with a light glyph, so it still reads as a filled shape. */
+   --shell-nav-icon-a: #3f3f46;
+   --shell-nav-icon-b: #18181b;
+   --shell-nav-icon-line: #18181b;
+   --shell-nav-icon-ink: #ffffff;
+}
+
 html {
    background: var(--app-frame);
 }

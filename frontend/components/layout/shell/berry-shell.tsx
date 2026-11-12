@@ -124,7 +124,10 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                // The collapsed column: 36px holding the expand control. A
                // column only — below `lg` the rail is an overlay and the
                // floating menu button is how it opens.
-               <div className="hidden w-9 flex-none justify-center bg-[var(--shell-rail)] pt-4 lg:flex">
+               <div
+                  data-shell-chrome
+                  className="hidden w-9 flex-none justify-center bg-[var(--shell-rail)] pt-4 lg:flex"
+               >
                   <button
                      type="button"
                      onClick={toggleRail}
