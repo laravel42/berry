@@ -85,6 +85,6 @@ function settingsNavRow(on: boolean): string {
       'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]',
       on
          ? 'bg-segment-track text-[var(--shell-text)]'
-         : 'text-[var(--shell-text-muted)] hover:bg-[var(--sidebar-accent)] hover:text-[var(--shell-text)]',
+         : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]',
    ].join(' ');
 }
