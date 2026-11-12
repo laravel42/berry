@@ -384,7 +384,7 @@ export function CreateNewIssue() {
                   onChange={(event) => setDraft({ title: event.target.value })}
                />
 
-               <div className="mt-4 flex flex-wrap items-center gap-1.5">
+               <div className="mt-4 flex flex-wrap items-center gap-1.5 [&_button]:font-medium">
                   {createFields.status ? (
                      <StatusPicker
                         variant="chip"

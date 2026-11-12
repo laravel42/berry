@@ -88,7 +88,7 @@ export function HealthPopover({
                <Button
                   id={id}
                   type="button"
-                  className="w-full min-w-0 justify-start gap-2 px-0"
+                  className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
                   size="sm"
                   variant="ghost"
                   role="combobox"

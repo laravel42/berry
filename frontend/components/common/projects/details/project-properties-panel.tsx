@@ -175,7 +175,7 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                            type="button"
                            variant="ghost"
                            size="sm"
-                           className="w-full min-w-0 justify-start gap-2 px-0"
+                           className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
                            aria-label={project.lead ? `Lead: ${project.lead.name}` : 'Project lead'}
                         >
                            {project.lead ? (

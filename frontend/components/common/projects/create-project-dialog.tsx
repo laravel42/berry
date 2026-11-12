@@ -285,7 +285,7 @@ export function CreateProjectDialog() {
                         onChange={(event) => setForm({ ...form, name: event.target.value })}
                      />
 
-                     <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                     <div className="mt-4 flex flex-wrap items-center gap-1.5 [&_button]:font-medium">
                         <StatusPicker
                            variant="chip"
                            status={form.status}

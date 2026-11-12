@@ -48,7 +48,7 @@ export function IssueCycleProperty({ issue }: { issue: Issue }) {
                aria-haspopup="listbox"
                aria-expanded={open}
                aria-label={t('cycle')}
-               className="w-full min-w-0 justify-start gap-2 px-0"
+               className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
             >
                <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-muted-foreground">
                   <CalendarRange className="size-4" aria-hidden />
