@@ -14,6 +14,7 @@ import {
    type Profile as ProfileRecord,
    type UserSettings,
 } from '@/lib/settings';
+import { THEMES, isThemePreference, type ThemePreference } from '@/lib/theme/theme';
 import { useSessionStore } from '@/store/session-store';
 import { CREATE_FIELDS, useUiPrefsStore } from '@/store/ui-prefs-store';
 import { useLocale, useTranslations } from 'next-intl';
@@ -27,8 +28,8 @@ import { useSettingsResource } from './use-settings-resource';
 /**
  * Personal "Preferences" settings.
  *
- * Language, timezone, full name and reduced motion live on `/me/settings`
- * and `/me`. Theme is Berry dark, always; there is no picker.
+ * Language, timezone, theme, full name and reduced motion live on
+ * `/me/settings` and `/me`.
  * Anything neither endpoint stores is not offered: a switch that accepts a
  * click and forgets it teaches people that the settings page does not work.
  *
@@ -42,6 +43,8 @@ export default function Preferences() {
    const ui = useUiPrefsStore();
    const router = useRouter();
    const setPreferredLocale = useSessionStore((state) => state.setPreferredLocale);
+   const preferredTheme = useSessionStore((state) => state.preferredTheme);
+   const setPreferredTheme = useSessionStore((state) => state.setPreferredTheme);
    const [customizeOpen, setCustomizeOpen] = useState(false);
    const settings = useSettingsResource<UserSettings>(loadUserSettings);
    const profile = useSettingsResource<ProfileRecord>(loadProfile);
@@ -85,6 +88,24 @@ export default function Preferences() {
       setPreferredLocale(locale);
       writeLocaleCookie(locale);
       router.refresh();
+   };
+
+   const savedTheme = settings.value?.theme;
+   const theme: ThemePreference = isThemePreference(savedTheme)
+      ? savedTheme
+      : (preferredTheme ?? 'system');
+   const themeLabels: Record<ThemePreference, string> = {
+      system: t('themeSystem'),
+      light: t('themeLight'),
+      dark: t('themeDark'),
+   };
+
+   const changeTheme = (next: string) => {
+      if (!isThemePreference(next)) return;
+      change({ theme: next });
+      // ThemeSync follows the store: it writes the cookie, paints the class and
+      // refreshes, and with `system` keeps listening to the OS.
+      setPreferredTheme(next);
    };
 
    return (
@@ -184,6 +205,20 @@ export default function Preferences() {
 
          <SettingsSection title={t('interface')}>
             <SettingsCard>
+               <SettingsRow
+                  title={t('theme')}
+                  description={t('themeDescription')}
+                  trailing={
+                     <SelectMenu
+                        aria-label={t('theme')}
+                        options={[...THEMES]}
+                        labels={themeLabels}
+                        value={theme}
+                        disabled={settings.loading || settings.saving}
+                        onChange={changeTheme}
+                     />
+                  }
+               />
                <SettingsRow
                   title={t('sidebar')}
                   description={t('sidebarDescription')}
