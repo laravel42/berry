@@ -15,7 +15,7 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { CodeEditor } from '@/components/ui/code-editor';
+import { CodeEditor } from '@/components/ui/code-editor-lazy';
 import { Input } from '@/components/ui/input';
 import { BerryLoading } from '@/components/brand/berry-mark';
 import { AgentMarkdown } from '@/components/common/agent-markdown';

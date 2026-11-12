@@ -1,6 +1,6 @@
 'use client';
 
-import { InsightsPanel } from '@/components/common/issues/insights-panel';
+import { InsightsPanel } from '@/components/common/issues/insights-panel-lazy';
 import { Issue } from '@/data/issues';
 import { ProjectDetail } from '@/data/project-details';
 import { Project } from '@/data/projects';

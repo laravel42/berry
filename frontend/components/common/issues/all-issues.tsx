@@ -13,7 +13,7 @@ import { useSearchStore } from '@/store/search-store';
 import { useMemo } from 'react';
 import { GroupedIssuesView } from './grouped-issues-view';
 import { IssueTable } from './issue-table';
-import { InsightsPanel } from './insights-panel';
+import { InsightsPanel } from './insights-panel-lazy';
 import { SearchIssues } from './search-issues';
 
 interface AllIssuesProps {

@@ -4,7 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
 import DetailDrawerShell from '@/components/layout/detail-drawer-shell';
 import { PageTitleBar } from '@/components/layout/headers/page-title-bar';
