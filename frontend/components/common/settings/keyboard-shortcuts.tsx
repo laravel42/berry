@@ -201,7 +201,7 @@ export function KeyboardShortcuts() {
                               className="group flex min-h-[42px] items-center gap-2 py-1.5 pr-3 pl-4 transition-colors hover:bg-settings-row-hover"
                            >
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[var(--brand-body)]">{label(shortcut)}</div>
+                                 <div className="text-foreground">{label(shortcut)}</div>
                                  {isRecording ? (
                                     <div
                                        data-settings-type="caption"

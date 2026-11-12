@@ -296,8 +296,8 @@
       light block keeps a home for each name. */
    --settings-panel: var(--container);
    --settings-panel-line: var(--border);
-   --settings-group: var(--card);
-   --settings-row-hover: var(--accent);
+   --settings-group: #f4f4f5;
+   --settings-row-hover: #ebebee;
    --settings-divider: var(--border);
    --settings-field: var(--card);
    --settings-field-line: var(--input);

@@ -421,7 +421,7 @@ function PluginMark({ pluginKey, title }: { pluginKey: string; title: string }) 
       );
    }
    return (
-      <SettingsTile size="lg" className={cn(titleHeight, 'text-[var(--brand-body)] select-none')}>
+      <SettingsTile size="lg" className={cn(titleHeight, 'text-foreground select-none')}>
          {pluginInitials(title)}
       </SettingsTile>
    );

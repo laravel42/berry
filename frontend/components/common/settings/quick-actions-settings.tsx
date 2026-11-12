@@ -206,7 +206,7 @@ export default function QuickActionsSettings() {
                {t('variables')}
             </span>
             {FILLABLE_VARIABLES.map((variable) => (
-               <SettingsChip key={variable} className="text-[var(--brand-body)]">
+               <SettingsChip key={variable} className="text-foreground">
                   {variable}
                </SettingsChip>
             ))}

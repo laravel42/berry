@@ -62,7 +62,7 @@ function ProviderIcon({ provider }: { provider: Provider }) {
    const Logo = INTEGRATION_LOGOS[provider.id];
    if (Logo) {
       return (
-         <SettingsTile size="lg" className="text-[var(--brand-body)]">
+         <SettingsTile size="lg" className="text-foreground">
             <Logo className="size-[55%]" aria-hidden />
          </SettingsTile>
       );
@@ -76,7 +76,7 @@ function ProviderIcon({ provider }: { provider: Provider }) {
       .join('')
       .toUpperCase();
    return (
-      <SettingsTile size="lg" className="text-[var(--brand-body)] select-none">
+      <SettingsTile size="lg" className="text-foreground select-none">
          {initials}
       </SettingsTile>
    );
@@ -172,7 +172,7 @@ function ToolsTable({ provider }: { provider: Provider }) {
                className="flex min-h-10 items-center gap-3 border-t border-settings-divider py-2 pr-4 pl-[34px]"
             >
                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="font-mono break-all text-[var(--brand-body)]">
+                  <span className="font-mono break-all text-foreground">
                      {toolOperation(tool.name)}
                   </span>
                   {tool.description ? (
@@ -193,7 +193,7 @@ function ToolsTable({ provider }: { provider: Provider }) {
                      {describeToolEffect(tool.effect)}
                   </span>
                ) : null}
-               <SettingsChip className="text-[var(--brand-body)]">{toolPolicy(tool)}</SettingsChip>
+               <SettingsChip className="text-foreground">{toolPolicy(tool)}</SettingsChip>
             </li>
          ))}
       </ul>
