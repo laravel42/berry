@@ -93,7 +93,7 @@ function useClientTimes(member: User) {
  * priority / project breakdowns.
  */
 export default function MemberProfile({ member }: { member: User }) {
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const workspaceLabels = useLabelsStore((state) => state.labels);
    const workspaceProjects = useProjectsStore((state) => state.projects);
    const [activeTab] = useQueryState('tab', parseAsString.withDefault('assigned'));

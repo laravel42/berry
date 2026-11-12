@@ -50,7 +50,7 @@ const CONTROL = 'relative z-[1]';
 
 export default function ProjectLine({ project, selected, onToggleSelected }: ProjectLineProps) {
    const { orgId } = useParams<{ orgId: string }>();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const members = useMembersStore((state) => state.members);
    const {
       updateProjectStatus,

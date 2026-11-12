@@ -26,7 +26,7 @@ export default function HeaderNav() {
    const t = useTranslations('issueDetail.header');
    const { orgId, issueId } = useParams<{ orgId: string; issueId: string }>();
    const router = useRouter();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const consoleFor = useRunConsoleStore((state) => state.openIssueId);
 
    const index = issues.findIndex(

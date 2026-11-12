@@ -33,7 +33,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const inDrawer = useInDetailDrawer();
    const project = useProject(projectId);
    const detail = getProjectDetail(projectId);
-   const { issues: allIssues } = useIssuesStore();
+   const allIssues = useIssuesStore((state) => state.issues);
    const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);
    const { postUpdate } = useProjectUpdatesStore();
    const workspaceId = useSessionStore((state) => state.workspace?.id);

@@ -17,7 +17,7 @@ export function IssueFilterBar({
    /** When false, Clear / save live elsewhere (e.g. the Tasks header). */
    showActions?: boolean;
 }) {
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const { filters, setFilters } = useFilterStore();
    const issueFilterColumns = useIssueFilterColumns();
 

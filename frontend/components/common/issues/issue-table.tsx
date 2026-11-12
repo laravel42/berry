@@ -282,7 +282,8 @@ const ProjectCell = memo(function ProjectCell({ issue }: { issue: Issue }) {
 
 const LabelsCell = memo(function LabelsCell({ issue }: { issue: Issue }) {
    const labels = useLabelsStore((state) => state.labels);
-   const { addIssueLabel, removeIssueLabel } = useIssuesStore();
+   const addIssueLabel = useIssuesStore((state) => state.addIssueLabel);
+   const removeIssueLabel = useIssuesStore((state) => state.removeIssueLabel);
 
    return (
       <Popover>

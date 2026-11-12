@@ -50,7 +50,8 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    const orgId = params?.orgId;
    const org = orgId ?? WORKSPACE_SLUG;
    const issueId = issueRef ?? params?.issueId ?? '';
-   const { issues, addIssue } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
+   const addIssue = useIssuesStore((state) => state.addIssue);
    const inDrawer = useInDetailDrawer();
    const closeDrawer = useDetailDrawerClose();
    const router = useRouter();

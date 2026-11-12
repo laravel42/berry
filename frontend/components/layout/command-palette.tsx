@@ -73,6 +73,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 
 type PaletteRoute = 'root' | 'assign' | 'status' | 'priority' | 'labels' | 'project' | 'due-date';
 
@@ -307,8 +308,8 @@ export function CommandPalette() {
 
    const pathname = usePathname();
    const router = useRouter();
+   const issues = useIssuesStore((state) => state.issues);
    const {
-      issues,
       updateIssueStatus,
       updateIssuePriority,
       updateIssueAssignee,
@@ -316,7 +317,17 @@ export function CommandPalette() {
       removeIssueLabel,
       updateIssueProject,
       updateIssue,
-   } = useIssuesStore();
+   } = useIssuesStore(
+      useShallow((state) => ({
+         updateIssueStatus: state.updateIssueStatus,
+         updateIssuePriority: state.updateIssuePriority,
+         updateIssueAssignee: state.updateIssueAssignee,
+         addIssueLabel: state.addIssueLabel,
+         removeIssueLabel: state.removeIssueLabel,
+         updateIssueProject: state.updateIssueProject,
+         updateIssue: state.updateIssue,
+      }))
+   );
    const { openModal } = useCreateIssueStore();
    const openProjectModal = useCreateProjectStore((state) => state.openModal);
    const openGoalModal = useCreateMilestoneStore((state) => state.openModal);

@@ -70,7 +70,13 @@ export function AssigneeSelector({
    const [open, setOpen] = useState<boolean>(false);
    const [value, setValue] = useState<string | null>(assignee?.id || null);
 
-   const { filterByAssignee } = useIssuesStore();
+   // The counts are read during render, so subscribe to the issues themselves:
+   // the store's `filterByAssignee` is a stable function and would not re-render.
+   const issues = useIssuesStore((state) => state.issues);
+   const filterByAssignee = (userId: string | null) =>
+      userId === null
+         ? issues.filter((issue) => issue.assignee === null)
+         : issues.filter((issue) => issue.assignee?.id === userId);
    const members = useMembersStore((state) => state.members);
    const agents = useAgentsStore((state) => state.agents);
 

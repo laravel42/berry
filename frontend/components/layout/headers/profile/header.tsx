@@ -116,7 +116,7 @@ function HeaderSearch() {
 export default function Header({ member }: { member: User }) {
    const { orgId } = useParams<{ orgId: string }>();
    const [activeTab] = useQueryState('tab', parseAsString.withDefault('assigned'));
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const { openPanel, togglePanel } = useRightPanelStore();
    const count =
       activeTab === 'created'

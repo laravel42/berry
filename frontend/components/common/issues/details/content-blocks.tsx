@@ -113,7 +113,7 @@ function VideoPlaceholder({ title, duration }: { title: string; duration?: strin
 
 function IssueRef({ identifier, note }: { identifier: string; note?: string }) {
    const { orgId } = useParams<{ orgId: string }>();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const issue = issues.find((candidate) => candidate.identifier === identifier);
 
    return (
@@ -265,7 +265,7 @@ export { ImagePlaceholder, VideoPlaceholder };
 /** Small helper used by lists of referenced issues in the side panel. */
 export function IssueRefRow({ identifier }: { identifier: string }) {
    const { orgId } = useParams<{ orgId: string }>();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const issue = issues.find((candidate) => candidate.identifier === identifier);
    if (!issue) return null;
 

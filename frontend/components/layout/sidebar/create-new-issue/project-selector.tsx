@@ -25,7 +25,11 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
    const [open, setOpen] = useState<boolean>(false);
    const [value, setValue] = useState<string | undefined>(project?.id);
 
-   const { filterByProject } = useIssuesStore();
+   // The counts are read during render, so subscribe to the issues themselves:
+   // the store's `filterByProject` is a stable function and would not re-render.
+   const issues = useIssuesStore((state) => state.issues);
+   const filterByProject = (projectId: string) =>
+      issues.filter((issue) => issue.project?.id === projectId);
    const projects = useProjectsStore((state) => state.projects);
 
    useEffect(() => {

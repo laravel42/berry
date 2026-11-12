@@ -15,6 +15,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useParams } from 'next/navigation';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 
 /** Today, tomorrow or next week at the start of the day. */
 function dayFromNow(days: number): Date {
@@ -45,9 +46,23 @@ export function useIssueActions(issueId?: string) {
       updateIssue,
       addIssue,
       getIssueById,
-   } = useIssuesStore();
+   } = useIssuesStore(
+      useShallow((state) => ({
+         updateIssueStatus: state.updateIssueStatus,
+         updateIssuePriority: state.updateIssuePriority,
+         updateIssueAssignee: state.updateIssueAssignee,
+         addIssueLabel: state.addIssueLabel,
+         removeIssueLabel: state.removeIssueLabel,
+         updateIssueProject: state.updateIssueProject,
+         updateIssue: state.updateIssue,
+         addIssue: state.addIssue,
+         getIssueById: state.getIssueById,
+      }))
+   );
 
-   const issue = issueId ? getIssueById(issueId) : undefined;
+   const issue = useIssuesStore((state) =>
+      issueId ? state.issues.find((candidate) => candidate.id === issueId) : undefined
+   );
    const projects = useProjectsStore((state) => state.projects);
    const members = useMembersStore((state) => state.members);
    const labels = useLabelsStore((state) => state.labels);

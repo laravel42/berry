@@ -99,7 +99,7 @@ export default function MyIssues() {
    const { isSearchOpen, searchQuery } = useSearchStore();
    const view = useIssueListView();
    const { filters } = useFilterStore();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const load = useIssueListLoad();
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';

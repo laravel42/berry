@@ -30,7 +30,7 @@ export default function AllIssues({ categories }: AllIssuesProps) {
    // the grouped list below.
    const { mode: viewType } = useIssueListView();
    const { filters } = useFilterStore();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const { openPanel } = useRightPanelStore();
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';

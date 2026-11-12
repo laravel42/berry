@@ -30,7 +30,7 @@ interface ProjectIssuesProps {
 export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
    const project = useProject(projectId);
    const detail = getProjectDetail(projectId);
-   const { issues: allIssues } = useIssuesStore();
+   const allIssues = useIssuesStore((state) => state.issues);
    const { filters } = useFilterStore();
    const view = useIssueListView();
 

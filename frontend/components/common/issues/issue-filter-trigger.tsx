@@ -12,7 +12,7 @@ import { useIssueFilterColumns } from './issue-filter-columns';
  * filter is active.
  */
 export function IssueFilterTrigger({ iconOnly = false }: { iconOnly?: boolean }) {
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const { filters, setFilters } = useFilterStore();
    const issueFilterColumns = useIssueFilterColumns();
 
