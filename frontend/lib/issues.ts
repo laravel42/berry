@@ -275,13 +275,17 @@ export function parseApiIssue(json: unknown): Issue | undefined {
 
 const inFlight = new Map<string, Promise<Issue[]>>();
 
-async function fetchAllBoardIssues(boardId: string): Promise<Issue[]> {
+async function fetchAllBoardIssues(
+   boardId: string,
+   onPage?: (issues: Issue[]) => void
+): Promise<Issue[]> {
    const collected: Issue[] = [];
 
    try {
       let after: string | undefined;
 
       for (let page = 0; page < MAX_PAGES; page += 1) {
+         const pageStart = collected.length;
          const params = new URLSearchParams({
             boardId,
             first: String(PAGE_SIZE),
@@ -303,6 +307,15 @@ async function fetchAllBoardIssues(boardId: string): Promise<Issue[]> {
             }
          }
 
+         if (onPage && collected.length > pageStart) {
+            try {
+               onPage(collected.slice(pageStart));
+            } catch {
+               // A failing listener must not cut the list short: the caller
+               // still resolves with every page.
+            }
+         }
+
          const { hasNextPage, endCursor } = parsed.data.pageInfo;
          if (!hasNextPage || !endCursor || parsed.data.nodes.length === 0) {
             break;
@@ -316,12 +329,21 @@ async function fetchAllBoardIssues(boardId: string): Promise<Issue[]> {
    }
 }
 
-/** One in-flight list fetch per board; empty when no board is selected. */
-export function loadBoardIssues(boardId: string): Promise<Issue[]> {
+/**
+ * One in-flight list fetch per board; empty when no board is selected.
+ *
+ * `onPage` receives each page's issues as it lands, so a first paint need not
+ * wait for the last page. Only the call that starts the fetch gets pages: a
+ * call that joins one already in flight gets just the whole list at the end.
+ */
+export function loadBoardIssues(
+   boardId: string,
+   options: { onPage?: (issues: Issue[]) => void } = {}
+): Promise<Issue[]> {
    if (!boardId) return Promise.resolve([]);
    const existing = inFlight.get(boardId);
    if (existing) return existing;
-   const promise = fetchAllBoardIssues(boardId).finally(() => {
+   const promise = fetchAllBoardIssues(boardId, options.onPage).finally(() => {
       if (inFlight.get(boardId) === promise) {
          inFlight.delete(boardId);
       }

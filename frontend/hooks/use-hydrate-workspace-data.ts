@@ -55,6 +55,7 @@ export function useHydrateWorkspaceData(): void {
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const user = useSessionStore((state) => state.user);
    const hydrateIssues = useIssuesStore((state) => state.hydrateIssues);
+   const mergeIssues = useIssuesStore((state) => state.mergeIssues);
    const setIssuesLoadState = useIssuesStore((state) => state.setLoadState);
    const retryToken = useIssuesStore((state) => state.retryToken);
    const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
@@ -75,7 +76,19 @@ export function useHydrateWorkspaceData(): void {
       let cancelled = false;
       const sameBoard = seededBoardId === boardId;
       if (!sameBoard) setIssuesLoadState('loading');
-      void loadBoardIssues(boardId)
+      // The first load paints each page as it lands rather than after the
+      // last one. Pages are merged, not swapped in: a task opened by direct
+      // link is added while the board loads, and a partial page must not
+      // read as its deletion. A board switch or a retry keeps the list it
+      // has until the whole new one replaces it below.
+      const initialLoad = !sameBoard && useIssuesStore.getState().issues.length === 0;
+      void loadBoardIssues(boardId, {
+         onPage: initialLoad
+            ? (page) => {
+                 if (!cancelled) mergeIssues(page);
+              }
+            : undefined,
+      })
          .then((issues) => {
             if (cancelled) return;
             seededBoardId = boardId;
@@ -105,7 +118,7 @@ export function useHydrateWorkspaceData(): void {
       return () => {
          cancelled = true;
       };
-   }, [status, boardId, hydrateIssues, hydrateRuns, setIssuesLoadState, retryToken]);
+   }, [status, boardId, hydrateIssues, mergeIssues, hydrateRuns, setIssuesLoadState, retryToken]);
 
    useEffect(() => {
       if (status !== 'ready' || !workspaceId) return;

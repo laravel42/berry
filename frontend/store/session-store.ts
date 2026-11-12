@@ -85,9 +85,11 @@ async function loadReadyState(): Promise<
       'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale' | 'preferredTheme'
    >
 > {
-   const bootstrap = await fetchBootstrap();
+   // Both at once: the board list is per account and needs nothing from
+   // bootstrap. A bootstrap failure still rejects here as before (callers
+   // tell anonymous from unreachable by it); listBoards never rejects.
+   const [bootstrap, boards] = await Promise.all([fetchBootstrap(), listBoards()]);
    const workspace = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
-   const boards = await listBoards();
    return {
       user: toUiUser({
          id: bootstrap.user.id,

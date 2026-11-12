@@ -40,6 +40,12 @@ interface IssuesState {
 
    // Actions
    hydrateIssues: (issues: Issue[]) => void;
+   /**
+    * Insert new issues and replace those with the same id, never removing any.
+    * A partial list (one page, one event) must not read as a deletion: the
+    * task page leaves when its issue vanishes from the store.
+    */
+   mergeIssues: (issues: Issue[]) => void;
    addIssue: (issue: Issue) => void;
    updateIssue: (id: string, updatedIssue: Partial<Issue>) => void;
    deleteIssue: (id: string) => void;
@@ -145,6 +151,22 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
       set({
          issues: incoming,
          issuesByStatus: groupIssuesByStatus(incoming),
+      });
+   },
+
+   mergeIssues: (incoming: Issue[]) => {
+      if (incoming.length === 0) return;
+      set((state) => {
+         const byId = new Map(incoming.map((issue) => [issue.id, issue]));
+         const known = new Set(state.issues.map((issue) => issue.id));
+         const merged = state.issues.map((issue) => byId.get(issue.id) ?? issue);
+         for (const issue of byId.values()) {
+            if (!known.has(issue.id)) merged.push(issue);
+         }
+         return {
+            issues: merged,
+            issuesByStatus: groupIssuesByStatus(merged),
+         };
       });
    },
 
