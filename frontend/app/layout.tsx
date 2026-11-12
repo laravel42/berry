@@ -5,8 +5,14 @@ import './globals.css';
 
 // Shipped with the app. next/font/google fetches at compile time, and Turbopack
 // fails once Google's font URLs carry their own query string.
+//
+// Both faces are woff2 subsets of the full files beside them, cut to Latin so
+// every page stops preloading ~540 KB of fonts; variable axes and all OpenType
+// features are kept. Regenerate with pyftsubset (fonttools) --flavor=woff2
+// --layout-features='*' over Google Fonts' latin + latin-ext ranges plus every
+// non-ASCII character in messages/en, components, app and lib.
 const jetBrainsMono = localFont({
-   src: './fonts/jetbrains-mono-variable.ttf',
+   src: './fonts/jetbrains-mono-variable-latin.woff2',
    variable: '--font-jetbrains-mono',
    weight: '100 800',
    display: 'swap',
@@ -23,7 +29,7 @@ const jetBrainsMono = localFont({
 // @theme declaration resolves against an undefined value and silently
 // computes to nothing.
 const inter = localFont({
-   src: './fonts/inter-variable.woff2',
+   src: './fonts/inter-variable-latin.woff2',
    variable: '--font-inter',
    weight: '100 900',
    display: 'swap',
