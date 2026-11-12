@@ -511,7 +511,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                                  event.currentTarget.blur();
                               }
                            }}
-                           className="-ml-1.5 h-[30px] max-w-56 min-w-12 rounded-[7px] [field-sizing:content] border border-transparent bg-transparent px-1.5 text-foreground outline-none hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field disabled:opacity-50"
+                           className="-ml-1.5 h-[30px] max-w-56 min-w-12 rounded-[7px] [field-sizing:content] border border-transparent bg-transparent px-1.5 text-foreground outline-none hover:border-settings-field-line focus-visible:border-primary focus-visible:bg-settings-field disabled:opacity-50"
                         />
                         {nameChanged(tier) ? (
                            <span className="flex items-center">

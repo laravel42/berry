@@ -14,9 +14,9 @@ import { cn } from '@/lib/utils';
 export const searchFieldClass =
    'border-0 bg-segment-track shadow-none focus-visible:border-primary';
 
-/** The settings field (Input, Select trigger, Textarea): 30px, filled, a hairline edge that darkens on focus. */
+/** The settings field (Input, Select trigger, Textarea): 30px, filled, a hairline edge that takes the primary colour on focus, like every other field. */
 export const settingsFieldClass =
-   'border-settings-field-line bg-settings-field px-2.5 shadow-none placeholder:text-settings-placeholder focus-visible:border-settings-field-focus';
+   'border-settings-field-line bg-settings-field px-2.5 shadow-none placeholder:text-settings-placeholder focus-visible:border-primary';
 
 function Input({
    className,
@@ -27,7 +27,7 @@ function Input({
 }: React.ComponentProps<'input'> & {
    /** Title/description chrome: no border or berry focus halo. */
    plain?: boolean;
-   /** `settings`: the settings field — filled, hairline edge, quiet focus. */
+   /** `settings`: the settings field — filled, hairline edge, primary focus. */
    variant?: 'default' | 'settings';
 }) {
    return (

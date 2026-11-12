@@ -449,7 +449,7 @@ export function SettingsSearch({
    return (
       <label
          className={cn(
-            'flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-settings-field-line bg-settings-field px-2.5 text-settings-placeholder focus-within:border-settings-field-focus',
+            'flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-settings-field-line bg-settings-field px-2.5 text-settings-placeholder focus-within:border-primary',
             className
          )}
       >
@@ -473,7 +473,7 @@ export function SettingsSearch({
 export const SETTINGS_CONTROL_WIDTH = 'w-[220px]';
 
 const selectTriggerClass =
-   'relative inline-flex h-[30px] w-[220px] max-w-full items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none transition-colors focus-visible:border-settings-field-focus data-[state=open]:border-settings-field-focus disabled:cursor-not-allowed disabled:opacity-60';
+   'relative inline-flex h-[30px] w-[220px] max-w-full items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none transition-colors focus-visible:border-primary data-[state=open]:border-primary disabled:cursor-not-allowed disabled:opacity-60';
 const selectChevronClass =
    'pointer-events-none absolute top-1/2 right-2.5 size-2.5 -translate-y-1/2 text-subtle-foreground';
 

@@ -198,7 +198,7 @@ export default function SkillLabelsSettings() {
                      <input
                         defaultValue={label.name}
                         aria-label={t('rename', { name: label.name })}
-                        className="-ml-1 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field"
+                        className="-ml-1 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-primary focus-visible:bg-settings-field"
                         onBlur={(event) => rename(label, event.target.value)}
                         onKeyDown={(event) => {
                            if (event.key === 'Enter') event.currentTarget.blur();

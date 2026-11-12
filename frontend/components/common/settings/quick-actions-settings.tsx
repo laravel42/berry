@@ -233,7 +233,7 @@ export default function QuickActionsSettings() {
                            <button
                               type="button"
                               aria-label={t('agent')}
-                              className="relative inline-flex h-[30px] w-[150px] shrink-0 items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none focus-visible:border-settings-field-focus"
+                              className="relative inline-flex h-[30px] w-[150px] shrink-0 items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none focus-visible:border-primary"
                            >
                               <span className="min-w-0 truncate">
                                  {chosenAgent?.name ?? t('agent')}
