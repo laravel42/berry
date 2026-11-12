@@ -56,7 +56,7 @@ export function MembersPicker({ value, candidates, onChange, children }: Members
                                  onCheckedChange={() => toggle(member.id)}
                                  aria-label={member.name}
                               />
-                              <ActorAvatar user={member} size="sm" className="size-4 shrink-0" />
+                              <ActorAvatar user={member} size="sm" className="shrink-0" />
                               <span className="min-w-0 flex-1 truncate">{member.name}</span>
                            </label>
                         </li>
@@ -83,7 +83,7 @@ export function MembersChipContent({ members }: { members: readonly User[] }) {
    if (only) {
       return (
          <>
-            <ActorAvatar user={only} size="sm" className="size-4" />
+            <ActorAvatar user={only} size="sm" />
             <span>{only.name}</span>
          </>
       );

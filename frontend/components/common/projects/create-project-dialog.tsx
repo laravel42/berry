@@ -306,7 +306,7 @@ export function CreateProjectDialog() {
                            <PickerChipButton>
                               {form.lead ? (
                                  <>
-                                    <ActorAvatar user={form.lead} size="sm" className="size-4" />
+                                    <ActorAvatar user={form.lead} size="sm" />
                                     <span>{form.lead.name}</span>
                                  </>
                               ) : (

@@ -176,7 +176,7 @@ export function ProjectContextMenuContent({ project }: { project: Project }) {
                >
                   {leads.map((member) => (
                      <ContextMenuRadioItem key={member.id} value={member.id}>
-                        <ActorAvatar user={member} size="sm" className="size-4" />
+                        <ActorAvatar user={member} size="sm" />
                         {member.name}
                      </ContextMenuRadioItem>
                   ))}

@@ -50,7 +50,7 @@ function ProjectDragPreview({ project }: { project: Project }) {
             </span>
             {lead ? (
                <span className="ml-auto flex min-w-0 items-center gap-1.5">
-                  <ActorAvatar user={lead} size="sm" className="size-4" />
+                  <ActorAvatar user={lead} size="sm" />
                   <span className="truncate">{lead.name}</span>
                </span>
             ) : (
@@ -227,7 +227,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                                        aria-label={`Lead: ${lead.name}`}
                                        className="flex min-w-0 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                     >
-                                       <ActorAvatar user={lead} size="sm" className="size-4" />
+                                       <ActorAvatar user={lead} size="sm" />
                                        <span className="truncate">{lead.name}</span>
                                     </button>
                                  ) : (

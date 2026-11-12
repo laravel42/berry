@@ -679,6 +679,12 @@
       line-height: 1;
    }
 
+   /* A person's initials in ActorAvatar, 11px: that circle is 20px across,
+      so two capitals at 14px crowd its ring. */
+   [data-slot='avatar-fallback'][data-actor-initials] {
+      font-size: 0.6875rem;
+   }
+
    /* Titles stay on the interface face. Write the words as they should read;
       do not capitalize here — that rewrites identifiers (BER-286, API).
       Section labels are the body size at 600/700, in sentence case. */
