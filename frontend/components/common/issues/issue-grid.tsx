@@ -34,7 +34,7 @@ type IssueGridProps = {
 
 function IssueDragPreview({ issue }: { issue: Issue }) {
    return (
-      <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
+      <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg">
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <IssuePriorityPicker issue={issue} />
             <span data-identifier className="min-w-0 truncate text-subtle-foreground">
@@ -188,7 +188,7 @@ function IssueGridCard({
             <ContextMenuTrigger asChild>
                <div
                   className={cn(
-                     'group relative w-full cursor-grab rounded-lg bg-void px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
+                     'group relative w-full cursor-grab rounded-lg bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] transition-colors active:cursor-grabbing',
                      /* Not the themed `--border`, which would turn near-white on a
                         card that stays dark in both themes. `--board-card-line` is
                         the column behind it lifted a step, so the edge reads as a
@@ -197,7 +197,7 @@ function IssueGridCard({
                         where one ends -- the shadow has nothing to fall against
                         and does its work in light mode. */
                      'border border-[var(--board-card-line)] shadow-sm',
-                     'hover:bg-base',
+                     'hover:bg-[var(--board-card-hover)]',
                      isOver && 'ring-1 ring-primary/40',
                      isOver && dropEdge === 'top' && 'mt-1',
                      isOver && dropEdge === 'bottom' && 'mb-1'

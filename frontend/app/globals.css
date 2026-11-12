@@ -6,9 +6,10 @@
    live in docs/redesign/ledger-plan.md and are not repeated here.
 
    Three things a reader will not infer from the values alone:
-   - The shell is chrome, not content, and stays dark in both themes, so
-     `--shell-*` has no `.dark` counterpart on purpose. Same for
-     `--board-column-body`. Giving either one would be the bug.
+   - `--shell-*` has no `.dark` counterpart: chat reads it and stays dark in
+     both themes. The rail takes a light ramp of its own through
+     `[data-shell-chrome]`. The board, fields and segmented controls follow
+     the theme (`--board-*`, `--segment-*` have `.dark` values).
    - `--ctl-h` (44px) is the target floor for a BUTTON. A field does not use
      it: `--field-h` is 32px, below the floor on purpose, because a form of
      44px fields reads as a settings page rather than a tracker. The pointer
@@ -153,8 +154,11 @@
    --shell-text-dim: #76747b;
    --shell-text-faint: #55545a;
    --shell-accent: var(--berry);
-   --segment-track: #222226;
-   --segment-selected: #303035;
+   /* Fields, the filter track and segmented controls. Light here, dark in
+      `.dark`; the rail sets its own in `[data-shell-chrome]`. */
+   --segment-track: #ececef;
+   --segment-selected: #ffffff;
+   --segment-hover: #e2e2e6;
 
    /* The rail's nav glyphs. The kit puts every one in a 22px box (`.navi .ib`)
       and flips that box to the button gradient on the row you are on
@@ -251,17 +255,14 @@
    --chart-4: var(--brand-amber);
    --chart-5: var(--brand-slate);
    --radius: 10px;
-   /* Flat and theme-independent, like the shell: the board's cards are dark in
-      both themes, and the column previously resolved 80% zinc over the page,
-      which put mid-grey behind dark cards in light mode. Stated once here with
-      no `.dark` counterpart, so the two cannot drift. */
-   --board-column-body: #19191c;
-   /* Edge of a card sitting in a board column: the column lifted a step, so it
-      reads as a seam rather than a line of its own. White goes last on
-      purpose -- where `color-mix` is unsupported the declaration degrades to
-      its first colour, and an edge that matches the column disappears, where
-      one that fell back to white would blaze. */
-   --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
+   /* The board follows the theme: a light column with white cards here, the
+      original dark column and void cards in `.dark`. Cards and drag
+      previews read `--board-card*`, never the brand ramp directly. */
+   --board-column-body: #f4f4f5;
+   --board-card: #ffffff;
+   --board-card-hover: #fafafa;
+   --board-card-foreground: var(--foreground);
+   --board-card-line: #e4e4e7;
    /* Board column and list group header tints. A status column takes a wash
       of its own semantic tone over the container, so the header agrees with
       the glyph beside it: In review and Blocked wear warning, Done wears
@@ -321,6 +322,20 @@
 
 .dark {
    color-scheme: dark;
+
+   --segment-track: #222226;
+   --segment-selected: #303035;
+   --segment-hover: var(--brand-hairline);
+   --board-column-body: #19191c;
+   --board-card: var(--brand-void);
+   --board-card-hover: var(--brand-base);
+   --board-card-foreground: var(--brand-chalk);
+   /* Edge of a card sitting in a board column: the column lifted a step, so it
+      reads as a seam rather than a line of its own. White goes last on
+      purpose -- where `color-mix` is unsupported the declaration degrades to
+      its first colour, and an edge that matches the column disappears, where
+      one that fell back to white would blaze. */
+   --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
 
    --background: #0a0a0b;
    --foreground: #f6f6f7;

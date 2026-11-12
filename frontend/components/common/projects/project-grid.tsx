@@ -33,7 +33,7 @@ type ProjectGridProps = {
 function ProjectDragPreview({ project }: { project: Project }) {
    const lead = useResolvedProjectLead(project.lead);
    return (
-      <div className="flex w-full flex-col overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-void px-3.5 py-2 text-chalk shadow-lg">
+      <div className="flex w-full flex-col overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg">
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
@@ -157,9 +157,9 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
             <ContextMenuTrigger asChild>
                <div
                   className={cn(
-                     'group relative flex w-full cursor-grab flex-col rounded-lg bg-void px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
+                     'group relative flex w-full cursor-grab flex-col rounded-lg bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] transition-colors active:cursor-grabbing',
                      'border border-[var(--board-card-line)] shadow-sm',
-                     'hover:bg-base',
+                     'hover:bg-[var(--board-card-hover)]',
                      columnStatus === undefined && 'cursor-default',
                      isOver && 'ring-1 ring-primary/40',
                      isOver && dropEdge === 'top' && 'mt-1',

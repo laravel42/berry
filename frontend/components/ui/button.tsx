@@ -55,7 +55,7 @@ const buttonVariants = cva(
                 lone `!h-*` here looked like it set the size and did not.
                 A toolbar's `[&_button]:!h-[30px]` loses the same way. */
             'track':
-               '!h-(--field-h) !min-h-(--field-h) !rounded-full border-0 bg-segment-track px-2.5 text-[var(--shell-text-muted)] shadow-none hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] data-[state=open]:!bg-[var(--brand-hairline)] data-[state=open]:!text-[var(--shell-text)]',
+               '!h-(--field-h) !min-h-(--field-h) !rounded-full border-0 bg-segment-track px-2.5 text-muted-foreground shadow-none hover:bg-[var(--segment-hover)] hover:text-foreground data-[state=open]:!bg-[var(--segment-hover)] data-[state=open]:!text-foreground',
          },
          size: {
             default: 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
@@ -105,6 +105,6 @@ function Button({
 
 /** Pressed fill for `variant="track"`. */
 export const trackButtonPressedClass =
-   '!bg-[var(--brand-hairline)] !text-[var(--shell-text)] hover:!bg-[var(--brand-hairline)] hover:!text-[var(--shell-text)]';
+   '!bg-[var(--segment-hover)] !text-foreground hover:!bg-[var(--segment-hover)] hover:!text-foreground';
 
 export { Button, buttonVariants };

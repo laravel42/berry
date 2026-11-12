@@ -11,8 +11,8 @@ import type { ReactNode, Ref } from 'react';
  * each board only supplies its own header label, drag type and cards.
  */
 
-/* Not a token: the body colour is stated once in globals.css with no `.dark`
-   counterpart on purpose, so it is read as a variable rather than a utility. */
+/* Read as a variable rather than a utility: globals.css gives it a light value
+   and a `.dark` one, alongside the `--board-card*` tokens the cards use. */
 const BOARD_COLUMN_BODY_BG = 'var(--board-column-body)';
 
 /**
