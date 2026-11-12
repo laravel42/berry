@@ -26,8 +26,9 @@ import { ShellSectionFold } from './shell-section-fold';
  *
  * Rows, spacing and group headings are the workspace rail's own
  * (`shellNavRow`, `ShellSectionFold`), so the two modes read as one rail. Each
- * group folds; every group starts open, and a choice lasts while the rail is
- * mounted.
+ * group folds. Personal starts open and the others start folded, so the rail
+ * is short on the way in, except the group holding the current page, which
+ * starts open. A choice lasts while the rail is mounted.
  *
  * `trailing` is the rail's close control below `lg`, placed on the back row
  * so the overlay has a visible way out whatever the rail is showing.
@@ -36,7 +37,7 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
    const pathname = usePathname() ?? '';
    const t = useTranslations('workspaceAdmin');
 
-   const [folded, setFolded] = useState<Record<string, boolean>>({});
+   const [chosen, setChosen] = useState<Record<string, boolean>>({});
 
    return (
       <div className="flex flex-col pb-3.5">
@@ -55,9 +56,13 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
             <ShellSectionFold
                key={group.labelKey}
                heading={t(`groups.${group.labelKey}`)}
-               open={!folded[group.labelKey]}
+               open={
+                  chosen[group.labelKey] ??
+                  (group.labelKey === 'personal' ||
+                     group.items.some((item) => isNavItemActive(pathname, `/${orgId}${item.url}`)))
+               }
                onOpenChange={(open) =>
-                  setFolded((current) => ({ ...current, [group.labelKey]: !open }))
+                  setChosen((current) => ({ ...current, [group.labelKey]: open }))
                }
             >
                <ul className="flex flex-col gap-0 px-3 lg:gap-1">
