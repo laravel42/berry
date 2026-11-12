@@ -39,7 +39,8 @@ function Input({
             !plain &&
                variant === 'default' &&
                'focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--ring)_20%,transparent)]',
-            variant === 'settings' && settingsFieldClass,
+            // Square corners, level with the settings selects beside it.
+            variant === 'settings' && cn(settingsFieldClass, 'rounded-[8px]'),
             'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
             className
          )}
