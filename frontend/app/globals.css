@@ -1572,3 +1572,31 @@ input[type='search'] {
    height: 0;
    pointer-events: none;
 }
+
+/* A toast with an action reads first, then offers the action: the text takes
+   the whole row and the button wraps under it, on the left, lined up with the
+   text rather than squeezed beside it. Sonner lays the toast out as one flex
+   row (icon, content, button); wrapping that row is all this changes. */
+[data-sonner-toast][data-styled='true']:has(> [data-button]) {
+   flex-wrap: wrap;
+   align-items: flex-start;
+   row-gap: 10px;
+}
+[data-sonner-toast][data-styled='true']:has(> [data-button]) > [data-icon] {
+   /* Centred on the first line of the title (13px at 1.5) instead of the block. */
+   margin-top: 2px;
+}
+[data-sonner-toast][data-styled='true']:has(> [data-button]) > [data-content] {
+   flex-basis: calc(
+      100% - 16px - var(--toast-icon-margin-start) - var(--toast-icon-margin-end) - 6px
+   );
+}
+/* Sonner places the button through this variable (auto pushes it right). */
+[data-sonner-toast][data-styled='true']:has(> [data-button]) {
+   --toast-button-margin-start: 0px;
+}
+[data-sonner-toast][data-styled='true']:has(> [data-button]):has(> [data-icon]) {
+   --toast-button-margin-start: calc(
+      16px + var(--toast-icon-margin-start) + var(--toast-icon-margin-end) + 6px
+   );
+}
