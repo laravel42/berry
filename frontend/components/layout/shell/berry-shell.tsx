@@ -191,7 +191,11 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                   }`}
                >
                   <NavigationProgress />
-                  <main className="min-h-0 flex-1 overflow-hidden bg-[var(--shell-canvas)]">
+                  {/* `--shell-canvas` is light only inside the rail's
+                      `[data-shell-chrome]`, so on light the canvas takes the
+                      page background instead: it shows through while a route
+                      loads or redirects, and was a dark block in a light frame. */}
+                  <main className="min-h-0 flex-1 overflow-hidden bg-background dark:bg-[var(--shell-canvas)]">
                      {children}
                   </main>
                   <NotificationToasts />
