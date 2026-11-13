@@ -38,6 +38,7 @@ import remarkGfm from 'remark-gfm';
 import { SiteBuildFrame } from './site-build-frame';
 import { FileKindMark } from './file-kind-mark';
 import { ArtifactPaneEmpty } from './artifact-viewer-empty';
+import { useReportUnsavedEdits } from '@/store/unsaved-edits-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -204,6 +205,7 @@ export function ArtifactViewer({
    }, [artifact, needsText, needsBlob, tooLarge]);
 
    const dirty = text !== null && savedText !== null && text !== savedText;
+   useReportUnsavedEdits('artifact-viewer', dirty);
 
    // Commit changes: a message, then the write. Closed again by a new file.
    const [commit, setCommit] = useState<{

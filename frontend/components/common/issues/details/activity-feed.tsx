@@ -75,6 +75,7 @@ import { toast } from 'sonner';
 import { CommentActions } from './comment-actions';
 import { ReactionBar } from './issue-reactions';
 import { IssueReviewCard, reviewTimestamp, useSettledAutoReviews } from './issue-reviews';
+import { useReportUnsavedEdits } from '@/store/unsaved-edits-store';
 
 /**
  * What has happened to this task, and the place to add to it.
@@ -879,6 +880,8 @@ export function ActivityCommentComposer({
       },
       [isReply, issueRef, setStoredDraft]
    );
+   // A reply is not kept per task the way the root draft is, so moving away loses it.
+   useReportUnsavedEdits(`reply:${parentId ?? ''}`, isReply && replyDraft.trim() !== '');
 
    const textareaRef = useRef<HTMLTextAreaElement>(null);
    const workspaceId = useSessionStore((state) => state.workspace?.id);

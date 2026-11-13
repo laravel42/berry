@@ -1,16 +1,27 @@
 'use client';
 
 import { IssueHeaderMenu } from '@/components/common/issues/details/issue-header-menu';
+import {
+   AlertDialog,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogContent,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogHeader,
+   AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import type { Issue } from '@/data/issues';
 import { getBoardIssue } from '@/lib/issues';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
+import { hasUnsavedEdits, useUnsavedEditsStore } from '@/store/unsaved-edits-store';
 import { ChevronDown, ChevronUp, CornerUpLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 
 /**
  * The task header.
@@ -36,6 +47,17 @@ export default function HeaderNav() {
 
    const previousIssue = index > 0 ? issues[index - 1] : undefined;
    const nextIssue = index >= 0 && index < issues.length - 1 ? issues[index + 1] : undefined;
+
+   // Previous / next swap the task in place: replacing the history entry means
+   // Back leaves the task view instead of stepping through every task passed.
+   // Edits that would be lost ask first.
+   const [pendingHref, setPendingHref] = useState<string | null>(null);
+   const clearUnsaved = useUnsavedEditsStore((state) => state.clear);
+   const step = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+      if (!hasUnsavedEdits()) return;
+      event.preventDefault();
+      setPendingHref(href);
+   };
 
    const [parent, setParent] = useState<Issue | null>(null);
    useEffect(() => {
@@ -113,7 +135,9 @@ export default function HeaderNav() {
                {previousIssue ? (
                   <Link
                      href={`/${orgId}/issue/${previousIssue.identifier}`}
-                     aria-label="Previous task"
+                     replace
+                     onClick={(event) => step(event, `/${orgId}/issue/${previousIssue.identifier}`)}
+                     aria-label={t('previousTask')}
                   >
                      <ChevronUp className="size-4" />
                   </Link>
@@ -129,7 +153,12 @@ export default function HeaderNav() {
                asChild={!!nextIssue}
             >
                {nextIssue ? (
-                  <Link href={`/${orgId}/issue/${nextIssue.identifier}`} aria-label="Next task">
+                  <Link
+                     href={`/${orgId}/issue/${nextIssue.identifier}`}
+                     replace
+                     onClick={(event) => step(event, `/${orgId}/issue/${nextIssue.identifier}`)}
+                     aria-label={t('nextTask')}
+                  >
                      <ChevronDown className="size-4" />
                   </Link>
                ) : (
@@ -140,6 +169,33 @@ export default function HeaderNav() {
                <IssueHeaderMenu issue={issue} onDeleted={() => router.push(`/${orgId}/tasks`)} />
             ) : null}
          </div>
+
+         <AlertDialog
+            open={pendingHref !== null}
+            onOpenChange={(open) => (open ? null : setPendingHref(null))}
+         >
+            <AlertDialogContent>
+               <AlertDialogHeader>
+                  <AlertDialogTitle>{t('unsavedTitle')}</AlertDialogTitle>
+                  <AlertDialogDescription>{t('unsavedBody')}</AlertDialogDescription>
+               </AlertDialogHeader>
+               {/* Staying is the safe choice, so it carries the emphasis and sits last. */}
+               <AlertDialogFooter>
+                  <AlertDialogAction
+                     variant="outline"
+                     onClick={() => {
+                        const href = pendingHref;
+                        setPendingHref(null);
+                        clearUnsaved();
+                        if (href) router.replace(href);
+                     }}
+                  >
+                     {t('unsavedLeave')}
+                  </AlertDialogAction>
+                  <AlertDialogCancel variant="default">{t('unsavedStay')}</AlertDialogCancel>
+               </AlertDialogFooter>
+            </AlertDialogContent>
+         </AlertDialog>
       </div>
    );
 }
