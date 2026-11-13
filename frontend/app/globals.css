@@ -1369,6 +1369,13 @@ input[type='search'] {
    display: none;
 }
 
+/* Tucked off the edge (the Agents launcher), only a sliver is left showing,
+   so it casts a wider, softer bloom to say something is still there. Here
+   rather than as a utility because unlayered .spark outranks any utility. */
+.spark[data-tucked='true']:not(:disabled):not([aria-disabled='true']) {
+   box-shadow: 0 0 44px 10px var(--spark-glow);
+}
+
 @media (prefers-reduced-motion: reduce) {
    .spark::after {
       animation: none;

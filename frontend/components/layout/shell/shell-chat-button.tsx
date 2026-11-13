@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 
-const TUCK_AFTER_MS = 60_000;
+const TUCK_AFTER_MS = 10_000;
 
 /**
  * Flat "Agents" launcher at the bottom-right of the body frame.
@@ -24,11 +24,12 @@ const TUCK_AFTER_MS = 60_000;
  * Quiet chip with the `.spark` ring: a thin rotating brand-colour border,
  * the ledger redesign's control for a secondary AI action.
  *
- * Left alone for a minute it tucks itself off the right edge, leaving a
- * tenth showing, so it stops sitting on top of the page. Pointing at it or
- * focusing it brings it back, and it stays out until another idle minute
- * has passed. It never tucks while the chat window is open. On touch, the
- * first tap on the tucked sliver only brings it back.
+ * Left alone for ten seconds it tucks itself off the right edge, leaving a
+ * tenth showing, so it stops sitting on top of the page. Tucked, it casts a
+ * wider berry bloom so the sliver still reads as something to reach for.
+ * Pointing at it or focusing it brings it back, and it stays out until
+ * another ten idle seconds have passed. It never tucks while the chat window
+ * is open. On touch, the first tap on the tucked sliver only brings it back.
  *
  * No corner dot: unread replies are still in its accessible name, and the
  * shortcut hint lives in the chat window's header.
@@ -79,7 +80,7 @@ export function ShellChatButton() {
          data-open={open ? 'true' : undefined}
          data-tucked={tucked ? 'true' : undefined}
          className={cn(
-            'relative transition-[translate,opacity] duration-300 ease-out data-[open=true]:text-foreground motion-reduce:transition-none',
+            'relative transition-[translate,opacity,box-shadow] duration-300 ease-out data-[open=true]:text-foreground motion-reduce:transition-none',
             // 90% of its own width plus the 1rem gap to the frame's edge
             // (and any inset) puts all but a tenth past the right edge.
             'data-[tucked=true]:translate-x-[calc(90%+var(--app-inset-r)+1rem)]',
