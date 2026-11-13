@@ -185,7 +185,9 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                         ? // Framed on the dark theme only; on light the canvas
                           // already stands off the grey frame by its fill.
                           'rounded-[12px] dark:lg:border dark:lg:border-[var(--shell-line)]'
-                        : 'rounded-[10px] lg:border-l lg:border-[var(--shell-line)]'
+                        : // Same on the main canvas: the edge beside the rail
+                          // is drawn on dark only.
+                          'rounded-[10px] dark:lg:border-l dark:lg:border-[var(--shell-line)]'
                   }`}
                >
                   <NavigationProgress />
