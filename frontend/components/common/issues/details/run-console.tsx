@@ -234,7 +234,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
             ) : null}
             <Button
                variant="outline"
-               size="sm"
                aria-expanded={false}
                onClick={() => {
                   // Opened by hand, the console starts on the latest run, not
