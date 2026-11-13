@@ -197,10 +197,10 @@
    --button-primary-hover: #c2c2c2;
    --button-primary-foreground: #222226;
    --primary-foreground: #ffffff;
-   /* The brand palette already held the official berry; this had drifted to a
-      hardcoded per-theme pair, so app/icon.svg and the product disagreed about
-      the accent. Pointing at the palette is what stops that happening again. */
-   --berry: var(--brand-berry);
+   /* --berry is declared once, with the brand palette above, and
+      --brand-berry points at it. Redeclaring it here as var(--brand-berry)
+      made the two a cycle, which invalidates both: every text-primary and
+      bg-berry fell back to the ink colour. */
    /* The isotipo's other tone: the colour of its brackets, and so of the
       lockup's word beside them. Warmer than --foreground, and kept separate
       from it so the lockup can be exactly the brand asset without repainting
@@ -349,7 +349,6 @@
    --primary-foreground: #ffffff;
    --placeholder: #8a8a93;
    --primary-text: #f0738f;
-   --berry: var(--brand-berry);
    --lockup-ink: #f0edea;
    /* Same berry on both colourways; see the light block. */
    --lockup-berry: #c74a5e;
