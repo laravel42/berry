@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { usePathname } from 'next/navigation';
-import { Maximize2, Minus, Minimize2, X } from 'lucide-react';
+import { Info, Maximize2, Minus, Minimize2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { BerryApiError } from '@/lib/api';
@@ -20,6 +20,9 @@ import {
    type ChatThread,
 } from '@/lib/chat';
 import { useShortcut } from '@/components/layout/shortcut-provider';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatCombo } from '@/lib/shortcuts';
+import { useShortcutBindings } from '@/store/shortcuts-store';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
@@ -37,6 +40,35 @@ const MIN_HEIGHT = 320;
 /** The header's controls: small beside the title, a full tap target on a phone. */
 const headerControl =
    'flex flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] max-sm:size-11 sm:p-1';
+
+/**
+ * An info mark beside minimise that names the keys opening this window from
+ * anywhere. It used to be the Agents button's tooltip; here it is where the
+ * window is. Nothing shows when the shortcut is switched off. The keys are
+ * filled in after mount: `mod` reads differently per platform.
+ */
+function ShortcutInfo() {
+   const t = useTranslations('shell');
+   const combo = useShortcutBindings()['chat.toggleFloating'];
+   const [keys, setKeys] = useState<string | null>(null);
+   useEffect(() => {
+      setKeys(combo ? formatCombo(combo) : null);
+   }, [combo]);
+   if (!keys) return null;
+   const hint = t('chat.shortcutHint', { keys });
+   return (
+      <Tooltip>
+         <TooltipTrigger asChild>
+            <button type="button" aria-label={hint} className={headerControl}>
+               <Info className="size-3.5" aria-hidden />
+            </button>
+         </TooltipTrigger>
+         <TooltipContent side="bottom" className="z-[60]">
+            {hint}
+         </TooltipContent>
+      </Tooltip>
+   );
+}
 
 /**
  * Chat without leaving the page.
@@ -336,6 +368,7 @@ export function FloatingChat() {
                </button>
             ) : null}
             <div className="ml-auto flex items-center gap-2">
+               <ShortcutInfo />
                <button
                   type="button"
                   aria-label={minimised ? t('restore') : t('minimise')}

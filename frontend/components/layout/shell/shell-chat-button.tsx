@@ -6,11 +6,11 @@ import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import { SparkIcon } from '@/components/ui/spark-icon';
-import { formatCombo } from '@/lib/shortcuts';
 import { cn } from '@/lib/utils';
 import { useShellStore } from '@/store/shell-store';
-import { useShortcutBindings } from '@/store/shortcuts-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
+
+const TUCK_AFTER_MS = 60_000;
 
 /**
  * Flat "Agents" launcher at the bottom-right of the body frame.
@@ -29,8 +29,10 @@ import { useUiPrefsStore } from '@/store/ui-prefs-store';
  * focusing it brings it back, and it stays out until another idle minute
  * has passed. It never tucks while the chat window is open. On touch, the
  * first tap on the tucked sliver only brings it back.
+ *
+ * No corner dot: unread replies are still in its accessible name, and the
+ * shortcut hint lives in the chat window's header.
  */
-const TUCK_AFTER_MS = 60_000;
 export function ShellChatButton() {
    const t = useTranslations('shell');
    const pathname = usePathname() ?? '';
@@ -39,15 +41,6 @@ export function ShellChatButton() {
    const unread = useShellStore((state) => state.chatUnread);
    const floatingEnabled = useUiPrefsStore((state) => state.floatingChat);
    const setFloatingChat = useUiPrefsStore((state) => state.setFloatingChat);
-   const combo = useShortcutBindings()['chat.toggleFloating'];
-
-   // The glyph for `mod` depends on the platform, which the server cannot
-   // know; the hint is filled in after mount so both sides render alike.
-   const [hint, setHint] = useState<string | null>(null);
-   useEffect(() => {
-      setHint(combo ? formatCombo(combo) : null);
-   }, [combo]);
-
    const onChatPage = pathname.includes('/chat');
    const open = floatingEnabled && chatWindow !== 'closed';
    const { tucked, wake, rest } = useIdleTuck(open);
@@ -56,11 +49,8 @@ export function ShellChatButton() {
       : unread > 0
         ? t('chat.openUnread', { count: unread })
         : t('chat.open');
-   const title = onChatPage
-      ? t('chat.onChatPage')
-      : hint
-        ? t('chat.shortcutHint', { keys: hint })
-        : label;
+   // The shortcut is named by the info mark in the chat window's header.
+   const title = onChatPage ? t('chat.onChatPage') : label;
 
    return (
       <Button
@@ -98,12 +88,6 @@ export function ShellChatButton() {
       >
          <SparkIcon className="size-3.5" />
          {t('nav.agents')}
-         {unread > 0 && !open ? (
-            <span
-               aria-hidden="true"
-               className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--brand-azure)]"
-            />
-         ) : null}
       </Button>
    );
 }
