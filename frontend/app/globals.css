@@ -304,9 +304,12 @@
    --settings-field-focus: var(--brand-slate);
    --settings-field-sunken: var(--muted);
    --settings-placeholder: var(--placeholder);
-   --settings-control: var(--secondary);
-   --settings-control-hover: var(--accent);
-   --settings-chip: var(--secondary);
+   /* Not --secondary/--accent: --secondary (#f5f5f5) is all but the group's
+      own grey, so pills and keys read as loose text. These sit a step under
+      the group and the hovered row, as the dark values do. */
+   --settings-control: #e4e4e7;
+   --settings-control-hover: #d9d9de;
+   --settings-chip: #e6e6e9;
    --settings-segment: var(--muted);
    --settings-segment-on: var(--card);
    --settings-switch-off: var(--input);
