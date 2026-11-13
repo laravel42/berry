@@ -158,7 +158,12 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   {/* Posts a project update. The bar matches the task comment
                       composer; a mention here is text in the update. */}
                   <div className="flex flex-col">
-                     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/15 px-2.5 py-1.5">
+                     <div
+                        className={cn(
+                           'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
+                           focused ? 'border-primary' : 'border-border'
+                        )}
+                     >
                         <div className="flex items-end gap-2">
                            <div className="relative min-w-0 flex-1">
                               {palette.list}
@@ -202,13 +207,17 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                            <Button
                               type="button"
                               size="icon"
-                              className="mb-0.5 size-8 flex-none bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
+                              // Same as the task composer's send: the default
+                              // berry gradient with a white glyph. The old
+                              // `bg-secondary` sat under the gradient unseen,
+                              // while its text colour turned the glyph black.
+                              className="mb-0.5 size-8 flex-none disabled:opacity-40"
                               aria-label="post update"
                               title="post update"
                               onClick={submitComment}
                               disabled={!draft.trim()}
                            >
-                              <SendHorizonal className="size-3.5" aria-hidden />
+                              <SendHorizonal className="size-4" strokeWidth={2.4} aria-hidden />
                            </Button>
                         </div>
                      </div>

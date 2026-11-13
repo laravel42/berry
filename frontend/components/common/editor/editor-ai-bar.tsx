@@ -119,12 +119,11 @@ export function EditorAiBar({
                      if (!canSubmit) return;
                      onSubmit();
                   }}
-                  className={cn(
-                     'size-8 shrink-0 rounded-full',
-                     canSubmit
-                        ? 'bg-foreground text-background hover:bg-foreground/90'
-                        : 'bg-muted text-muted-foreground'
-                  )}
+                  // The default berry gradient with a white glyph, dimmed when
+                  // there is nothing to send. The `bg-*` that used to be here
+                  // sat under the gradient unseen, and its text colour left
+                  // a dark glyph on berry in dark mode and a grey one disabled.
+                  className="size-8 shrink-0 rounded-full disabled:opacity-40"
                >
                   {pending ? (
                      <Loader2 className="size-3.5 animate-spin" />
