@@ -394,9 +394,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   <AlertDialogTitle>{t('unsavedTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>{t('unsavedBody')}</AlertDialogDescription>
                </AlertDialogHeader>
+               {/* Staying is the safe choice, so Keep editing carries the
+                   emphasis and sits last; leaving is the outlined one. */}
                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('unsavedStay')}</AlertDialogCancel>
                   <AlertDialogAction
+                     variant="outline"
                      onClick={() => {
                         const next = pendingTab;
                         setPendingTab(null);
@@ -407,6 +409,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   >
                      {t('unsavedLeave')}
                   </AlertDialogAction>
+                  <AlertDialogCancel variant="default">{t('unsavedStay')}</AlertDialogCancel>
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>

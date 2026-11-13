@@ -101,20 +101,35 @@ function AlertDialogDescription({
    );
 }
 
+type ButtonVariant = NonNullable<Parameters<typeof buttonVariants>[0]>['variant'];
+
+/**
+ * The confirming button: filled by default. Where staying is the choice to
+ * encourage ("Leave without saving?"), pass `variant="outline"` here and
+ * `variant="default"` on the cancel.
+ */
 function AlertDialogAction({
    className,
+   variant = 'default',
    ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
-   return <AlertDialogPrimitive.Action className={cn(buttonVariants(), className)} {...props} />;
+}: React.ComponentProps<typeof AlertDialogPrimitive.Action> & { variant?: ButtonVariant }) {
+   return (
+      <AlertDialogPrimitive.Action
+         className={cn(buttonVariants({ variant }), className)}
+         {...props}
+      />
+   );
 }
 
+/** The backing-out button: outlined by default. It takes focus when the dialog opens. */
 function AlertDialogCancel({
    className,
+   variant = 'outline',
    ...props
-}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
+}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel> & { variant?: ButtonVariant }) {
    return (
       <AlertDialogPrimitive.Cancel
-         className={cn(buttonVariants({ variant: 'outline' }), className)}
+         className={cn(buttonVariants({ variant }), className)}
          {...props}
       />
    );
