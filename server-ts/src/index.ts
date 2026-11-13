@@ -1720,6 +1720,9 @@ const autopilotScheduler = new AutopilotScheduler({
       retryPendingAutopilot({ sql, issues, enqueue: autopilotEnqueue }, input.autopilotRunId),
    logger,
    canFire: hasAgentExecution,
+   // One process owns an embedded database, and its one-connection pool
+   // cannot spare a connection to hold a lock on.
+   slotLocks: !isEmbeddedDatabase(config.databaseUrl),
 });
 autopilotScheduler?.start();
 
