@@ -33,8 +33,10 @@ function Checkbox({
             data-slot="checkbox-indicator"
             className="flex items-center justify-center text-current transition-none"
          >
+            {/* `text-current` keeps menu rows (CommandItem, menu items) from
+                greying the tick: they recolour any svg without a text- class. */}
             <CheckIcon
-               className={variant === 'settings' ? 'size-2.5' : 'size-3.5'}
+               className={cn('text-current', variant === 'settings' ? 'size-2.5' : 'size-3.5')}
                strokeWidth={variant === 'settings' ? 3.5 : 2}
             />
          </CheckboxPrimitive.Indicator>
