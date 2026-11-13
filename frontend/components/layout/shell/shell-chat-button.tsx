@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
@@ -23,7 +23,14 @@ import { useUiPrefsStore } from '@/store/ui-prefs-store';
  *
  * Quiet chip with the `.spark` ring: a thin rotating brand-colour border,
  * the ledger redesign's control for a secondary AI action.
+ *
+ * Left alone for a minute it tucks itself off the right edge, leaving a
+ * tenth showing, so it stops sitting on top of the page. Pointing at it or
+ * focusing it brings it back, and it stays out until another idle minute
+ * has passed. It never tucks while the chat window is open. On touch, the
+ * first tap on the tucked sliver only brings it back.
  */
+const TUCK_AFTER_MS = 60_000;
 export function ShellChatButton() {
    const t = useTranslations('shell');
    const pathname = usePathname() ?? '';
@@ -43,6 +50,7 @@ export function ShellChatButton() {
 
    const onChatPage = pathname.includes('/chat');
    const open = floatingEnabled && chatWindow !== 'closed';
+   const { tucked, wake, rest } = useIdleTuck(open);
    const label = open
       ? t('chat.close')
       : unread > 0
@@ -60,15 +68,33 @@ export function ShellChatButton() {
          variant="ai"
          size="md"
          onClick={() => {
+            // A tap on the tucked sliver brings the button back; the next
+            // one opens the chat. A mouse has already woken it on hover.
+            if (tucked) {
+               wake();
+               rest();
+               return;
+            }
             if (!floatingEnabled) setFloatingChat(true);
             toggleChat();
          }}
+         onPointerEnter={wake}
+         onPointerLeave={rest}
+         onFocus={wake}
+         onBlur={rest}
          disabled={onChatPage}
          aria-label={label}
          aria-expanded={open}
          title={title}
          data-open={open ? 'true' : undefined}
-         className={cn('relative data-[open=true]:text-foreground', onChatPage && 'opacity-40')}
+         data-tucked={tucked ? 'true' : undefined}
+         className={cn(
+            'relative transition-[translate,opacity] duration-300 ease-out data-[open=true]:text-foreground motion-reduce:transition-none',
+            // 90% of its own width plus the 1rem gap to the frame's edge
+            // (and any inset) puts all but a tenth past the right edge.
+            'data-[tucked=true]:translate-x-[calc(90%+var(--app-inset-r)+1rem)]',
+            onChatPage && 'opacity-40'
+         )}
       >
          <SparkIcon className="size-3.5" />
          {t('nav.agents')}
@@ -80,4 +106,32 @@ export function ShellChatButton() {
          ) : null}
       </Button>
    );
+}
+
+/**
+ * Tucked after `TUCK_AFTER_MS` without interaction. `wake` brings it back
+ * and holds it there (pointer over it, or focused); `rest` starts the idle
+ * clock again. While `held` is true — the chat is open — it stays out.
+ */
+function useIdleTuck(held: boolean) {
+   const [tucked, setTucked] = useState(false);
+   const [engaged, setEngaged] = useState(false);
+   const [restedAt, setRestedAt] = useState(0);
+
+   useEffect(() => {
+      if (held || engaged) {
+         setTucked(false);
+         return;
+      }
+      const timer = window.setTimeout(() => setTucked(true), TUCK_AFTER_MS);
+      return () => window.clearTimeout(timer);
+   }, [held, engaged, restedAt]);
+
+   const wake = useCallback(() => setEngaged(true), []);
+   const rest = useCallback(() => {
+      setEngaged(false);
+      setRestedAt(Date.now());
+   }, []);
+
+   return { tucked, wake, rest };
 }
