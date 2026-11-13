@@ -38,6 +38,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
 import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { markTone, runConsoleTabLabel, RunTab, statusTone, useRunDuration } from './run-entry';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
@@ -67,6 +68,8 @@ function FoldedRunActions({ children }: { children: ReactNode }) {
  */
 export function RunConsole({ issueId }: { issueId: string }) {
    const t = useTranslations('issueDetail.console');
+   const router = useRouter();
+   const { orgId } = useParams<{ orgId: string }>();
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const { runs, activeRun, upsert } = useIssueRuns(issueId);
    const workRuns = runs.filter((entry) => !isReviewGateRun(entry));
@@ -123,7 +126,18 @@ export function RunConsole({ issueId }: { issueId: string }) {
          follow(issueId);
          toast.success(t('restarted'));
       } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
+         // No runnable model on the tier is fixed in settings, so the alert
+         // takes you there rather than only describing it.
+         if (error instanceof BerryApiError && error.code === 'AI_RUNTIME_NOT_CONNECTED') {
+            toast.error(t('restartNoRuntime'), {
+               action: {
+                  label: t('openModelTiers'),
+                  onClick: () => router.push(`/${orgId}/settings/model-tiers`),
+               },
+            });
+         } else {
+            toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
+         }
       } finally {
          setRestarting(false);
       }

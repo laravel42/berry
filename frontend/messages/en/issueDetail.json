@@ -243,7 +243,9 @@
       "stopFailed": "The run could not be stopped.",
       "restart": "Restart",
       "restarted": "Restarted. The agent is starting again.",
-      "restartFailed": "The run could not be restarted."
+      "restartFailed": "The run could not be restarted.",
+      "restartNoRuntime": "None of the models on this agent's tier can run on this server. Put a connected model there, such as one from a CLI.",
+      "openModelTiers": "Model tiers"
    },
    "activity": {
       "title": "Activity",
