@@ -74,7 +74,7 @@ function AssigneeItem({
       <CommandItem value={person.name} onSelect={onSelect} className="flex items-center gap-2">
          <ActorAvatar user={person} size="sm" />
          <span className="min-w-0 truncate">{person.name}</span>
-         {selected ? <CheckIcon className="ml-auto size-4 shrink-0" /> : null}
+         {selected ? <CheckIcon className="text-(--primary) ml-auto size-4 shrink-0" /> : null}
       </CommandItem>
    );
 }
@@ -252,7 +252,7 @@ export function AssigneeUser({
                         <AssigneePlaceholder />
                         <span>{t('none')}</span>
                         {!currentAssignee ? (
-                           <CheckIcon className="ml-auto size-4 shrink-0" />
+                           <CheckIcon className="text-(--primary) ml-auto size-4 shrink-0" />
                         ) : null}
                      </CommandItem>
                   </CommandGroup>

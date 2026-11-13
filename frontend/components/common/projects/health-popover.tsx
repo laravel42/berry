@@ -135,7 +135,9 @@ export function HealthPopover({
                               <HealthIcon healthId={entry.id} />
                               <span>{entry.name}</span>
                            </div>
-                           {value === entry.id ? <CheckIcon size={14} className="ml-auto" /> : null}
+                           {value === entry.id ? (
+                              <CheckIcon size={14} className="text-(--primary) ml-auto" />
+                           ) : null}
                         </CommandItem>
                      ))}
                   </CommandGroup>

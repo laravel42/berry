@@ -94,7 +94,9 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
                               <FolderIcon className="size-4" />
                               No Project
                            </div>
-                           {value === undefined && <CheckIcon size={16} className="ml-auto" />}
+                           {value === undefined && (
+                              <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                           )}
                         </CommandItem>
                         {projects.map((project) => (
                            <CommandItem
@@ -107,7 +109,9 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
                                  <project.icon className="size-4" />
                                  {project.name}
                               </div>
-                              {value === project.id && <CheckIcon size={16} className="ml-auto" />}
+                              {value === project.id && (
+                                 <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                              )}
                               <span className="text-muted-foreground">
                                  {filterByProject(project.id).length}
                               </span>

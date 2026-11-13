@@ -554,7 +554,9 @@ export function SelectMenu({
                                  onSelect={() => choose(option)}
                               >
                                  <span className="min-w-0 flex-1 truncate">{label}</span>
-                                 {value === option ? <Check className="size-3.5 shrink-0" /> : null}
+                                 {value === option ? (
+                                    <Check className="text-(--primary) size-3.5 shrink-0" />
+                                 ) : null}
                               </CommandItem>
                            );
                         })}
@@ -584,7 +586,7 @@ export function SelectMenu({
                   className="flex items-center gap-2"
                >
                   <span className="flex-1">{labels?.[option] ?? option}</span>
-                  {value === option && <Check className="size-3.5" />}
+                  {value === option && <Check className="text-(--primary) size-3.5" />}
                </DropdownMenuItem>
             ))}
          </DropdownMenuContent>

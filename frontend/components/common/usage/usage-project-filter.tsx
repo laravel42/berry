@@ -68,7 +68,7 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                         className="justify-between"
                      >
                         {t('allProjects')}
-                        {projectId === null ? <Check className="size-4" /> : null}
+                        {projectId === null ? <Check className="text-(--primary) size-4" /> : null}
                      </CommandItem>
                      {projects.map((project) => (
                         <CommandItem
@@ -78,7 +78,9 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                            className="justify-between"
                         >
                            <span className="truncate">{project.name}</span>
-                           {projectId === project.id ? <Check className="size-4 shrink-0" /> : null}
+                           {projectId === project.id ? (
+                              <Check className="text-(--primary) size-4 shrink-0" />
+                           ) : null}
                         </CommandItem>
                      ))}
                   </CommandGroup>

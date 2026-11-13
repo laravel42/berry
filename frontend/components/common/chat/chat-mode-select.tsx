@@ -91,7 +91,10 @@ export function ChatModeSelect({ disabled = false }: { disabled?: boolean }) {
                            </span>
                         </span>
                         {entry === mode ? (
-                           <Check className="mt-0.5 size-4 flex-none" aria-hidden />
+                           <Check
+                              className="text-(--primary) mt-0.5 size-4 flex-none"
+                              aria-hidden
+                           />
                         ) : (
                            <span className="size-4 flex-none" aria-hidden />
                         )}

@@ -456,7 +456,9 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                               className="justify-between"
                            >
                               {localTimezone()}
-                              {timezone === localTimezone() ? <Check className="size-4" /> : null}
+                              {timezone === localTimezone() ? (
+                                 <Check className="text-(--primary) size-4" />
+                              ) : null}
                            </CommandItem>
                            {zones.map((zone) => (
                               <CommandItem
@@ -466,7 +468,9 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                                  className="justify-between"
                               >
                                  {zone}
-                                 {timezone === zone ? <Check className="size-4" /> : null}
+                                 {timezone === zone ? (
+                                    <Check className="text-(--primary) size-4" />
+                                 ) : null}
                               </CommandItem>
                            ))}
                         </CommandGroup>

@@ -79,7 +79,7 @@ function VisibilityDropdown({
             {options.map((option) => (
                <DropdownMenuItem key={option} onClick={() => onChange(option)}>
                   {VISIBILITY_LABELS[option]}
-                  {value === option && <Check className="ml-auto size-3.5" />}
+                  {value === option && <Check className="text-(--primary) ml-auto size-3.5" />}
                </DropdownMenuItem>
             ))}
          </DropdownMenuContent>
@@ -270,7 +270,9 @@ export function CustomizeSidebarDialog({
                         {(['count', 'dot'] as SidebarBadgeStyle[]).map((style) => (
                            <DropdownMenuItem key={style} onClick={() => setBadgeStyle(style)}>
                               {style === 'count' ? 'Count' : 'Dot'}
-                              {badgeStyle === style && <Check className="ml-auto size-3.5" />}
+                              {badgeStyle === style && (
+                                 <Check className="text-(--primary) ml-auto size-3.5" />
+                              )}
                            </DropdownMenuItem>
                         ))}
                      </DropdownMenuContent>

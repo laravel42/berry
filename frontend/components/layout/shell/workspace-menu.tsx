@@ -169,7 +169,10 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
                                  />
                               ) : null}
                               {isActive ? (
-                                 <Check className="ml-auto size-4" aria-hidden="true" />
+                                 <Check
+                                    className="text-(--primary) ml-auto size-4"
+                                    aria-hidden="true"
+                                 />
                               ) : null}
                            </DropdownMenuItem>
                         );

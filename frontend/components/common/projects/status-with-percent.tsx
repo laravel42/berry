@@ -86,7 +86,9 @@ export function StatusWithPercent({
                                  <Icon />
                                  <span>{item.name}</span>
                               </div>
-                              {value === item.id && <CheckIcon size={14} className="ml-auto" />}
+                              {value === item.id && (
+                                 <CheckIcon size={14} className="text-(--primary) ml-auto" />
+                              )}
                            </CommandItem>
                         );
                      })}

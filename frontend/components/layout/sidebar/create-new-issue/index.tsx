@@ -464,7 +464,7 @@ export function CreateNewIssue() {
                               />
                               <span className="min-w-0 truncate">{label.name}</span>
                               {draft.labelIds.includes(label.id) ? (
-                                 <CheckIcon className="ml-auto size-3.5" />
+                                 <CheckIcon className="text-(--primary) ml-auto size-3.5" />
                               ) : null}
                            </button>
                         ))}

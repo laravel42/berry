@@ -107,7 +107,9 @@ export function IssueLabelPicker({ issueRef }: { issueRef: string }) {
                                        style={{ backgroundColor: label.color }}
                                     />
                                     <span className="min-w-0 truncate">{label.name}</span>
-                                    {on ? <CheckIcon className="ml-auto size-3.5" /> : null}
+                                    {on ? (
+                                       <CheckIcon className="text-(--primary) ml-auto size-3.5" />
+                                    ) : null}
                                  </CommandItem>
                               );
                            })}

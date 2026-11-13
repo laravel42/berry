@@ -153,7 +153,7 @@ export function AgentModelPicker({
                            >
                               <CheckIcon
                                  className={cn(
-                                    'size-3.5 shrink-0',
+                                    'size-3.5 shrink-0 text-(--primary)',
                                     active ? 'opacity-100' : 'opacity-0'
                                  )}
                               />

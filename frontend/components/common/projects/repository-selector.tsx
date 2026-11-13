@@ -355,7 +355,7 @@ export function RepositoryPicker({
                                     <span className="truncate">{repository.fullName}</span>
                                     {value === repository.fullName &&
                                     activeProvider === repository.provider ? (
-                                       <Check className="ml-auto size-4" />
+                                       <Check className="text-(--primary) ml-auto size-4" />
                                     ) : null}
                                  </CommandItem>
                               ))}

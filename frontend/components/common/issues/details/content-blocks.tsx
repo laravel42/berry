@@ -195,12 +195,12 @@ export function ContentBlocks({ blocks }: { blocks: ContentBlock[] }) {
                               <span
                                  className={cn(
                                     'mt-1 size-4 rounded border flex items-center justify-center shrink-0',
-                                    item.checked
-                                       ? 'border-foreground bg-foreground'
-                                       : 'border-input'
+                                    item.checked ? 'border-primary bg-primary' : 'border-input'
                                  )}
                               >
-                                 {item.checked && <Check className="size-3 text-background" />}
+                                 {item.checked && (
+                                    <Check className="size-3 text-primary-foreground" />
+                                 )}
                               </span>
                               <span
                                  className={cn(

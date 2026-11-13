@@ -143,7 +143,7 @@ export function AssigneeSelector({
                ) : null}
             </div>
             {value === person.id ? (
-               <CheckIcon size={16} className="ml-auto shrink-0 text-foreground" />
+               <CheckIcon size={16} className="ml-auto shrink-0 text-(--primary)" />
             ) : null}
             {scope === 'all' ? (
                <span className="shrink-0 text-muted-foreground">
@@ -207,7 +207,9 @@ export function AssigneeSelector({
                                  <UserCircle className="size-5" aria-hidden />
                                  {t('none')}
                               </div>
-                              {value === null && <CheckIcon size={16} className="ml-auto" />}
+                              {value === null && (
+                                 <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                              )}
                               <span className="text-muted-foreground">
                                  {filterByAssignee(null).length}
                               </span>

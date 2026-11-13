@@ -348,7 +348,9 @@ export function DepartmentMultiselect({
                         className="justify-between"
                      >
                         {t('filters.allDepartments')}
-                        {value.length === 0 ? <Check className="size-4 shrink-0" /> : null}
+                        {value.length === 0 ? (
+                           <Check className="text-(--primary) size-4 shrink-0" />
+                        ) : null}
                      </CommandItem>
                      {options.map((option) => {
                         const on = selected.has(option.value);
@@ -360,7 +362,7 @@ export function DepartmentMultiselect({
                               className="justify-between"
                            >
                               <span className="min-w-0 truncate">{option.label}</span>
-                              {on ? <Check className="size-4 shrink-0" /> : null}
+                              {on ? <Check className="text-(--primary) size-4 shrink-0" /> : null}
                            </CommandItem>
                         );
                      })}

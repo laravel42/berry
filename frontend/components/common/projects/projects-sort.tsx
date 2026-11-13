@@ -69,7 +69,9 @@ export function ProjectsSortMenu() {
                                  className="flex items-center justify-between"
                               >
                                  {entry.label}
-                                 {sort === entry.id && <CheckIcon size={16} />}
+                                 {sort === entry.id && (
+                                    <CheckIcon size={16} className="text-(--primary)" />
+                                 )}
                               </CommandItem>
                            ))}
                         </CommandGroup>

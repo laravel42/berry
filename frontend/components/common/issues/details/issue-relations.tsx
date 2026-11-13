@@ -128,7 +128,9 @@ export function IssueMilestoneSection({ issue }: { issue: Issue }) {
                                     {percent}%
                                  </span>
                               ) : null}
-                              {current?.id === milestone.id && <CheckIcon className="size-4" />}
+                              {current?.id === milestone.id && (
+                                 <CheckIcon className="text-(--primary) size-4" />
+                              )}
                            </CommandItem>
                         );
                      })}

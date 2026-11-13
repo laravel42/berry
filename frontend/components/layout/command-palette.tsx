@@ -1018,7 +1018,7 @@ export function CommandPalette() {
                                  </Avatar>
                                  {user.name}
                                  {issue.assignee?.id === user.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}
@@ -1042,7 +1042,7 @@ export function CommandPalette() {
                                  <candidate.icon />
                                  {candidate.name}
                                  {issue.status.id === candidate.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}
@@ -1066,7 +1066,7 @@ export function CommandPalette() {
                                  <candidate.icon className="text-muted-foreground" />
                                  {candidate.name}
                                  {issue.priority.id === candidate.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}
@@ -1100,7 +1100,9 @@ export function CommandPalette() {
                                        style={{ backgroundColor: label.color }}
                                     />
                                     {label.name}
-                                    {active && <Check className="ml-auto size-4" />}
+                                    {active && (
+                                       <Check className="text-(--primary) ml-auto size-4" />
+                                    )}
                                  </CommandItem>
                               );
                            })}
@@ -1135,7 +1137,7 @@ export function CommandPalette() {
                                  <project.icon className="text-muted-foreground" />
                                  {project.name}
                                  {issue.project?.id === project.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}

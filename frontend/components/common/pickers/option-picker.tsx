@@ -109,7 +109,7 @@ export function OptionPicker({
                               {option.label}
                            </div>
                            {value === option.value ? (
-                              <CheckIcon size={16} className="ml-auto" />
+                              <CheckIcon size={16} className="text-(--primary) ml-auto" />
                            ) : null}
                            {countFor ? (
                               <span className="text-muted-foreground">
