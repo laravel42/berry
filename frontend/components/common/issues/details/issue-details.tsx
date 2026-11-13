@@ -24,7 +24,6 @@ import { ActivityCommentComposer, ActivityFeedList, useIssueActivity } from './a
 import { FindInIssue } from './find-in-issue';
 import { IssueDescription } from './issue-description';
 import { IssuePropertiesPanel } from './issue-properties-panel';
-import { IssueQuickActions } from './issue-quick-actions';
 import { IssueTitle } from './issue-title';
 import { RunConsole } from './run-console';
 import { SubIssues } from './sub-issues';
@@ -262,10 +261,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                               overlayClassName="lg:hidden"
                               aria-describedby={undefined}
                            >
-                              <div className="flex items-center justify-between gap-2 pr-8">
-                                 <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
-                                 <IssueQuickActions issueRef={issue.identifier} />
-                              </div>
+                              {/* Quick actions live in the properties panel below,
+                                  as one section among the others. */}
+                              <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
                               <div className="min-h-0 flex-1">
                                  <IssuePropertiesPanel
                                     issue={issue}
@@ -323,9 +321,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   data-detail-sidebar
                   className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-3 pb-3.5 lg:flex"
                >
-                  <div className="mb-3 flex justify-end">
-                     <IssueQuickActions issueRef={issue.identifier} />
-                  </div>
                   <IssuePropertiesPanel issue={issue} detail={detail ?? getIssueDetail(issue)} />
                </aside>
             ) : null}
