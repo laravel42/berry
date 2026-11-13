@@ -7,6 +7,8 @@ import type { ReactNode } from 'react';
 export interface SegmentedOption<T extends string | number> {
    value: T;
    label: ReactNode;
+   /** Accessible name and tooltip, for a segment whose label is only an icon. */
+   title?: string;
 }
 
 interface SegmentedControlProps<T extends string | number> {
@@ -57,6 +59,8 @@ export function SegmentedControl<T extends string | number>({
                   key={option.value}
                   type="button"
                   aria-pressed={active}
+                  aria-label={option.title}
+                  title={option.title}
                   data-settings-type={size === 'md' ? 'segment' : undefined}
                   onClick={() => onValueChange(option.value)}
                   className={cn(

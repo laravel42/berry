@@ -15,6 +15,7 @@ import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects-display-store';
 import { useSessionStore } from '@/store/session-store';
 import { Box, ChartNoAxesGantt, LayoutGrid, List } from 'lucide-react';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { cn } from '@/lib/utils';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
@@ -330,33 +331,16 @@ export default function Projects() {
                <ProjectsDisplayOptions iconOnly />
             </div>
             <div className="ml-auto flex items-center gap-1.5">
-               <div
-                  role="group"
+               <SegmentedControl
                   aria-label={lists('projects.layout.label')}
-                  className="flex items-center rounded-full border p-0.5"
-               >
-                  {LAYOUTS.map((layout) => {
-                     const on = viewType === layout.value;
-                     return (
-                        <button
-                           key={layout.value}
-                           type="button"
-                           aria-pressed={on}
-                           aria-label={lists(`projects.layout.${layout.value}`)}
-                           title={lists(`projects.layout.${layout.value}`)}
-                           onClick={() => setViewType(layout.value)}
-                           className={cn(
-                              'flex w-10 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                              on
-                                 ? 'bg-secondary text-foreground'
-                                 : 'text-muted-foreground hover:text-foreground'
-                           )}
-                        >
-                           <layout.icon className="size-4" />
-                        </button>
-                     );
-                  })}
-               </div>
+                  value={viewType}
+                  onValueChange={setViewType}
+                  options={LAYOUTS.map((layout) => ({
+                     value: layout.value,
+                     title: lists(`projects.layout.${layout.value}`),
+                     label: <layout.icon className="size-4" aria-hidden />,
+                  }))}
+               />
             </div>
          </div>
 

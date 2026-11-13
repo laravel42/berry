@@ -221,9 +221,12 @@ export default function RuntimesList() {
                                  : value === 'connected'
                                    ? t('filterConnected')
                                    : t('filterAvailable')}
-                              <span className="tabular-nums text-muted-foreground">
-                                 {catalog.value ? filterCount[value] : '–'}
-                              </span>
+                              {/* No count until the catalogue has loaded. */}
+                              {catalog.value ? (
+                                 <span className="tabular-nums text-muted-foreground">
+                                    {filterCount[value]}
+                                 </span>
+                              ) : null}
                            </TabsTrigger>
                         ))}
                      </TabsList>

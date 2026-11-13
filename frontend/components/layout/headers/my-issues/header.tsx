@@ -5,6 +5,7 @@ import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trig
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { Button } from '@/components/ui/button';
 import { Input, searchFieldClass } from '@/components/ui/input';
 import { canEditProduct } from '@/lib/workspace-role';
@@ -58,33 +59,17 @@ export default function Header() {
                <IssueFilterBarActions />
                <DisplayOptions iconOnly />
             </div>
-            <div
-               role="group"
+            <SegmentedControl
+               className="ml-auto"
                aria-label={t('layout.label')}
-               className="ml-auto flex items-center rounded-md border p-0.5"
-            >
-               {LAYOUTS.map((layout) => {
-                  const on = view.mode === layout.value;
-                  return (
-                     <button
-                        key={layout.value}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={t(`layout.${layout.key}`)}
-                        title={t(`layout.${layout.key}`)}
-                        onClick={() => view.setMode(layout.value)}
-                        className={cn(
-                           'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                           on
-                              ? 'bg-secondary text-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                        )}
-                     >
-                        <layout.icon className="size-4" />
-                     </button>
-                  );
-               })}
-            </div>
+               value={view.mode}
+               onValueChange={view.setMode}
+               options={LAYOUTS.map((layout) => ({
+                  value: layout.value,
+                  title: t(`layout.${layout.key}`),
+                  label: <layout.icon className="size-4" aria-hidden />,
+               }))}
+            />
          </div>
       </div>
    );
