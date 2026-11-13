@@ -135,7 +135,7 @@ function PlanRow({
             onClick={() => onSelect(plan.id)}
             className={cn(
                'flex w-full items-start gap-3 border-b border-muted-foreground/5 px-4 py-3 text-left outline-none last:border-b-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
-               selected ? 'bg-accent' : 'hover:bg-sidebar/50'
+               selected ? 'bg-accent' : 'hover:bg-accent/45'
             )}
          >
             <PlanRowBody plan={plan} />

@@ -90,7 +90,7 @@ export function ProjectPlanSection({ projectId }: { projectId: string }) {
                <Link
                   key={plan.id}
                   href={`/${orgId}/plan/${plan.id}`}
-                  className="flex items-center gap-2 rounded-sm border border-border/60 bg-card p-1 outline-none hover:bg-sidebar/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="flex items-center gap-2 rounded-sm border border-border/60 bg-card p-1 outline-none hover:bg-accent/45 focus-visible:ring-[3px] focus-visible:ring-ring/50"
                >
                   <StatusBadge look={planSummaryLook(plan)} />
                   <span className="min-w-0 truncate">{plan.title}</span>

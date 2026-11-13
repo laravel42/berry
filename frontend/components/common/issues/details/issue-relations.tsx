@@ -146,7 +146,7 @@ export function IssueMilestoneSection({ issue }: { issue: Issue }) {
          {current && href ? (
             <Link
                href={href}
-               className="-mx-1.5 flex min-w-0 items-center gap-2 rounded px-1.5 py-1 hover:bg-sidebar/50"
+               className="-mx-1.5 flex min-w-0 items-center gap-2 rounded px-1.5 py-1 hover:bg-accent/45"
             >
                {known ? (
                   <BerryMark
@@ -189,7 +189,7 @@ function DependencyRow({
       <li className="group -mx-1.5 flex min-w-0 items-center gap-1.5">
          <Link
             href={`/${orgId}/issue/${dependency.identifier}`}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 hover:bg-sidebar/50"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 hover:bg-accent/45"
          >
             {StatusIcon ? (
                <StatusIcon />

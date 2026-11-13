@@ -44,7 +44,7 @@ export default function AgentWorkTab({
                      <li key={issue.id} className="border-b border-border last:border-b-0">
                         <Link
                            href={`/${orgId}/issue/${issue.id}`}
-                           className="flex items-center gap-3 px-3 py-2.5 hover:bg-sidebar/40"
+                           className="flex items-center gap-3 px-3 py-2.5 hover:bg-accent/45"
                         >
                            <StatusIcon />
                            <span className="shrink-0 tabular-nums text-muted-foreground">

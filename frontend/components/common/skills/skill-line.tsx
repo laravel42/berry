@@ -78,8 +78,8 @@ export default function SkillLine({
       <div
          className={cn(
             'group flex w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3',
-            'last:border-b-0 hover:bg-sidebar/50',
-            (selected || open) && 'bg-sidebar/60'
+            'last:border-b-0 hover:bg-accent/45',
+            (selected || open) && 'bg-accent'
          )}
       >
          {canEdit ? (

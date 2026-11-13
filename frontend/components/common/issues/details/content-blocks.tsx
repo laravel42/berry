@@ -272,7 +272,7 @@ export function IssueRefRow({ identifier }: { identifier: string }) {
    return (
       <Link
          href={`/${orgId ?? WORKSPACE_SLUG}/issue/${identifier}`}
-         className="flex items-center gap-2 py-1 hover:bg-sidebar/50 rounded px-1.5 -mx-1.5 min-w-0"
+         className="flex items-center gap-2 py-1 hover:bg-accent/45 rounded px-1.5 -mx-1.5 min-w-0"
       >
          <issue.status.icon />
          <span className="truncate">{issue.title}</span>

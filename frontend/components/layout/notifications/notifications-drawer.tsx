@@ -100,8 +100,8 @@ export function NotificationsDrawer() {
                         onFocus={() => select(item)}
                         className={cn(
                            'flex w-full items-start gap-3 border-b border-border/50 px-5 py-3 text-left',
-                           'hover:bg-sidebar/50',
-                           selected?.id === item.id && 'bg-sidebar/50',
+                           'hover:bg-accent/45',
+                           selected?.id === item.id && 'bg-accent',
                            item.read && 'opacity-60'
                         )}
                      >

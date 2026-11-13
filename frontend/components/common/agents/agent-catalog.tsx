@@ -397,7 +397,7 @@ function RoleLine({
          className={cn(
             'flex w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3',
             'last:border-b-0',
-            selected && 'bg-sidebar/60'
+            selected && 'bg-accent'
          )}
       >
          {canEdit ? (

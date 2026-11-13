@@ -303,7 +303,7 @@ export default function RunOverview() {
                               key={run.id}
                               onClick={openRun}
                               className={cn(
-                                 'cursor-pointer border-b border-border/60 transition-colors hover:bg-sidebar/50',
+                                 'cursor-pointer border-b border-border/60 transition-colors hover:bg-accent/45',
                                  selected && 'bg-accent/50'
                               )}
                            >

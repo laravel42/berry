@@ -430,7 +430,7 @@ export default function Agents() {
                   </div>
 
                   {bulkReport ? (
-                     <div className="border-b bg-sidebar/20 px-6 py-2" role="status">
+                     <div className="border-b bg-muted px-6 py-2" role="status">
                         <div className="flex items-center gap-3">
                            <span>
                               {t('bulkDone', { done: bulkReport.done, total: bulkReport.total })}

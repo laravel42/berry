@@ -136,7 +136,7 @@ function ViewRow({
    const { displayProperties } = useViewsDisplayStore();
 
    return (
-      <div className="flex items-center gap-1 pr-4 border-b border-border/50 hover:bg-sidebar/50 transition-colors">
+      <div className="flex items-center gap-1 pr-4 border-b border-border/50 hover:bg-accent/45 transition-colors">
          <Link
             href={`/${orgId}/view/${view.id}`}
             className="flex flex-1 min-w-0 items-center gap-3 px-6 py-2.5"
