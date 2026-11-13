@@ -36,6 +36,7 @@ import { useAgentsStore } from '@/store/agents-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
+import { FLOATING_ORDER, useFloatingStackItem } from '@/store/floating-stack-store';
 import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useParams, useRouter } from 'next/navigation';
@@ -46,13 +47,20 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 /** Board states where an idle agent task can be started again. */
 const RESTARTABLE_STATUSES = new Set(['to-do', 'in-progress']);
 
-/** Folded Restart/Console sit on the task pane, flush to its right edge. */
+/**
+ * Folded Restart/Console float in the bottom-right corner as part of the shared
+ * stack (floating-stack-store.ts): they take its lowest place and the Agents
+ * launcher rises above them, instead of the two landing on the same spot.
+ */
 function FoldedRunActions({ children }: { children: ReactNode }) {
+   const { ref, bottom } = useFloatingStackItem(FLOATING_ORDER.page);
    return (
-      <div className="pointer-events-none absolute inset-0 z-20">
-         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center justify-end gap-2">
-            {children}
-         </div>
+      <div
+         ref={ref}
+         style={{ bottom }}
+         className="fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] z-50 flex items-center justify-end gap-2"
+      >
+         {children}
       </div>
    );
 }

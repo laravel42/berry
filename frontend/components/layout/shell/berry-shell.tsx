@@ -8,7 +8,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useShellStore } from '@/store/shell-store';
 import { activeShellRoute, type ShellRoute } from './shell-routes';
 import { ShellRail } from './shell-rail';
-import { ShellChatButton } from './shell-chat-button';
+import { ShellLauncherDock } from './shell-launcher-dock';
 import { shellIconButton } from './shell-icon';
 import { useChatUnreadSync } from './use-chat-unread-sync';
 import { NotificationToasts } from '../notifications/notification-toasts';
@@ -221,13 +221,10 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                      <Menu size={16} strokeWidth={1.8} aria-hidden="true" />
                   </button>
                </div>
-               {/* `--shell-launcher-b` rather than the calc spelled out here:
-                the floating chat has to clear this control, and it can only
-                do that from the same number. See the launcher block in
-                globals.css. */}
-               <div className="pointer-events-none fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] bottom-[var(--shell-launcher-b)] z-50 flex h-9 items-center gap-2 *:pointer-events-auto">
-                  <ShellChatButton />
-               </div>
+               {/* The launcher stands on top of the floating stack (see
+                   floating-stack-store.ts), so page controls in the corner push
+                   it up instead of sitting under it. */}
+               <ShellLauncherDock />
             </div>
          </div>
       </ShortcutProvider>

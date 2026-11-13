@@ -11,6 +11,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
          // aside, and the corner furthest from what you are reading is where
          // an aside belongs.
          position="bottom-right"
+         // Toasts top the floating stack: they rise above the Agents launcher
+         // (and whatever it stands on) instead of covering it.
+         offset={{ bottom: 'var(--shell-launcher-clear)' }}
+         mobileOffset={{ bottom: 'var(--shell-launcher-clear)' }}
          toastOptions={{
             classNames: {
                // Black at four-fifths, blurred, with a hairline of white
@@ -26,8 +30,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
                description: 'group-[.toast]:text-white/70',
                actionButton:
                   'group-[.toast]:bg-white/15 group-[.toast]:text-white font-medium hover:group-[.toast]:bg-white/25',
-               cancelButton:
-                  'group-[.toast]:bg-white/10 group-[.toast]:text-white/70 font-medium',
+               cancelButton: 'group-[.toast]:bg-white/10 group-[.toast]:text-white/70 font-medium',
             },
          }}
          {...props}

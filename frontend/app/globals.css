@@ -1024,7 +1024,12 @@
       to its own padding rather than to the 36px strip around it. */
    --shell-launcher-b: calc(var(--app-inset-b) + 1rem + 2px);
    --shell-launcher-h: 2.75rem;
-   --shell-launcher-clear: calc(var(--shell-launcher-b) + var(--shell-launcher-h) + 0.5rem);
+   /* `--floating-stack-lift` is how far page controls under the launcher
+      have pushed it up (set by ShellLauncherDock); clearing the launcher
+      means clearing it where it stands. */
+   --shell-launcher-clear: calc(
+      var(--shell-launcher-b) + var(--floating-stack-lift, 0px) + var(--shell-launcher-h) + 0.5rem
+   );
 }
 
 /* The light rail. In the light theme the frame around the workspace (the
