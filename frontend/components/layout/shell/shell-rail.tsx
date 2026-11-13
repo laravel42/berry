@@ -280,7 +280,9 @@ export function ShellRail({
             </>
          )}
 
-         <ShellPins orgId={orgId} />
+         {/* Pins are shortcuts into the work, so they belong to the main
+             rail only; the settings rail lists settings pages and nothing else. */}
+         {settingsMode ? null : <ShellPins orgId={orgId} />}
       </nav>
    );
 }
