@@ -1,4 +1,5 @@
 import { FloatingChat } from '@/components/common/chat/floating-chat';
+import { PendingDetailDrawer } from '@/components/layout/pending-detail-drawer';
 import { BerryShell } from '@/components/layout/shell/berry-shell';
 import { WorkspaceAccess } from '@/components/common/workspace-access';
 import { CreateWorkspaceDialog } from '@/components/common/workspaces/create-workspace-dialog';
@@ -29,6 +30,8 @@ export default function OrgLayout({
          <WorkspaceAccess>
             {children}
             {drawer}
+            {/* The drawer, sketched in, between a click and its route landing. */}
+            <PendingDetailDrawer />
          </WorkspaceAccess>
          {/* Chat from anywhere except the chat page, which is this window's
              full-size counterpart. Outside the access gate on purpose: it is

@@ -4,6 +4,7 @@ import {
    DeleteProjectDialog,
    useProjectDeletion,
 } from '@/components/common/projects/delete-project';
+import { DetailHeaderSkeleton } from '@/components/common/details/detail-skeletons';
 import { useDetailDrawerClose } from '@/components/layout/detail-drawer-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,11 +53,7 @@ export default function Header({
    const deletion = useProjectDeletion(afterDelete);
 
    if (!project) {
-      return (
-         <div className="flex h-[52px] w-full items-center border-b px-5 text-muted-foreground">
-            Loading project…
-         </div>
-      );
+      return <DetailHeaderSkeleton />;
    }
 
    const pin = pins.find(

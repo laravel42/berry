@@ -4,7 +4,7 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { isAgentUser } from '@/components/common/issues/actor-avatar';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton';
+import { IssueDetailSkeleton } from '@/components/common/details/detail-skeletons';
 import { getIssueDetail } from '@/data/issue-details';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -193,16 +193,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    }, [scrollKey]);
 
    if (fetching && !issue) {
-      return (
-         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-8 sm:px-8" aria-busy="true">
-            <span className="sr-only">{t('loading')}</span>
-            <Skeleton className="h-8 w-2/3" />
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-28 w-full" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-20 w-full" />
-         </div>
-      );
+      // The same sketch the drawer's loading route shows, so the hand-over
+      // from route to data does not change the picture.
+      return <IssueDetailSkeleton label={t('loading')} />;
    }
 
    if (!issue) {

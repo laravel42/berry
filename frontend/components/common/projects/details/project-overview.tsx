@@ -12,6 +12,7 @@ import { useProjectsStore } from '@/store/projects-store';
 import { useComposerPalette } from '@/components/common/composer-palette';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { useSessionStore } from '@/store/session-store';
+import { ProjectOverviewSkeleton } from '@/components/common/details/detail-skeletons';
 import { cn } from '@/lib/utils';
 import { Check, Copy, SendHorizonal } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -89,7 +90,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    }, [description]);
 
    if (!project) {
-      return <div className="p-6 text-muted-foreground">Loading project…</div>;
+      return <ProjectOverviewSkeleton />;
    }
 
    return (
