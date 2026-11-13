@@ -192,7 +192,7 @@ export default function PromptLogs() {
             </Button>
          </div>
 
-         <div className="min-h-0 flex-1 overflow-auto">
+         <div className="min-h-0 flex-1 overflow-auto lg:pb-[var(--shell-launcher-room)]">
             {error && rows.length === 0 ? (
                <EmptyState icon={<EmptyStateMark label={t('loadFailed')} state="crossed" />}>
                   <EmptyStateText>{t('loadFailed')}</EmptyStateText>

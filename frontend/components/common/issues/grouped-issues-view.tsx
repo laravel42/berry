@@ -374,7 +374,7 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    return (
       <DndProvider backend={HTML5Backend}>
          <CustomDragLayer />
-         <div className="h-full overflow-y-auto divide-y-[3px] divide-background">
+         <div className="h-full overflow-y-auto divide-y-[3px] divide-background lg:pb-[var(--shell-launcher-room)]">
             {listGroups.length === 0 && (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
             {listGroups.map((entry) => (
                <GroupIssues

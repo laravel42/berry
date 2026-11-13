@@ -30,6 +30,7 @@ import {
    type PlanRecord,
 } from '@/lib/plans';
 import { cn } from '@/lib/utils';
+import { FLOATING_ORDER, useFloatingStackItem } from '@/store/floating-stack-store';
 import { usePlanStore } from '@/store/plan-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { format, parseISO } from 'date-fns';
@@ -385,6 +386,8 @@ function PlanActions({ record }: { record: PlanRecord }) {
    const busy = usePlanStore((state) => state.busy[record.id] ?? null);
    const blocker = startPlanBlocker(record);
    const working = busy === 'starting' || busy === 'rejecting';
+   // From lg the bar joins the floating stack, so the Agents launcher rises above it.
+   const { ref } = useFloatingStackItem(FLOATING_ORDER.page);
 
    const onStart = () => {
       void startPlan(record.id)
@@ -408,6 +411,11 @@ function PlanActions({ record }: { record: PlanRecord }) {
 
    return (
       <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
+         <div
+            ref={ref}
+            aria-hidden
+            className="pointer-events-none absolute inset-0 hidden lg:block"
+         />
          <div className="flex w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 px-6 py-3 sm:px-8">
             {isPlanGenerating(record) ? (
                <BerryMark

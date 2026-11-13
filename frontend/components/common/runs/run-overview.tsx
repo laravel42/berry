@@ -244,7 +244,7 @@ export default function RunOverview() {
             </div>
          ) : null}
 
-         <div className="min-h-0 flex-1 overflow-auto">
+         <div className="min-h-0 flex-1 overflow-auto lg:pb-[var(--shell-launcher-room)]">
             <table className="w-full table-fixed text-left">
                <caption className="sr-only">{t('caption')}</caption>
                <colgroup>

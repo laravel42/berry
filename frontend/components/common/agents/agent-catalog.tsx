@@ -222,7 +222,7 @@ function AgentCatalogScreen() {
                </button>
                <span className={cn('shrink-0', ACTION_WIDTH)} aria-hidden />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto divide-y-[3px] divide-background">
+            <div className="min-h-0 flex-1 overflow-y-auto divide-y-[3px] divide-background lg:pb-[var(--shell-launcher-room)]">
                {groups.map((group) => (
                   <Collapsible
                      key={group.department}

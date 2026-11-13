@@ -1033,6 +1033,10 @@
    --shell-launcher-clear: calc(
       var(--shell-launcher-b) + var(--floating-stack-lift, 0px) + var(--shell-launcher-h) + 0.5rem
    );
+   /* From `lg` the launcher floats over the canvas, so a list scroller ends
+      with this much room (`lg:pb-[var(--shell-launcher-room)]`): the part of
+      `--shell-launcher-clear` above the frame, so the last row scrolls clear. */
+   --shell-launcher-room: calc(var(--shell-launcher-clear) - var(--app-inset-b));
 }
 
 /* The light rail. In the light theme the frame around the workspace (the
