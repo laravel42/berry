@@ -42,12 +42,34 @@ export function IssueDetailSkeleton({ label = 'Loading task' }: { label?: string
       <DetailFrame label={label}>
          <TitleBlock chips={3} />
          <DescriptionBlock />
-         <SectionBlock title="w-24">
-            <RowSkeleton />
-            <RowSkeleton />
-         </SectionBlock>
+         <SubTasksBlock />
          <ActivityBlock />
       </DetailFrame>
+   );
+}
+
+/**
+ * The sub-tasks section as `SubIssues` draws it: the collapsible heading
+ * (chevron, "Sub-tasks", progress), the progress bar, the rows, and the box
+ * for adding one with its two buttons.
+ */
+function SubTasksBlock() {
+   return (
+      <div className="flex flex-col gap-2.5">
+         <div className="flex items-center gap-2">
+            <Skeleton className="size-3.5 rounded-sm" />
+            <Skeleton className="h-3.5 w-20" />
+            <Skeleton className="h-3.5 w-10" />
+         </div>
+         <Skeleton className="h-1.5 w-full rounded-full" />
+         <RowSkeleton />
+         <RowSkeleton />
+         <div className="flex items-center gap-2">
+            <Skeleton className="h-11 flex-1 rounded-full" />
+            <Skeleton className="h-11 w-20 rounded-full" />
+            <Skeleton className="h-11 w-24 rounded-full" />
+         </div>
+      </div>
    );
 }
 
