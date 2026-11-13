@@ -35,7 +35,9 @@ export function SegmentIndicator({
             reduce ? { duration: 0 } : { type: 'spring', stiffness: 520, damping: 40, mass: 0.8 }
          }
          className={cn(
-            'pointer-events-none absolute inset-0 -z-10 rounded-[5px] bg-segment-selected shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_0.5px_rgb(0_0_0/0.04)] dark:shadow-[0_1px_2px_rgb(0_0_0/0.4)]',
+            // Dark: a clearly lighter grey than the track with a lit top
+            // edge, or the selection all but disappears into it.
+            'pointer-events-none absolute inset-0 -z-10 rounded-[5px] bg-segment-selected shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_0.5px_rgb(0_0_0/0.04)] dark:bg-[#3a3a40] dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.07),0_1px_3px_rgb(0_0_0/0.5)]',
             className
          )}
       />

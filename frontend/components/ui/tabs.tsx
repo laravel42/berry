@@ -74,7 +74,8 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
          className={cn(
             'inline-flex w-fit items-center text-muted-foreground',
             variant === 'pill'
-               ? 'h-8 justify-center rounded-[8px] bg-segment-track p-[3px]'
+               ? // Dark: a hairline edge, so the box reads against the canvas.
+                 'h-8 justify-center rounded-[8px] bg-segment-track p-[3px] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]'
                : 'h-10 gap-1 bg-transparent p-0',
             className
          )}

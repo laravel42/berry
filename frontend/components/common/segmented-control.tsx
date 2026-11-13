@@ -42,7 +42,8 @@ export function SegmentedControl<T extends string | number>({
          role="group"
          aria-label={label}
          className={cn(
-            'flex w-fit items-center bg-segment-track',
+            // Dark: a hairline edge, so the box reads against the canvas.
+            'flex w-fit items-center bg-segment-track dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]',
             size === 'md'
                ? 'h-[30px] gap-0.5 overflow-hidden rounded-[7px] p-0.5'
                : 'h-8 rounded-[8px] p-[3px]',
