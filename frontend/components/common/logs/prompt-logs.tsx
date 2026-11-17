@@ -107,7 +107,7 @@ export default function PromptLogs() {
 
    return (
       <div className="flex min-h-0 flex-1 flex-col">
-         <div className="flex h-[48px] flex-wrap items-center gap-2 border-b px-5 py-[2px]">
+         <div className="flex min-h-[48px] flex-wrap items-center gap-2 border-b px-5 py-[2px]">
             <Select
                value={filter.kind ?? ANY}
                onValueChange={(value) =>
