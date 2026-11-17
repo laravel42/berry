@@ -133,7 +133,7 @@ function __FilterSelector<TData>({
           ) : null}
           {property && column && activeFilter ? (
             <div
-              className="absolute top-0 left-full z-10 ml-px flex max-sm:static max-sm:ml-0 max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:shadow-nonemax-h-[min(24rem,var(--radix-popover-content-available-height))] min-w-[11rem] max-w-[16rem] overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+              className="absolute top-0 left-full z-10 ml-px flex max-sm:static max-sm:ml-0 max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:shadow-none max-h-[min(24rem,var(--radix-popover-content-available-height))] min-w-[11rem] max-w-[16rem] overflow-y-auto rounded-md border border-border bg-popover shadow-md"
               onMouseDown={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
             >
