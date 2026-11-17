@@ -6,8 +6,43 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+// Radix opens a menu on pointerdown for every pointer type. On touch screens that opens it the
+// moment the finger lands, locks the page scroll, and a swipe that starts on a trigger inside a
+// list can no longer scroll it. So touch and pen open on the click that follows a tap instead.
+// The trigger needs the open state to toggle from that click, which the root shares here.
+const DropdownMenuToggleContext = React.createContext<(() => void) | null>(null);
+
+function DropdownMenu({
+   open: openProp,
+   defaultOpen,
+   onOpenChange,
+   ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false);
+   const isControlled = openProp !== undefined;
+   const open = isControlled ? openProp : uncontrolledOpen;
+   const openRef = React.useRef(open);
+   openRef.current = open;
+
+   const handleOpenChange = React.useCallback(
+      (next: boolean) => {
+         if (!isControlled) setUncontrolledOpen(next);
+         onOpenChange?.(next);
+      },
+      [isControlled, onOpenChange]
+   );
+   const toggle = React.useCallback(() => handleOpenChange(!openRef.current), [handleOpenChange]);
+
+   return (
+      <DropdownMenuToggleContext.Provider value={toggle}>
+         <DropdownMenuPrimitive.Root
+            data-slot="dropdown-menu"
+            open={open}
+            onOpenChange={handleOpenChange}
+            {...props}
+         />
+      </DropdownMenuToggleContext.Provider>
+   );
 }
 
 function DropdownMenuPortal({
@@ -17,9 +52,34 @@ function DropdownMenuPortal({
 }
 
 function DropdownMenuTrigger({
+   onPointerDown,
+   onClick,
    ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
-   return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
+   const toggle = React.useContext(DropdownMenuToggleContext);
+   const tappedRef = React.useRef(false);
+
+   return (
+      <DropdownMenuPrimitive.Trigger
+         data-slot="dropdown-menu-trigger"
+         {...props}
+         onPointerDown={(event) => {
+            onPointerDown?.(event);
+            tappedRef.current = false;
+            if (event.defaultPrevented || !toggle || event.pointerType === 'mouse') return;
+            // Stops Radix opening on touch-down; the click of a tap opens it instead.
+            event.preventDefault();
+            tappedRef.current = true;
+         }}
+         onClick={(event) => {
+            onClick?.(event);
+            const tapped = tappedRef.current;
+            tappedRef.current = false;
+            if (event.defaultPrevented || !tapped || !toggle || props.disabled) return;
+            toggle();
+         }}
+      />
+   );
 }
 
 function DropdownMenuContent({
