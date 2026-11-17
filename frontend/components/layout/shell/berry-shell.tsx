@@ -3,13 +3,13 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Menu } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useShellStore } from '@/store/shell-store';
 import { activeShellRoute, type ShellRoute } from './shell-routes';
 import { ShellRail } from './shell-rail';
 import { ShellLauncherDock } from './shell-launcher-dock';
 import { shellIconButton } from './shell-icon';
+import { ShellTabBar } from './shell-tab-bar';
 import { useChatUnreadSync } from './use-chat-unread-sync';
 import { NotificationToasts } from '../notifications/notification-toasts';
 import { ShortcutProvider } from '../shortcut-provider';
@@ -20,15 +20,15 @@ import { ShellShortcuts } from './shell-shortcuts';
 /**
  * The application shell: a collapsible rail and the workspace canvas.
  *
- * The chrome that has to stay reachable whatever the page shows — the menu
- * button below `lg` (bottom-left) and the chat window's button (bottom-right)
- * floats in the frame gutter. Below `lg` the canvas leaves a strip under the
- * page for them, so they never cover the page's last line.
+ * The chrome that has to stay reachable whatever the page shows: the chat
+ * window's button floats bottom-right from `lg`, and below `lg` a tab bar
+ * fixed to the bottom edge takes its place and the menu button's. The canvas
+ * leaves room under the page for the bar, so it never covers the last line.
  * The page fills the canvas; the URL is the only navigation state.
  * Notifications live on Inbox in the rail; toasts still announce arrivals.
  *
- * Below `lg` the rail leaves the grid and becomes an overlay the floating
- * menu button opens over the page. The layout switch is CSS so the server and the
+ * Below `lg` the rail leaves the grid and becomes an overlay the tab
+ * bar's More opens over the page. The layout switch is CSS so the server and the
  * first paint agree; what this component adds is the behaviour a menu needs:
  * the page goes inert underneath it, focus moves in and comes back, Escape
  * and the backdrop close it, and so does going somewhere.
@@ -123,7 +123,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
             {!railOpen ? (
                // The collapsed column: 36px holding the expand control. A
                // column only — below `lg` the rail is an overlay and the
-               // floating menu button is how it opens.
+               // tab bar's More is how it opens.
                <div
                   data-shell-chrome
                   className="hidden w-9 flex-none justify-center bg-[var(--shell-rail)] pt-4 lg:flex"
@@ -167,11 +167,10 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                // Tab, until it closes: that is what makes the rail a menu
                // rather than a panel that happens to be on top.
                inert={railOverlayOpen}
-               // Below `lg` the canvas stops short of the frame's bottom edge,
-               // leaving a strip for the floating menu button: floated over
-               // the page it sat on whatever was last on screen — a list's
-               // final row, the comment box's attach button.
-               className={`relative flex h-full max-h-full min-h-0 min-w-0 flex-col pb-12 lg:pb-0 ${settingsMode ? 'lg:py-2 lg:pr-2' : ''}`}
+               // Below `lg` the canvas stops at the tab bar's top edge: under
+               // it, the bar would cover whatever was last on screen — a
+               // list's final row, the comment box's attach button.
+               className={`relative flex h-full max-h-full min-h-0 min-w-0 flex-col pb-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] lg:pb-0 ${settingsMode ? 'lg:py-2 lg:pr-2' : ''}`}
             >
                {/* Radius + overflow live on an inner surface so the floating
                    chrome in the corner is not clipped by the curve.
@@ -200,38 +199,20 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                   </main>
                   <NotificationToasts />
                </div>
-               {/* Menu below `lg` at the bottom-left of the body frame; Agents
-                launcher at the bottom-right. Fixed to the viewport insets so
-                each sits in the frame gutter and, below `lg`, in the strip the
-                canvas leaves for them, not over the page. */}
-               <div
-                  className={[
-                     // Same height strip as the Agents launcher so the two
-                     // floating controls share a vertical middle.
-                     'pointer-events-none fixed left-[calc(var(--app-inset-l)+0.75rem+4px)] bottom-[calc(var(--app-inset-b)+0.25rem+2px)] z-50 flex h-9 items-center gap-2 *:pointer-events-auto',
-                     // Under the open rail it would sit on top of the list; the
-                     // rail's own close control is how the menu goes away.
-                     railOverlayOpen ? 'invisible' : '',
-                  ].join(' ')}
-               >
-                  <button
-                     ref={menuRef}
-                     type="button"
-                     onClick={openOverlay}
-                     aria-label={t('rail.openMenu')}
-                     aria-expanded={railOverlayOpen}
-                     aria-controls="shell-rail"
-                     tabIndex={railOverlayOpen ? -1 : undefined}
-                     className={`size-9 shadow-md lg:hidden ${shellIconButton}`}
-                  >
-                     <Menu size={16} strokeWidth={1.8} aria-hidden="true" />
-                  </button>
-               </div>
                {/* The launcher stands on top of the floating stack (see
                    floating-stack-store.ts), so page controls in the corner push
                    it up instead of sitting under it. */}
-               <ShellLauncherDock />
+               <div className="hidden lg:contents">
+                  <ShellLauncherDock />
+               </div>
             </div>
+            <ShellTabBar
+               ref={menuRef}
+               orgId={orgId}
+               active={activeRoute}
+               menuOpen={railOverlayOpen}
+               onOpenMenu={openOverlay}
+            />
          </div>
       </ShortcutProvider>
    );

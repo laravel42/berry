@@ -1039,6 +1039,17 @@
    --shell-launcher-room: calc(var(--shell-launcher-clear) - var(--app-inset-b));
 }
 
+/* Below `lg` the phone tab bar (shell-tab-bar.tsx) owns the bottom edge and
+   the Agents pill is gone. What floats bottom-right sits above the bar with a
+   margin; the chat window and toasts end right on its top edge. */
+@media (width < 64rem) {
+   :root {
+      --shell-tabbar-h: 3.5rem;
+      --shell-launcher-b: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom) + 0.75rem);
+      --shell-launcher-clear: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom));
+   }
+}
+
 /* The light rail. In the light theme the frame around the workspace (the
    rail, its collapsed column and the inset border) takes a light ramp, so the
    chrome no longer sits as a dark band beside a light page. Scoped to
