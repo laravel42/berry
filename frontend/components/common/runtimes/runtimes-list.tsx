@@ -215,7 +215,7 @@ export default function RuntimesList() {
                   <Tabs value={filter} onValueChange={(value) => setFilter(value as CatalogFilter)}>
                      <TabsList aria-label={t('catalogTitle')}>
                         {FILTERS.map((value) => (
-                           <TabsTrigger key={value} value={value}>
+                           <TabsTrigger key={value} value={value} className="max-sm:px-2">
                               {value === 'all'
                                  ? t('filterAll')
                                  : value === 'connected'
