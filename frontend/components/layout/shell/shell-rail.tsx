@@ -313,13 +313,15 @@ export function ShellRail({
                      </div>
                   </div>
                   <ul className="flex flex-col gap-0 px-3">
-                     {[
-                        { path: '/chat', label: 'chat', Icon: MessageSquare },
-                        { path: '/plans', label: 'plans', Icon: ClipboardList },
-                        { path: '/views', label: 'views', Icon: Layers },
-                        { path: '/runs', label: 'runs', Icon: Play },
-                        { path: '/settings', label: 'settings', Icon: Settings },
-                     ].map(({ path, label, Icon }) => {
+                     {(
+                        [
+                           { path: '/chat', label: 'chat', Icon: MessageSquare },
+                           { path: '/plans', label: 'plans', Icon: ClipboardList },
+                           { path: '/views', label: 'views', Icon: Layers },
+                           { path: '/runs', label: 'runs', Icon: Play },
+                           { path: '/settings', label: 'settings', Icon: Settings },
+                        ] as const
+                     ).map(({ path, label, Icon }) => {
                         const href = `/${orgId}${path}`;
                         const on = pathname === href || pathname.startsWith(`${href}/`);
                         return (
