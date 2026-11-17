@@ -1,5 +1,7 @@
 'use client';
 
+import { X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useCallback } from 'react';
 
@@ -46,6 +48,7 @@ export default function DetailDrawerShell({
    onClose,
    maxWidth,
 }: DetailDrawerShellProps) {
+   const t = useTranslations('shell');
    const router = useRouter();
    const isMobile = useIsMobile();
    const railOpen = useShellStore((state) => state.railOpen);
@@ -96,7 +99,32 @@ export default function DetailDrawerShell({
             onFocusOutside={(event) => event.preventDefault()}
          >
             <DetailDrawerProvider onClose={dismiss}>
-               {header}
+               {header ? (
+                  // Below `lg` the drawer takes the whole screen, so the
+                  // overlay is gone and Esc is not on a phone: this × is the
+                  // way out. It leads the header row and draws the header's
+                  // bottom rule under itself, so the line runs edge to edge.
+                  // The target fills the row, up to the 52px header row, so a
+                  // header with two rows keeps it on the first; the hover and
+                  // focus mark stay a small circle that crosses no rule. From
+                  // `lg` the wrapper is a plain block and the drawer is what
+                  // it was.
+                  <div className="flex lg:block">
+                     <div className="flex shrink-0 items-start pl-1.5 shadow-[inset_0_-1px_0_var(--color-border)] lg:hidden">
+                        <button
+                           type="button"
+                           onClick={dismiss}
+                           aria-label={t('drawer.close')}
+                           className="group flex max-h-[52px] min-h-10 w-11 cursor-pointer items-center justify-center self-stretch text-muted-foreground outline-none"
+                        >
+                           <span className="flex size-9 items-center justify-center rounded-pill transition-colors group-hover:bg-muted group-hover:text-foreground group-focus-visible:outline-2 group-focus-visible:outline-ring">
+                              <X className="size-4" aria-hidden />
+                           </span>
+                        </button>
+                     </div>
+                     <div className="min-w-0 flex-1">{header}</div>
+                  </div>
+               ) : null}
                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
             </DetailDrawerProvider>
          </SheetContent>

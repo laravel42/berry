@@ -51,5 +51,8 @@
    "bell": {
       "notifications": "Notifications",
       "notificationsUnread": "Notifications, {count} unread"
+   },
+   "drawer": {
+      "close": "Close"
    }
 }
