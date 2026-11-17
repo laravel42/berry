@@ -101,7 +101,15 @@ export default function MemberProfile({ member }: { member: User }) {
    const { isSearchOpen, searchQuery } = useSearchStore();
    const { viewType } = useViewStore();
    const { filters } = useFilterStore();
-   const { openPanel } = useRightPanelStore();
+   const { openPanel, openPanelOfType } = useRightPanelStore();
+
+   // The profile panel is open by default (openPanel null). Below lg it is an
+   // overlay, so start it closed there or it covers the issue list on arrival.
+   useEffect(() => {
+      if (window.matchMedia('(max-width: 1023px)').matches) {
+         if (useRightPanelStore.getState().openPanel === null) openPanelOfType('hidden');
+      }
+   }, [openPanelOfType]);
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';
    const isViewTypeGrid = viewType === 'grid';
@@ -187,7 +195,7 @@ export default function MemberProfile({ member }: { member: User }) {
    return (
       <div className="w-full h-full flex flex-col overflow-hidden">
          <IssueFilterBar />
-         <div className="flex-1 min-h-0 w-full flex overflow-hidden">
+         <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             {/* Issues */}
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                <GroupedIssuesView
@@ -199,14 +207,14 @@ export default function MemberProfile({ member }: { member: User }) {
             </div>
 
             {openPanel === 'insights' && (
-               <aside className="hidden lg:flex w-[420px] shrink-0 border-l h-full overflow-hidden bg-container">
+               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[420px] lg:border-l">
                   <InsightsPanel issues={displayedIssues} />
                </aside>
             )}
 
             {/* Profile panel */}
             {openPanel !== 'hidden' && openPanel !== 'insights' && (
-               <aside className="hidden lg:flex flex-col w-[340px] shrink-0 border-l h-full overflow-y-auto bg-container">
+               <aside className="absolute inset-0 z-20 flex flex-col w-full shrink-0 h-full overflow-y-auto bg-container lg:static lg:z-auto lg:w-[340px] lg:border-l">
                   <div className="px-5 pt-5 pb-4 border-b">
                      <div className="flex items-center gap-3">
                         <div className="relative">
