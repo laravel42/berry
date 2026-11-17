@@ -337,17 +337,21 @@ export function FloatingChat() {
 
    return (
       <div
-         // Below `sm` the window fills the screen under the strip: a 380px
-         // panel on a phone is the whole screen anyway, and keeping the strip
-         // keeps the button that closes it.
+         // Below `sm` the window spans the screen's width from under the strip
+         // down to the band the floating controls stand in: a 380px panel on
+         // a phone is the whole width anyway, and stopping short of the band
+         // keeps the launcher that closes it, and the menu button beside it,
+         // visible below the window rather than over its composer.
          data-step-body="prose"
          className={[
             'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
             // The bottom edge clears the Agents launcher, which is what
             // opens this window: `--shell-launcher-clear` is that control's
             // corner plus its height plus a gap, so the button stays visible
-            // under the panel instead of sitting on top of it.
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[var(--shell-launcher-clear)] sm:rounded-lg',
+            // under the panel instead of sitting on top of it. The menu
+            // button sits lower than the launcher, so it clears too. It is
+            // set again at `sm` because `sm:inset-auto` resets it there.
+            'inset-x-0 top-[var(--shell-strip)] bottom-[var(--shell-launcher-clear)] sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[var(--shell-launcher-clear)] sm:rounded-lg',
             expanded
                ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[var(--shell-launcher-clear)]'
                : minimised
