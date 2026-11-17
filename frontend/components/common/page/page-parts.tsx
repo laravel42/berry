@@ -207,9 +207,11 @@ export function PageKpiHeader({
 }) {
    return (
       <header className="flex w-full flex-col gap-3.5 border-b px-5">
-         <div className="flex h-[52px] items-center gap-3">
+         <div className="flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:h-[52px] sm:flex-nowrap sm:py-0">
             <h1>{label}</h1>
-            <div className="ml-auto flex items-center gap-2">{children}</div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
+               {children}
+            </div>
          </div>
          {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} /> : null}
       </header>
