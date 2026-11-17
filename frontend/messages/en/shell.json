@@ -1,7 +1,8 @@
 {
    "sections": {
       "work": "Work",
-      "manage": "Manage"
+      "manage": "Manage",
+      "more": "More"
    },
    "nav": {
       "tasks": "Tasks",
@@ -27,7 +28,8 @@
       "views": "Views",
       "attachments": "Attachments",
       "plugins": "Plugins",
-      "profiles": "Profiles"
+      "profiles": "Profiles",
+      "settings": "Settings"
    },
    "rail": {
       "workspace": "Workspace",

@@ -2,8 +2,9 @@
 
 import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Search, X } from 'lucide-react';
+import { ClipboardList, Layers, MessageSquare, Play, Search, Settings, X } from 'lucide-react';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -79,6 +80,7 @@ export function ShellRail({
       useSidebarPrefsStore();
    const role = useSessionStore((state) => state.workspace?.role);
    const isMobile = useIsMobile();
+   const pathname = usePathname();
    const openPalette = useCommandPaletteStore((state) => state.open);
    // A run that has not reached a terminal status is still going, which is what
    // the dot beside runtimes reports.
@@ -298,6 +300,46 @@ export function ShellRail({
                      </ShellSectionFold>
                   );
                })}
+
+               {/* Pages a phone has no other way to reach: the column has ⌘K,
+             the Agents pill and the workspace menu. Below `lg` only. */}
+               <div className="lg:hidden">
+                  <div className="px-3 pt-2">
+                     <div
+                        data-heading="label"
+                        className="flex min-h-11 w-full items-center gap-1 px-3 py-[7px] text-left text-[var(--shell-text-dim)]"
+                     >
+                        {t('sections.more')}
+                     </div>
+                  </div>
+                  <ul className="flex flex-col gap-0 px-3">
+                     {[
+                        { path: '/chat', label: 'chat', Icon: MessageSquare },
+                        { path: '/plans', label: 'plans', Icon: ClipboardList },
+                        { path: '/views', label: 'views', Icon: Layers },
+                        { path: '/runs', label: 'runs', Icon: Play },
+                        { path: '/settings', label: 'settings', Icon: Settings },
+                     ].map(({ path, label, Icon }) => {
+                        const href = `/${orgId}${path}`;
+                        const on = pathname === href || pathname.startsWith(`${href}/`);
+                        return (
+                           <li key={path}>
+                              <Link
+                                 data-shell-nav
+                                 href={href}
+                                 aria-current={on ? 'page' : undefined}
+                                 className={shellNavRow(on)}
+                              >
+                                 <ShellNavIcon on={on}>
+                                    <Icon size={13} strokeWidth={2} />
+                                 </ShellNavIcon>
+                                 {t(`nav.${label}`)}
+                              </Link>
+                           </li>
+                        );
+                     })}
+                  </ul>
+               </div>
             </>
          )}
 
