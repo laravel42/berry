@@ -97,7 +97,7 @@ function SessionRow({
                      onRename(title.trim());
                   }
                }}
-               className="w-full rounded bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none"
+               className="w-full rounded bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] [--input-color:var(--shell-text)] [--placeholder-color:var(--shell-text-dim)] outline-none"
             />
          </li>
       );

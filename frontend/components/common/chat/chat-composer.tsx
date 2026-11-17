@@ -139,7 +139,7 @@ export function ChatComposer({
                         if (canSend) onSend();
                      }
                   }}
-                  className="max-h-48 min-h-[4.5rem] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
+                  className="max-h-48 min-h-[4.5rem] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] [--input-color:var(--shell-text)] [--placeholder-color:var(--shell-text-dim)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
                />
 
                {/* Mode, model and repository sit under the text. While a reply

@@ -581,7 +581,7 @@ export function Chat() {
                               commitRename(active.id, title);
                            }
                         }}
-                        className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:border-ring"
+                        className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] [--input-color:var(--shell-text)] [--placeholder-color:var(--shell-text-dim)] outline-none focus-visible:border-ring"
                      />
                   ) : agentName && !topicIsAgentName ? (
                      // The conversation's own name, one step back from the
