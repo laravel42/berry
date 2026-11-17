@@ -163,7 +163,8 @@ export function AgentDraftPanel({
       <aside
          aria-label="Project assistant"
          className={cn(
-            'flex min-h-0 w-[400px] shrink-0 flex-col border-l border-border/60',
+            // Beside the form from `sm` up; on a phone it is the dialog's full width.
+            'flex min-h-0 w-full shrink-0 flex-col border-border/60 sm:w-[400px] sm:border-l',
             className
          )}
       >

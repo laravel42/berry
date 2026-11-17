@@ -230,7 +230,11 @@ export function CreateProjectDialog() {
                assistant ? 'sm:max-w-[63rem]' : 'sm:max-w-[52rem]'
             )}
          >
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* On a phone the assistant takes the whole dialog: the form steps
+             aside until Hide brings it back, keeping what was drafted. */}
+            <div
+               className={cn('flex min-h-0 min-w-0 flex-1 flex-col', assistant && 'max-sm:hidden')}
+            >
                <DialogHeader className="px-6 pt-5 pb-0">
                   <DialogTitle className="sr-only">New project</DialogTitle>
                   <DialogDescription className="sr-only">
@@ -380,14 +384,16 @@ export function CreateProjectDialog() {
                      </div>
                   </div>
 
-                  <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
+                  {/* A phone is too narrow for both buttons on one row: they stack
+                   full width, the primary on top as in every other dialog. */}
+                  <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3 max-sm:flex-col-reverse max-sm:items-stretch">
                      {/* Open, the assistant panel is the agent; the button would only repeat it. */}
                      {assistant ? null : (
                         <Button
                            type="button"
                            variant="ai"
                            size="md"
-                           className="mr-auto"
+                           className="mr-auto max-sm:mr-0"
                            onClick={() => setAssistant(true)}
                         >
                            <SparkIcon className="size-3.5" />
