@@ -202,7 +202,7 @@ function DependencyRow({
          <Button
             variant="ghost"
             size="icon"
-            className="size-6 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            className="size-6 shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
             aria-label={`Remove ${dependency.identifier}`}
             disabled={removing}
             onClick={onRemove}

@@ -226,7 +226,7 @@ export function SavedViewsBar() {
                            <Button
                               size="icon"
                               variant="ghost"
-                              className="size-6 opacity-0 transition-opacity group-hover:opacity-100"
+                              className="size-6 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
                               aria-label={`${view.name} menu`}
                            >
                               <MoreHorizontal className="size-3.5" />

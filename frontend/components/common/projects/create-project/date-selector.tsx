@@ -116,7 +116,8 @@ export function ProjectDateSelector({
                   type="button"
                   className={cn(
                      'hidden shrink-0 cursor-pointer tabular-nums text-muted-foreground hover:text-foreground sm:inline',
-                     !date && 'opacity-0 group-hover:opacity-100',
+                     !date &&
+                        '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100',
                      className
                   )}
                   aria-expanded={open}

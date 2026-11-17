@@ -407,7 +407,7 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                                  <Button
                                     variant="quiet"
                                     size="icon"
-                                    className="absolute -right-1 z-10 size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                    className="absolute -right-1 z-10 size-6 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
                                     aria-label={t('detail.removeFromCycle', {
                                        identifier: issue.identifier,
                                     })}
@@ -417,7 +417,10 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                                  </Button>
                               ) : null}
                               <span
-                                 className={cn(canEdit && 'group-hover:opacity-0')}
+                                 className={cn(
+                                    canEdit &&
+                                       '[@media(hover:hover)]:group-hover:opacity-0 [@media(hover:none)]:opacity-0'
+                                 )}
                                  title={issue.assignee?.name ?? t('detail.unassigned')}
                               >
                                  {issue.assignee ? (

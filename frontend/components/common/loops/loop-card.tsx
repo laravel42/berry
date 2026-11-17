@@ -94,7 +94,7 @@ export default function LoopCard({
                         <button
                            type="button"
                            aria-label={t('row.menu')}
-                           className="rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100 data-[state=open]:opacity-100"
+                           className="rounded-md p-1 text-muted-foreground [@media(hover:hover)]:opacity-0 transition-opacity hover:text-foreground [@media(hover:hover)]:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
                         >
                            <MoreHorizontal className="size-4" />
                         </button>
