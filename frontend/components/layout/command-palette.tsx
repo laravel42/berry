@@ -90,7 +90,7 @@ const SEARCH_LIMIT = 20;
 /** Small keyboard hint chips on the right of a command row. */
 function Keys({ keys }: { keys: string[] }) {
    return (
-      <span className="ml-auto flex items-center gap-1">
+      <span className="ml-auto flex items-center gap-1 [@media(hover:none)]:hidden">
          {keys.map((key, index) => (
             <kbd
                key={index}
@@ -593,7 +593,7 @@ export function CommandPalette() {
             }}
          />
          {route === 'root' && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground pointer-events-none">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground pointer-events-none [@media(hover:none)]:hidden">
                {t('newTabHint', { combo: newTabHint })}
             </span>
          )}
@@ -619,7 +619,7 @@ export function CommandPalette() {
       >
          <DialogContent
             showCloseButton={false}
-            className="overflow-hidden p-0 sm:max-w-2xl top-[22%] translate-y-0 gap-0"
+            className="overflow-hidden p-0 sm:max-w-2xl top-2 sm:top-[22%] translate-y-0 gap-0"
          >
             <DialogTitle className="sr-only">Command menu</DialogTitle>
             <DialogDescription className="sr-only">Type a command or search</DialogDescription>
