@@ -38,6 +38,7 @@
       "expandSidebar": "Expand sidebar",
       "openMenu": "Open menu",
       "closeMenu": "Close menu",
+      "search": "Search",
       "approvalsWaiting": "{count, plural, one {# approval waiting} other {# approvals waiting}}",
       "reviewsWaiting": "{count, plural, one {# review waiting} other {# reviews waiting}}"
    },

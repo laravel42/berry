@@ -3,7 +3,7 @@
 import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -20,6 +20,7 @@ import {
 import { isTerminalRunStatus } from '@/lib/runs';
 import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
+import { useCommandPaletteStore } from '@/store/command-palette-store';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
 import { BerryWordmark } from '@/components/brand/berry-mark';
@@ -78,6 +79,7 @@ export function ShellRail({
       useSidebarPrefsStore();
    const role = useSessionStore((state) => state.workspace?.role);
    const isMobile = useIsMobile();
+   const openPalette = useCommandPaletteStore((state) => state.open);
    // A run that has not reached a terminal status is still going, which is what
    // the dot beside runtimes reports.
    const runsLive = useRunsStore((state) =>
@@ -203,6 +205,25 @@ export function ShellRail({
                      </DropdownMenuContent>
                   </DropdownMenu>
                   {closeButton}
+               </div>
+
+               {/* Search on a phone, where there is no ⌘K to press. The menu
+             goes away first, so the palette opens over the page rather than
+             over the menu. A column at `lg` has the shortcut and no row. */}
+               <div className="px-3 lg:hidden">
+                  <button
+                     type="button"
+                     onClick={() => {
+                        onDismiss();
+                        openPalette();
+                     }}
+                     className={`${shellNavRow(false)} w-full cursor-pointer text-left`}
+                  >
+                     <ShellNavIcon on={false}>
+                        <Search size={13} strokeWidth={2} />
+                     </ShellNavIcon>
+                     {t('rail.search')}
+                  </button>
                </div>
 
                <ShellPersonal orgId={orgId} />

@@ -19,6 +19,7 @@ import { SparkIcon } from '@/components/ui/spark-icon';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { publishShellEvent } from '@/lib/shell-events';
 import { formatCombo } from '@/lib/shortcuts';
+import { useCommandPaletteStore } from '@/store/command-palette-store';
 import { useCreateMilestoneStore } from '@/store/create-milestone-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
@@ -297,7 +298,10 @@ function matches(query: string, ...fields: string[]): boolean {
  */
 export function CommandPalette() {
    const t = useTranslations('navigation.palette');
-   const [open, setOpen] = useState(false);
+   // Open or closed lives in a store so the phone menu can open it too; the
+   // rest of what it shows is its own, and is cleared on every close.
+   const open = useCommandPaletteStore((state) => state.isOpen);
+   const setOpen = useCommandPaletteStore((state) => state.setOpen);
    const [route, setRoute] = useState<PaletteRoute>('root');
    const [query, setQuery] = useState('');
    /** When true, the issue context chip was dismissed with ⌫. */
@@ -430,7 +434,11 @@ export function CommandPalette() {
    const close = useCallback(() => {
       setOpen(false);
       reset();
-   }, [reset]);
+   }, [reset, setOpen]);
+
+   // It starts closed every time it mounts, as it did when this was local
+   // state, rather than coming back open from wherever it was left.
+   useEffect(() => () => setOpen(false), [setOpen]);
 
    // ⌘K / Ctrl+K, from wherever the focus happens to be — including a text
    // field, which is where someone usually is when they want it.
@@ -439,15 +447,14 @@ export function CommandPalette() {
          if (event.isComposing || event.repeat) return;
          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
             event.preventDefault();
-            setOpen((value) => {
-               if (value) reset();
-               return !value;
-            });
+            const value = useCommandPaletteStore.getState().isOpen;
+            if (value) reset();
+            setOpen(!value);
          }
       };
       window.addEventListener('keydown', onKeyDown);
       return () => window.removeEventListener('keydown', onKeyDown);
-   }, [reset]);
+   }, [reset, setOpen]);
 
    const copy = useCallback(
       async (label: string, text: string) => {
