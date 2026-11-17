@@ -50,7 +50,7 @@ export function SettingsShell({
       <div className="settings-surface h-full w-full overflow-y-auto">
          <div
             className={cn(
-               'flex flex-col gap-8 px-8 pb-24',
+               'flex flex-col gap-8 px-4 pb-24 sm:px-8',
                heading ? 'pt-10' : 'pt-4',
                wide ? 'w-full' : 'mx-auto max-w-[720px]'
             )}
@@ -225,7 +225,7 @@ export function SettingsRow({
       >
          <div
             className={cn(
-               'flex w-full min-w-0 gap-3',
+               'flex w-full min-w-0 gap-3 max-sm:flex-wrap',
                align === 'start' ? 'items-start' : 'items-center'
             )}
          >
@@ -241,7 +241,12 @@ export function SettingsRow({
                ) : null}
             </div>
             {trailing ? (
-               <div className="flex max-w-full shrink-0 items-center gap-2 text-muted-foreground">
+               <div
+                  className={cn(
+                     'flex max-w-full shrink-0 items-center gap-2 text-muted-foreground',
+                     description && 'max-sm:basis-full max-sm:justify-start'
+                  )}
+               >
                   {trailing}
                </div>
             ) : null}
