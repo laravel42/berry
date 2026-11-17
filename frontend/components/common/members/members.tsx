@@ -342,7 +342,8 @@ export default function Members() {
                            >
                               <Link
                                  href={`/${orgId}/members/${member.userId}`}
-                                 className="hover:underline"
+                                 title={member.name}
+                                 className="hover:underline max-sm:block max-sm:min-w-0 max-sm:max-w-full max-sm:truncate"
                               >
                                  {member.name}
                                  {member.userId === myId ? (
@@ -353,15 +354,24 @@ export default function Members() {
                               </Link>
                            </MemberHoverCard>
                         }
-                        description={[
-                           member.email,
-                           t('joined', {
-                              when: format(parseISO(member.joinedAt), 'd MMM yyyy'),
-                           }),
-                           locked,
-                        ]
-                           .filter(Boolean)
-                           .join(' · ')}
+                        description={
+                           <>
+                              <span title={member.email} className="max-sm:block max-sm:truncate">
+                                 {member.email}
+                              </span>
+                              <span className="max-sm:block">
+                                 <span className="max-sm:hidden"> · </span>
+                                 {[
+                                    t('joined', {
+                                       when: format(parseISO(member.joinedAt), 'd MMM yyyy'),
+                                    }),
+                                    locked,
+                                 ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                              </span>
+                           </>
+                        }
                         trailing={
                            <span className="flex items-center gap-2">
                               {canManage && !locked ? (
@@ -419,7 +429,14 @@ export default function Members() {
                         return (
                            <SettingsRow
                               key={invitation.id}
-                              title={invitation.email}
+                              title={
+                                 <span
+                                    title={invitation.email}
+                                    className="max-sm:min-w-0 max-sm:max-w-full max-sm:truncate"
+                                 >
+                                    {invitation.email}
+                                 </span>
+                              }
                               muted={expired}
                               description={[
                                  t(roleKey(invitation.role)),
