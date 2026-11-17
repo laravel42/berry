@@ -632,7 +632,9 @@
       @apply text-foreground font-sans text-xs;
       /* 400, not the 300 that `font-normal` resolves to. Titles are 600. */
       font-weight: 400;
-      min-height: 100vh;
+      /* dvh, not vh: on phones 100vh is the large viewport (toolbars retracted),
+         which made the page taller than the screen. Same value on desktop. */
+      min-height: 100dvh;
    }
 
    /* Written against the tokens rather than with `@apply`, because `text-base`
@@ -1047,6 +1049,11 @@
       --shell-tabbar-h: 3.5rem;
       --shell-launcher-b: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom) + 0.75rem);
       --shell-launcher-clear: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom));
+      /* viewport-fit=cover lets the page run under the notch and status bar, so
+         the frame insets fold the safe areas in. The bottom is the tab bar's. */
+      --app-inset-t: max(8px, env(safe-area-inset-top));
+      --app-inset-r: max(6px, env(safe-area-inset-right));
+      --app-inset-l: env(safe-area-inset-left, 0px);
    }
 }
 

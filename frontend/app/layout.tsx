@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import { Toaster } from '@/components/ui/sonner';
 import './globals.css';
@@ -40,6 +40,13 @@ const inter = localFont({
 // brand asset's own outlines now (components/brand/berry-mark.tsx), so nothing
 // renders in it, and shipping a webfont with no reader costs a request for an
 // empty result. The files stay in app/fonts for whoever needs them next.
+
+// viewport-fit=cover so env(safe-area-inset-*) reports the notch and home indicator.
+export const viewport: Viewport = {
+   width: 'device-width',
+   initialScale: 1,
+   viewportFit: 'cover',
+};
 
 export const metadata: Metadata = {
    title: {
