@@ -856,7 +856,7 @@ export function PreviewPanel({
                            </button>
                            <button
                               type="button"
-                              className="absolute right-1 top-1/2 hidden -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground group-hover:block"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground [@media(hover:hover)]:hidden [@media(hover:hover)]:group-hover:block [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-[5px] [@media(hover:none)]:after:content-['']"
                               aria-label={t('closeShell')}
                               title={t('closeShell')}
                               onClick={() => closeShell(candidate.id)}

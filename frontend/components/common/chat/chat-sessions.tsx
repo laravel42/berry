@@ -148,7 +148,7 @@ function SessionRow({
                <button
                   type="button"
                   aria-label={`${t('rename')} ${thread.topic}`}
-                  className="mt-1 flex-none rounded p-1 text-[var(--shell-text-dim)] opacity-0 hover:text-[var(--shell-text)] focus-visible:opacity-100 group-hover:opacity-100"
+                  className="relative mt-1 flex-none rounded p-1 text-[var(--shell-text-dim)] [@media(hover:hover)]:opacity-0 hover:text-[var(--shell-text)] focus-visible:opacity-100 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-px [@media(hover:none)]:after:content-['']"
                >
                   <MoreHorizontal className="size-3.5" />
                </button>

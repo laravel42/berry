@@ -177,7 +177,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                         onPointerUp={onGripUp}
                         onPointerCancel={cancelDrag}
                         aria-label={t('reorder', { title: pin.title })}
-                        className="flex size-4 flex-none cursor-grab touch-none items-center justify-center text-[var(--shell-text-faint)] opacity-0 transition-opacity group-hover/pin:opacity-100 active:cursor-grabbing [&_svg]:pointer-events-none"
+                        className="relative flex size-4 flex-none cursor-grab touch-none items-center justify-center text-[var(--shell-text-faint)] transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/pin:opacity-100 active:cursor-grabbing [&_svg]:pointer-events-none [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
                      >
                         <GripVertical className="size-3" />
                      </span>
@@ -210,7 +210,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                         type="button"
                         onClick={() => void unpin(pin)}
                         aria-label={t('unpin', { title: pin.title })}
-                        className="flex size-5 flex-none items-center justify-center rounded text-[var(--shell-text-faint)] opacity-0 transition-opacity group-hover/pin:opacity-100 hover:text-[var(--shell-text)] focus-visible:opacity-100"
+                        className="relative flex size-5 flex-none items-center justify-center rounded text-[var(--shell-text-faint)] transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/pin:opacity-100 hover:text-[var(--shell-text)] focus-visible:opacity-100 [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-0.5 [@media(hover:none)]:after:content-['']"
                      >
                         <X className="size-3" />
                      </button>

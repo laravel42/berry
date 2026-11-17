@@ -212,12 +212,13 @@ export function ChatThread({
                            <div className="text-[var(--shell-text)]">
                               <ChatMarkdown body={message.body} />
                            </div>
-                           <div className="flex items-center gap-3 text-[var(--shell-text-dim)] opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+                           <div className="flex items-center gap-3 text-[var(--shell-text-dim)] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100">
                               <button
                                  type="button"
                                  onClick={() => void copy(message)}
                                  aria-label={t('msgCopy')}
-                                 className="inline-flex items-center gap-1 hover:text-[var(--shell-text)]"
+                                 // On touch screens the after: box widens the target to 24px without moving the icon.
+                                 className="relative inline-flex items-center gap-1 hover:text-[var(--shell-text)] [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-[5px] [@media(hover:none)]:after:content-['']"
                               >
                                  {copied === message.id ? (
                                     <Check className="size-3.5" />
@@ -235,7 +236,7 @@ export function ChatThread({
                            <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--shell-line)] px-4 py-2.5 text-[var(--shell-text)] whitespace-pre-wrap">
                               {message.body}
                            </div>
-                           <span className="tabular-nums text-[var(--shell-text-dim)] opacity-0 group-hover:opacity-100">
+                           <span className="tabular-nums text-[var(--shell-text-dim)] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
                               {clockTime(message.createdAt)}
                            </span>
                         </article>
