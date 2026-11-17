@@ -126,8 +126,14 @@ export function SavedViewsBar() {
 
    const visible = ordered.filter((view) => !preferences.hidden.includes(view.id));
    const inlineTabs = phone ? PHONE_INLINE_TABS : INLINE_TABS;
-   const inline = visible.slice(0, inlineTabs);
-   const overflow = visible.slice(inlineTabs);
+   const activeIndex = phone && viewId ? visible.findIndex((view) => view.id === viewId) : -1;
+   // On a phone the one inline tab is the active view, not always the first.
+   const shown =
+      activeIndex > 0
+         ? [visible[activeIndex]!, ...visible.filter((_, index) => index !== activeIndex)]
+         : visible;
+   const inline = shown.slice(0, inlineTabs);
+   const overflow = shown.slice(inlineTabs);
 
    const reorder = (draggedId: string, overId: string) => {
       const ids = ordered.map((view) => view.id);
@@ -189,7 +195,7 @@ export function SavedViewsBar() {
    return (
       <>
          <div className="flex w-full items-center gap-1 border-b px-6 py-1.5">
-            <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto sm:max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
+            <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto after:w-6 after:shrink-0 max-sm:after:hidden sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
                {inline.map((view) => (
                   <div
                      key={view.id}
