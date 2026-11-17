@@ -35,10 +35,12 @@ export function SelectionCheckbox({
             checked={checked}
             aria-label="Select task"
             className={cn(
-               'size-3.5 transition-opacity',
+               // The after: box widens the touch target to 24px without moving the
+               // 14px box; on screens with no hover the box is always visible.
+               'relative size-3.5 transition-opacity after:absolute after:-inset-[6px] after:content-[""]',
                checked || anySelected
                   ? 'opacity-100'
-                  : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                  : '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100',
                className
             )}
             onClick={(event) => {

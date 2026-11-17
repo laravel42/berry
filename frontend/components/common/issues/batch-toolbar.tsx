@@ -141,7 +141,7 @@ export function BatchToolbar({ visibleIds = [] }: { visibleIds?: string[] }) {
 
    return (
       <>
-         <div className="flex items-center gap-2 border-b bg-accent/40 px-4 py-1.5">
+         <div className="flex flex-wrap items-center gap-2 border-b bg-accent/40 px-4 py-1.5 sm:flex-nowrap">
             <span>{t('selection.count', { count: selected.length })}</span>
             {visibleIds.length > 0 && !allVisibleSelected ? (
                <Button size="xs" variant="ghost" onClick={() => setAll(visibleIds)}>
