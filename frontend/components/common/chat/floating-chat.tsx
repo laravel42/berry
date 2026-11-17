@@ -59,7 +59,11 @@ function ShortcutInfo() {
    return (
       <Tooltip>
          <TooltipTrigger asChild>
-            <button type="button" aria-label={hint} className={headerControl}>
+            <button
+               type="button"
+               aria-label={hint}
+               className={`[@media(hover:none)]:hidden ${headerControl}`}
+            >
                <Info className="size-3.5" aria-hidden />
             </button>
          </TooltipTrigger>
@@ -93,6 +97,12 @@ export function FloatingChat() {
    const setState = useShellStore((store) => store.setChatWindow);
    const toggleChat = useShellStore((store) => store.toggleChat);
    const [size, setSize] = useState({ width: 380, height: 520 });
+   // Below `sm` the window is a full-screen sheet: it slides in when it
+   // opens and out before minimise or close take effect, and minimised is
+   // nothing on screen. `leaving` is the slide-out in flight.
+   const [phone, setPhone] = useState(false);
+   const [leaving, setLeaving] = useState<'minimised' | 'closed' | null>(null);
+   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const [agents, setAgents] = useState<Agent[]>([]);
    const [agentsLoaded, setAgentsLoaded] = useState(false);
    const [active, setActive] = useState<ChatThread | null>(null);
@@ -133,6 +143,39 @@ export function FloatingChat() {
    // this window's full-size counterpart, so it never floats over itself.
    const floatingEnabled = useUiPrefsStore((store) => store.floatingChat);
    const hidden = pathname.includes('/chat') || !floatingEnabled;
+
+   useEffect(() => {
+      const query = window.matchMedia('(max-width: 639px)');
+      const sync = () => setPhone(query.matches);
+      sync();
+      query.addEventListener('change', sync);
+      return () => query.removeEventListener('change', sync);
+   }, []);
+
+   // Whatever moved the window (a button, a shortcut) ends a slide-out.
+   useEffect(() => {
+      setLeaving(null);
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+   }, [state]);
+
+   const finishLeave = (target: 'minimised' | 'closed') => {
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+      setLeaving(null);
+      setState(target);
+   };
+   // On a phone the sheet slides down first and the store changes when the
+   // animation ends; the timeout means it can never get stuck. From `sm` up,
+   // and with reduced motion, the change is immediate.
+   const leave = (target: 'minimised' | 'closed') => {
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!phone || still) {
+         setState(target);
+         return;
+      }
+      if (leaving) return;
+      setLeaving(target);
+      leaveTimer.current = setTimeout(() => finishLeave(target), 350);
+   };
 
    useEffect(() => {
       try {
@@ -324,6 +367,9 @@ export function FloatingChat() {
    // page's bottom action bar gets its corner back.
    if (hidden) return null;
    if (state === 'closed') return null;
+   // A minimised sheet is out of view on a phone; the component stays
+   // mounted, so the conversation is still here when the Agents tab restores it.
+   if (phone && state === 'minimised') return null;
 
    const expanded = state === 'expanded';
    const minimised = state === 'minimised';
@@ -337,21 +383,28 @@ export function FloatingChat() {
 
    return (
       <div
-         // Below `sm` the window spans the screen's width from under the strip
-         // down to the band the floating controls stand in: a 380px panel on
-         // a phone is the whole width anyway, and stopping short of the band
-         // keeps the launcher that closes it, and the menu button beside it,
-         // visible below the window rather than over its composer.
+         // Below `sm` the window is a full-screen sheet: from under the strip
+         // to the bottom edge, over the tab bar, padded by the safe areas so
+         // the header clears the status bar and the composer the home
+         // indicator. It slides up on opening and down before it minimises or
+         // closes (`leave`). From `sm` up it floats above the launcher band.
          data-step-body="prose"
+         onAnimationEnd={(event) => {
+            if (leaving && event.target === event.currentTarget) finishLeave(leaving);
+         }}
          className={[
-            'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
+            'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)]',
+            leaving
+               ? 'max-sm:animate-out max-sm:slide-out-to-bottom-full max-sm:fill-mode-forwards max-sm:duration-300 max-sm:ease-in motion-reduce:max-sm:animate-none'
+               : 'max-sm:animate-in max-sm:slide-in-from-bottom-full max-sm:duration-300 max-sm:ease-out motion-reduce:max-sm:animate-none',
             // The bottom edge clears the Agents launcher, which is what
             // opens this window: `--shell-launcher-clear` is that control's
             // corner plus its height plus a gap, so the button stays visible
             // under the panel instead of sitting on top of it. The menu
             // button sits lower than the launcher, so it clears too. It is
-            // set again at `sm` because `sm:inset-auto` resets it there.
-            'inset-x-0 top-[var(--shell-strip)] bottom-[var(--shell-launcher-clear)] sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[var(--shell-launcher-clear)] sm:rounded-lg',
+            // set again at `sm` because `sm:inset-auto` resets it there. Below
+            // `sm` the sheet goes to the bottom edge instead.
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[var(--shell-launcher-clear)] sm:rounded-lg',
             expanded
                ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[var(--shell-launcher-clear)]'
                : minimised
@@ -376,7 +429,7 @@ export function FloatingChat() {
                <button
                   type="button"
                   aria-label={minimised ? t('restore') : t('minimise')}
-                  onClick={() => setState(minimised ? 'open' : 'minimised')}
+                  onClick={() => (minimised ? setState('open') : leave('minimised'))}
                   className={headerControl}
                >
                   <Minus className="size-3.5" />
@@ -392,7 +445,7 @@ export function FloatingChat() {
                <button
                   type="button"
                   aria-label={t('close')}
-                  onClick={() => setState('closed')}
+                  onClick={() => leave('closed')}
                   className={headerControl}
                >
                   <X className="size-3.5" />

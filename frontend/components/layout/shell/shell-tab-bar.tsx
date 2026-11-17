@@ -53,11 +53,13 @@ export const ShellTabBar = forwardRef<
    const inboxUnread = useInboxUnread();
    const chatWindow = useShellStore((state) => state.chatWindow);
    const toggleChat = useShellStore((state) => state.toggleChat);
+   const setChatWindow = useShellStore((state) => state.setChatWindow);
    const chatUnread = useShellStore((state) => state.chatUnread);
    const floatingEnabled = useUiPrefsStore((state) => state.floatingChat);
    const setFloatingChat = useUiPrefsStore((state) => state.setFloatingChat);
    const onChatPage = pathname.includes('/chat');
-   const chatOpen = floatingEnabled && chatWindow !== 'closed';
+   const minimised = floatingEnabled && chatWindow === 'minimised';
+   const chatOpen = floatingEnabled && (chatWindow === 'open' || chatWindow === 'expanded');
    const chatLabel = chatOpen
       ? t('chat.close')
       : chatUnread > 0
@@ -110,7 +112,8 @@ export const ShellTabBar = forwardRef<
             type="button"
             onClick={() => {
                if (!floatingEnabled) setFloatingChat(true);
-               toggleChat();
+               if (chatWindow === 'minimised') setChatWindow('open');
+               else toggleChat();
             }}
             disabled={onChatPage}
             aria-label={chatLabel}
@@ -119,7 +122,7 @@ export const ShellTabBar = forwardRef<
          >
             <span className="relative">
                <SparkIcon className="size-5" />
-               {chatUnread > 0 && !chatOpen ? (
+               {(chatUnread > 0 || minimised) && !chatOpen ? (
                   <span
                      aria-hidden="true"
                      className="absolute -top-0.5 -right-1 size-2 rounded-full bg-[var(--shell-accent)]"
