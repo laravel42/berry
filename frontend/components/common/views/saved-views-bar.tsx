@@ -44,6 +44,8 @@ import { SaveViewDialog } from './save-view-dialog';
 
 /** Tabs shown inline; the rest live in the overflow menu. */
 const INLINE_TABS = 6;
+/** Below `sm` only one tab fits next to the actions, so the rest go to the menu. */
+const PHONE_INLINE_TABS = 1;
 
 interface ViewPreferences {
    order: string[];
@@ -82,6 +84,15 @@ export function SavedViewsBar() {
    const [managing, setManaging] = useState(false);
    const [deleting, setDeleting] = useState<View | undefined>();
    const [dragging, setDragging] = useState<string | null>(null);
+   const [phone, setPhone] = useState(false);
+
+   useEffect(() => {
+      const query = window.matchMedia('(max-width: 639px)');
+      const sync = () => setPhone(query.matches);
+      sync();
+      query.addEventListener('change', sync);
+      return () => query.removeEventListener('change', sync);
+   }, []);
 
    useEffect(() => {
       if (!workspaceId) return;
@@ -114,8 +125,9 @@ export function SavedViewsBar() {
    }, [issueViews, preferences.order]);
 
    const visible = ordered.filter((view) => !preferences.hidden.includes(view.id));
-   const inline = visible.slice(0, INLINE_TABS);
-   const overflow = visible.slice(INLINE_TABS);
+   const inlineTabs = phone ? PHONE_INLINE_TABS : INLINE_TABS;
+   const inline = visible.slice(0, inlineTabs);
+   const overflow = visible.slice(inlineTabs);
 
    const reorder = (draggedId: string, overId: string) => {
       const ids = ordered.map((view) => view.id);
@@ -177,78 +189,95 @@ export function SavedViewsBar() {
    return (
       <>
          <div className="flex w-full items-center gap-1 border-b px-6 py-1.5">
-            {inline.map((view) => (
-               <div
-                  key={view.id}
-                  draggable
-                  onDragStart={() => setDragging(view.id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => {
-                     if (dragging && dragging !== view.id) reorder(dragging, view.id);
-                     setDragging(null);
-                  }}
-                  className={cn(
-                     'group flex items-center rounded-md border transition-colors',
-                     viewId === view.id
-                        ? 'border-border/70 bg-accent'
-                        : 'border-transparent hover:bg-accent/50',
-                     dragging === view.id && 'opacity-50'
-                  )}
-               >
-                  <Link
-                     href={`/${orgId}/view/${view.id}`}
-                     className="flex items-center gap-1.5 px-2.5 py-1"
+            <div className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto sm:max-lg:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
+               {inline.map((view) => (
+                  <div
+                     key={view.id}
+                     draggable
+                     onDragStart={() => setDragging(view.id)}
+                     onDragOver={(event) => event.preventDefault()}
+                     onDrop={() => {
+                        if (dragging && dragging !== view.id) reorder(dragging, view.id);
+                        setDragging(null);
+                     }}
+                     className={cn(
+                        'group flex shrink-0 items-center rounded-md border transition-colors',
+                        viewId === view.id
+                           ? 'border-border/70 bg-accent'
+                           : 'border-transparent hover:bg-accent/50',
+                        dragging === view.id && 'opacity-50'
+                     )}
                   >
-                     <span aria-hidden>{view.icon}</span>
-                     <span className="max-w-40 truncate">{view.name}</span>
-                  </Link>
-                  <DropdownMenu>
-                     <DropdownMenuTrigger asChild>
+                     <Link
+                        href={`/${orgId}/view/${view.id}`}
+                        className="flex items-center gap-1.5 px-2.5 py-1"
+                     >
+                        <span aria-hidden>{view.icon}</span>
+                        <span className="max-w-40 truncate">{view.name}</span>
+                     </Link>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              size="icon"
+                              variant="ghost"
+                              className="size-6 opacity-0 transition-opacity group-hover:opacity-100"
+                              aria-label={`${view.name} menu`}
+                           >
+                              <MoreHorizontal className="size-3.5" />
+                           </Button>
+                        </DropdownMenuTrigger>
+                        {tabMenu(view)}
+                     </DropdownMenu>
+                  </div>
+               ))}
+
+               {overflow.length > 0 ? (
+                  <Popover>
+                     <PopoverTrigger asChild>
                         <Button
-                           size="icon"
+                           size="xs"
                            variant="ghost"
-                           className="size-6 opacity-0 transition-opacity group-hover:opacity-100"
-                           aria-label={`${view.name} menu`}
+                           className="shrink-0"
+                           aria-label={t('views.more')}
                         >
-                           <MoreHorizontal className="size-3.5" />
+                           <span className="max-sm:sr-only">{t('views.more')}</span>
+                           <ChevronDown className="size-3.5 sm:ml-1" />
                         </Button>
-                     </DropdownMenuTrigger>
-                     {tabMenu(view)}
-                  </DropdownMenu>
-               </div>
-            ))}
+                     </PopoverTrigger>
+                     <PopoverContent align="start" className="flex w-56 flex-col p-1">
+                        {overflow.map((view) => (
+                           <Link
+                              key={view.id}
+                              href={`/${orgId}/view/${view.id}`}
+                              className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent"
+                           >
+                              <span aria-hidden>{view.icon}</span>
+                              <span className="truncate">{view.name}</span>
+                           </Link>
+                        ))}
+                     </PopoverContent>
+                  </Popover>
+               ) : null}
+            </div>
 
-            {overflow.length > 0 ? (
-               <Popover>
-                  <PopoverTrigger asChild>
-                     <Button size="xs" variant="ghost">
-                        {t('views.more')}
-                        <ChevronDown className="ml-1 size-3.5" />
-                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent align="start" className="flex w-56 flex-col p-1">
-                     {overflow.map((view) => (
-                        <Link
-                           key={view.id}
-                           href={`/${orgId}/view/${view.id}`}
-                           className="flex items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-accent"
-                        >
-                           <span aria-hidden>{view.icon}</span>
-                           <span className="truncate">{view.name}</span>
-                        </Link>
-                     ))}
-                  </PopoverContent>
-               </Popover>
-            ) : null}
-
-            <div className="ml-auto flex items-center gap-1">
-               <Button size="xs" variant="ghost" onClick={() => setManaging(true)}>
-                  <Settings2 className="mr-1 size-3.5" />
-                  {t('views.manage')}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+               <Button
+                  size="xs"
+                  variant="ghost"
+                  aria-label={t('views.manage')}
+                  onClick={() => setManaging(true)}
+               >
+                  <Settings2 className="size-3.5 sm:mr-1" />
+                  <span className="max-sm:sr-only">{t('views.manage')}</span>
                </Button>
-               <Button size="xs" variant="ghost" onClick={() => setCreating(true)}>
-                  <Plus className="mr-1 size-3.5" />
-                  {t('views.newView')}
+               <Button
+                  size="xs"
+                  variant="ghost"
+                  aria-label={t('views.newView')}
+                  onClick={() => setCreating(true)}
+               >
+                  <Plus className="size-3.5 sm:mr-1" />
+                  <span className="max-sm:sr-only">{t('views.newView')}</span>
                </Button>
             </div>
          </div>
