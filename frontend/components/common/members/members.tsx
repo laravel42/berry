@@ -343,7 +343,7 @@ export default function Members() {
                               <Link
                                  href={`/${orgId}/members/${member.userId}`}
                                  title={member.name}
-                                 className="hover:underline max-sm:block max-sm:min-w-0 max-sm:max-w-full max-sm:truncate"
+                                 className="hover:underline max-sm:block max-sm:min-w-0 max-sm:max-w-full max-sm:truncate max-sm:leading-6"
                               >
                                  {member.name}
                                  {member.userId === myId ? (
