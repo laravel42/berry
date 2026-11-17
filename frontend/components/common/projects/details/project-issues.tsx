@@ -55,7 +55,7 @@ export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
       <div className="w-full h-full flex flex-col overflow-hidden">
          <IssueFilterBar />
          <BatchToolbar visibleIds={displayedIssues.map((issue) => issue.id)} />
-         <div className="flex-1 min-h-0 w-full flex overflow-hidden">
+         <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {view.mode === 'table' ? (
                   <IssueTable
