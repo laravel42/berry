@@ -2,7 +2,7 @@
 
 import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 
 import {
    EmptyState,
@@ -98,6 +98,17 @@ export default function PromptLogs() {
          .catch(() => setError(true))
          .finally(() => setLoading(false));
    }, [workspaceId, filter, cursor]);
+
+   const openProps = (id: string) => ({
+      tabIndex: 0,
+      onClick: () => setOpenId(id),
+      onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
+         if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            setOpenId(id);
+         }
+      },
+   });
 
    const filtered =
       filter.kind !== null ||
@@ -204,43 +215,20 @@ export default function PromptLogs() {
                   <EmptyStateText>{filtered ? t('noMatch') : t('empty')}</EmptyStateText>
                </EmptyState>
             ) : (
-               <table className="w-full">
-                  <thead className="sticky top-0 z-10 bg-background text-left tracking-wider text-muted-foreground uppercase">
-                     <tr className="border-b">
-                        <th className="px-6 py-2 font-medium">{t('columns.when')}</th>
-                        <th className="px-3 py-2 font-medium">{t('columns.purpose')}</th>
-                        <th className="w-full px-3 py-2 font-medium">{t('columns.prompt')}</th>
-                        <th className="px-3 py-2 font-medium">{t('columns.model')}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t('columns.tokens')}</th>
-                        <th className="px-3 py-2 text-right font-medium">{t('columns.cost')}</th>
-                        <th className="px-3 py-2 text-right font-medium">
-                           {t('columns.duration')}
-                        </th>
-                        <th className="px-6 py-2 font-medium">{t('columns.status')}</th>
-                     </tr>
-                  </thead>
-                  <tbody>
+               <>
+                  <ul className="md:hidden">
                      {rows.map((row) => (
-                        <tr
+                        <li
                            key={row.id}
-                           tabIndex={0}
-                           onClick={() => setOpenId(row.id)}
-                           onKeyDown={(event) => {
-                              if (event.key === 'Enter' || event.key === ' ') {
-                                 event.preventDefault();
-                                 setOpenId(row.id);
-                              }
-                           }}
-                           className="cursor-pointer border-b hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                           data-log-card
+                           {...openProps(row.id)}
+                           className="flex cursor-pointer flex-col gap-1 border-b px-5 py-3 hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
                         >
-                           <td
-                              className="whitespace-nowrap px-6 py-2 text-muted-foreground"
-                              title={row.createdAt}
-                           >
-                              {timeAgo(row.createdAt)}
-                           </td>
-                           <td className="whitespace-nowrap px-3 py-2">
-                              <span className="inline-flex items-center gap-1.5">
+                           <div className="flex items-start justify-between gap-3">
+                              <span
+                                 data-f="purpose"
+                                 className="flex min-w-0 flex-wrap items-center gap-x-1.5 break-words"
+                              >
                                  {row.purpose}
                                  {row.structured && (
                                     <span className="rounded border px-1 font-mono text-muted-foreground">
@@ -248,41 +236,120 @@ export default function PromptLogs() {
                                     </span>
                                  )}
                               </span>
-                              {row.kind === 'agent' && (row.agentName || row.issueIdentifier) ? (
-                                 <span className="block text-muted-foreground">
-                                    {[row.agentName, row.issueIdentifier]
-                                       .filter(Boolean)
-                                       .join(' · ')}
-                                 </span>
-                              ) : null}
-                           </td>
-                           <td className="max-w-0 px-3 py-2">
-                              <span className="block truncate text-muted-foreground">
+                              <span data-f="status" className="shrink-0">
+                                 <LogStatusBadge status={row.status} />
+                              </span>
+                           </div>
+                           {row.kind === 'agent' && (row.agentName || row.issueIdentifier) ? (
+                              <span className="truncate text-muted-foreground">
+                                 {[row.agentName, row.issueIdentifier].filter(Boolean).join(' · ')}
+                              </span>
+                           ) : null}
+                           <div className="flex items-center gap-1.5 text-muted-foreground">
+                              <span data-f="when" className="shrink-0" title={row.createdAt}>
+                                 {timeAgo(row.createdAt)}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span
+                                 data-f="model"
+                                 className="min-w-0 truncate"
+                                 title={row.model ?? undefined}
+                              >
+                                 {row.model ? readableModelName(row.model) : '—'}
+                              </span>
+                           </div>
+                           {row.promptPreview ? (
+                              <span className="truncate text-muted-foreground">
                                  {row.promptPreview}
                               </span>
-                           </td>
-                           <td
-                              className="max-w-[16rem] truncate whitespace-nowrap px-3 py-2 text-muted-foreground"
-                              title={row.model ?? undefined}
-                           >
-                              {row.model ? readableModelName(row.model) : '—'}
-                           </td>
-                           <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                              {formatTokens(row.inputTokens + row.outputTokens)}
-                           </td>
-                           <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                              {row.costMicros === null ? '—' : formatCost(row.costMicros)}
-                           </td>
-                           <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
-                              {row.durationMs === null ? '—' : formatMs(row.durationMs)}
-                           </td>
-                           <td className="whitespace-nowrap px-6 py-2">
-                              <LogStatusBadge status={row.status} />
-                           </td>
-                        </tr>
+                           ) : null}
+                           <div className="flex gap-3 text-muted-foreground tabular-nums">
+                              <span>{formatTokens(row.inputTokens + row.outputTokens)}</span>
+                              <span>
+                                 {row.costMicros === null ? '—' : formatCost(row.costMicros)}
+                              </span>
+                              <span>
+                                 {row.durationMs === null ? '—' : formatMs(row.durationMs)}
+                              </span>
+                           </div>
+                        </li>
                      ))}
-                  </tbody>
-               </table>
+                  </ul>
+                  <table className="hidden w-full md:table">
+                     <thead className="sticky top-0 z-10 bg-background text-left tracking-wider text-muted-foreground uppercase">
+                        <tr className="border-b">
+                           <th className="px-6 py-2 font-medium">{t('columns.when')}</th>
+                           <th className="px-3 py-2 font-medium">{t('columns.purpose')}</th>
+                           <th className="w-full px-3 py-2 font-medium">{t('columns.prompt')}</th>
+                           <th className="px-3 py-2 font-medium">{t('columns.model')}</th>
+                           <th className="px-3 py-2 text-right font-medium">
+                              {t('columns.tokens')}
+                           </th>
+                           <th className="px-3 py-2 text-right font-medium">{t('columns.cost')}</th>
+                           <th className="px-3 py-2 text-right font-medium">
+                              {t('columns.duration')}
+                           </th>
+                           <th className="px-6 py-2 font-medium">{t('columns.status')}</th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        {rows.map((row) => (
+                           <tr
+                              key={row.id}
+                              {...openProps(row.id)}
+                              className="cursor-pointer border-b hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                           >
+                              <td
+                                 className="whitespace-nowrap px-6 py-2 text-muted-foreground"
+                                 title={row.createdAt}
+                              >
+                                 {timeAgo(row.createdAt)}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2">
+                                 <span className="inline-flex items-center gap-1.5">
+                                    {row.purpose}
+                                    {row.structured && (
+                                       <span className="rounded border px-1 font-mono text-muted-foreground">
+                                          {t('structuredBadge')}
+                                       </span>
+                                    )}
+                                 </span>
+                                 {row.kind === 'agent' && (row.agentName || row.issueIdentifier) ? (
+                                    <span className="block text-muted-foreground">
+                                       {[row.agentName, row.issueIdentifier]
+                                          .filter(Boolean)
+                                          .join(' · ')}
+                                    </span>
+                                 ) : null}
+                              </td>
+                              <td className="max-w-0 px-3 py-2">
+                                 <span className="block truncate text-muted-foreground">
+                                    {row.promptPreview}
+                                 </span>
+                              </td>
+                              <td
+                                 className="max-w-[16rem] truncate whitespace-nowrap px-3 py-2 text-muted-foreground"
+                                 title={row.model ?? undefined}
+                              >
+                                 {row.model ? readableModelName(row.model) : '—'}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                                 {formatTokens(row.inputTokens + row.outputTokens)}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                                 {row.costMicros === null ? '—' : formatCost(row.costMicros)}
+                              </td>
+                              <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">
+                                 {row.durationMs === null ? '—' : formatMs(row.durationMs)}
+                              </td>
+                              <td className="whitespace-nowrap px-6 py-2">
+                                 <LogStatusBadge status={row.status} />
+                              </td>
+                           </tr>
+                        ))}
+                     </tbody>
+                  </table>
+               </>
             )}
             {cursor && (
                <div className="flex justify-center py-4">
