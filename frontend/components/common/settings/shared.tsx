@@ -241,7 +241,7 @@ export function SettingsRow({
                ) : null}
             </div>
             {trailing ? (
-               <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+               <div className="flex max-w-full shrink-0 items-center gap-2 text-muted-foreground">
                   {trailing}
                </div>
             ) : null}
