@@ -17,6 +17,16 @@ import {
 import { isNavItemActive } from '@/lib/nav-active';
 
 /**
+ * Pages under /settings that are not in the rail's list, which would otherwise
+ * show a bare "Settings" with no page name. Labels are `workspaceAdmin.nav` keys.
+ */
+const offRailPages = [
+   { segment: 'organization', labelKey: 'organization' },
+   { segment: 'repositories', labelKey: 'repositories' },
+   { segment: 'usage', labelKey: 'usage' },
+] as const;
+
+/**
  * The settings header, and the only settings navigation on a narrow screen.
  *
  * The rail carries the grouped list, but it is a fixed 232px column: below the
@@ -28,16 +38,6 @@ import { isNavItemActive } from '@/lib/nav-active';
  * It reads the same `settingsNav`, keeping the groups and their order, so a
  * page added to the rail appears here without a second edit.
  */
-/**
- * Pages under /settings that are not in the rail's list, which would otherwise
- * show a bare "Settings" with no page name. Labels are `workspaceAdmin.nav` keys.
- */
-const offRailPages = [
-   { segment: 'organization', labelKey: 'organization' },
-   { segment: 'repositories', labelKey: 'repositories' },
-   { segment: 'usage', labelKey: 'usage' },
-] as const;
-
 export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) {
    const t = useTranslations('settings.header');
    const admin = useTranslations('workspaceAdmin');
