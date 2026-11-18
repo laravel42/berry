@@ -315,7 +315,7 @@ export default function SkillsList({
                onClick={() => sortBy(key)}
                aria-label={label}
                className={cn(
-                  'truncate uppercase hover:text-foreground',
+                  'truncate uppercase hover:text-foreground [@media(hover:none)]:min-h-6',
                   criteria.sort === key && 'text-foreground'
                )}
             >
@@ -347,7 +347,7 @@ export default function SkillsList({
                   type="button"
                   onClick={() => sortBy('name')}
                   className={cn(
-                     'min-w-0 flex-1 text-left uppercase hover:text-foreground',
+                     'min-w-0 flex-1 text-left uppercase hover:text-foreground [@media(hover:none)]:min-h-6',
                      criteria.sort === 'name' && 'text-foreground'
                   )}
                >

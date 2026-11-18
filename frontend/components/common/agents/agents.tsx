@@ -376,7 +376,7 @@ export default function Agents() {
                onClick={() => sortBy(key)}
                aria-label={label}
                className={cn(
-                  'truncate uppercase hover:text-foreground',
+                  'truncate uppercase hover:text-foreground [@media(hover:none)]:min-h-6',
                   sortKey === key && 'text-foreground'
                )}
             >
@@ -445,7 +445,7 @@ export default function Agents() {
                         type="button"
                         onClick={() => sortBy('name')}
                         className={cn(
-                           'min-w-0 flex-1 text-left uppercase hover:text-foreground',
+                           'min-w-0 flex-1 text-left uppercase hover:text-foreground [@media(hover:none)]:min-h-6',
                            sortKey === 'name' && 'text-foreground'
                         )}
                      >
