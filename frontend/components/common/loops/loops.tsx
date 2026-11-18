@@ -166,7 +166,8 @@ export default function Loops() {
       <>
          <PageKpiHeader label={t('title')} kpis={kpis} wrapKpis>
             <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
+               // On a phone the search is as tall as the button beside it.
+               className={`${searchFieldClass} w-64 max-sm:w-40 max-sm:min-h-11`}
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('search')}

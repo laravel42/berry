@@ -322,10 +322,13 @@ export default function Projects() {
                <CreateProjectButton />
             </PageKpiHeader>
          </div>
-         <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] [&_button]:!h-[30px]">
-            <div className="flex flex-wrap items-center gap-1">
+         {/* On a phone the search takes the first line on its own and the
+             filter, display and layout controls share the second, the layout
+             switch on the right: one line cannot hold them all. */}
+         <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2 [&_button]:!h-[30px]">
+            <div className="flex flex-wrap items-center gap-1 max-sm:contents">
                <Input
-                  className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
+                  className={cn(searchFieldClass, 'w-64 max-sm:w-full')}
                   placeholder={lists('projects.search')}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
