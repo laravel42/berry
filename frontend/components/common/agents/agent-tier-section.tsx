@@ -130,7 +130,11 @@ export function AgentTierSection({
             </div>
          )}
 
-         <div role="radiogroup" aria-label={t('title')} className="grid grid-cols-5 gap-2">
+         <div
+            role="radiogroup"
+            aria-label={t('title')}
+            className="grid grid-cols-5 gap-2 max-sm:grid-cols-1"
+         >
             {TIER_ORDER.map(option)}
          </div>
 
