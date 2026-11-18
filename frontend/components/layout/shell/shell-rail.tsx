@@ -22,7 +22,7 @@ import { isTerminalRunStatus } from '@/lib/runs';
 import { useRunsStore } from '@/store/runs-store';
 import { useSessionStore } from '@/store/session-store';
 import { useCommandPaletteStore } from '@/store/command-palette-store';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsShellOverlay } from '@/hooks/use-mobile';
 import { SHELL_SECTIONS, type ShellRouteDef, type ShellRoute } from './shell-routes';
 import { BerryWordmark } from '@/components/brand/berry-mark';
 import { ShellIcon, ShellNavIcon, shellNavRow } from './shell-icon';
@@ -40,11 +40,11 @@ interface ShellRailProps {
    active: ShellRoute | null;
    /** Settings replaces the rail's contents, as it did in AppSidebar. */
    settingsMode: boolean;
-   /** At `lg` and above: shown as a column, or collapsed to its expand control. */
+   /** At `md` and above: shown as a column, or collapsed to its expand control. */
    columnOpen: boolean;
-   /** Below `lg`: shown as an overlay over the page, or slid away. */
+   /** Below `md`: shown as an overlay over the page, or slid away. */
    overlayOpen: boolean;
-   /** The close control below `lg`: put the overlay away. */
+   /** The close control below `md`: put the overlay away. */
    onDismiss: () => void;
    /** The shell moves focus into the rail when the overlay opens. */
    ref?: Ref<HTMLElement>;
@@ -58,11 +58,11 @@ interface ShellRailProps {
  * they do everywhere else — the prototype used div+onClick, which silently
  * removes all three.
  *
- * One element, two shapes. At `lg` and above it is a 232px column in the
+ * One element, two shapes. At `md` and above it is a 232px column in the
  * shell's grid, collapsible via the shortcut and the expand control when
- * folded. Below `lg` it is a 312px overlay that slides in from the left edge over the
+ * folded. Below `md` it is a 312px overlay that slides in from the left edge over the
  * page, closed until the strip's menu button opens it. The switch is made
- * in CSS (`lg:` classes) so the server's render and the first paint agree;
+ * in CSS (`md:` classes) so the server's render and the first paint agree;
  * the breakpoint hook only governs behaviour that CSS cannot express, such
  * as `inert`.
  */
@@ -79,7 +79,7 @@ export function ShellRail({
    const { visibility, order, manageOpen, workOpen, setManageOpen, setWorkOpen } =
       useSidebarPrefsStore();
    const role = useSessionStore((state) => state.workspace?.role);
-   const isMobile = useIsMobile();
+   const isMobile = useIsShellOverlay();
    const pathname = usePathname();
    const openPalette = useCommandPaletteStore((state) => state.open);
    // A run that has not reached a terminal status is still going, which is what
@@ -137,7 +137,7 @@ export function ShellRail({
          type="button"
          onClick={onDismiss}
          aria-label={t('rail.closeMenu')}
-         className="flex size-11 flex-none cursor-pointer items-center justify-center rounded text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] lg:hidden"
+         className="flex size-11 flex-none cursor-pointer items-center justify-center rounded text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] md:hidden"
       >
          <X size={18} strokeWidth={1.8} aria-hidden="true" />
       </button>
@@ -149,7 +149,7 @@ export function ShellRail({
          id="shell-rail"
          data-shell-chrome
          aria-label={t('rail.workspace')}
-         // Off screen and out of the tab order while closed below `lg`.
+         // Off screen and out of the tab order while closed below `md`.
          // Opening switches visibility at once, so focus can move in on the
          // same tick; closing delays it to the end of the slide, so the panel
          // is seen leaving rather than vanishing.
@@ -157,13 +157,13 @@ export function ShellRail({
          className={[
             'flex flex-col overflow-y-auto bg-[var(--shell-rail)]',
             'fixed inset-y-0 left-0 z-50 max-w-[85vw] border-r border-[var(--shell-line)]',
-            'w-[312px] lg:w-[232px]',
+            'w-[312px] md:w-[232px]',
             'duration-200 ease-out motion-reduce:transition-none',
             overlayOpen
                ? 'visible translate-x-0 transition-transform'
                : 'invisible -translate-x-full transition-[transform,visibility] [transition-delay:0s,200ms]',
-            'lg:visible lg:static lg:inset-auto lg:z-auto lg:max-w-none lg:translate-x-0 lg:border-r-0 lg:transition-none',
-            columnOpen ? 'lg:flex' : 'lg:hidden',
+            'md:visible md:static md:inset-auto md:z-auto md:max-w-none md:translate-x-0 md:border-r-0 md:transition-none',
+            columnOpen ? 'md:flex' : 'md:hidden',
          ].join(' ')}
       >
          {settingsMode ? (
@@ -211,8 +211,8 @@ export function ShellRail({
 
                {/* Search on a phone, where there is no ⌘K to press. The menu
              goes away first, so the palette opens over the page rather than
-             over the menu. A column at `lg` has the shortcut and no row. */}
-               <div className="px-3 lg:hidden">
+             over the menu. A column at `md` has the shortcut and no row. */}
+               <div className="px-3 md:hidden">
                   <button
                      type="button"
                      onClick={() => {
@@ -234,7 +234,7 @@ export function ShellRail({
                   const shown = partition(section.routes, section.prefsSection);
                   const heading = section.headingKey ? t(`sections.${section.headingKey}`) : null;
                   const list = (
-                     <ul className="flex flex-col gap-0 px-3 lg:gap-1">
+                     <ul className="flex flex-col gap-0 px-3 md:gap-1">
                         {shown.map((route) => {
                            const on = Boolean(route.href) && route.id === active;
                            const className = shellNavRow(on);
@@ -302,8 +302,8 @@ export function ShellRail({
                })}
 
                {/* Pages a phone has no other way to reach: the column has ⌘K,
-             the Agents pill and the workspace menu. Below `lg` only. */}
-               <div className="lg:hidden">
+             the Agents pill and the workspace menu. Below `md` only. */}
+               <div className="md:hidden">
                   <div className="px-3 pt-2">
                      <div
                         data-heading="label"

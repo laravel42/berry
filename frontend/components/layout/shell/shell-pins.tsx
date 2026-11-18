@@ -141,11 +141,11 @@ export function ShellPins({ orgId }: { orgId: string }) {
       <div>
          <div
             data-heading="label"
-            className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
+            className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] md:pt-[18px] md:pb-[7px]"
          >
             {t('pinned')}
          </div>
-         <ul ref={listRef} className="flex flex-col gap-0 px-3 lg:gap-1">
+         <ul ref={listRef} className="flex flex-col gap-0 px-3 md:gap-1">
             {shown.map((pin, index) => {
                // The status mark comes from the task the board already loaded.
                // A pin carries a title, not a status, and asking the server for
@@ -164,7 +164,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                      data-pin-row
                      className={[
                         // A tap target on the overlay rail; sized to its text as a column.
-                        'group/pin flex min-h-11 items-center gap-1 rounded pr-1 lg:min-h-0',
+                        'group/pin flex min-h-11 items-center gap-1 rounded pr-1 md:min-h-0',
                         dragIndex === index
                            ? 'bg-[var(--shell-hover)]'
                            : 'hover:bg-[var(--shell-hover)]',

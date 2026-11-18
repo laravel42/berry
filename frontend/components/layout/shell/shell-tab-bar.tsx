@@ -40,7 +40,7 @@ const inner = 'flex flex-col items-center gap-0.5';
 
 /**
  * The phone's primary navigation: five tabs fixed to the bottom edge, below
- * `lg`. It stands in for the floating menu button and the Agents pill, so
+ * `md`. It stands in for the floating menu button and the Agents pill, so
  * the three places people go most are one tap away and the rest of the rail
  * is behind More.
  *
@@ -99,7 +99,7 @@ export const ShellTabBar = forwardRef<
       <nav
          data-shell-chrome
          aria-label={t('tabs.label')}
-         className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] items-stretch border-t border-[var(--shell-line)] bg-[var(--shell-rail)] pb-[env(safe-area-inset-bottom)] lg:hidden"
+         className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] items-stretch border-t border-[var(--shell-line)] bg-[var(--shell-rail)] pb-[env(safe-area-inset-bottom)] md:hidden"
       >
          <div
             aria-hidden="true"

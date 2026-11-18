@@ -1,4 +1,4 @@
-import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile';
+import { SHELL_BREAKPOINT } from '@/hooks/use-mobile';
 
 /**
  * The shell's fixed dimensions, for code that has to reason about them.
@@ -10,14 +10,14 @@ import { MOBILE_BREAKPOINT } from '@/hooks/use-mobile';
  * quietly stops being true. Change one, change the other.
  */
 
-/** The rail as a column at `lg` and above, expanded. `lg:w-[232px]` in shell-rail.tsx. */
+/** The rail as a column at `md` and above, expanded. `md:w-[232px]` in shell-rail.tsx. */
 export const RAIL_WIDTH = 232;
 
 /** The rail collapsed to its expand control. `w-9` in berry-shell.tsx. */
 export const RAIL_COLLAPSED_WIDTH = 36;
 
-/** Below `lg` the rail is an overlay and reserves nothing. */
+/** Below `md` the rail is an overlay and reserves nothing. */
 export const RAIL_OVERLAY_WIDTH = 0;
 
-/** The viewport width below which the rail becomes an overlay: Tailwind's `lg`. */
-export const RAIL_OVERLAY_BREAKPOINT = MOBILE_BREAKPOINT;
+/** The viewport width below which the rail becomes an overlay: Tailwind's `md`. */
+export const RAIL_OVERLAY_BREAKPOINT = SHELL_BREAKPOINT;

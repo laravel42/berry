@@ -30,7 +30,7 @@ import { ShellSectionFold } from './shell-section-fold';
  * is short on the way in, except the group holding the current page, which
  * starts open. A choice lasts while the rail is mounted.
  *
- * `trailing` is the rail's close control below `lg`, placed on the back row
+ * `trailing` is the rail's close control below `md`, placed on the back row
  * so the overlay has a visible way out whatever the rail is showing.
  */
 export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing?: ReactNode }) {
@@ -44,7 +44,7 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
          <div className="flex items-center justify-between gap-2 px-3 pt-3.5 pb-1">
             <Link
                href={`/${orgId}/tasks`}
-               className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-[7px] bg-segment-track px-2.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] lg:h-[30px] lg:min-h-0"
+               className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-[7px] bg-segment-track px-2.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] md:h-[30px] md:min-h-0"
             >
                <ChevronLeft className="size-3" strokeWidth={2.2} />
                Back to app
@@ -65,7 +65,7 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
                   setChosen((current) => ({ ...current, [group.labelKey]: open }))
                }
             >
-               <ul className="flex flex-col gap-0 px-3 lg:gap-1">
+               <ul className="flex flex-col gap-0 px-3 md:gap-1">
                   {group.items.map((item) => {
                      const href = `/${orgId}${item.url}`;
                      const active = isNavItemActive(pathname, href);

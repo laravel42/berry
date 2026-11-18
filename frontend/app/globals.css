@@ -1051,10 +1051,10 @@
    --shell-launcher-room: calc(var(--shell-launcher-clear) - var(--app-inset-b));
 }
 
-/* Below `lg` the phone tab bar (shell-tab-bar.tsx) owns the bottom edge and
+/* Below `md` the phone tab bar (shell-tab-bar.tsx) owns the bottom edge and
    the Agents pill is gone. What floats bottom-right sits above the bar with a
    margin; the chat window and toasts end right on its top edge. */
-@media (width < 64rem) {
+@media (width < 48rem) {
    :root {
       --shell-tabbar-h: 3.5rem;
       --shell-launcher-b: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom) + 0.75rem);

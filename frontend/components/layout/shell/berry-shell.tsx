@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsShellOverlay } from '@/hooks/use-mobile';
 import { useShellStore } from '@/store/shell-store';
 import { activeShellRoute, type ShellRoute } from './shell-routes';
 import { ShellRail } from './shell-rail';
@@ -21,13 +21,13 @@ import { ShellShortcuts } from './shell-shortcuts';
  * The application shell: a collapsible rail and the workspace canvas.
  *
  * The chrome that has to stay reachable whatever the page shows: the chat
- * window's button floats bottom-right from `lg`, and below `lg` a tab bar
+ * window's button floats bottom-right from `md`, and below `md` a tab bar
  * fixed to the bottom edge takes its place and the menu button's. The canvas
  * leaves room under the page for the bar, so it never covers the last line.
  * The page fills the canvas; the URL is the only navigation state.
  * Notifications live on Inbox in the rail; toasts still announce arrivals.
  *
- * Below `lg` the rail leaves the grid and becomes an overlay the tab
+ * Below `md` the rail leaves the grid and becomes an overlay the tab
  * bar's More opens over the page. The layout switch is CSS so the server and the
  * first paint agree; what this component adds is the behaviour a menu needs:
  * the page goes inert underneath it, focus moves in and comes back, Escape
@@ -39,7 +39,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
    const search = useSearchParams()?.toString() ?? '';
    const params = useParams<{ orgId?: string }>();
    const orgId = params?.orgId ?? '';
-   const isMobile = useIsMobile();
+   const isMobile = useIsShellOverlay();
 
    const { railOpen, railOverlayOpen, toggleRail, setRailOverlayOpen } = useShellStore();
 
@@ -50,7 +50,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
    // way AppSidebar swapped its whole body on settings routes.
    const settingsMode = pathname.includes('/settings');
 
-   // --- The overlay rail, below `lg` -------------------------------------
+   // --- The overlay rail, below `md` -------------------------------------
    const railRef = useRef<HTMLElement>(null);
    const menuRef = useRef<HTMLButtonElement>(null);
    const overlayWasOpen = useRef(false);
@@ -64,7 +64,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
       setRailOverlayOpen(false);
    }, [pathname, setRailOverlayOpen]);
 
-   // Widening past `lg` turns the overlay back into a column. Left open, it
+   // Widening past `md` turns the overlay back into a column. Left open, it
    // would hold the page inert behind a rail that is no longer over it.
    useEffect(() => {
       if (!isMobile) setRailOverlayOpen(false);
@@ -109,7 +109,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
             // (`font-mono`, `[data-identifier]`, `[data-figure]`, the code
             // editor, the console, the transcript). `font-light` is gone with
             // it: 400 is the floor (see the weight scale in globals.css).
-            className="grid h-full min-h-0 w-full grid-cols-[minmax(0,1fr)] overflow-hidden text-[var(--shell-text)] [--shell-strip:0px] lg:grid-cols-[auto_minmax(0,1fr)]"
+            className="grid h-full min-h-0 w-full grid-cols-[minmax(0,1fr)] overflow-hidden text-[var(--shell-text)] [--shell-strip:0px] md:grid-cols-[auto_minmax(0,1fr)]"
          >
             <ShellRail
                ref={railRef}
@@ -122,11 +122,11 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
             />
             {!railOpen ? (
                // The collapsed column: 36px holding the expand control. A
-               // column only — below `lg` the rail is an overlay and the
+               // column only — below `md` the rail is an overlay and the
                // tab bar's More is how it opens.
                <div
                   data-shell-chrome
-                  className="hidden w-9 flex-none justify-center bg-[var(--shell-rail)] pt-4 lg:flex"
+                  className="hidden w-9 flex-none justify-center bg-[var(--shell-rail)] pt-4 md:flex"
                >
                   <button
                      type="button"
@@ -158,7 +158,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                   type="button"
                   onClick={closeOverlay}
                   aria-label={t('rail.closeMenu')}
-                  className="fixed inset-0 z-40 cursor-default bg-black/50 lg:hidden"
+                  className="fixed inset-0 z-40 cursor-default bg-black/50 md:hidden"
                />
             ) : null}
 
@@ -167,10 +167,10 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                // Tab, until it closes: that is what makes the rail a menu
                // rather than a panel that happens to be on top.
                inert={railOverlayOpen}
-               // Below `lg` the canvas stops at the tab bar's top edge: under
+               // Below `md` the canvas stops at the tab bar's top edge: under
                // it, the bar would cover whatever was last on screen — a
                // list's final row, the comment box's attach button.
-               className={`relative flex h-full max-h-full min-h-0 min-w-0 flex-col pb-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] lg:pb-0 ${settingsMode ? 'lg:py-2 lg:pr-2' : ''}`}
+               className={`relative flex h-full max-h-full min-h-0 min-w-0 flex-col pb-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] md:pb-0 ${settingsMode ? 'md:py-2 md:pr-2' : ''}`}
             >
                {/* Radius + overflow live on an inner surface so the floating
                    chrome in the corner is not clipped by the curve.
@@ -183,10 +183,10 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                      settingsMode
                         ? // Framed on the dark theme only; on light the canvas
                           // already stands off the grey frame by its fill.
-                          'rounded-[12px] dark:lg:border dark:lg:border-[var(--shell-line)]'
+                          'rounded-[12px] dark:md:border dark:md:border-[var(--shell-line)]'
                         : // Same on the main canvas: the edge beside the rail
                           // is drawn on dark only.
-                          'rounded-[10px] dark:lg:border-l dark:lg:border-[var(--shell-line)]'
+                          'rounded-[10px] dark:md:border-l dark:md:border-[var(--shell-line)]'
                   }`}
                >
                   <NavigationProgress />
@@ -202,7 +202,7 @@ export function BerryShell({ children }: { children: React.ReactNode }) {
                {/* The launcher stands on top of the floating stack (see
                    floating-stack-store.ts), so page controls in the corner push
                    it up instead of sitting under it. */}
-               <div className="hidden lg:contents">
+               <div className="hidden md:contents">
                   <ShellLauncherDock />
                </div>
             </div>

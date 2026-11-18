@@ -55,7 +55,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
          open={mounted ? (personalOpen ?? true) : true}
          onOpenChange={setPersonalOpen}
       >
-         <ul className="flex flex-col gap-0 px-3 lg:gap-1">
+         <ul className="flex flex-col gap-0 px-3 md:gap-1">
             <li>
                <Link
                   data-shell-nav

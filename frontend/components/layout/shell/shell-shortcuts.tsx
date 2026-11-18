@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 
 import { useShortcut } from '@/components/layout/shortcut-provider';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsShellOverlay } from '@/hooks/use-mobile';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useShellStore } from '@/store/shell-store';
@@ -22,7 +22,7 @@ import { useShellStore } from '@/store/shell-store';
  */
 export function ShellShortcuts({ orgId }: { orgId: string }) {
    const router = useRouter();
-   const isMobile = useIsMobile();
+   const isMobile = useIsShellOverlay();
    const toggleRail = useShellStore((state) => state.toggleRail);
    const toggleRailOverlay = useShellStore((state) => state.toggleRailOverlay);
    const openIssueModal = useCreateIssueStore((state) => state.openModal);
@@ -33,7 +33,7 @@ export function ShellShortcuts({ orgId }: { orgId: string }) {
    const go = (path: string) => router.push(`/${orgId}${path}`);
 
    useShortcut('issue.create', () => openIssueModal());
-   // The rail is a column at `lg` and an overlay below it; the key toggles
+   // The rail is a column at `md` and an overlay below it; the key toggles
    // whichever shape is on screen rather than a stored preference the
    // narrow layout never reads.
    useShortcut('sidebar.toggle', () => (isMobile ? toggleRailOverlay() : toggleRail()));
