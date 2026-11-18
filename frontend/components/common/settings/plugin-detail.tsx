@@ -173,7 +173,9 @@ export default function PluginDetail({
    const frame = (children: ReactNode) =>
       embedded ? (
          <div className="settings-surface min-h-0 flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-6 px-6 py-6 pb-16">{children}</div>
+            <div className="flex flex-col gap-6 px-6 pt-6 pb-8 md:pb-[var(--shell-launcher-room)]">
+               {children}
+            </div>
          </div>
       ) : (
          <SettingsShell title={current.name} description={description}>

@@ -2,6 +2,14 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Espacio al final de Settings (2026-11-18)
+
+Cada pantalla de Settings (`SettingsShell` en `components/common/settings/shared.tsx`) terminaba con `pb-24`, es decir, 96 px vacíos tras el último bloque. El detalle de un plugin dejaba 64 px (`pb-16`).
+
+- **Teléfono:** baja a 32 px (`pb-8`). La barra de pestañas está fuera del área que se desplaza, así que no hace falta más.
+- **Desde `md`:** queda en 70 px (`md:pb-[var(--shell-launcher-room)]`), la misma regla que las listas. Es lo justo para que la última fila no quede debajo del botón flotante de Agents. Ese botón se encima a la columna de Settings a 800 y 1024 px de ancho.
+- **Medición:** `scripts/probe-settings-bottom.cjs`. Se probaron 19 pantallas a 1440, 800 y 390 px: 32 px en el teléfono y 70 px en escritorio en todas las que tienen desplazamiento.
+
 ## Barras de búsqueda y filtros en el teléfono (2026-11-18)
 
 Pedido del usuario: el buscador de Tasks no medía lo mismo que los botones de al lado, y en Projects el buscador y los filtros quedaban mal acomodados. Sonda `probe-toolbar.cjs <tag> [anchos] [filtro]` (alto de cada control, cuántas líneas ocupa la barra y si algo se sale o se encima); capturas en `scripts/toolbar/`.

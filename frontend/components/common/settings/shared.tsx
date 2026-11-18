@@ -50,7 +50,9 @@ export function SettingsShell({
       <div className="settings-surface h-full w-full overflow-y-auto">
          <div
             className={cn(
-               'flex flex-col gap-8 px-4 pb-24 sm:px-8',
+               // The page ends with only the room the Agents launcher needs from
+               // `md`, where it floats over the canvas; phones keep a short gap.
+               'flex flex-col gap-8 px-4 pb-8 sm:px-8 md:pb-[var(--shell-launcher-room)]',
                heading ? 'pt-10' : 'pt-4',
                wide ? 'w-full' : 'mx-auto max-w-[720px]'
             )}
