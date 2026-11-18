@@ -42,8 +42,15 @@ export function AuthCard({
 }: AuthCardProps) {
    return (
       <BrandThemeCanvas className={className}>
+         {/*
+            The app frame (body border) is light in the light theme, but this canvas is
+            always the dark void: without this the frame shows as a light strip around
+            it. The rule is scoped to the page that renders an AuthCard and goes with it.
+         */}
+         <style>{':root:root:not(.dark){--app-frame:var(--brand-void)}'}</style>
          <div className="flex min-h-full flex-1 flex-col px-8 py-7">
-            <header className="flex items-center gap-2.5">
+            {/* The lockup ink is dark in the light theme; this canvas is dark in both. */}
+            <header className="flex items-center gap-2.5 [--lockup-ink:#f0edea]">
                <BerryWordmark size="md" />
                {topAction ? (
                   <div
