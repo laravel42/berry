@@ -7,7 +7,9 @@ import { useIssuesStore } from '@/store/issues-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useIssueHref } from './use-issue-href';
-import { memo, useEffect, useRef, useState } from 'react';
+import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
@@ -16,18 +18,33 @@ import { AssigneeUser } from './assignee-user';
 import { LabelBadge } from './label-badge';
 import { IssuePriorityPicker } from './issue-pickers';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { IssueContextMenu } from './issue-context-menu';
+import { IssueContextMenu, type BoardMoveColumn, type IssueMoveTo } from './issue-context-menu';
 
 import { cn } from '@/lib/utils';
 import { isSameValue } from '@/lib/same-value';
 
 export const IssueDragType = 'ISSUE';
 
+/**
+ * What a card needs to offer Move to: the board's columns and the write a drop
+ * onto one of them performs. Only a board provides it, and only for a grouping
+ * where a column is a single value a card can be given.
+ */
+export interface BoardMove {
+   columns: BoardMoveColumn[];
+   replacesStatus: boolean;
+   move: (columnId: string, issue: Issue) => void;
+}
+
+export const BoardMoveContext = createContext<BoardMove | null>(null);
+
 type IssueGridProps = {
    issue: Issue;
    index: number;
    columnIssueIds: string[];
    columnStatus?: Status;
+   /** The board column this card is in; Move to marks it as current. */
+   columnId?: string;
    /** Applies the column's grouped value to a card dropped onto this one. */
    onDropIssue?: (issue: Issue) => void;
 };
@@ -95,6 +112,7 @@ function IssueGridCard({
    index,
    columnIssueIds,
    columnStatus,
+   columnId,
    onDropIssue,
 }: IssueGridProps) {
    const cardRef = useRef<HTMLDivElement>(null);
@@ -104,6 +122,21 @@ function IssueGridCard({
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const [dropEdge, setDropEdge] = useState<'top' | 'bottom' | null>(null);
    const liveRun = useIssueLiveRun(issue);
+   const t = useTranslations('issueLists');
+   const board = useContext(BoardMoveContext);
+   const innerRef = useRef<HTMLDivElement>(null);
+   const moveTo = useMemo<IssueMoveTo | undefined>(
+      () =>
+         board && columnId !== undefined
+            ? {
+                 columns: board.columns,
+                 currentId: columnId,
+                 replacesStatus: board.replacesStatus,
+                 onMove: (target) => board.move(target, issue),
+              }
+            : undefined,
+      [board, columnId, issue]
+   );
 
    const columnKey = columnIssueIds.join(',');
 
@@ -187,6 +220,7 @@ function IssueGridCard({
          <ContextMenu>
             <ContextMenuTrigger asChild>
                <div
+                  ref={innerRef}
                   className={cn(
                      'group relative w-full cursor-grab rounded-lg bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] transition-colors active:cursor-grabbing',
                      /* Not the themed `--border`, which would turn near-white on a
@@ -232,6 +266,32 @@ function IssueGridCard({
                               {format(new Date(issue.createdAt), 'MMM dd')}
                            </span>
                         ) : null}
+                        {/* A finger has no right-click and no hover, so a touch
+                            screen gets a visible button that opens the card's
+                            menu where it stands. Pointer devices keep the
+                            right-click. */}
+                        <button
+                           type="button"
+                           aria-label={t('menu.cardActions')}
+                           className={cn(
+                              'relative z-[1] -my-1.5 -mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:hidden',
+                              !displayProperties.created && 'ml-auto'
+                           )}
+                           onClick={(event) => {
+                              const rect = event.currentTarget.getBoundingClientRect();
+                              innerRef.current?.dispatchEvent(
+                                 new MouseEvent('contextmenu', {
+                                    bubbles: true,
+                                    cancelable: true,
+                                    view: window,
+                                    clientX: rect.left,
+                                    clientY: rect.bottom,
+                                 })
+                              );
+                           }}
+                        >
+                           <MoreHorizontal className="size-4" aria-hidden />
+                        </button>
                      </div>
                      {/* The link covers the card through its pseudo-element,
                          so the card's hover promise -- the whole thing lifts
@@ -272,7 +332,7 @@ function IssueGridCard({
                   </div>
                </div>
             </ContextMenuTrigger>
-            <IssueContextMenu issueId={issue.id} />
+            <IssueContextMenu issueId={issue.id} moveTo={moveTo} />
          </ContextMenu>
       </div>
    );
@@ -289,6 +349,7 @@ function sameIssueGridProps(previous: IssueGridProps, next: IssueGridProps): boo
       previous.issue === next.issue &&
       previous.index === next.index &&
       isSameValue(previous.columnStatus, next.columnStatus) &&
+      previous.columnId === next.columnId &&
       isSameValue(previous.columnIssueIds, next.columnIssueIds) &&
       previous.onDropIssue === next.onDropIssue
    );

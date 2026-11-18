@@ -35,6 +35,7 @@ import {
    CircleCheck,
    ExternalLink,
    Link as LinkIcon,
+   MoveRight,
    Pin,
    PinOff,
    Trash2,
@@ -77,7 +78,14 @@ function datePreset(targetDate: string | undefined): string {
 }
 
 /** Status, priority, lead, health, target date, then pin, copy and delete. */
-export function ProjectContextMenuContent({ project }: { project: Project }) {
+export function ProjectContextMenuContent({
+   project,
+   onBoard = false,
+}: {
+   project: Project;
+   /** On a board grouped by status the status submenu is the Move to one. */
+   onBoard?: boolean;
+}) {
    const t = useTranslations('issueLists.projects');
    const menu = useTranslations('issueLists.menu');
    const { orgId } = useParams<{ orgId: string }>();
@@ -117,7 +125,12 @@ export function ProjectContextMenuContent({ project }: { project: Project }) {
       <ContextMenuContent className="min-w-52">
          <ContextMenuSub>
             <ContextMenuSubTrigger>
-               <CircleCheck className="mr-2 size-4" /> {t('status')}
+               {onBoard ? (
+                  <MoveRight className="mr-2 size-4" />
+               ) : (
+                  <CircleCheck className="mr-2 size-4" />
+               )}{' '}
+               {onBoard ? menu('moveTo') : t('status')}
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="min-w-44">
                <ContextMenuRadioGroup

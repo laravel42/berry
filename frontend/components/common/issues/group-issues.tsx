@@ -206,7 +206,12 @@ export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesPr
    if (isViewTypeGrid) {
       return (
          <BoardColumn header={header}>
-            <IssueGridList issues={issues} status={group.status} onDropIssue={onDropIssue} />
+            <IssueGridList
+               issues={issues}
+               status={group.status}
+               columnId={group.id}
+               onDropIssue={onDropIssue}
+            />
          </BoardColumn>
       );
    }
@@ -224,8 +229,9 @@ export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesPr
 const IssueGridList: FC<{
    issues: Issue[];
    status?: Status;
+   columnId: string;
    onDropIssue?: (issue: Issue) => void;
-}> = ({ issues, status, onDropIssue }) => {
+}> = ({ issues, status, columnId, onDropIssue }) => {
    const ref = useRef<HTMLDivElement>(null);
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const columnIssueIds = issues.map((issue) => issue.id);
@@ -273,6 +279,7 @@ const IssueGridList: FC<{
                index={(windowed ? virtual.start : 0) + index}
                columnIssueIds={columnIssueIds}
                columnStatus={status}
+               columnId={columnId}
                onDropIssue={onDropIssue}
             />
          ))}

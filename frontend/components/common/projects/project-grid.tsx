@@ -246,7 +246,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                   </div>
                </div>
             </ContextMenuTrigger>
-            <ProjectContextMenuContent project={project} />
+            <ProjectContextMenuContent project={project} onBoard={columnStatus !== undefined} />
          </ContextMenu>
       </div>
    );

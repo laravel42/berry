@@ -31,6 +31,7 @@ import {
    Folder,
    Link as LinkIcon,
    Link2,
+   MoveRight,
    Pin,
    PinOff,
    Tag,
@@ -38,10 +39,30 @@ import {
    User,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
+
+/** One column of the board a card sits on, as the Move to submenu lists it. */
+export interface BoardMoveColumn {
+   id: string;
+   name: string;
+   icon: ReactNode;
+}
+
+/**
+ * What Move to needs: the board's columns, the one the card is in, and the
+ * move itself, which is the same write a drop onto that column performs.
+ */
+export interface IssueMoveTo {
+   columns: BoardMoveColumn[];
+   currentId: string;
+   /** True when the board is grouped by status, so this submenu is the status one. */
+   replacesStatus: boolean;
+   onMove: (columnId: string) => void;
+}
 
 interface IssueContextMenuProps {
    issueId?: string;
+   moveTo?: IssueMoveTo;
 }
 
 /** How many sibling tasks a relation submenu offers before it stops listing. */
@@ -74,7 +95,7 @@ function dueDatePreset(dueDate?: string): 'today' | 'tomorrow' | 'next-week' | '
  * The right-click menu on a row or a card: the fields people change without
  * opening anything, the ways out of the list, the relations, and delete.
  */
-export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
+export function IssueContextMenu({ issueId, moveTo }: IssueContextMenuProps) {
    const t = useTranslations('issueLists');
    const actions = useIssueActions(issueId);
    const issue = actions.issue;
@@ -95,23 +116,49 @@ export function IssueContextMenu({ issueId }: IssueContextMenuProps) {
    return (
       <ContextMenuContent className="w-64">
          <ContextMenuGroup>
-            <ContextMenuSub>
-               <ContextMenuSubTrigger>
-                  <CircleCheck className="mr-2 size-4" /> {t('display.status')}
-               </ContextMenuSubTrigger>
-               <ContextMenuSubContent className="w-48">
-                  <ContextMenuRadioGroup value={issue?.status.id} onValueChange={actions.setStatus}>
-                     {status.map((entry) => {
-                        const Icon = entry.icon;
-                        return (
-                           <ContextMenuRadioItem key={entry.id} value={entry.id}>
-                              <Icon /> {entry.name}
+            {moveTo ? (
+               <ContextMenuSub>
+                  <ContextMenuSubTrigger>
+                     <MoveRight className="mr-2 size-4" /> {t('menu.moveTo')}
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-48">
+                     <ContextMenuRadioGroup value={moveTo.currentId} onValueChange={moveTo.onMove}>
+                        {moveTo.columns.map((column) => (
+                           <ContextMenuRadioItem
+                              key={column.id}
+                              value={column.id}
+                              disabled={column.id === moveTo.currentId}
+                           >
+                              {column.icon} {column.name}
                            </ContextMenuRadioItem>
-                        );
-                     })}
-                  </ContextMenuRadioGroup>
-               </ContextMenuSubContent>
-            </ContextMenuSub>
+                        ))}
+                     </ContextMenuRadioGroup>
+                  </ContextMenuSubContent>
+               </ContextMenuSub>
+            ) : null}
+
+            {moveTo?.replacesStatus ? null : (
+               <ContextMenuSub>
+                  <ContextMenuSubTrigger>
+                     <CircleCheck className="mr-2 size-4" /> {t('display.status')}
+                  </ContextMenuSubTrigger>
+                  <ContextMenuSubContent className="w-48">
+                     <ContextMenuRadioGroup
+                        value={issue?.status.id}
+                        onValueChange={actions.setStatus}
+                     >
+                        {status.map((entry) => {
+                           const Icon = entry.icon;
+                           return (
+                              <ContextMenuRadioItem key={entry.id} value={entry.id}>
+                                 <Icon /> {entry.name}
+                              </ContextMenuRadioItem>
+                           );
+                        })}
+                     </ContextMenuRadioGroup>
+                  </ContextMenuSubContent>
+               </ContextMenuSub>
+            )}
 
             <ContextMenuSub>
                <ContextMenuSubTrigger>
