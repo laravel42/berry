@@ -21,7 +21,9 @@ export function ShellLauncherDock() {
    useEffect(() => {
       const root = document.documentElement;
       root.style.setProperty('--floating-stack-lift', `${lift}px`);
-      return () => root.style.removeProperty('--floating-stack-lift');
+      return () => {
+         root.style.removeProperty('--floating-stack-lift');
+      };
    }, [lift]);
 
    return (
