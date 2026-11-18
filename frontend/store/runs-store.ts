@@ -3,6 +3,8 @@ import { create } from 'zustand';
 
 interface RunsState {
    runs: RunRecord[];
+   /** False until the first fetch has answered, so an empty list is not mistaken for an empty workspace. */
+   loaded: boolean;
    error: string | null;
    hydrateRuns: (runs: RunRecord[], error?: string | null) => void;
    upsertRun: (run: RunRecord) => void;
@@ -17,7 +19,8 @@ function sortRuns(runs: RunRecord[]): RunRecord[] {
 export const useRunsStore = create<RunsState>((set, get) => ({
    runs: [],
    error: null,
-   hydrateRuns: (runs, error = null) => set({ runs: sortRuns(runs), error }),
+   loaded: false,
+   hydrateRuns: (runs, error = null) => set({ runs: sortRuns(runs), error, loaded: true }),
    upsertRun: (run) =>
       set((state) => {
          const next = state.runs.filter((entry) => entry.id !== run.id);

@@ -26,6 +26,7 @@ import { useRunsStore } from '@/store/runs-store';
 import { RunTranscriptDialog } from '@/components/common/runs/transcript-dialog';
 import { useSessionStore } from '@/store/session-store';
 import { toast } from 'sonner';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const COLUMNS = ['issue', 'assignee', 'state'] as const;
 
@@ -108,6 +109,7 @@ function DeliveryStrip({ delivery }: { delivery: RunDelivery }) {
 
 export default function RunOverview() {
    const t = useTranslations('runtimes.overview');
+   const common = useTranslations('common');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
    const searchParams = useSearchParams();
@@ -116,6 +118,7 @@ export default function RunOverview() {
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const runs = useRunsStore((state) => state.runs);
    const runsError = useRunsStore((state) => state.error);
+   const runsLoaded = useRunsStore((state) => state.loaded);
    const hydrateRuns = useRunsStore((state) => state.hydrateRuns);
    const upsertRun = useRunsStore((state) => state.upsertRun);
 
@@ -293,7 +296,11 @@ export default function RunOverview() {
          ) : null}
 
          <div className="min-h-0 flex-1 overflow-auto lg:pb-[var(--shell-launcher-room)]">
-            {visibleRuns.length === 0 ? (
+            {visibleRuns.length === 0 && !runsLoaded ? (
+               <div className="md:hidden">
+                  <ListSkeleton label={common('loading')} />
+               </div>
+            ) : visibleRuns.length === 0 ? (
                <p className="px-6 py-12 leading-6 text-muted-foreground md:hidden">{t('empty')}</p>
             ) : (
                <ul className="md:hidden">
@@ -355,7 +362,13 @@ export default function RunOverview() {
                   </tr>
                </thead>
                <tbody>
-                  {visibleRuns.length === 0 ? (
+                  {visibleRuns.length === 0 && !runsLoaded ? (
+                     <tr>
+                        <td colSpan={COLUMNS.length} className="p-0">
+                           <ListSkeleton label={common('loading')} />
+                        </td>
+                     </tr>
+                  ) : visibleRuns.length === 0 ? (
                      <tr>
                         <td
                            colSpan={COLUMNS.length}

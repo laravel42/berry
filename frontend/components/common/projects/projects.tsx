@@ -37,6 +37,7 @@ import ProjectsTimeline from './projects-timeline';
 import { useProjectFilterColumns } from './project-filter-columns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 import type { ProjectsViewType } from '@/store/projects-display-store';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** How one group of projects is found and shown; a status group also takes drops. */
 interface ProjectGroupSpec {
@@ -134,11 +135,13 @@ const LAYOUTS: { value: ProjectsViewType; icon: React.ElementType }[] = [
 /** Projects page: search, filters, display options and views. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
+   const common = useTranslations('common');
    const { filters, setFilters, query, setQuery } = useProjectsFilterStore();
    const { viewType, setViewType, grouping, ordering, direction, closedProjects, showEmptyGroups } =
       useProjectsDisplayStore();
    const allProjects = useProjectsStore((state) => state.projects);
    const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
+   const projectsLoaded = useProjectsStore((state) => state.loaded);
    const issues = useIssuesStore((state) => state.issues);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const sessionStatus = useSessionStore((state) => state.status);
@@ -365,7 +368,9 @@ export default function Projects() {
 
          <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
-               {viewType === 'board' ? (
+               {!projectsLoaded ? (
+                  <ListSkeleton label={common('loading')} />
+               ) : viewType === 'board' ? (
                   <ProjectsBoard
                      entries={boardEntries}
                      totalCount={scoped.length}

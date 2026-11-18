@@ -35,7 +35,7 @@ const meta = {
       });
       useIssuesStore.getState().hydrateIssues(issues);
       // Empty, so the page loads the board's runs itself.
-      useRunsStore.setState({ runs: [], error: null });
+      useRunsStore.setState({ runs: [], error: null, loaded: false });
    },
    decorators: [
       (Story) => (

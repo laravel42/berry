@@ -42,6 +42,7 @@ import { parseAsStringLiteral, useQueryState } from 'nuqs';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { SaveViewDialog } from './save-view-dialog';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const TABS = ['issues', 'projects'] as const;
 
@@ -203,6 +204,7 @@ function ViewRow({
 /** "Views" page: the workspace's saved issue / project views. */
 export default function Views() {
    const t = useTranslations('issueLists');
+   const common = useTranslations('common');
    const { orgId } = useParams<{ orgId: string }>();
    const [tab, setTab] = useQueryState('tab', parseAsStringLiteral(TABS).withDefault('issues'));
    const { ordering } = useViewsDisplayStore();
@@ -210,6 +212,7 @@ export default function Views() {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const user = useSessionStore((state) => state.user);
    const hydrateViews = useViewsStore((state) => state.hydrateViews);
+   const viewsLoaded = useViewsStore((state) => state.loaded);
    const [editing, setEditing] = useState<View | undefined>();
    const [creating, setCreating] = useState(false);
    const [deleting, setDeleting] = useState<View | undefined>();
@@ -282,7 +285,8 @@ export default function Views() {
                onDelete={() => setDeleting(view)}
             />
          ))}
-         {list.length === 0 && (
+         {list.length === 0 && !viewsLoaded && <ListSkeleton label={common('loading')} />}
+         {list.length === 0 && viewsLoaded && (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
                {t('states.empty')}
             </div>
