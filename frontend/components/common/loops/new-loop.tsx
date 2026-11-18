@@ -232,7 +232,9 @@ export default function NewLoop() {
                         className="w-full resize-none bg-transparent px-4 pt-4 text-foreground placeholder:text-placeholder focus:outline-none [-webkit-text-fill-color:var(--foreground)]"
                      />
                      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2.5">
-                        <span className="text-subtle-foreground">{t('composerHint')}</span>
+                        <span className="text-subtle-foreground [@media(hover:none)]:hidden">
+                           {t('composerHint')}
+                        </span>
                         <div className="flex items-center gap-2">
                            <Button
                               type="button"

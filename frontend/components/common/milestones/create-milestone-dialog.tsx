@@ -187,7 +187,9 @@ export function CreateGoalDialog() {
                         date={targetDate}
                         onChange={setTargetDate}
                      />
-                     <span className="text-muted-foreground">⌘↵ to create</span>
+                     <span className="text-muted-foreground [@media(hover:none)]:hidden">
+                        ⌘↵ to create
+                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                      <Button type="button" variant="ghost" size="sm" onClick={closeModal}>
