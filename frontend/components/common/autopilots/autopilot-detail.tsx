@@ -377,7 +377,8 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                            type="button"
                            variant="secondary"
                            size="icon"
-                           className="size-[30px]"
+                           // As tall as Run now and Save beside it.
+                           className="size-11"
                            aria-label={t('row.menu')}
                            disabled={busy}
                         >

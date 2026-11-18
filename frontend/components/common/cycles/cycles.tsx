@@ -68,8 +68,8 @@ export default function Cycles() {
       <PageKpiHeader label={t('list.title')}>
          {cycles.length > 0 ? (
             <Input
-               // On a phone the search is as tall as the button beside it.
-               className={`${searchFieldClass} w-[clamp(160px,22vw,280px)] max-sm:min-h-11`}
+               // As tall as the create button beside it: one line, one height.
+               className={`${searchFieldClass} min-h-11 w-[clamp(160px,22vw,280px)]`}
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('list.search')}

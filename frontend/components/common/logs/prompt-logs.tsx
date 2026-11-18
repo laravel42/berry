@@ -190,7 +190,10 @@ export default function PromptLogs() {
             <Button
                variant="quiet"
                size="sm"
-               className="ml-auto"
+               // Field height, like the selects on its line. `!` because the
+               // button's variants are not merged, and `h-[30px]` from `sm`
+               // would otherwise win on source order.
+               className="ml-auto !h-(--field-h)"
                onClick={() => setTick((value) => value + 1)}
                disabled={loading}
             >

@@ -62,7 +62,7 @@ export default function UsageFilters({
             <Button
                size="icon"
                variant="ghost"
-               className="size-7"
+               className="size-(--field-h)"
                aria-label={t('refresh')}
                disabled={loading}
                onClick={onRefresh}
