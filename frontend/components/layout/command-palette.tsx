@@ -15,7 +15,6 @@ import { priorities } from '@/data/priorities';
 import { status as allStatus } from '@/data/status';
 import { currentUser } from '@/data/users';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { SparkIcon } from '@/components/ui/spark-icon';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { publishShellEvent } from '@/lib/shell-events';
 import { formatCombo } from '@/lib/shortcuts';
@@ -23,7 +22,6 @@ import { useCommandPaletteStore } from '@/store/command-palette-store';
 import { useCreateMilestoneStore } from '@/store/create-milestone-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
-import { useCreatePlanStore } from '@/store/create-plan-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useRecentIssuesStore } from '@/store/recent-issues-store';
@@ -217,13 +215,6 @@ const PAGES: PalettePage[] = [
       primary: true,
    },
    {
-      id: 'plans',
-      label: 'Plans',
-      keywords: ['proposals', 'planning', 'questions'],
-      icon: ClipboardList,
-      href: '/plans',
-   },
-   {
       id: 'chat',
       label: 'Agent',
       keywords: ['chat', 'conversations', 'threads', 'messages', 'ask'],
@@ -335,7 +326,6 @@ export function CommandPalette() {
    const { openModal } = useCreateIssueStore();
    const openProjectModal = useCreateProjectStore((state) => state.openModal);
    const openGoalModal = useCreateMilestoneStore((state) => state.openModal);
-   const openPlanModal = useCreatePlanStore((state) => state.openModal);
    const allProjects = useProjectsStore((state) => state.projects);
    const members = useMembersStore((state) => state.members);
    const allLabels = useLabelsStore((state) => state.labels);
@@ -802,18 +792,6 @@ export function CommandPalette() {
                            >
                               <Target className="text-muted-foreground" />
                               {t('newMilestone')}
-                           </CommandItem>
-                        ) : null}
-                        {matches(trimmed, 'plan', 'planning') ? (
-                           <CommandItem
-                              value="command-plan"
-                              onSelect={() => {
-                                 openPlanModal();
-                                 close();
-                              }}
-                           >
-                              <SparkIcon className="size-4 text-muted-foreground" />
-                              Plan something…
                            </CommandItem>
                         ) : null}
 

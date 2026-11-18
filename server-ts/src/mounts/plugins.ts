@@ -32,9 +32,11 @@ import {
    buildAuthorizeUrl,
    exchangeMcpCode,
    McpOAuthFailed,
+   oauthProviderOf,
    resolveMcpOAuthClient,
    startMcpAuthorize,
    type McpOAuthClient,
+   type McpOAuthClientSource,
 } from '../plugins/mcp-oauth.ts';
 import type { PluginNetwork } from '../plugins/net.ts';
 import {
@@ -69,8 +71,11 @@ export interface PluginMountOptions {
    appUrl?: string | null;
    workspaceSlug?: (workspaceId: string) => Promise<string | null>;
    oauthStates?: PluginOAuthStateStore | null;
-   /** Registered client for MCP hosts that do not advertise DCR. */
-   oauthClient?: McpOAuthClient | null;
+   /**
+    * This deployment's registered client per provider, for MCP hosts that do
+    * not advertise DCR. Asked only for the provider the host's endpoints name.
+    */
+   oauthClients?: McpOAuthClientSource;
    fetchImpl?: typeof fetch;
    clock?: () => Date;
 }
@@ -293,14 +298,15 @@ function pluginRoutes(options: PluginMountOptions): Hono<{ Variables: ScopedVari
       }
       const redirectUri = pluginOAuthCallbackUri(publicUrl);
       const secrets = await repo().openSecrets(scoped.ctx.workspaceId, installation.id);
-      const client = registeredMcpOAuthClient(options, installation, secrets);
       try {
          const pending = await startMcpAuthorize({
             serverUrl,
             redirectUri,
             clientName: 'Berry',
             scope: oauthScopeList(installation.manifest),
-            ...(client ? { clientId: client.clientId } : {}),
+            clientFor: async (server) =>
+               (await registeredMcpOAuthClient(options, installation, secrets, server.authorizationEndpoint))
+                  ?.clientId ?? null,
             ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
          });
          await states.sweep();
@@ -480,14 +486,18 @@ function pluginOAuthCallbackUri(publicUrl: string): string {
    return `${publicUrl.replace(/\/+$/, '')}/api/v1/plugins/oauth/callback`;
 }
 
-function registeredMcpOAuthClient(
+/** The client to use at `endpoint`: this deployment's for that provider, else the plugin's own. */
+async function registeredMcpOAuthClient(
    options: PluginMountOptions,
    installation: PluginInstallation,
-   secrets: Record<string, string>
-): McpOAuthClient | null {
+   secrets: Record<string, string>,
+   endpoint: string
+): Promise<McpOAuthClient | null> {
    const secretName = oauthClientSecretName(installation.manifest);
+   const provider = oauthProviderOf(endpoint);
+   const deployment = provider && options.oauthClients ? await options.oauthClients(provider) : null;
    return resolveMcpOAuthClient({
-      ...(options.oauthClient ? { deployment: options.oauthClient } : {}),
+      ...(deployment ? { deployment } : {}),
       clientId: oauthClientId(installation.config),
       ...(secretName && secrets[secretName] ? { clientSecret: secrets[secretName] } : {}),
    });
@@ -565,14 +575,17 @@ async function handlePluginOAuthCallback(
    }
    try {
       const secrets = await options.plugins.openSecrets(pending.workspaceId, pending.installationId);
-      const client = registeredMcpOAuthClient(options, installation, secrets);
+      const client = await registeredMcpOAuthClient(options, installation, secrets, pending.tokenEndpoint);
+      // A secret goes only with the client it was issued to; a client Berry
+      // registered dynamically is public and has none.
+      const clientSecret = client && client.clientId === pending.clientId ? client.clientSecret : '';
       const token = await exchangeMcpCode({
          tokenEndpoint: pending.tokenEndpoint,
          clientId: pending.clientId,
          code,
          redirectUri: pending.redirectUri,
          codeVerifier: pending.codeVerifier,
-         ...(client?.clientSecret ? { clientSecret: client.clientSecret } : {}),
+         ...(clientSecret ? { clientSecret } : {}),
          ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
       });
       const plugins = options.plugins;

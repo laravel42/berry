@@ -210,5 +210,7 @@ test('oauth secret helpers prefer the token names a plugin declares', () => {
    }, { container: true });
    assert.deepEqual(oauthAuthorizeParams(authorized.manifest), { access_type: 'offline', prompt: 'consent' });
    assert.equal(oauthScopeList(authorized.manifest), '');
-   assert.equal(oauthScopeList({ ...authorized.manifest, mcp: { ...authorized.manifest.mcp, scopes: ['read', 'write'] } }), 'read write');
+   const mcp = authorized.manifest.mcp;
+   assert.ok(mcp);
+   assert.equal(oauthScopeList({ ...authorized.manifest, mcp: { ...mcp, scopes: ['read', 'write'] } }), 'read write');
 });

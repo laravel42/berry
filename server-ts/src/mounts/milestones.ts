@@ -270,12 +270,6 @@ export function milestoneMounts(options: MilestoneOptions): Mount[] {
       return json({ nodes: await milestones.listApprovals(milestoneId, scope.workspaceId) });
    });
 
-   route.get('/:milestoneId/plans', async (context) => {
-      const milestoneId = pathId(context.req.param('milestoneId'));
-      await milestones.authorize(context.get('user').id, milestoneId, 'product.read').catch(rethrow('Milestone'));
-      return json({ nodes: await milestones.listPlans(milestoneId) });
-   });
-
    return [{ prefix: '/api/v1/milestones', handler: route }];
 }
 

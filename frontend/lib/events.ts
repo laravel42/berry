@@ -106,10 +106,10 @@ export async function* streamWorkspaceEvents(
    yield* readSseFrames(response, 'Workspace event');
 }
 
-/** The id inside a `plan.*`, `milestone.*`/`goal.*`, `approval.*` or `run.*` payload, when present. */
+/** The id inside a `milestone.*`/`goal.*`, `approval.*` or `run.*` payload, when present. */
 export function payloadEntityId(
    event: EventEnvelope,
-   key: 'plan' | 'milestone' | 'goal' | 'approval' | 'run'
+   key: 'milestone' | 'goal' | 'approval' | 'run'
 ): string | undefined {
    const payload = event.payload;
    if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return undefined;
@@ -128,8 +128,8 @@ const listeners = new Set<Listener>();
 
 /**
  * Subscribe to the frames the workspace stream hook receives. One
- * connection per page feeds every interested component; a plan page, for
- * instance, refetches its record on `plan.updated` without opening a stream
+ * connection per page feeds every interested component; a milestone page, for
+ * instance, refetches its record on `milestone.updated` without opening a stream
  * of its own.
  */
 export function subscribeWorkspaceEvents(listener: Listener): () => void {

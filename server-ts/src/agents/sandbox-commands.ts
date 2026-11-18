@@ -59,6 +59,7 @@ export const SANDBOX_COMMANDS: readonly string[] = [
    'ps',
    'pkill',
    'ffmpeg',
+   'pyftsubset',
    'playwright',
    'chromium',
    'berry-screenshots',
@@ -117,7 +118,7 @@ export function sandboxCommandsContract(): string {
       '- Archives and inspection: tar, unzip, file\n' +
       '- Network: curl\n' +
       '- Processes: ps, pkill\n' +
-      '- Media: ffmpeg\n' +
+      '- Media and fonts: ffmpeg, pyftsubset (subset a web font, --flavor=woff2), and in python3 Pillow (import PIL) and fontTools (import fontTools)\n' +
       '- Pages: playwright (require(\'playwright\') in a CommonJS script; Chromium is already on PLAYWRIGHT_BROWSERS_PATH), chromium, berry-screenshots, berry-lighthouse, expo\n' +
       '- Shell and files, the POSIX tools the image carries: bash, ls, cat, cp, mv, rm, mkdir, ln, chmod, touch, pwd, test, printf, echo, env, head, tail, grep, sed, awk, find, xargs, sort, uniq, wc, diff, tr, cut, tee, basename, dirname, readlink, stat, uname, date, id, sleep\n' +
       'A program that is not named here is not part of the sandbox. Do not apt-get install, do not install a browser, and do not search the filesystem for Playwright or Chromium.\n'

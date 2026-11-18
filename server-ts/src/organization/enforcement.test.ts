@@ -39,19 +39,18 @@ function fakeSql(
    }) as unknown as Sql;
 }
 
-test('a chat lets any organization role plan; its tasks do not', async () => {
+test('a chat lets any organization role file a milestone; its tasks do not', async () => {
    const analyst = { role_key: 'business-analyst', role_contract: catalogRole('business-analyst') };
    const chat = await agentToolAllowlist(fakeSql(analyst, 'conversation-1'), 'agent', 'run');
-   assert.equal(chat?.has('create_plan'), true);
    assert.equal(chat?.has('create_milestone'), true);
    const task = await agentToolAllowlist(fakeSql(analyst, null), 'agent', 'run');
-   assert.equal(task?.has('create_plan'), false);
+   assert.equal(task?.has('create_milestone'), false);
 });
 
 test('a chat gives nothing new to a contract that fails validation', async () => {
    const broken = { role_key: 'backend-engineer', role_contract: { broken: true } };
    const chat = await agentToolAllowlist(fakeSql(broken, 'conversation-1'), 'agent', 'run');
-   assert.equal(chat?.has('create_plan'), false);
+   assert.equal(chat?.has('create_milestone'), false);
 });
 
 test('a run a Loop started in recommend mode is held below the agent, whatever its contract', async () => {

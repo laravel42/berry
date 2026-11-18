@@ -2,7 +2,7 @@
 
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { BerryMark } from '@/components/brand/berry-mark';
-import { Pill } from '@/components/common/plans/plan-sections';
+import { Pill } from '@/components/common/pill';
 import {
    AlertDialog,
    AlertDialogAction,
@@ -343,9 +343,6 @@ export function ApprovalCard({
          href: `/${orgId}/milestone/${approval.milestoneId}/overview`,
          label: goalTitle ? decodeApprovalText(goalTitle) : 'goal',
       });
-   }
-   if (approval.planId) {
-      links.push({ href: `/${orgId}/plan/${approval.planId}`, label: 'plan' });
    }
 
    // An escalation is never folded: the question and its options are the

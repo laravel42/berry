@@ -500,6 +500,21 @@ export class GitHubAppRepository {
    }
 
    /**
+    * The App's OAuth client, for a plugin connecting a person's GitHub account
+    * to an MCP server on GitHub's authorization server. The secret is opened
+    * only for the token exchange; never returned by a route, never logged.
+    */
+   async oauthClient(): Promise<{ clientId: string; clientSecret: string } | null> {
+      const [row] = await this.#sql<Array<Pick<AppRow, 'client_id' | 'client_secret_encrypted'>>>`
+         SELECT client_id, client_secret_encrypted FROM github_apps LIMIT 1`;
+      if (!row?.client_id) return null;
+      return {
+         clientId: row.client_id,
+         clientSecret: this.#sealer.open(Buffer.from(row.client_secret_encrypted)),
+      };
+   }
+
+   /**
     * The webhook secret GitHub issued with the App, opened only to check a
     * delivery's signature. Never returned by a route, never logged.
     */
@@ -691,9 +706,12 @@ export function buildManifest(input: {
    // The app origin is first. With "OAuth during installation" GitHub sends
    // the browser to the first callback URL and ignores the setup URL, so that
    // first URL has to be the site the person is using.
+   // Last, after both of those: the GitHub plugin connects a person's account
+   // through this App, and its OAuth callback is on the API origin.
    const callbacks = [...new Set([
       new URL(callbackPath, input.appOrigin).toString(),
       new URL(callbackPath, input.apiOrigin).toString(),
+      new URL('/api/v1/plugins/oauth/callback', input.apiOrigin).toString(),
    ])];
    const app = (path: string) => new URL(path, input.appOrigin).toString();
    return {

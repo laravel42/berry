@@ -42,8 +42,6 @@ export const WORKSPACE_TOPICS = [
    // Cycles are workspace-scoped (boardId null), like milestones.
    'cycle.created', 'cycle.updated', 'cycle.archived',
    'approval.requested', 'approval.approved', 'approval.rejected', 'approval.expired',
-   'plan.generated', 'plan.updated', 'plan.blocked', 'plan.patched',
-   'plan.approved', 'plan.compiled', 'plan.compile_failed',
    'issue.created', 'issue.completed', 'issue.deleted',
    'agent.started', 'agent.completed', 'agent.failed',
    'artifact.created',

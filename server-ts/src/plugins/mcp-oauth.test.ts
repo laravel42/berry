@@ -7,6 +7,7 @@ import {
    exchangeMcpCode,
    mcpOrigin,
    McpOAuthFailed,
+   oauthProviderOf,
    registerPublicClient,
    resolveMcpOAuthClient,
    startMcpAuthorize,
@@ -26,6 +27,16 @@ test('resolveMcpOAuthClient prefers the deployment client', () => {
       clientId: 'install',
       clientSecret: 'install-secret',
    });
+});
+
+test('oauthProviderOf names the provider an endpoint belongs to', () => {
+   assert.equal(oauthProviderOf('https://accounts.google.com/o/oauth2/v2/auth'), 'google');
+   assert.equal(oauthProviderOf('https://oauth2.googleapis.com/token'), 'google');
+   assert.equal(oauthProviderOf('https://github.com/login/oauth/authorize'), 'github');
+   assert.equal(oauthProviderOf('https://github.com/login/oauth/access_token'), 'github');
+   assert.equal(oauthProviderOf('https://mcp.customer.io/oauth2/authorize'), null);
+   assert.equal(oauthProviderOf('https://github.com.evil.example/login/oauth/authorize'), null);
+   assert.equal(oauthProviderOf('not a url'), null);
 });
 
 test('mcpOrigin keeps the host the plugin named', () => {
@@ -155,7 +166,10 @@ test('startMcpAuthorize uses a saved client when the server names no registratio
       redirectUri: 'https://berry.example.com/api/v1/plugins/oauth/callback',
       clientName: 'Berry',
       scope: 'https://www.googleapis.com/auth/gmail.readonly',
-      clientId: 'google-client.apps.googleusercontent.com',
+      clientFor: async (server) => {
+         assert.equal(server.authorizationEndpoint, 'https://accounts.google.com/oauth2/authorize');
+         return 'google-client.apps.googleusercontent.com';
+      },
       fetchImpl,
    });
    assert.equal(pending.clientId, 'google-client.apps.googleusercontent.com');

@@ -8,7 +8,8 @@ import { createHash, randomBytes } from 'node:crypto';
  * metadata. A plugin that follows the same discovery documents needs no
  * extra code. Registration runs only when the server names a
  * `registration_endpoint` — Berry does not invent `/register`. When the
- * server names none, Connect uses this deployment's registered client.
+ * server names none, Connect uses a client this deployment registered with
+ * that provider — never one registered with a different provider.
  */
 
 export class McpOAuthFailed extends Error {
@@ -46,6 +47,31 @@ export interface ExchangedToken {
 export interface McpOAuthClient {
    clientId: string;
    clientSecret: string;
+}
+
+/** A provider this deployment can hold its own OAuth client for. */
+export type OAuthProvider = 'google' | 'github';
+
+/** This deployment's client for a provider, or null when it has none. */
+export type McpOAuthClientSource = (provider: OAuthProvider) => Promise<McpOAuthClient | null>;
+
+const PROVIDER_HOSTS: Record<string, OAuthProvider> = {
+   'accounts.google.com': 'google',
+   'oauth2.googleapis.com': 'google',
+   'github.com': 'github',
+};
+
+/**
+ * Which provider an authorization or token endpoint belongs to. A deployment
+ * client is only ever sent to its own provider: GitHub answers a Google client
+ * id with a 404 page, and a client secret must not leave for another host.
+ */
+export function oauthProviderOf(endpoint: string): OAuthProvider | null {
+   try {
+      return PROVIDER_HOSTS[new URL(endpoint).hostname.toLowerCase()] ?? null;
+   } catch {
+      return null;
+   }
 }
 
 /** The deployment client wins; a plugin-declared client is the fallback. */
@@ -146,13 +172,13 @@ export async function startMcpAuthorize(input: {
    redirectUri: string;
    clientName: string;
    scope: string;
-   clientId?: string;
+   /** A registered client for this server, asked only when it does not register clients. */
+   clientFor?: (server: AuthorizationServer) => Promise<string | null>;
    fetchImpl?: typeof fetch;
 }): Promise<PendingAuthorize> {
    const fetchImpl = input.fetchImpl ?? fetch;
    const server = await discoverAuthorizationServer(input.serverUrl, fetchImpl);
-   const registered = (input.clientId ?? '').trim();
-   let clientId = registered;
+   let clientId = '';
    if (server.registrationEndpoint) {
       const client = await registerPublicClient(
          server.registrationEndpoint,
@@ -164,7 +190,10 @@ export async function startMcpAuthorize(input: {
          fetchImpl
       );
       clientId = client.clientId;
-   } else if (!clientId) {
+   } else {
+      clientId = ((await input.clientFor?.(server)) ?? '').trim();
+   }
+   if (!clientId) {
       throw new McpOAuthFailed(
          'This MCP server does not register clients, and this deployment has no OAuth client.'
       );

@@ -149,6 +149,7 @@ function cli(args: string[]): Promise<string> {
 function run(args: string[], stdin?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
    return new Promise((resolve) => {
       const child = execFile('docker', args, { maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+         // An exit status is `code` on an execFile error; a string `code` (ENOENT) means docker never ran.
          const status = (error as ExecFileException | null)?.code;
          resolve({
             stdout: stdout ?? '',

@@ -17,7 +17,6 @@ export type ShellRoute =
    | 'projects'
    | 'cycles'
    | 'loops'
-   | 'plans'
    | 'members'
    | 'skills'
    | 'integrations'
@@ -32,7 +31,6 @@ export type ShellLabelKey =
    | 'projects'
    | 'cycles'
    | 'loops'
-   | 'plans'
    | 'runtimes'
    | 'agents'
    | 'analytics'
@@ -140,16 +138,6 @@ const OFF_RAIL: ShellRouteDef[] = [
       href: '/reviews',
       match: ['/review/'],
       icon: '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />',
-   },
-   {
-      // Every open plan: generating, waiting on answers or approval, or
-      // started and still working through its tasks.
-      id: 'plans',
-      label: 'plans',
-      labelKey: 'plans',
-      href: '/plans',
-      match: ['/plan/'],
-      icon: '<path d="M8 4h8M8 4a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V6a2 2 0 00-2-2" /><path d="M9.5 10l1.5 1.5 3-3M9.5 15.5h5" />',
    },
    {
       // Every model call Berry made: the structured prompt it sent and what

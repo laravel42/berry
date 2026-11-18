@@ -191,6 +191,12 @@ export interface MicrovmConfig {
    suspendedSeconds: number;
    logGroup: string | null;
    credentials: { accessKeyId: string; secretAccessKey: string; sessionToken?: string } | null;
+   /**
+    * Where a VM in AWS calls Berry back (`BERRY_MICROVM_CALLBACK_URL`). Needed
+    * when the shared runtime callback is an address only this machine has,
+    * such as `host.docker.internal`; null uses the shared one.
+    */
+   callbackUrl: string | null;
 }
 
 export interface AgentCoreConfig {
@@ -664,6 +670,7 @@ function microvm(env: NodeJS.ProcessEnv): MicrovmConfig | null {
       idleSeconds: Math.max(60, positiveInt(env.BERRY_MICROVM_IDLE_SECONDS, 900)),
       suspendedSeconds: positiveInt(env.BERRY_MICROVM_SUSPENDED_SECONDS, 3600),
       logGroup: (env.BERRY_MICROVM_LOG_GROUP ?? '').trim() || null,
+      callbackUrl: origin(env.BERRY_MICROVM_CALLBACK_URL),
       credentials:
          accessKeyId && secretAccessKey
             ? { accessKeyId, secretAccessKey, ...(sessionToken ? { sessionToken } : {}) }

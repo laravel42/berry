@@ -18,7 +18,7 @@ import {
    MembersChipContent,
    MembersPicker,
 } from '@/components/common/projects/members-picker';
-import { RepositoryPicker } from '@/components/common/projects/repository-selector';
+import { RepositoryPickers } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
 import { SparkIcon } from '@/components/ui/spark-icon';
 import {
@@ -345,7 +345,7 @@ export function CreateProjectDialog() {
                          until it is created. Styled like the sibling chips; the
                          width cap makes a long repository name truncate instead
                          of wrapping the property row. */}
-                        <RepositoryPicker
+                        <RepositoryPickers
                            value={form.gitlabRepo ?? form.githubRepo}
                            valueProvider={
                               form.gitlabRepo ? 'gitlab' : form.githubRepo ? 'github' : undefined

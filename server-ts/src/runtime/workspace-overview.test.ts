@@ -2,17 +2,17 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { chatWorkspaceNote, formatWorkspaceOverview, type WorkspaceOverview } from './workspace-overview.ts';
 
-const empty: WorkspaceOverview = { tasks: [], plans: [], milestones: [], projects: [], truncated: false };
+const empty: WorkspaceOverview = { tasks: [], milestones: [], projects: [], truncated: false };
 
 test('an empty workspace is said once, and the agent is told not to list it', () => {
    const note = chatWorkspaceNote(empty);
-   assert.match(note, /no open tasks, plans, milestones or projects/);
+   assert.match(note, /no open tasks, milestones or projects/);
    assert.match(note, /Answer from that snapshot/);
    assert.match(note, /Do not list the workspace before answering/);
    assert.match(note, /To create a project, call create_project/);
    assert.match(note, /Write markdown \(headings, lists, tables\)/);
    assert.match(note, /Do not emit HTML/);
-   assert.doesNotMatch(note, /list_tasks, list_plans, list_milestones and list_projects before answering/);
+   assert.doesNotMatch(note, /list_tasks, list_milestones and list_projects before answering/);
 });
 
 test('open work is a compact list with assignee and project', () => {
@@ -26,13 +26,11 @@ test('open work is a compact list with assignee and project', () => {
             project: 'Site',
          },
       ],
-      plans: [{ title: 'Q4 launch', status: 'draft' }],
       milestones: [{ title: 'Ship billing', status: 'active' }],
       projects: [{ name: 'Site', status: 'planned' }],
       truncated: false,
    });
    assert.match(text, /ABC-1 \(todo\): Incoming brief \[Site\] — Planner/);
-   assert.match(text, /Q4 launch \(draft\)/);
    assert.match(text, /Ship billing \(active\)/);
    assert.match(text, /Site \(planned\)/);
    assert.doesNotMatch(text, /newest 40/);
@@ -49,7 +47,6 @@ test('a long title is one line, and a truncated page says so', () => {
             project: null,
          },
       ],
-      plans: [],
       milestones: [],
       projects: [],
       truncated: true,

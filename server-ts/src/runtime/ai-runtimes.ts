@@ -86,6 +86,17 @@ export class AiRuntimeSelectionError extends Error {
    }
 }
 
+/**
+ * Nothing is connected that could run this: no runtime was named and the
+ * agent's tier has no connected model. The queue runs such a task on the
+ * platform model when the deployment has one; otherwise it is refused.
+ */
+export class NoAiRuntimeConnected extends AiRuntimeSelectionError {
+   constructor() {
+      super('AI_RUNTIME_NOT_CONNECTED', 'Connect an AI runtime before running this task.');
+   }
+}
+
 export class AiRuntimeConnectionNotFound extends Error {
    override readonly name = 'AiRuntimeConnectionNotFound';
 }
@@ -1019,10 +1030,7 @@ async function projectRuntimeForIssue(
 }
 
 function requireSubscription(): never {
-   throw new AiRuntimeSelectionError(
-      'AI_RUNTIME_NOT_CONNECTED',
-      'Connect an AI runtime before running this task.'
-   );
+   throw new NoAiRuntimeConnected();
 }
 
 function snapshot(

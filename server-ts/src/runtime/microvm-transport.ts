@@ -8,11 +8,12 @@ import {
 } from '@aws-sdk/client-lambda-microvms';
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
-import { runtimeControlResponseSchema, type RuntimeControlResponse } from './envelope.ts';
+import { runtimeControlResponseSchema, type RuntimeControlResponse, type TaskEnvelope } from './envelope.ts';
 import { parseLifecycleStream, type LifecycleEvent } from './lifecycle.ts';
 import {
    guardIdle,
    RunNotResumable,
+   RuntimeMisconfigured,
    RuntimeUnavailable,
    STREAM_IDLE_MS,
    type RuntimeTransport,
@@ -217,10 +218,98 @@ export function postgresMicrovmSessions(sql: Sql): MicrovmSessions {
    };
 }
 
+/**
+ * Whether only this machine, or a container beside it, can reach `url`: a
+ * loopback or private address, a Docker host alias, a `.local` or single-label
+ * name. A MicroVM runs in AWS, so for it every one of these is a dead end.
+ */
+export function privateToThisMachine(url: string): boolean {
+   let host: string;
+   try {
+      host = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '').replace(/\.$/, '');
+   } catch {
+      return false;
+   }
+   if (host === 'localhost' || host.endsWith('.localhost')) return true;
+   if (host === 'host.docker.internal' || host === 'gateway.docker.internal') return true;
+   if (host.endsWith('.local') || host.endsWith('.internal') || !host.includes('.') && !host.includes(':')) return true;
+   const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(host);
+   if (v4) {
+      const a = Number(v4[1]);
+      const b = Number(v4[2]);
+      return a === 127 || a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0;
+   }
+   return host === '::1' || /^f[cd]/.test(host) || /^fe[89ab]/.test(host);
+}
+
+/**
+ * The envelope with Berry's callback moved to `callbackUrl`: the task's own
+ * `berry.apiUrl`, and any MCP server Berry itself serves (plugins) at that
+ * same origin. Other servers are left as they are.
+ */
+export function withCallbackOrigin(envelope: TaskEnvelope, callbackUrl: string): TaskEnvelope {
+   let from: string;
+   let to: string;
+   try {
+      from = new URL(envelope.berry.apiUrl).origin;
+      to = new URL(callbackUrl).origin;
+   } catch {
+      return envelope;
+   }
+   if (from === to) return envelope;
+   const moved = (url: string): string => {
+      try {
+         const parsed = new URL(url);
+         return parsed.origin === from ? `${to}${url.slice(parsed.origin.length)}` : url;
+      } catch {
+         return url;
+      }
+   };
+   return {
+      ...envelope,
+      berry: { ...envelope.berry, apiUrl: moved(envelope.berry.apiUrl) },
+      agent: {
+         ...envelope.agent,
+         mcpServers: envelope.agent.mcpServers.map((server) => ({ ...server, url: moved(server.url) })),
+      },
+   };
+}
+
+/**
+ * Refuses, before a VM is started, a task the VM could never complete: one
+ * whose Berry callback or model server is an address only this machine has.
+ * Without this the VM boots and the run fails with "fetch failed", and the
+ * reason is lost.
+ */
+export function assertReachableFromAws(envelope: TaskEnvelope): void {
+   if (privateToThisMachine(envelope.berry.apiUrl)) {
+      throw new RuntimeMisconfigured(
+         `A Lambda MicroVM runs in AWS and cannot reach Berry at ${new URL(envelope.berry.apiUrl).origin}. ` +
+            'Set BERRY_MICROVM_CALLBACK_URL to a public HTTPS address that reaches this server ' +
+            '(for example a Cloudflare tunnel to its port), restart Berry, then restart the task. ' +
+            'Or run this agent on Local Docker.'
+      );
+   }
+   const runtime = envelope.runtime;
+   const baseUrl = runtime?.credential.baseUrl;
+   if (runtime && baseUrl && privateToThisMachine(baseUrl)) {
+      throw new RuntimeMisconfigured(
+         `A Lambda MicroVM runs in AWS and cannot reach ${runtime.provider} at ${new URL(baseUrl).host}. ` +
+            'Reconnect it with a public HTTPS address (for example a tunnel to its server, with an API token required), ' +
+            'or run this agent on Local Docker.'
+      );
+   }
+}
+
 export function microvmTransport(options: {
    settings: MicrovmSettings;
    api: MicrovmApi;
    sessions: MicrovmSessions;
+   /**
+    * Where a VM in AWS reaches Berry, when the shared callback is an address
+    * only this machine has (`BERRY_MICROVM_CALLBACK_URL`).
+    */
+   callbackUrl?: string | null;
    fetch?: typeof fetch;
    idleMs?: number;
    /** How long a new VM may take to answer `/ping`. */
@@ -356,6 +445,9 @@ export function microvmTransport(options: {
 
    return {
       async *invoke({ envelope, signal, observe }): AsyncIterable<LifecycleEvent> {
+         const sending = options.callbackUrl ? withCallbackOrigin(envelope, options.callbackUrl) : envelope;
+         // Before a VM is started: nothing it could do would get past this.
+         assertReachableFromAws(sending);
          const request = new AbortController();
          const forward = () => request.abort();
          signal.addEventListener('abort', forward, { once: true });
@@ -373,7 +465,7 @@ export function microvmTransport(options: {
                method: 'POST',
                headers: sent,
                redirect: 'error',
-               body: JSON.stringify(envelope),
+               body: JSON.stringify(sending),
                signal: request.signal,
             });
             observe?.response({ status: response.status, headers: Object.fromEntries(response.headers) });

@@ -849,41 +849,6 @@ export function registerCoreAgentTools(): void {
       },
    });
 
-   registerAgentTool('list_plans', {
-      description:
-         'List plans in this workspace: id, title, status, generation and how many tasks each has created.',
-      scope: 'task:read',
-      inputSchema: z.object({}),
-      handler: async (context) => {
-         const rows = await context.sql`
-            SELECT p.id::text AS id, p.status,
-                   COALESCE(NULLIF(p.ir->'goal'->>'title', ''), g.title, left(p.source_prompt, 120), 'Untitled plan') AS title,
-                   p.generation_status,
-                   COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(p.ir->'issues') = 'array' THEN p.ir->'issues' END), 0) AS planned,
-                   (SELECT COUNT(*)::int FROM plan_issues AS pi WHERE pi.plan_id = p.id) AS created
-              FROM plans AS p
-              LEFT JOIN milestones AS g ON g.id = p.milestone_id
-             WHERE p.workspace_id = ${context.task.workspaceId}
-               AND p.deleted_at IS NULL
-               AND p.archived_at IS NULL
-             ORDER BY p.updated_at DESC, p.id DESC
-             LIMIT ${LIST_LIMIT + 1}`;
-         const truncated = rows.length > LIST_LIMIT;
-         const page = truncated ? rows.slice(0, LIST_LIMIT) : rows;
-         return {
-            plans: page.map((row) => ({
-               id: row.id,
-               title: row.title,
-               status: row.status,
-               generation: row.generation_status,
-               plannedTasks: Number(row.planned),
-               createdTasks: Number(row.created),
-            })),
-            truncated,
-         };
-      },
-   });
-
    registerAgentTool('list_milestones', {
       description:
          'List project milestones: id, title, target date, sort order, status and project. ' +

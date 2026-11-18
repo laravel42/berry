@@ -16,13 +16,13 @@ export function toolsForAgentRow(row: { role_key: string | null; role_contract: 
 }
 
 /**
- * What a chat adds to any organization role: planning. A person talking to an
- * agent can ask it for a plan whatever its role, because the plan is filed in
- * that person's name, only if they could have made it, and stays a proposal
- * until they press Start Plan. Not for a contract that failed validation: an
- * agent nobody can vouch for gets no new reach.
+ * What a chat adds to any organization role: filing a milestone. A person
+ * talking to an agent can ask it for one whatever its role, because it is
+ * filed in that person's name and only if they could have made it. Not for a
+ * contract that failed validation: an agent nobody can vouch for gets no new
+ * reach.
  */
-export const CHAT_TOOLS: readonly string[] = ['create_milestone', 'create_plan'];
+export const CHAT_TOOLS: readonly string[] = ['create_milestone'];
 
 export async function agentToolAllowlist(
    sql: Sql,

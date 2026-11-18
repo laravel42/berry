@@ -103,7 +103,7 @@ describe('the Berry organization catalog', () => {
 
    test('every role can list the workspace from chat', () => {
       for (const role of CATALOG) {
-         for (const tool of ['list_tasks', 'list_plans', 'list_milestones', 'list_projects']) {
+         for (const tool of ['list_tasks', 'list_milestones', 'list_projects']) {
             assert.ok(role.allowed_tools.includes(tool), `${role.id}: ${tool}`);
          }
       }
@@ -112,7 +112,7 @@ describe('the Berry organization catalog', () => {
    test('the Orchestrator answers chat from the snapshot instead of listing first', () => {
       const prompt = catalogRole('orchestrator')!.system_prompt;
       assert.match(prompt, /Incoming work is already in the turn/);
-      assert.doesNotMatch(prompt, /list_tasks, list_plans, list_milestones and list_projects before answering/);
+      assert.doesNotMatch(prompt, /list_tasks, list_milestones and list_projects before answering/);
    });
 
    test('tools exist and sit inside each role’s ceiling', () => {
@@ -152,11 +152,10 @@ describe('the Berry organization catalog', () => {
       }
    });
 
-   test('only the orchestrator, the planner and the product lead file milestones and plans', () => {
+   test('only the orchestrator, the planner and the product lead file milestones', () => {
       for (const role of CATALOG) {
          const planner = role.id === 'orchestrator' || role.id === 'planner' || role.id === 'product-lead';
          assert.equal(role.allowed_tools.includes('create_milestone'), planner, role.id);
-         assert.equal(role.allowed_tools.includes('create_plan'), planner, role.id);
       }
    });
 
@@ -226,9 +225,9 @@ test('a level set by a person brings every tool it allows; planning stays with t
    const { toolCeiling } = await import('./autonomy.ts');
    assert.ok(toolsForLevel('business-analyst', 3).includes('run_command'));
    assert.ok(!toolsForLevel('business-analyst', 2).includes('run_command'));
-   assert.ok(!toolsForLevel('business-analyst', 3).includes('create_plan'));
-   assert.ok(toolsForLevel('product-lead', 5).includes('create_plan'));
-   assert.ok(toolsForLevel('planner', 2).includes('create_plan'));
+   assert.ok(!toolsForLevel('business-analyst', 3).includes('create_milestone'));
+   assert.ok(toolsForLevel('product-lead', 5).includes('create_milestone'));
+   assert.ok(toolsForLevel('planner', 2).includes('create_milestone'));
    assert.equal(toolsForLevel('planner', 2).includes('run_command'), false);
    for (const tool of toolsForLevel('backend-engineer', 4)) assert.ok(toolCeiling(4).includes(tool), tool);
 });

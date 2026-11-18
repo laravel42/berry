@@ -90,8 +90,6 @@ export interface PromptLogFilter {
    status: LogStatus | null;
    purpose: string | null;
    structured: boolean | null;
-   /** Only the model calls made while generating this plan. */
-   planId?: string | null;
 }
 
 function base(workspaceId: string): string {
@@ -115,7 +113,6 @@ export function listPromptLogs(
    if (filter.status) params.set('status', filter.status);
    if (filter.purpose) params.set('purpose', filter.purpose);
    if (filter.structured !== null) params.set('structured', String(filter.structured));
-   if (filter.planId) params.set('planId', filter.planId);
    if (after) params.set('after', after);
    return read(`${base(workspaceId)}/prompts?${params.toString()}`, pageSchema);
 }
