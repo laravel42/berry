@@ -168,8 +168,8 @@ export function KpiStrip({ kpis, wrap = false }: { kpis: Kpi[]; wrap?: boolean }
       <dl
          className={cn(
             'no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
-            // Two per row on phones instead of a strip that scrolls off-screen.
-            wrap && 'max-sm:mx-0 max-sm:flex-wrap max-sm:overflow-visible max-sm:px-0'
+            // One row of equal columns on phones instead of a strip that scrolls off-screen.
+            wrap && 'max-sm:mx-0 max-sm:gap-2 max-sm:overflow-visible max-sm:px-0'
          )}
       >
          {kpis.map((kpi) => (
@@ -177,10 +177,17 @@ export function KpiStrip({ kpis, wrap = false }: { kpis: Kpi[]; wrap?: boolean }
                key={kpi.label}
                className={cn(
                   'flex w-40 min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-[10px] bg-accent px-4 pt-3.5 pb-4 sm:w-auto',
-                  wrap && 'max-sm:w-[calc(50%-6px)]'
+                  wrap && 'max-sm:w-auto max-sm:grow max-sm:basis-0 max-sm:px-2.5'
                )}
             >
-               <dt data-heading="label" className="truncate text-subtle-foreground">
+               <dt
+                  data-heading="label"
+                  className={cn(
+                     'truncate text-subtle-foreground',
+                     wrap &&
+                        'max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] max-sm:text-clip'
+                  )}
+               >
                   {kpi.label}
                </dt>
                <dd className="flex min-w-0 flex-col gap-2">
