@@ -73,6 +73,7 @@ export default function NewLoop() {
    const [drafting, setDrafting] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const composer = useRef<HTMLTextAreaElement>(null);
+   const composerCard = useRef<HTMLDivElement>(null);
    const abort = useRef<AbortController | null>(null);
 
    useEffect(() => {
@@ -106,6 +107,18 @@ export default function NewLoop() {
       if (!seed) composer.current?.focus();
       return () => abort.current?.abort();
    }, [seed]);
+
+   // The keyboard shrinks the viewport (interactiveWidget: resizes-content). The
+   // browser scrolls the caret into view, not the buttons under the textarea, so
+   // keep the whole composer card, Draft loop included, on screen while typing.
+   useEffect(() => {
+      const keepCardVisible = () => {
+         if (document.activeElement === composer.current)
+            composerCard.current?.scrollIntoView({ block: 'nearest' });
+      };
+      window.addEventListener('resize', keepCardVisible);
+      return () => window.removeEventListener('resize', keepCardVisible);
+   }, []);
 
    const draft = async () => {
       const text = prompt.trim();
@@ -200,7 +213,10 @@ export default function NewLoop() {
                      {t('subheading')}
                   </p>
 
-                  <div className="mt-8 w-full rounded-xl border bg-card shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-[3px] focus-within:ring-ring/40">
+                  <div
+                     ref={composerCard}
+                     className="mt-8 w-full rounded-xl border bg-card shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-[3px] focus-within:ring-ring/40"
+                  >
                      <label htmlFor="loop-composer" className="sr-only">
                         {t('heading')}
                      </label>

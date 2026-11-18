@@ -46,6 +46,9 @@ export const viewport: Viewport = {
    width: 'device-width',
    initialScale: 1,
    viewportFit: 'cover',
+   // Chrome on Android keeps the layout viewport when the keyboard opens unless told
+   // to resize it, which leaves bottom actions under the keyboard.
+   interactiveWidget: 'resizes-content',
    // The browser bar takes the frame colour (--app-frame in globals.css), so the
    // chrome and the 8px frame around the workspace read as one surface.
    themeColor: [

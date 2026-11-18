@@ -339,7 +339,7 @@ export function CreateNewIssue() {
          </DialogTrigger>
          <DialogContent
             showCloseButton={false}
-            className="top-[10vh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[880px]"
+            className="top-[10dvh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[880px]"
          >
             <DialogHeader className="px-4 pt-4 pb-0">
                <DialogTitle className="sr-only">{t('title')}</DialogTitle>
@@ -373,7 +373,7 @@ export function CreateNewIssue() {
                </div>
             </DialogHeader>
 
-            <div className="max-h-[52vh] w-full overflow-y-auto px-4 pb-0">
+            <div className="max-h-[min(52dvh,calc(90dvh-7rem))] w-full overflow-y-auto px-4 pb-0">
                <Input
                   data-heading="h1"
                   data-create-title
@@ -382,6 +382,16 @@ export function CreateNewIssue() {
                   placeholder={t('titlePlaceholder')}
                   value={draft.title}
                   onChange={(event) => setDraft({ title: event.target.value })}
+                  autoComplete="off"
+                  enterKeyHint="next"
+                  onKeyDown={(event) => {
+                     // Enter moves on to the description, which is what "next" promises.
+                     if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+                     event.preventDefault();
+                     document
+                        .querySelector<HTMLElement>('[data-create-description] .ProseMirror')
+                        ?.focus();
+                  }}
                />
 
                <div className="mt-4 flex flex-wrap items-center gap-1.5 [&_button]:font-medium">
