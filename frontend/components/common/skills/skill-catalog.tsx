@@ -200,7 +200,7 @@ function SkillCatalogScreen() {
    const header = (
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5 [&_button]:!h-[30px]">
          <Input
-            className={`${searchFieldClass} w-64 max-sm:w-40`}
+            className={`${searchFieldClass} w-64 max-sm:w-full`}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('search')}

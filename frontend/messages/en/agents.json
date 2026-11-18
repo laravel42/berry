@@ -13,7 +13,6 @@
       "description": "Specialists for software and for everyday work: marketing, sales, support, hiring, finance, legal, research, training and operations. Add one when you have work in its field.",
       "adminOnly": "Only workspace owners and admins can add agents.",
       "search": "Search roles and departments",
-      "searchShort": "Search roles",
       "back": "Back to Agents",
       "loading": "Loading…",
       "empty": "No role matches this view.",

@@ -179,7 +179,7 @@ function AgentCatalogScreen() {
             <h1 className="min-w-0 truncate">{t('title')}</h1>
          </div>
          <Input
-            className={`${searchFieldClass} w-64 max-sm:w-40`}
+            className={`${searchFieldClass} w-64 max-sm:w-full`}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('search')}
