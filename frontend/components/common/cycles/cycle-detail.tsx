@@ -422,7 +422,7 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                      {issues.map((issue) => (
                         <li
                            key={issue.id}
-                           className="group relative grid h-[42px] grid-cols-[64px_minmax(0,1fr)_auto_24px] items-center gap-3 border-t px-4 [@media(hover:none)]:grid-cols-[64px_minmax(0,1fr)_auto_54px] transition-colors hover:bg-secondary/50"
+                           className="group relative grid h-[42px] grid-cols-[64px_minmax(0,1fr)_auto_24px] items-center gap-3 border-t px-4 max-sm:gap-2 max-sm:px-3 [@media(hover:none)]:grid-cols-[64px_minmax(0,1fr)_auto_50px] transition-colors hover:bg-secondary/50"
                         >
                            <span className="truncate text-subtle-foreground">
                               {issue.identifier}
@@ -437,12 +437,12 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                            >
                               {issue.title}
                            </Link>
-                           <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-settings-control px-2 text-muted-foreground">
+                           <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-settings-control px-2 max-sm:w-4 max-sm:justify-center max-sm:px-0 text-muted-foreground">
                               <span
                                  aria-hidden
                                  className={cn('size-1.5 rounded-full', statusFill(issue.status))}
                               />
-                              {statusName(issue.status)}
+                              <span className="max-sm:sr-only">{statusName(issue.status)}</span>
                            </span>
                            <span className="relative flex justify-end [@media(hover:none)]:items-center [@media(hover:none)]:gap-1.5">
                               {canEdit ? (
