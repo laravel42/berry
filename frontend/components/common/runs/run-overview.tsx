@@ -295,7 +295,7 @@ export default function RunOverview() {
             </div>
          ) : null}
 
-         <div className="min-h-0 flex-1 overflow-auto lg:pb-[var(--shell-launcher-room)]">
+         <div className="min-h-0 flex-1 overflow-auto md:pb-[var(--shell-launcher-room)]">
             {visibleRuns.length === 0 && !runsLoaded ? (
                <div className="md:hidden">
                   <ListSkeleton label={common('loading')} />

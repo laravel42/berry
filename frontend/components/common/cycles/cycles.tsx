@@ -92,7 +92,7 @@ export default function Cycles() {
       body = <EmptyCycles onCreate={openCreate} />;
    } else {
       body = (
-         <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto p-5 lg:pb-[var(--shell-launcher-room)]">
+         <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto p-5 md:pb-[var(--shell-launcher-room)]">
             <div className="flex w-full min-w-0 flex-col gap-5">
                {/* The calendar shows every cycle; the search narrows the lists below it. */}
                <CycleTimeline cycles={cycles} hrefFor={hrefFor} />

@@ -392,7 +392,7 @@ export default function Agents() {
          <div className="w-full shrink-0">
             <ListFilterBar filter={filter} />
          </div>
-         <div className="min-h-0 w-full flex-1 overflow-y-auto lg:pb-[var(--shell-launcher-room)]">
+         <div className="min-h-0 w-full flex-1 overflow-y-auto md:pb-[var(--shell-launcher-room)]">
             {loading ? (
                <ListSkeleton label={common('loading')} />
             ) : storedError ? (
