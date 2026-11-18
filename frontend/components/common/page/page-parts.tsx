@@ -163,13 +163,22 @@ export interface Kpi {
  * six of them filled the first screen and pushed the list they sum up below
  * the fold. The bleed (`-mx-6 px-6`) matches the header's own padding.
  */
-export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
+export function KpiStrip({ kpis, wrap = false }: { kpis: Kpi[]; wrap?: boolean }) {
    return (
-      <dl className="no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6">
+      <dl
+         className={cn(
+            'no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
+            // Two per row on phones instead of a strip that scrolls off-screen.
+            wrap && 'max-sm:mx-0 max-sm:flex-wrap max-sm:overflow-visible max-sm:px-0'
+         )}
+      >
          {kpis.map((kpi) => (
             <div
                key={kpi.label}
-               className="flex w-40 min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-[10px] bg-accent px-4 pt-3.5 pb-4 sm:w-auto"
+               className={cn(
+                  'flex w-40 min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-[10px] bg-accent px-4 pt-3.5 pb-4 sm:w-auto',
+                  wrap && 'max-sm:w-[calc(50%-6px)]'
+               )}
             >
                <dt data-heading="label" className="truncate text-subtle-foreground">
                   {kpi.label}
@@ -198,10 +207,13 @@ export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
 export function PageKpiHeader({
    label,
    kpis,
+   wrapKpis = false,
    children,
 }: {
    label: string;
    kpis?: Kpi[];
+   /** Wrap the KPI cards two per row below `sm` rather than scroll them. */
+   wrapKpis?: boolean;
    /** Search and the page's one create action. */
    children?: ReactNode;
 }) {
@@ -213,7 +225,7 @@ export function PageKpiHeader({
                {children}
             </div>
          </div>
-         {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} /> : null}
+         {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} wrap={wrapKpis} /> : null}
       </header>
    );
 }

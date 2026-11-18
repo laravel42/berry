@@ -52,18 +52,18 @@ export function LoopAttention({
             {runs.slice(0, 5).map((run) => (
                <li
                   key={run.id}
-                  className="flex min-w-0 items-center gap-2.5 px-4 py-1.5 hover:bg-status-danger/[0.06]"
+                  className="flex min-w-0 items-center gap-2.5 px-4 py-1.5 hover:bg-status-danger/[0.06] max-sm:flex-wrap"
                >
                   <LoopRunStateBadge state={run.state} compact />
                   <Link
                      href={href(run)}
-                     className="flex min-w-0 flex-1 items-baseline gap-2 focus-visible:underline focus-visible:outline-none"
+                     className="flex min-w-0 flex-1 items-baseline gap-2 focus-visible:underline focus-visible:outline-none max-sm:basis-[calc(100%-2rem)] max-sm:flex-wrap"
                   >
-                     <span className="max-w-[45%] shrink-0 truncate font-medium">
+                     <span className="max-w-[45%] shrink-0 truncate font-medium max-sm:max-w-full">
                         {run.autopilotName}
                      </span>
                      {run.reasonMessage ? (
-                        <span className="min-w-0 truncate text-muted-foreground">
+                        <span className="min-w-0 truncate text-muted-foreground max-sm:basis-full">
                            {run.reasonMessage}
                         </span>
                      ) : null}
