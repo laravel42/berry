@@ -86,12 +86,14 @@ export default function HeaderNav() {
                      {issue.project ? (
                         <Link
                            href={`/${orgId}/project/${issue.project.id}/issues`}
-                           className="max-w-[160px] truncate text-muted-foreground hover:underline"
+                           className="max-w-[160px] shrink-0 truncate whitespace-nowrap text-muted-foreground hover:underline"
                         >
                            {issue.project.name}
                         </Link>
                      ) : (
-                        <span className="text-muted-foreground">{t('noProject')}</span>
+                        <span className="shrink-0 whitespace-nowrap text-muted-foreground">
+                           {t('noProject')}
+                        </span>
                      )}
                      <span aria-hidden className="text-muted-foreground">
                         /

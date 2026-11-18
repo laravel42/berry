@@ -408,7 +408,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
 
                <div className="flex flex-wrap items-center gap-2">
                   <Input
-                     className="h-12 min-w-[180px] flex-1"
+                     className="h-12 min-w-full flex-1 sm:min-w-[180px]"
                      placeholder={t('addPlaceholder')}
                      value={title}
                      onChange={(event) => setTitle(event.target.value)}
