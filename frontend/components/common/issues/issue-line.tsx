@@ -151,6 +151,7 @@ function IssueLineView({
                            issueId={issue.id}
                            monogram={false}
                            showName
+                           nameClassName="max-sm:hidden"
                         />
                      </span>
                   )}

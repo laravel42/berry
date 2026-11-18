@@ -45,6 +45,8 @@ interface AssigneeUserProps {
    showName?: boolean;
    /** Body weight for that name. The default is one step heavier. */
    plainName?: boolean;
+   /** Extra classes for the printed name, e.g. to hide it on narrow screens. */
+   nameClassName?: string;
    /**
     * The whole property line is the control, matching the project sidebar.
     * `emptyLabel` is the word shown when nobody is assigned.
@@ -85,6 +87,7 @@ export function AssigneeUser({
    monogram = true,
    showName = false,
    plainName = false,
+   nameClassName,
    row = false,
    emptyLabel,
 }: AssigneeUserProps) {
@@ -210,7 +213,7 @@ export function AssigneeUser({
                            <ActorName
                               user={currentAssignee}
                               plain={plainName}
-                              className="min-w-0 truncate"
+                              className={cn('min-w-0 truncate', nameClassName)}
                            />
                         ) : null}
                      </>
