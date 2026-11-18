@@ -190,7 +190,7 @@ export function AssigneeUser({
                         : t('unassigned')
                   }
                   className={cn(
-                     'relative flex min-w-0 items-center gap-1.5 rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                     'relative flex min-w-0 items-center gap-1.5 rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:none)]:-m-0.5 [@media(hover:none)]:min-h-6 [@media(hover:none)]:min-w-6 [@media(hover:none)]:justify-center',
                      showName ? 'max-w-full' : 'w-fit'
                   )}
                >

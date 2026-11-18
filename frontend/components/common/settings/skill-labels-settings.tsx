@@ -160,7 +160,7 @@ export default function SkillLabelsSettings() {
                      <Popover>
                         <PopoverTrigger
                            aria-label={t('changeColour', { name: label.name })}
-                           className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
+                           className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none [@media(hover:none)]:-mx-[7px] [@media(hover:none)]:size-6 [@media(hover:none)]:bg-clip-content [@media(hover:none)]:p-[7px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
                            style={{ backgroundColor: label.color }}
                         />
                         <PopoverContent align="start" className="w-auto p-3">

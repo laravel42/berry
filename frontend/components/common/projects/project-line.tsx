@@ -101,7 +101,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                       are lifted over it. */}
                   <Link
                      href={href}
-                     className="min-w-0 flex-1 truncate font-medium outline-none transition-colors before:absolute before:inset-0 before:rounded-sm group-hover:text-foreground focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                     className="min-w-0 flex-1 truncate font-medium [@media(hover:none)]:min-h-6 outline-none transition-colors before:absolute before:inset-0 before:rounded-sm group-hover:text-foreground focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                   >
                      {project.name}
                   </Link>

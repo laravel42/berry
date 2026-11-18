@@ -430,7 +430,7 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                            <Link
                               href={`/${orgId}/issue/${issue.identifier}`}
                               className={cn(
-                                 'truncate outline-none after:absolute after:inset-0 focus-visible:underline',
+                                 'truncate outline-none [@media(hover:none)]:min-h-6 after:absolute after:inset-0 focus-visible:underline',
                                  issue.status === 'cancelled' &&
                                     'text-subtle-foreground line-through decoration-subtle-foreground/50'
                               )}

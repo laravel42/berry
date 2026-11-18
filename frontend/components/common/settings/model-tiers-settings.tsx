@@ -271,7 +271,7 @@ function SortableModelList({
                      onPointerUp={endDrag}
                      onPointerCancel={endDrag}
                      onKeyDown={onKeyDown(index)}
-                     className="-mx-1 inline-flex size-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-[4px] text-settings-field-focus outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default"
+                     className="-mx-1 inline-flex size-5 shrink-0 [@media(hover:none)]:-mx-1.5 [@media(hover:none)]:size-6 cursor-grab touch-none items-center justify-center rounded-[4px] text-settings-field-focus outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default"
                   >
                      <GripVertical className="size-3" />
                   </button>

@@ -88,7 +88,11 @@ function IssueLineView({
             >
                <div className={cn('flex items-center gap-0.5', CONTROL)}>
                   {order.length > 0 ? (
-                     <SelectionCheckbox issueId={issue.id} order={order} className="mr-1.5" />
+                     <SelectionCheckbox
+                        issueId={issue.id}
+                        order={order}
+                        className="mr-1.5 [@media(hover:none)]:mr-px"
+                     />
                   ) : null}
                   {displayProperties.priority && <IssuePriorityPicker issue={issue} />}
                </div>
@@ -115,7 +119,7 @@ function IssueLineView({
                   onClick={(event) => {
                      if (isDragging) event.preventDefault();
                   }}
-                  className="mr-1 ml-1 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden outline-none before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                  className="mr-1 ml-1 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden outline-none [@media(hover:none)]:min-h-6 before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                >
                   {liveRun ? (
                      <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />

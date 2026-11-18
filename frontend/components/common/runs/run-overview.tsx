@@ -241,7 +241,7 @@ export default function RunOverview() {
          onClick={d.openRun}
          aria-current={d.selected ? 'true' : undefined}
          title={d.tooltip}
-         className="flex w-full min-w-0 flex-col items-stretch rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+         className="flex w-full min-w-0 flex-col items-stretch rounded-sm text-left outline-none [@media(hover:none)]:min-h-6 focus-visible:ring-2 focus-visible:ring-ring/50"
       >
          <span className="flex min-w-0 items-baseline gap-2">
             {d.identifier ? (
