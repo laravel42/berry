@@ -389,6 +389,7 @@ export function FloatingChat() {
          // indicator. It slides up on opening and down before it minimises or
          // closes (`leave`). From `sm` up it floats above the launcher band.
          data-step-body="prose"
+         data-chat-surface
          onAnimationEnd={(event) => {
             if (leaving && event.target === event.currentTarget) finishLeave(leaving);
          }}

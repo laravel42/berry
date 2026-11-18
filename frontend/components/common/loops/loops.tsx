@@ -164,7 +164,7 @@ export default function Loops() {
 
    const header = (
       <>
-         <PageKpiHeader label={t('title')} kpis={kpis}>
+         <PageKpiHeader label={t('title')} kpis={kpis} wrapKpis>
             <Input
                className={`${searchFieldClass} w-64 max-sm:w-40`}
                value={query}

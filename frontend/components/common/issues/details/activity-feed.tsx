@@ -172,7 +172,10 @@ function CommentBody({
 
 function EventRow({ item }: { item: EventItem }) {
    return (
-      <div data-activity-event className="flex items-center gap-2.5 py-1 text-muted-foreground">
+      <div
+         data-activity-event
+         className="flex max-w-full min-w-0 items-center gap-2.5 py-1 text-muted-foreground"
+      >
          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent p-0.5">
             {item.actor.role === 'Application' ? (
                <BerryMark
@@ -750,7 +753,7 @@ export function ActivityFeedList({
    return (
       // Set apart from the sub-tasks above: activity is a different kind of
       // block (what happened), not more of the task's structure.
-      <div className="mt-6">
+      <div className="mt-6 pb-14 sm:pb-0">
          <h2 data-heading="label" className="mb-2 pb-[7px] text-muted-foreground">
             {t('title')}
          </h2>

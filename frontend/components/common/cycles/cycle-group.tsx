@@ -33,16 +33,17 @@ export function CycleGroup({
    const headingId = `cycles-group-${status}`;
 
    return (
-      <section
-         className="overflow-x-auto overflow-y-hidden rounded-[10px] bg-accent"
-         aria-labelledby={headingId}
-      >
+      <section className="overflow-hidden rounded-[10px] bg-accent" aria-labelledby={headingId}>
          <div className="flex items-center gap-2 px-4 pt-3 pb-2.5">
             <span aria-hidden className={cn('size-2 rounded-full', DOT[status])} />
             <h2 id={headingId}>{t(`status.${status}`)}</h2>
             <span className="text-subtle-foreground">{cycles.length}</span>
          </div>
-         <div role="table" aria-labelledby={headingId}>
+         <div
+            role="table"
+            aria-labelledby={headingId}
+            className="overflow-x-auto max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]"
+         >
             <div
                role="row"
                data-heading="label"

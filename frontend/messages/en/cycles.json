@@ -90,6 +90,7 @@
    "detail": {
       "back": "Cycles",
       "close": "Close",
+      "moreActions": "More actions",
       "loading": "Loading cycle…",
       "notFound": "This cycle does not exist or was removed.",
       "progress": "Progress",

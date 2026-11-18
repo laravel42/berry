@@ -50,7 +50,7 @@ export function CycleTimeline({
                {formatDay(axis.startsOn, locale)} → {formatDay(axis.endsOn, locale)}
             </span>
          </div>
-         <div className="overflow-x-auto border-t">
+         <div className="overflow-x-auto border-t max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
             <div className="flex min-w-[480px] flex-col gap-2 px-4 pt-[18px] pb-3.5">
                <div className="relative h-[60px]">
                   {axis.blocks.map(({ cycle, left, width }) => {

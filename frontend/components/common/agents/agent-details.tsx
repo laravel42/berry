@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
 import { agentHasRuntime } from '@/lib/runtimes';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Archive, Lock, ShieldCheck, TriangleAlert } from 'lucide-react';
@@ -92,6 +92,20 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
          ? 'instructions'
          : (searchParams?.get('view') ?? null);
    const view: DetailTab = isTab(requestedView) ? requestedView : 'settings';
+
+   // On a phone the tab row scrolls; keep the open tab in view.
+   const tabsScroller = useRef<HTMLDivElement>(null);
+   const hasAgent = agent !== null;
+   useEffect(() => {
+      const scroller = tabsScroller.current;
+      const active = scroller?.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!scroller || !active) return;
+      const left =
+         active.getBoundingClientRect().left -
+         scroller.getBoundingClientRect().left +
+         scroller.scrollLeft;
+      scroller.scrollTo({ left: Math.max(0, left - 32) });
+   }, [view, hasAgent]);
 
    const avatarSrc = useAgentAvatarSrc(agent?.avatarUrl);
 
@@ -251,8 +265,8 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                      <AgentWorkloadChip roster={roster} />
                      <AgentModelChip agent={agent} />
                      {needsRuntime ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 leading-none text-status-warning">
-                           <TriangleAlert className="size-3" aria-hidden />
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 leading-none text-status-warning max-sm:min-w-0 max-sm:shrink max-sm:items-start max-sm:rounded-xl max-sm:leading-tight">
+                           <TriangleAlert className="size-3 shrink-0 max-sm:mt-px" aria-hidden />
                            {t('bannerNoRuntime')}
                         </span>
                      ) : null}
@@ -290,7 +304,10 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
             onValueChange={(value) => requestTab(value as DetailTab)}
             className="flex min-h-0 flex-1 flex-col gap-0"
          >
-            <div className="no-scrollbar overflow-x-auto border-b px-8">
+            <div
+               ref={tabsScroller}
+               className="no-scrollbar overflow-x-auto border-b px-8 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]"
+            >
                <TabsList
                   aria-label={agent.name}
                   className="h-auto gap-5 rounded-none bg-transparent p-0"

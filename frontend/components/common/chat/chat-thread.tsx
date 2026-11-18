@@ -208,7 +208,7 @@ export function ChatThread({
                      {isAgent ? (
                         // The agent's reply is the page's own text: no avatar, no
                         // name, the full width. Its actions show under it on hover.
-                        <article data-step-body="prose" className="group flex flex-col gap-1">
+                        <article data-chat-reply className="group flex flex-col gap-1">
                            <div className="text-[var(--shell-text)]">
                               <ChatMarkdown body={message.body} />
                            </div>
@@ -233,7 +233,10 @@ export function ChatThread({
                         // The person's message is a bubble on the right, as they
                         // typed it, so the eye separates question from answer.
                         <article className="group flex flex-col items-end gap-1">
-                           <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--shell-line)] px-4 py-2.5 text-[var(--shell-text)] whitespace-pre-wrap">
+                           <div
+                              data-chat-reply
+                              className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--shell-line)] px-4 py-2.5 text-[var(--shell-text)] whitespace-pre-wrap"
+                           >
                               {message.body}
                            </div>
                            <span className="tabular-nums text-[var(--shell-text-dim)] [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100">
