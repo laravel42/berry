@@ -50,6 +50,12 @@ export function InboxRow({
    const readLabel = item.read ? t('actions.markUnread') : t('actions.markRead');
    const archiveLabel = archived ? t('actions.unarchive') : t('actions.archive');
    const onArchiveAction = archived ? onUnarchive : onArchive;
+   // The server writes the identifier into the notification title as well, so
+   // the row drops that copy and shows the muted identifier once.
+   const title =
+      item.identifier && item.title.startsWith(item.identifier)
+         ? item.title.slice(item.identifier.length).replace(/^[\s:\-\u2013\u2014]+/, '')
+         : item.title;
 
    return (
       <ContextMenu>
@@ -70,7 +76,7 @@ export function InboxRow({
                      {item.identifier ? (
                         <span className="text-muted-foreground">{item.identifier} </span>
                      ) : null}
-                     {item.title}
+                     {title}
                   </span>
                   <span className="mt-1 block text-right text-muted-foreground">
                      {timeAgo(item.timestamp)}
