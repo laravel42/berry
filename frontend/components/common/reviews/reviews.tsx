@@ -1,12 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { PageStatement } from '@/components/common/page/page-parts';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -35,6 +30,7 @@ import {
 import type { ReviewOutcome } from './review-decision-bar';
 import { ReviewDetail, type ReviewSection } from './review-detail';
 import { DiffStat, PeerVerdictChip, PrIcon, shownPeerApproval } from './review-shared';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** How a task at the gate reads in the list: what the last decision on it was. */
 export function reviewStatusOf(item: ReviewItem): 'open' | 'merged' | 'closed' {
@@ -444,7 +440,7 @@ export default function Reviews({
                </div>
             ) : null}
             <div className="flex-1 overflow-y-auto">
-               {items === null && !error && <EmptyStateLoading label={t('loading')} />}
+               {items === null && !error && <ListSkeleton label={t('loading')} />}
                {error && (
                   <div className="px-4 py-6 text-muted-foreground" role="alert">
                      {error}

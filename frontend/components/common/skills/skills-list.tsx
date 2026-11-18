@@ -6,7 +6,6 @@ import { useEffect, useMemo, useState } from 'react';
 
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -22,6 +21,7 @@ import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
 import SkillBulkBar from './skill-bulk-bar';
 import SkillLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './skill-line';
 import type { SkillColumn, SkillCriteria } from './skills-filters';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 interface Props {
    skills: Skill[] | null;
@@ -251,7 +251,7 @@ export default function SkillsList({
    }, [orderedIds, setOrderedIds]);
 
    if (error) return <p className="px-6 py-8 text-muted-foreground">{error}</p>;
-   if (skills === null) return <EmptyStateLoading label={t('loading')} />;
+   if (skills === null) return <ListSkeleton label={t('loading')} />;
 
    if (rows.length === 0) {
       return (

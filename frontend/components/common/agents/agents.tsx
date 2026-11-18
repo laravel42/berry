@@ -21,7 +21,6 @@ import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -59,6 +58,7 @@ import { useAgentFilterColumns } from './agent-filter-columns';
 import AgentLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './agent-line';
 import { roleDefaultTier, TIER_ORDER } from './agent-tier-section';
 import { TierChip } from './tier-chip';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** Which column heading sorts by what; the rest are labels only. */
 const SORT_FOR_COLUMN: Partial<Record<AgentColumn, AgentsSortKey>> = {
@@ -364,7 +364,7 @@ export default function Agents() {
          </div>
          <div className="min-h-0 w-full flex-1 overflow-y-auto lg:pb-[var(--shell-launcher-room)]">
             {loading ? (
-               <EmptyStateLoading label={common('loading')} />
+               <ListSkeleton label={common('loading')} />
             ) : storedError ? (
                <div className="flex flex-col items-start gap-3 px-6 py-10">
                   <p className="text-muted-foreground">{storedError}</p>

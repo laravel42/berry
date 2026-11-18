@@ -5,12 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -36,6 +31,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** The action column, always shown: Add. */
 const ACTION_WIDTH = 'w-20';
@@ -188,7 +184,7 @@ function AgentCatalogScreen() {
    if (organization.error) {
       body = <p className="px-6 py-8 text-muted-foreground">{organization.error}</p>;
    } else if (!organization.value) {
-      body = <EmptyStateLoading label={t('loading')} />;
+      body = <ListSkeleton label={t('loading')} />;
    } else if (rows.length === 0) {
       body = (
          <EmptyState icon={<EmptyStateMark label={t('empty')} />}>

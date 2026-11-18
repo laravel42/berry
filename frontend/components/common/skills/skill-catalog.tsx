@@ -8,12 +8,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { DepartmentMultiselect } from '@/components/common/agents/agent-catalog';
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { SettingsChip } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import MainLayout from '@/components/layout/main-layout';
@@ -39,6 +34,7 @@ import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** The action column, always shown: Add. */
 const ACTION_WIDTH = 'w-20';
@@ -222,7 +218,7 @@ function SkillCatalogScreen() {
    if (error) {
       body = <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    } else if (!skills) {
-      body = <EmptyStateLoading label={t('loading')} />;
+      body = <ListSkeleton label={t('loading')} />;
    } else if (rows.length === 0) {
       body = (
          <EmptyState icon={<EmptyStateMark label={t('empty')} />}>

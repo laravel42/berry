@@ -5,7 +5,6 @@ import { CreateCycleDialog } from '@/components/common/cycles/create-cycle-dialo
 import { CycleGroup } from '@/components/common/cycles/cycle-group';
 import { CycleTimeline } from '@/components/common/cycles/cycle-timeline';
 import { EmptyCycles } from '@/components/common/cycles/empty-cycles';
-import { EmptyStateLoading } from '@/components/common/empty-state';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -21,6 +20,7 @@ import { Plus } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** Groups below the active card, in reading order: what is next, then what is done. */
 const GROUPS: Cycle['status'][] = ['upcoming', 'completed'];
@@ -87,7 +87,7 @@ export default function Cycles() {
 
    let body: ReactNode;
    if (!loaded) {
-      body = <EmptyStateLoading label={t('list.loading')} />;
+      body = <ListSkeleton label={t('list.loading')} />;
    } else if (cycles.length === 0) {
       body = <EmptyCycles onCreate={openCreate} />;
    } else {

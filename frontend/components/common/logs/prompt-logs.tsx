@@ -4,12 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState, type KeyboardEvent } from 'react';
 
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { readableModelName } from '@/components/common/agents/model-name';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,6 +30,7 @@ import { formatCost, formatTokens } from '@/lib/usage';
 import { useSessionStore } from '@/store/session-store';
 
 import { LogStatusBadge, PromptLogSheet } from './prompt-log-sheet';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const ANY = 'any';
 
@@ -209,7 +205,7 @@ export default function PromptLogs() {
                   <EmptyStateText>{t('loadFailed')}</EmptyStateText>
                </EmptyState>
             ) : loading && rows.length === 0 ? (
-               <EmptyStateLoading label={t('loading')} />
+               <ListSkeleton label={t('loading')} />
             ) : rows.length === 0 ? (
                <EmptyState icon={<EmptyStateMark label={t('title')} />}>
                   <EmptyStateText>{filtered ? t('noMatch') : t('empty')}</EmptyStateText>

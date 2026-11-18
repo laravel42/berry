@@ -1,7 +1,6 @@
 'use client';
 
 import { ListFilterBar, useListFilters } from '@/components/common/filters/list-filters';
-import { EmptyStateLoading } from '@/components/common/empty-state';
 import { PageStatement } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { Button } from '@/components/ui/button';
@@ -41,6 +40,7 @@ import {
    type InboxFacets,
    type InboxShowFilter,
 } from './use-inbox';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** How much of the archive is read in one go. */
 const ARCHIVE_PAGE = 100;
@@ -417,7 +417,7 @@ function InboxList({
          />
       );
    }
-   if (!ready) return <EmptyStateLoading label={t('states.loading')} />;
+   if (!ready) return <ListSkeleton label={t('states.loading')} />;
    if (items.length === 0) {
       if (sourceCount > 0 && filtered) {
          return (

@@ -17,7 +17,6 @@ import {
 } from '@/components/ui/alert-dialog';
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -34,6 +33,7 @@ import {
    type LoopTemplate,
 } from '@/lib/autopilots';
 import { WORKSPACE_SLUG } from '@/lib/config';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 export { FALLBACK_TEMPLATE_ICON, TEMPLATE_ICON } from '@/components/common/loops/template-card';
 
@@ -109,7 +109,7 @@ export default function Autopilots({
    };
 
    if (!loaded && !error) {
-      return <EmptyStateLoading label={t('loading')} />;
+      return <ListSkeleton label={t('loading')} />;
    }
    if (error) {
       return (
