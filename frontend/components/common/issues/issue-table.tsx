@@ -191,6 +191,9 @@ const TitleCell = memo(function TitleCell({
          ) : (
             // The link fills its cell, so the whole title column is the
             // target rather than the width of the words in it.
+            // Double-click renames in place, which a finger cannot do: a tap follows
+            // the link and opens the task, where IssueTitle edits the title with one
+            // tap. That is the touch way to rename, so there is no second path here.
             <Link
                className="flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                href={issueHref(issue.identifier)}
