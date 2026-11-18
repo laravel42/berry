@@ -108,8 +108,8 @@ function ReviewRow({
                muted={status === 'open' && !item.delivery.committed}
                className="pt-px"
             />
-            <span data-review-row className="min-w-0 flex-1">
-               <span className="line-clamp-3 leading-5 break-all">
+            <span data-review-row className="min-w-0 flex-1 max-md:text-[14px] max-md:leading-5">
+               <span className="line-clamp-3 leading-5 break-words">
                   <span className="font-bold text-muted-foreground">{item.issue.identifier}</span>
                   <span className="text-muted-foreground"> · </span>
                   <span className={branch ? 'font-mono' : undefined}>{label}</span>

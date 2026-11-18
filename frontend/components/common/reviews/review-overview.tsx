@@ -59,7 +59,7 @@ function PullRequestFact({
    const body = (
       <span className="inline-flex min-w-0 items-start gap-2">
          <GitPullRequest className="mt-0.5 size-4 shrink-0 text-status-info" aria-hidden />
-         <span className={cn('min-w-0 break-all', pr.branch && 'font-mono')}>{title}</span>
+         <span className={cn('min-w-0 break-words', pr.branch && 'font-mono')}>{title}</span>
       </span>
    );
 
@@ -240,7 +240,7 @@ export function ReviewOverview({ item }: { item: ReviewItem }) {
                            ) : (
                               <X className="size-3.5 shrink-0 text-status-danger" aria-hidden />
                            )}
-                           <span className="min-w-0 break-all">{result.command}</span>
+                           <span className="min-w-0 break-words">{result.command}</span>
                            <span className="shrink-0 text-muted-foreground">
                               {result.passed
                                  ? t('checks.passed')
