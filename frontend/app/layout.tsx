@@ -46,6 +46,12 @@ export const viewport: Viewport = {
    width: 'device-width',
    initialScale: 1,
    viewportFit: 'cover',
+   // The browser bar takes the frame colour (--app-frame in globals.css), so the
+   // chrome and the 8px frame around the workspace read as one surface.
+   themeColor: [
+      { media: '(prefers-color-scheme: light)', color: '#f4f4f5' },
+      { media: '(prefers-color-scheme: dark)', color: '#111113' },
+   ],
 };
 
 export const metadata: Metadata = {

@@ -1063,7 +1063,9 @@
          the frame insets fold the safe areas in. The bottom is the tab bar's. */
       --app-inset-t: max(8px, env(safe-area-inset-top));
       --app-inset-r: max(6px, env(safe-area-inset-right));
-      --app-inset-l: env(safe-area-inset-left, 0px);
+      /* Equal side gaps on a phone: the desktop rail owns the left edge, so
+         there the left stays 0, but with no rail a lopsided frame reads as a bug. */
+      --app-inset-l: max(6px, env(safe-area-inset-left, 0px));
    }
 }
 
