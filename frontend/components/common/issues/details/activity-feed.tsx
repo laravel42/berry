@@ -1022,8 +1022,18 @@ export function ActivityCommentComposer({
    const canSend = Boolean(draft.trim()) && !sending && uploading === 0;
    const sendLabel = sending ? t('sending') : t('send');
 
+   const showTriggers = Boolean(plan && (plan.targets.length > 0 || plan.refused.length > 0));
+
    return (
-      <div className={cn('flex flex-col', className)}>
+      <div className={cn('relative flex flex-col', className)}>
+         {/* "Draft saved" rides on the box's top edge, right side, like a
+             legend: it takes no line of its own, so the box neither jumps when
+             it appears nor keeps an empty line under it for it. */}
+         {!isReply && draft.trim() ? (
+            <span className="pointer-events-none absolute -top-2 right-3 z-10 bg-container px-1 leading-4 text-muted-foreground">
+               {t('draft')}
+            </span>
+         ) : null}
          <div
             className={cn(
                'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
@@ -1119,60 +1129,57 @@ export function ActivityCommentComposer({
             ) : null}
          </div>
 
-         {/* The states sit under the box, in a line kept for them whether or
-             not one is showing, so the box does not jump when "Draft saved"
-             appears with the first keystroke. */}
-         <div className="flex min-h-7 flex-col gap-1 pt-1 pl-1">
-            {note ? (
-               <p className="text-muted-foreground">
-                  {t('note')} · {t('noteHint')}
-               </p>
-            ) : plan && (plan.targets.length > 0 || plan.refused.length > 0) ? (
-               <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-muted-foreground">{t('triggerTitle')}</span>
-                  {plan.targets.map((target) => {
-                     const off = skipped.includes(target.agentId);
-                     return (
-                        <button
-                           key={target.agentId}
-                           type="button"
-                           aria-pressed={!off}
-                           title={off ? t('restore') : t('skip')}
-                           onClick={() =>
-                              setSkipped((current) =>
+         {/* The note and the agents a comment will wake sit under the box,
+             only while there is one to show. */}
+         {note || showTriggers ? (
+            <div className="flex flex-col gap-1 pt-1 pl-1">
+               {note ? (
+                  <p className="text-muted-foreground">
+                     {t('note')} · {t('noteHint')}
+                  </p>
+               ) : plan && showTriggers ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                     <span className="text-muted-foreground">{t('triggerTitle')}</span>
+                     {plan.targets.map((target) => {
+                        const off = skipped.includes(target.agentId);
+                        return (
+                           <button
+                              key={target.agentId}
+                              type="button"
+                              aria-pressed={!off}
+                              title={off ? t('restore') : t('skip')}
+                              onClick={() =>
+                                 setSkipped((current) =>
+                                    off
+                                       ? current.filter((id) => id !== target.agentId)
+                                       : [...current, target.agentId]
+                                 )
+                              }
+                              className={cn(
+                                 'rounded-full border px-2 py-0.5',
                                  off
-                                    ? current.filter((id) => id !== target.agentId)
-                                    : [...current, target.agentId]
-                              )
-                           }
-                           className={cn(
-                              'rounded-full border px-2 py-0.5',
-                              off
-                                 ? 'border-border/60 text-muted-foreground line-through'
-                                 : 'border-status-info text-status-info'
-                           )}
+                                    ? 'border-border/60 text-muted-foreground line-through'
+                                    : 'border-status-info text-status-info'
+                              )}
+                           >
+                              {target.agentName}
+                              {off ? ` · ${t('skipped')}` : ''}
+                           </button>
+                        );
+                     })}
+                     {plan.refused.map((entry) => (
+                        <span
+                           key={entry.agentId}
+                           title={t('blockedReason')}
+                           className="rounded-full border border-status-danger/50 px-2 py-0.5 text-status-danger"
                         >
-                           {target.agentName}
-                           {off ? ` · ${t('skipped')}` : ''}
-                        </button>
-                     );
-                  })}
-                  {plan.refused.map((entry) => (
-                     <span
-                        key={entry.agentId}
-                        title={t('blockedReason')}
-                        className="rounded-full border border-status-danger/50 px-2 py-0.5 text-status-danger"
-                     >
-                        {entry.agentName} · {t('blockedReason')}
-                     </span>
-                  ))}
-               </div>
-            ) : null}
-
-            {!isReply && draft.trim() ? (
-               <span className="text-muted-foreground">{t('draft')}</span>
-            ) : null}
-         </div>
+                           {entry.agentName} · {t('blockedReason')}
+                        </span>
+                     ))}
+                  </div>
+               ) : null}
+            </div>
+         ) : null}
       </div>
    );
 }
