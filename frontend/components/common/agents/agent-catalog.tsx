@@ -1,6 +1,8 @@
 'use client';
 
-import { Building2, Check, ChevronDown, Plus } from 'lucide-react';
+import { Building2, Check, ChevronDown, ChevronLeft, Plus } from 'lucide-react';
+import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -58,6 +60,7 @@ function departmentRank(department: string): number {
 function AgentCatalogScreen() {
    const t = useTranslations('agents.catalog');
    const tOrg = useTranslations('organization');
+   const { orgId } = useParams<{ orgId: string }>();
    const organization = useSettingsResource(getOrganization);
    const reload = organization.reload;
    const hydrateAgents = useAgentsStore((state) => state.hydrateAgents);
@@ -165,6 +168,16 @@ function AgentCatalogScreen() {
 
    const header = (
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5 [&_button]:!h-[30px]">
+         <div className="-mx-4 -mt-2.5 flex w-[calc(100%+2rem)] items-center gap-1 border-b px-2 py-1.5 md:hidden">
+            <Link
+               href={`/${orgId}/agents`}
+               aria-label={t('back')}
+               className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+            >
+               <ChevronLeft className="size-5" aria-hidden />
+            </Link>
+            <h1 className="min-w-0 truncate">{t('title')}</h1>
+         </div>
          <Input
             className={`${searchFieldClass} w-64 max-sm:w-40`}
             value={query}
