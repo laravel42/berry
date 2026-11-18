@@ -97,6 +97,11 @@ test('every table the migrations create is on one list or the other', async () =
       for (const match of text.matchAll(/DROP TABLE (?:IF EXISTS )?(?:public\.)?([a-z_]+)/gi)) {
          dropped.add(match[1]!.toLowerCase());
       }
+      // A renamed table lives on under its new name (goals became milestones).
+      for (const match of text.matchAll(/ALTER TABLE (?:IF EXISTS )?(?:public\.)?([a-z_]+) RENAME TO ([a-z_]+)/gi)) {
+         dropped.add(match[1]!.toLowerCase());
+         created.add(match[2]!.toLowerCase());
+      }
    }
    const live = [...created].filter((table) => !dropped.has(table));
    assert.deepEqual(unlistedTables(live), [], 'add these tables to KEPT_TABLES or EMPTIED_TABLES');

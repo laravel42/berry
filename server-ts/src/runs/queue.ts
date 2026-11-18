@@ -1,4 +1,4 @@
-import { platformModelFor } from '../runtime/platform-model.ts';
+import { platformModelFallback, platformModelFor } from '../runtime/platform-model.ts';
 import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
@@ -6,6 +6,7 @@ import { ActiveRunExists } from './repository.ts';
 import { taskExecutionAllowed } from './execution-policy.ts';
 import {
    AiRuntimeSelectionError,
+   NoAiRuntimeConnected,
    resolveAiRuntimeSelection,
    resolveCompletionRuntime,
    retainAiRuntimeSelection,
@@ -156,29 +157,38 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
             issueId,
             orchestrator: agentRow?.protected === true,
          }) !== null;
+      const noRuntime = {
+         runtimeId: null,
+         modelId: null,
+         agentId: null,
+         connectionId: null,
+         userId: null,
+         accountId: null,
+         accountName: null,
+      };
+      // With nothing connected, a deployment that has Berry's Bedrock model
+      // runs the task on it directly (`platformModelFallback`) rather than
+      // refusing it. A runtime someone named and is not connected still refuses.
+      const orPlatformModel = <T>(selection: Promise<T>): Promise<T | typeof noRuntime> =>
+         selection.catch((cause: unknown) => {
+            if (cause instanceof NoAiRuntimeConnected && platformModelFallback()) return noRuntime;
+            throw cause;
+         });
       const aiRuntime =
          input.forceNativeRuntime || onPlatformModel
-            ? {
-                 runtimeId: null,
-                 modelId: null,
-                 agentId: null,
-                 connectionId: null,
-                 userId: null,
-                 accountId: null,
-                 accountName: null,
-              }
+            ? noRuntime
             : input.kind === 'completion'
-              ? await resolveCompletionRuntime(tx, {
+              ? await orPlatformModel(resolveCompletionRuntime(tx, {
                    workspaceId: input.workspaceId,
                    berryAgentId: input.agentId,
                    userId: input.runtimeAuthorizedBy ?? null,
-                })
+                }))
             : input.aiRuntime
               ? await retainAiRuntimeSelection(tx, {
                    workspaceId: input.workspaceId,
                    selection: input.aiRuntime,
                 })
-              : await resolveAiRuntimeSelection(tx, {
+              : await orPlatformModel(resolveAiRuntimeSelection(tx, {
                    workspaceId: input.workspaceId,
                    userId: input.runtimeAuthorizedBy ?? null,
                    issueId,
@@ -186,7 +196,7 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
                    overrideModelId,
                    overrideAgentId,
                    berryAgentId: input.agentId,
-                });
+                }));
 
       if (!taskExecutionAllowed(aiRuntime.runtimeId)) {
          throw new AiRuntimeSelectionError('AI_RUNTIME_NOT_CONNECTED', 'No executable runtime is selected. Connect a supported subscription runtime and place its model on the agent tier, or configure a native compute host.');

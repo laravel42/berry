@@ -36,6 +36,35 @@ describe('ready assigned pickup', { skip: url ? false : 'BERRY_TEST_DATABASE_URL
       assert.equal(run?.status, 'queued');
    });
 
+   test('a task whose last run failed is not started again until someone touches it', async () => {
+      const f = fixture!;
+      const issueId = await createIssue(sql, f);
+      await sql`
+         UPDATE issues
+            SET assignee_type = 'agent', assignee_id = ${f.agentId}
+          WHERE id = ${issueId}`;
+      assert.equal(await pickupReadyAgentTasks(sql, { workspaceIds: [f.workspaceId], limit: 8 }), 1);
+      // What the ledger does on failure: the run ends, the task is released
+      // to todo, and both carry the same moment.
+      await sql.begin(async (tx) => {
+         const [issue] = await tx`SELECT active_run_id FROM issues WHERE id = ${issueId}`;
+         await tx`
+            UPDATE runs
+               SET status = 'failed', failure_code = 'UPSTREAM_REJECTED', failure_retryable = false,
+                   dispatch_state = 'failed', completed_at = now(), updated_at = now()
+             WHERE id = ${issue!.active_run_id}`;
+         await tx`UPDATE issues SET active_run_id = NULL, updated_at = now() WHERE id = ${issueId}`;
+      });
+
+      assert.equal(await pickupReadyAgentTasks(sql, { workspaceIds: [f.workspaceId], limit: 8 }), 0);
+      const [count] = await sql`SELECT count(*)::int AS n FROM runs WHERE issue_id = ${issueId}`;
+      assert.equal(count?.n, 1);
+
+      // A person moves or reassigns it afterwards: it is wanted again.
+      await sql`UPDATE issues SET updated_at = now() + interval '1 second' WHERE id = ${issueId}`;
+      assert.equal(await pickupReadyAgentTasks(sql, { workspaceIds: [f.workspaceId], limit: 8 }), 1);
+   });
+
    test('a backlog task is left for someone to pull forward', async () => {
       const f = fixture!;
       const issueId = await createIssue(sql, f);

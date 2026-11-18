@@ -27,7 +27,7 @@ import { mountWorkspaceScope, pathId, type ScopedVariables } from './shared.ts';
  * was never made. Nothing here is billed or written; see `usage/prompt-logs.ts`.
  */
 
-const FILTERS = ['kind', 'planId', 'status', 'purpose', 'structured'] as const;
+const FILTERS = ['kind', 'status', 'purpose', 'structured'] as const;
 const MAX_PURPOSE = 100;
 
 export interface LogsMountOptions {
@@ -79,11 +79,6 @@ function parseFilter(url: URL): PromptLogFilter {
       if (kind === 'completion' || kind === 'agent') filter.kind = kind;
       else errors.push(fieldError('/kind', 'invalid_value', 'kind is completion or agent.'));
    }
-   const planId = url.searchParams.get('planId');
-   if (planId !== null) {
-      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(planId)) filter.planId = planId.toLowerCase();
-      else errors.push(fieldError('/planId', 'invalid_value', 'planId is a plan id.'));
-   }
    const status = url.searchParams.get('status');
    if (status !== null) {
       if ((PROMPT_LOG_STATUSES as readonly string[]).includes(status)) filter.status = status as PromptLogStatus;
@@ -106,15 +101,13 @@ function parseFilter(url: URL): PromptLogFilter {
 /**
  * A cursor names the filter it was minted under, so a page of one filter
  * cannot continue another. The scope alphabet is narrow and capped at 100
- * characters, and the filters together (a purpose is free text, a plan id is
- * 36) do not fit it as text — a scope that does not fit mints no cursor, which
+ * characters, and the filters together (a purpose is free text) do not fit it as text — a scope that does not fit mints no cursor, which
  * silently ended the list. So the filters go in as a short digest: same
  * filters, same scope; any change, a different one.
  */
 function filterScope(base: string, filter: PromptLogFilter): string {
    const parts = [
       filter.kind ?? '',
-      filter.planId ?? '',
       filter.status ?? '',
       filter.structured === undefined ? '' : filter.structured ? '1' : '0',
       filter.purpose ?? '',

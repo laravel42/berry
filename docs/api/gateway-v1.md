@@ -257,7 +257,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
 }
 ```
 
-An issue additionally carries its place in a plan:
+An issue additionally carries its goal and dependencies:
 
 | Field | Type | Required | Constraints / meaning |
 |---|---|---:|---|
@@ -416,27 +416,6 @@ Authored project stage (name, optional description, optional target date, manual
 | `createdAt`, `updatedAt` | `Timestamp` | yes | |
 | `startedAt`, `completedAt` | `Timestamp` or null | yes | |
 | `progress` | `{ "issuesTotal", "issuesDone", "issuesCancelled", "issuesWorking", "approvalsPending", "percent": number }` | on list and single reads | `percent` = `round(100 * (finished + 0.5 * working) / total)` when `total > 0`, else `0` |
-
-### Plan
-
-A generated plan (`source: "ai"`) stores a BerryPlan v1 IR until it is approved; approval compiles it. Orchestrator briefs are served by the project routes, not here.
-
-| Field | Type | Required | Constraints / meaning |
-|---|---|---:|---|
-| `id`, `workspaceId` | `Uuid` | yes | |
-| `milestoneId`, `projectId` | `Uuid` or null | yes | The project is the milestone's |
-| `status` | `draft \| pendingApproval \| approved \| rejected \| superseded` | yes | |
-| `source` | `ai \| manual` | yes | |
-| `sourcePrompt` | string or null | yes | |
-| `irVersion` | string or null | yes | `"1"` |
-| `version` | integer | yes | Current IR version; every save appends one |
-| `plannerVersion`, `confidence` | string / number or null | yes | |
-| `generation` | `{ "status": idle \| running \| succeeded \| failed, "error": string or null, "stage": string or null }` | yes | `stage` is the pipeline stage in progress while `status` is `running` (`intent`, `context`, `generate`, `validate`, `repair`, `critic`, `finalize`) and null otherwise. `error` is `PLAN_INVALID` when the bounded repairs ran out (the last IR is kept for editing), `shutdown` when the server stopped mid-generation, or `<code> at <stage>` (`timeout`, `ROLE_RATE_LIMITED`, `PLANNER_UNAVAILABLE`, `REQUEST_TOO_LARGE`, `INTENT_INVALID`, `upstream error`) |
-| `validation` | `{ "status": unknown \| valid \| invalid \| blocked, "errors": FieldError[], "warnings": FieldError[], "requiredConnections": [{ "provider", "purpose", "connected" }], "ambiguities": [{ "id", "question", "blocking" }], "risk": low \| medium \| high, "needsAdminActivation": boolean }` | yes | Errors and warnings are recomputed on every read from the stored IR with the workspace's agents and issues; `path` values are JSON pointers into `plan`. `blocked` means the classifier found a blocking question: `plan` is a goal-only skeleton whose `assumptions` carry the questions (`blocking: true`) and `ambiguities` lists them; answering lands in a later phase |
-| `critic` | object or null | yes | `{ "verdict": accept \| revise, "problems": [...], "coverage"?: [{ "requirement", "tasks", "status": covered \| weakened \| missing, "note"? }] }` |
-| `compile` | `{ "status": running \| succeeded \| failed, "error": string or null, "compiledAt": Timestamp or null, "milestoneId", "issueIds": Uuid[], "approvalIds": Uuid[] }` or null | yes | Null until a compile was attempted |
-| `plan` | BerryPlan or null | yes | The current IR; after compile it carries `compiled` with the temporary-id map. A generated plan may carry `requirements` (`[{ "id", "description" }]`, what the request asked for) and, on each issue, `covers` (the requirement ids it delivers); both are optional and absent on older plans. A requirement no issue covers, or a `covers` id that is not a requirement, is a validation warning |
-| `createdAt`, `updatedAt` | `Timestamp` | yes | |
 
 ### Approval
 
@@ -791,7 +770,7 @@ Archives the milestone; its issues keep their links. `settings.write`.
 
 - `204`
 
-#### `GET /api/v1/milestones/{milestoneId}/issues`, `/approvals`, `/plans`
+#### `GET /api/v1/milestones/{milestoneId}/issues`, `/approvals`
 
 - `200`: `{ "nodes": [...] }` summaries
 
@@ -836,110 +815,6 @@ Workspace-scoped timeboxes (`upcoming` | `active` | `completed`). An issue belon
 #### `PUT` / `DELETE /api/v1/cycles/{cycleId}/issues/{issueRef}`
 
 Links or clears the issue's cycle (`product.write`). `204`.
-
-### Plans
-
-Generated plans only. Mutating routes answer `403 PLAN_FORBIDDEN` for viewers.
-
-#### `POST /api/v1/plans/generate`
-
-Asks the planner for a plan. Request `{ "workspaceId", "prompt" (1–20000 characters), "milestoneId"?, "projectId"?, "boardId"?, "hint"?: "issue" | "auto" }`, `Idempotency-Key` required (`product.write`). The plan row exists when the response returns; generation runs in the background through the model roles (generate → validate → up to `PLANNER_MAX_REPAIRS` repairs → up to `PLANNER_MAX_CRITIC_ROUNDS` critic rounds). The `intent` and `context` stages are not implemented; `planner_events` records one row per stage that ran, and `generation.stage` names the one in flight. Follow it with `GET /plans/{planId}` (`generation.stage`) and the workspace stream's `plan.updated` / `plan.generated` / `plan.blocked` facts. Without `milestoneId` no milestone exists until the plan is started: `projectId` is kept on the plan, `milestoneId` stays null, and `POST /approve` creates one milestone row per plan IR milestone (the first becomes the plan's `milestoneId`) with every compiled task linked to the project. Without `boardId` the workspace's oldest board is used. Nothing is created on the board until `POST /approve`.
-
-- `202`: `Plan` with `generation.status = "running"`; `Location: /api/v1/plans/{id}`
-- `403`: `PLAN_FORBIDDEN`
-- `409`: `PLAN_OPEN_EXISTS` (the milestone already has a draft or pending plan), `BOARD_REQUIRED` (the workspace has no board)
-- `412`: `PLANNER_UNAVAILABLE` (no planner configured, or a model role is not provisioned)
-
-#### `POST /api/v1/plans/{planId}/again`
-
-Plans the same request again on this plan (`product.write`). The plan must still be `draft` or `pendingApproval`, not already generating, and not compiled. Generation runs in the background with the stored prompt; the previous version stays in `plan_versions`.
-
-- `202`: `Plan` with `generation.status = "running"`; `Location: /api/v1/plans/{id}`
-- `403`: `PLAN_FORBIDDEN`
-- `409`: `PLAN_NOT_OPEN` (already started, closed, or no stored request), `PLAN_BUSY` (already generating)
-- `412`: `PLANNER_UNAVAILABLE`
-
-#### `GET /api/v1/plans`
-
-The workspace's plans, newest activity first (`product.read`). Query: `workspaceId` (defaults to the caller's current workspace), `state=open|all` (default `open`: `draft`, `pendingApproval` and `approved`, and not archived; `all` adds `rejected`, `superseded` and archived). Deleted plans are left out of both. At most 200 rows.
-
-- `200`: `{ "nodes": [{ "id", "status", "title", "projectId", "projectName", "milestoneId", "generation": { "status", "error", "stage" }, "validationStatus", "compileStatus", "plannedTasks", "createdTasks", "finishedTasks", "autoGate", "archived", "createdAt", "updatedAt" }] }`
-
-#### `GET /api/v1/plans/roles`
-
-The provisioned model roles (`settings.write`, resolved against the caller's current workspace).
-
-- `200`: `{ "enabled": boolean, "roles": [{ "role": classifier | planner | repair | critic, "provider", "model", "promptVersion", "status": available | offline | unknown, "maxTokens", "maxLLMTokensPerHour", "lastSyncedAt" }] }`
-
-#### `GET /api/v1/plans/{planId}`
-
-- `200`: `Plan`
-
-#### `GET /api/v1/plans/{planId}/versions`
-
-- `200`: `{ "nodes": [{ "id", "version", "origin", "plan", "validation", "critic", "patch", "createdBy", "createdAt" }] }`
-
-#### `GET /api/v1/plans/{planId}/answers`
-
-What people answered when the planner asked, oldest first (`product.read`).
-
-- `200`: `{ "nodes": [{ "assumptionId", "question", "answer", "chosenOption", "forVersion", "answeredBy", "answeredAt" }] }`
-
-#### `GET /api/v1/plans/{planId}/events`
-
-Pipeline stage records: counts, codes and ids only, never prompts.
-
-- `200`: `{ "nodes": [{ "id", "sequence", "stage", "role", "promptVersion", "modelProvider", "modelName", "inputTokens", "outputTokens", "costMicros", "durationMs", "outcome", "detail", "occurredAt" }] }`
-
-#### `POST /api/v1/plans/{planId}/validate`
-
-Re-runs the deterministic checks on the stored IR and records the verdict.
-
-- `200`: `Plan`
-
-#### `POST /api/v1/plans/{planId}/approve`
-
-Start Plan. Request `{ "note"? }`, `Idempotency-Key` required. Compiles the plan in one transaction: the goal is promoted to `planned`, issues are created in dependency order (`todo`; `blocked` when they depend on another issue; `backlog` with an `issueStart` approval when they require approval or match the destructive-action policy), required capabilities become labels, and `milestone_issues`, `issue_project_links` and dependency edges are written. A member approving a plan whose `validation.risk` is `high` does not compile: the plan enters `pendingApproval` with a `plan` approval addressed to admins. Approving a compiled plan again is a no-op.
-
-- `200`: `Plan` with `compile.status = "succeeded"`
-- `202`: `Plan` with `status = "pendingApproval"`
-- `409`: `PLAN_INVALID` (`details.fields`; also while `validation.status` is `blocked`), `PLAN_NOT_OPEN`, `PLAN_BUSY` (still generating or compiling), `PLAN_COMPILE_FAILED` with `details.stage`/`details.message` (the plan stays `approved` with `compile.status = "failed"`; retry with `POST /compile`)
-
-#### `POST /api/v1/plans/{planId}/compile`
-
-Retries a failed compile. Same responses as approve, never `202`.
-
-#### `GET /api/v1/plans/{planId}/subscription`
-
-Whether the caller follows this plan (`product.read`).
-
-- `200`: `{ "subscribed": boolean }`
-
-#### `PUT /api/v1/plans/{planId}/subscription`
-
-Follow or stop following. Request `{ "subscribed": boolean }` (`product.read`).
-
-- `200`: `{ "subscribed": boolean }`
-
-#### `POST /api/v1/plans/{planId}/archive`
-
-Hide the plan from the open list (`product.write`). Request `{}`. Status is unchanged, so an approved plan keeps its approver. The plan stays readable and is listed when `state=all`.
-
-- `200`: `Plan`
-
-#### `DELETE /api/v1/plans/{planId}`
-
-Soft-delete (`product.write`). Tasks the plan already created stay.
-
-- `204`: empty
-- `404`: `NOT_FOUND`
-
-#### `POST /api/v1/plans/{planId}/reject`
-
-Request `{ "note"? }`. Closes an open plan; a draft AI goal the plan created with no issues is archived with it.
-
-- `200`: `Plan`
-- `409`: `PLAN_NOT_OPEN`
 
 ### Approvals
 

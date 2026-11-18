@@ -363,6 +363,8 @@ export function serializeRun(run: Run): Record<string, unknown> {
                  userId: run.aiRuntimeUserId,
               }
             : null,
+      // Where it executes: Local Docker, AgentCore or MicroVMs. Null until dispatched.
+      runtime: run.runtime ? { id: run.runtime.id, name: run.runtime.name, driver: run.runtime.driver } : null,
       createdAt: run.createdAt,
       startedAt: run.startedAt,
       completedAt: run.completedAt,

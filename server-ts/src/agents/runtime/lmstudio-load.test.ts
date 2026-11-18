@@ -5,7 +5,9 @@ import {
    LMSTUDIO_AGENT_CONTEXT,
    clearLmStudioContextCache,
    ensureLmStudioContext,
+   lmStudioAgentContext,
    lmStudioApiOrigin,
+   lmStudioErrorMessage,
 } from './lmstudio-load.ts';
 
 test('lmStudioApiOrigin strips the /v1 path', () => {
@@ -137,6 +139,67 @@ test('ensureLmStudioContext clamps to the model maximum', async () => {
       fetchImpl,
    });
    assert.equal(loaded, 4096);
+});
+
+test('lmStudioErrorMessage unwraps the engine error LM Studio nests in a string', () => {
+   // Captured from LM Studio 0.4 when a prompt overflows the loaded context.
+   const body = {
+      error:
+         'Engine protocol predict request returned 400: {"error":{"code":400,"message":"request (20016 tokens) exceeds the available context size (16384 tokens), try increasing it","type":"exceed_context_size_error","n_prompt_tokens":20016,"n_ctx":16384}}',
+   };
+   assert.equal(
+      lmStudioErrorMessage(body),
+      'request (20016 tokens) exceeds the available context size (16384 tokens), try increasing it'
+   );
+   assert.equal(lmStudioErrorMessage({ error: 'Model not found' }), 'Model not found');
+   assert.equal(lmStudioErrorMessage({ error: { message: 'bad' } }), 'bad');
+   assert.equal(lmStudioErrorMessage({}), null);
+});
+
+test('lmStudioAgentContext reads BERRY_LMSTUDIO_CONTEXT and ignores nonsense', () => {
+   assert.equal(lmStudioAgentContext({}), LMSTUDIO_AGENT_CONTEXT);
+   assert.equal(lmStudioAgentContext({ BERRY_LMSTUDIO_CONTEXT: '32768' }), 32_768);
+   assert.equal(lmStudioAgentContext({ BERRY_LMSTUDIO_CONTEXT: 'lots' }), LMSTUDIO_AGENT_CONTEXT);
+   assert.equal(lmStudioAgentContext({ BERRY_LMSTUDIO_CONTEXT: '10' }), LMSTUDIO_AGENT_CONTEXT);
+});
+
+test('ensureLmStudioContext halves a context that does not fit, and remembers what loaded', async () => {
+   clearLmStudioContextCache();
+   const tried: number[] = [];
+   let lists = 0;
+   const fetchImpl = async (url: string, init?: RequestInit) => {
+      if ((init?.method ?? 'GET') === 'GET') {
+         lists += 1;
+         return json({ models: [{ key: 'big', max_context_length: 262_144, loaded_instances: [] }] });
+      }
+      if (url.endsWith('/api/v1/models/unload')) return json({});
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) : {};
+      tried.push(body.context_length);
+      if (body.context_length > 32_768) return json({ error: 'Not enough memory to load the model' }, 500);
+      return json({ load_config: { context_length: body.context_length } });
+   };
+
+   const first = await ensureLmStudioContext({
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'big',
+      token: LMSTUDIO_NO_TOKEN,
+      fetchImpl,
+      contextLength: 65_536,
+   });
+   assert.equal(first, 32_768);
+   assert.deepEqual(tried, [65_536, 32_768]);
+
+   // The next turn asks for the same size: no second round of loads.
+   const second = await ensureLmStudioContext({
+      baseUrl: 'http://127.0.0.1:1234/v1',
+      model: 'big',
+      token: LMSTUDIO_NO_TOKEN,
+      fetchImpl,
+      contextLength: 65_536,
+   });
+   assert.equal(second, 32_768);
+   assert.equal(lists, 1);
+   assert.deepEqual(tried, [65_536, 32_768]);
 });
 
 function json(body: unknown, status = 200): Response {

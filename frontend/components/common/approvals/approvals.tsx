@@ -8,7 +8,7 @@ import {
    EmptyStateText,
    EmptyStateTitle,
 } from '@/components/common/empty-state';
-import { Pill } from '@/components/common/plans/plan-sections';
+import { Pill } from '@/components/common/pill';
 import {
    approvalDecisionKind,
    describeApprovalKind,

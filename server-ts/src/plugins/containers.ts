@@ -165,7 +165,8 @@ function dockerCli(args: string[]): Promise<DockerResult> {
    const timeout = args[0] === 'build' ? 5 * 60_000 : 60_000;
    return new Promise((resolve) => {
       execFile('docker', args, { maxBuffer: 8 * 1024 * 1024, timeout }, (error, stdout, stderr) => {
-         const status = (error as ExecFileException | null)?.status;
+         // An exit status is `code` on an execFile error; a string `code` (ENOENT) means docker never ran.
+         const status = (error as ExecFileException | null)?.code;
          resolve({
             code: typeof status === 'number' ? status : error ? 1 : 0,
             output: `${stdout ?? ''}${stderr ?? ''}`,

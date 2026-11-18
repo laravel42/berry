@@ -1429,12 +1429,16 @@ input[type='search'] {
 /* A task's or project's own page is where its text is read at length, so
    the description reads a step up from the interface and the title leads. */
 [data-detail-description] .tiptap-ai-editor .ProseMirror {
-   font-size: var(--text-base);
+   font-size: var(--text-xs);
+}
+
+[data-detail-description] .tiptap-ai-editor .ProseMirror p:empty:not(:only-child) {
+   display: none;
 }
 
 [data-detail-title] {
-   font-size: 1.5rem;
-   line-height: 1.25;
+   font-size: var(--text-xl);
+   line-height: var(--text-xl--line-height);
 }
 
 /* The detail column and the properties sidebar beside it read at the body
@@ -1457,6 +1461,20 @@ input[type='search'] {
 :is([data-detail-sidebar], [data-detail-body])
    :is(button, input, textarea, select):not([data-detail-title]) {
    font-size: inherit;
+}
+
+:is([data-detail-sidebar], [data-detail-body]) [data-heading='label'] {
+   font-size: var(--text-xs);
+}
+
+[data-comment-card] {
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
+}
+
+[data-activity-event] {
+   font-size: var(--text-xs);
+   line-height: var(--text-xs--line-height);
 }
 
 /* A create dialog's title sits a step above the h1 scale, so it leads. */

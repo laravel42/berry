@@ -102,8 +102,8 @@ function ReviewRow({
             onSelect(item.id);
          }}
          className={cn(
-            'flex flex-col gap-0.5 border-b border-border/40 px-4 py-2.5 transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none',
-            selected ? 'bg-accent/70 hover:bg-accent/70' : 'hover:bg-accent/40'
+            'flex w-full flex-col gap-0.5 border-b border-border/50 px-4 py-3 text-left focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none',
+            selected ? 'bg-secondary' : 'hover:bg-accent'
          )}
       >
          <span className="flex items-start gap-2">

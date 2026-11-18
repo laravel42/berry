@@ -39,6 +39,8 @@ const runSchema = z.object({
    aiRuntimeId: z.string().nullish(),
    aiModelId: z.string().nullish(),
    aiRuntimeAgent: z.string().nullish(),
+   /** The run host it executes on (Local Docker, AWS AgentCore, Lambda MicroVMs); null until dispatched. */
+   runtime: z.object({ id: z.string(), name: z.string(), driver: z.string() }).nullish(),
    aiRuntimeAccount: z
       .object({
          id: z.string().nullable(),

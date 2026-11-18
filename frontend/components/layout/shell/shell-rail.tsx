@@ -4,7 +4,7 @@ import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ClipboardList, Layers, MessageSquare, Play, Search, Settings, X } from 'lucide-react';
+import { Layers, MessageSquare, Play, Search, Settings, X } from 'lucide-react';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -316,7 +316,6 @@ export function ShellRail({
                      {(
                         [
                            { path: '/chat', label: 'chat', Icon: MessageSquare },
-                           { path: '/plans', label: 'plans', Icon: ClipboardList },
                            { path: '/views', label: 'views', Icon: Layers },
                            { path: '/runs', label: 'runs', Icon: Play },
                            { path: '/settings', label: 'settings', Icon: Settings },

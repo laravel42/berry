@@ -9,7 +9,6 @@ import type { InboxItem } from '@/data/inbox';
 export function inboxHref(item: InboxItem, orgId: string): string | null {
    if (!orgId) return null;
    if (item.identifier) return `/${orgId}/issue/${item.identifier}`;
-   if (item.plan?.id) return `/${orgId}/plan/${item.plan.id}`;
    if (item.goal?.id) return `/${orgId}/milestone/${item.goal.id}`;
    if (item.approval?.id) {
       return `/${orgId}/inbox?approval=${encodeURIComponent(item.approval.id)}`;
