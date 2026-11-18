@@ -583,14 +583,14 @@ function DetailHeader({
                <button
                   type="button"
                   onClick={onClose}
-                  className="cursor-pointer relative shrink-0 text-muted-foreground transition-colors hover:text-foreground [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
+                  className="cursor-pointer relative shrink-0 text-muted-foreground [@media(hover:none)]:inline-flex [@media(hover:none)]:min-h-6 [@media(hover:none)]:items-center transition-colors hover:text-foreground [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
                >
                   {t('back')}
                </button>
             ) : (
                <Link
                   href={listHref}
-                  className="relative shrink-0 text-muted-foreground transition-colors hover:text-foreground [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
+                  className="relative shrink-0 text-muted-foreground transition-colors hover:text-foreground [@media(hover:none)]:inline-flex [@media(hover:none)]:min-h-6 [@media(hover:none)]:items-center [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
                >
                   {t('back')}
                </Link>

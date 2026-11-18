@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
  * border, and `Input` itself carries the shape.
  */
 export const searchFieldClass =
-   'border-0 bg-segment-track shadow-none focus-visible:border-primary';
+   'border-0 bg-segment-track shadow-none focus-visible:border-primary [@media(hover:none)]:min-h-6';
 
 /** The settings field (Input, Select trigger, Textarea): 30px, filled, a hairline edge that takes the primary colour on focus, like every other field. */
 export const settingsFieldClass =

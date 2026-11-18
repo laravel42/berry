@@ -277,7 +277,7 @@ export function GitHubImportPicker({
                                        <Checkbox
                                           variant="settings"
                                           id={id}
-                                          className="mt-0.5"
+                                          className="mt-0.5 [@media(hover:none)]:-mt-0.5"
                                           disabled={reason !== null}
                                           checked={selected.has(repository.id)}
                                           onCheckedChange={(checked) =>

@@ -468,7 +468,7 @@ export function SettingsSearch({
             onChange={(event) => onChange(event.target.value)}
             placeholder={placeholder}
             aria-label={ariaLabel ?? placeholder}
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none [font:inherit] placeholder:text-settings-placeholder [&::-webkit-search-cancel-button]:hidden"
+            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none [font:inherit] [@media(hover:none)]:min-h-6 placeholder:text-settings-placeholder [&::-webkit-search-cancel-button]:hidden"
          />
       </label>
    );
