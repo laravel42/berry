@@ -558,7 +558,10 @@ export function Chat() {
             : null;
 
    return (
-      <div className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]">
+      <div
+         data-chat-surface
+         className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]"
+      >
          <h1 className="sr-only">{t('title')}</h1>
          <section className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The rail already says Agent; a renamed topic is the only title. */}

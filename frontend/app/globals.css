@@ -6,9 +6,10 @@
    live in docs/redesign/ledger-plan.md and are not repeated here.
 
    Three things a reader will not infer from the values alone:
-   - `--shell-*` has no `.dark` counterpart: chat reads it and stays dark in
-     both themes. The rail takes a light ramp of its own through
-     `[data-shell-chrome]`. The board, fields and segmented controls follow
+   - `--shell-*` has no `.dark` counterpart: it is the dark ramp. In the light
+     theme the rail (`[data-shell-chrome]`) and chat (`[data-chat-surface]`,
+     the page and the floating window) each take the light ramp by scoping.
+     The board, fields and segmented controls follow
      the theme (`--board-*`, `--segment-*` have `.dark` values).
    - `--ctl-h` (44px) is the target floor for a BUTTON. A field does not use
      it: `--field-h` is 32px, below the floor on purpose, because a form of
@@ -826,6 +827,15 @@
       line-height: 1rem;
    }
 
+   /* A chat message, the agent's reply and the person's bubble alike: the body
+      size, so a reply reads as the page's own text. Replies used to share the
+      transcript's 12px `[data-step-body='prose']`, a size below the bubble
+      beside them. */
+   [data-chat-reply] {
+      font-size: 1rem;
+      line-height: 1.5rem;
+   }
+
    /* Review list rows, the run summary, and the diff pane. Identifier,
       branch, stats, and the unified view share the label size so a
       review reads as one sheet, not 13px chrome next to 13px code. */
@@ -1057,18 +1067,19 @@
    }
 }
 
-/* The light rail. In the light theme the frame around the workspace (the
-   rail, its collapsed column and the inset border) takes a light ramp, so the
-   chrome no longer sits as a dark band beside a light page. Scoped to
-   `[data-shell-chrome]` rather than redefining `--shell-*` on :root: chat and
-   the floating chat window read the same tokens and stay on the dark ramp.
-   Menus the rail opens are portalled out of it, so they keep the popover
+/* The light ramp. In the light theme the frame around the workspace (the
+   rail, its collapsed column and the inset border) and the chat (the page and
+   the floating window) take a light ramp, so neither sits as a dark band on a
+   light page (decision D4: chat follows the theme). Scoped to
+   `[data-shell-chrome]` and `[data-chat-surface]` rather than redefining
+   `--shell-*` on :root, so anything else reading the tokens stays on the dark
+   ramp. Menus opened from them are portalled out, so they keep the popover
    theme. The dark theme is untouched. */
 :root:not(.dark) {
    --app-frame: #f4f4f5;
 }
 
-:root:not(.dark) [data-shell-chrome] {
+:root:not(.dark) :is([data-shell-chrome], [data-chat-surface]) {
    --shell-rail: #f4f4f5;
    --shell-canvas: #ffffff;
    --shell-surface: #ffffff;
