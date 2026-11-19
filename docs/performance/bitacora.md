@@ -36,6 +36,8 @@ Por el túnel de Cloudflare el usuario midió 36.
 | T4 | El shell se pinta durante el boot si hay cookie; /sign-in sin esperar bootstrap; /boards solo con sesión | app/layout.tsx, session-gate.tsx, session-store.ts | a4f98071 | verde (build; Tasks/Inbox/Projects/detalle OK en prod :3001; sign-in Lighthouse 79→94). El detalle de tarea espera a las 2000 tareas (~5 s local) |
 | T5 | Menú contextual y pickers de fila construidos solo al abrirse | issue-context-menu, assignee-user, option-picker, status-picker | ec25ad25 | verde (build + lint; CPU de carga en dev 4.7→3.8 s, IssueContextMenu fuera del perfil; menú y submenú Assignee OK) |
 | T6 | Sin prefetch de las secciones del rail/pestañas | components/layout/shell/* | 95841b3a | verde (build). La parte de abrir SSE tarde se revirtió en d9a6bbe9: sin cursor obligaba a recargar las 2000 tareas |
+| T7 | Server: `serverTime` en bootstrap y `since` en /events | server-ts mounts/events.ts, me.ts, tests, gateway-v1.md | 5b562b40 | verde (typecheck; events.test 12/12; e2e: since reproduce solo lo nuevo). Hallazgo: sin cursor el stream reproducía TODO el backlog en cada carga |
+| T8 | Streams SSE abiertos tras la carga, en idle, con `since` | lib/auth, session-store, use-*-event-stream, lib/events, lib/runs | ab9e7506 | verde (build + lint; URLs con since; tiempo real comprobado cambiando un título por la API) |
 
 ## Medición con sesión real (puppeteer + Lighthouse, tras T4)
 
@@ -50,3 +52,5 @@ La medición base con `--extra-headers` acababa en 401 a mitad de carga y no ref
 Perfil de CPU en dev (Tasks, 15 s): `IssueContextMenu` ~900 ms inclusivo (monta el menú completo por fila), `AssigneeUser` ~200 ms, `OptionPicker` ~100 ms.
 
 Tras T6 (prod :3001): Tasks 40 (TBT 3 150 ms), detalle 46, Inbox 45. LCP observado 3.3 s, simulado ~66 s: Lantern cuenta las dos conexiones SSE (que no terminan) como dependencias del LCP. De ahí T7/T8: `since` en /events + `serverTime` en bootstrap para abrir los streams tras el primer pintado sin perder eventos.
+
+Tras T8 (prod :3001): Tasks **53** (LCP 5.1 s, TBT 1 600 ms), detalle **74** (LCP 2.4 s, TBT 1 210 ms), Inbox **77** (TBT 830 ms). LCP observado en Tasks 1.6 s.
