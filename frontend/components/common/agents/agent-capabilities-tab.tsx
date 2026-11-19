@@ -231,7 +231,7 @@ export default function AgentCapabilitiesTab({
                               className="h-8 w-56"
                            />
                            <Select value={skillLabel} onValueChange={setSkillLabel}>
-                              <SelectTrigger className="h-8 w-44" aria-label={t('skillsLabel')}>
+                              <SelectTrigger className="w-44" aria-label={t('skillsLabel')}>
                                  <SelectValue />
                               </SelectTrigger>
                               <SelectContent>

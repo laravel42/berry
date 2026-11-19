@@ -174,7 +174,6 @@ const TitleCell = memo(function TitleCell({
          {editing ? (
             <Input
                autoFocus
-               className="h-7"
                value={title}
                onChange={(event) => setTitle(event.target.value)}
                onBlur={commit}
@@ -428,7 +427,7 @@ function QuickAddRow() {
    return (
       <div className="border-t px-4 py-1.5">
          <Input
-            className="h-7 border-0 px-0 shadow-none focus-visible:ring-0"
+            className="border-0 px-0 shadow-none focus-visible:ring-0"
             placeholder={t('table.quickAdd')}
             value={title}
             disabled={busy}

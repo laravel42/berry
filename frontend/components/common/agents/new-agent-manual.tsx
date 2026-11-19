@@ -563,10 +563,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  className="h-8 w-56"
                               />
                               <Select value={skillLabel} onValueChange={setSkillLabel}>
-                                 <SelectTrigger
-                                    className="h-8 w-44"
-                                    aria-label={detail('skillsLabel')}
-                                 >
+                                 <SelectTrigger className="w-44" aria-label={detail('skillsLabel')}>
                                     <SelectValue />
                                  </SelectTrigger>
                                  <SelectContent>

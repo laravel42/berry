@@ -145,7 +145,7 @@ function ReviewGroup({ label, children }: { label: string; children: ReactNode }
             type="button"
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
-            className="flex w-full cursor-pointer select-none items-center gap-1.5 border-b border-border/40 bg-muted/50 px-4 py-1.5 transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none"
+            className="flex h-(--field-h) w-full cursor-pointer select-none items-center gap-1.5 border-b border-border/40 bg-muted/50 px-4 transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none"
          >
             <span data-heading="label">{label}</span>
             <svg

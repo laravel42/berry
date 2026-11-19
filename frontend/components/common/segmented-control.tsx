@@ -11,6 +11,14 @@ export interface SegmentedOption<T extends string | number> {
    title?: string;
 }
 
+/**
+ * The track every segmented choice sits in. As tall as a field
+ * (`--field-h`), so it lines up with the search and buttons of the line it
+ * sits on. Dark: a hairline edge, so the box reads against the canvas.
+ */
+export const segmentTrackClass =
+   'flex h-(--field-h) items-center rounded-[8px] bg-segment-track p-[3px] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]';
+
 interface SegmentedControlProps<T extends string | number> {
    /** Names the choice for assistive tech ("Time range"); the group has no visible heading of its own. */
    'aria-label': string;
@@ -37,17 +45,7 @@ export function SegmentedControl<T extends string | number>({
 }: SegmentedControlProps<T>) {
    const groupId = useSegmentGroupId();
    return (
-      <div
-         role="group"
-         aria-label={label}
-         className={cn(
-            // Dark: a hairline edge, so the box reads against the canvas.
-            // As tall as a field (`--field-h`), so it lines up with the search
-            // and buttons of the toolbar it sits in.
-            'flex h-(--field-h) w-fit items-center rounded-[8px] bg-segment-track p-[3px] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]',
-            className
-         )}
-      >
+      <div role="group" aria-label={label} className={cn(segmentTrackClass, 'w-fit', className)}>
          {options.map((option) => {
             const active = option.value === value;
             return (

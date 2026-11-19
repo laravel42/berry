@@ -159,7 +159,7 @@ export function SaveViewDialog({
                <div className="flex items-center justify-between gap-3">
                   <Label htmlFor="view-scope">{t('views.scope')}</Label>
                   <Select value={scope} onValueChange={setScope}>
-                     <SelectTrigger id="view-scope" className="h-8 w-48">
+                     <SelectTrigger id="view-scope" className="w-48">
                         <SelectValue />
                      </SelectTrigger>
                      <SelectContent>

@@ -132,7 +132,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
          <PopoverTrigger asChild>
             <Button
                className={cn('relative', !iconOnly && 'border-muted-foreground/15')}
-               size="xs"
+               size={iconOnly ? 'icon-sm' : 'sm'}
                variant={iconOnly ? 'track' : 'outline'}
                aria-label={iconOnly ? t('label') : undefined}
                title={iconOnly ? t('label') : undefined}
@@ -157,7 +157,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                   value={view.grouping}
                   onValueChange={(value) => view.setGrouping(value as GroupingKey)}
                >
-                  <SelectTrigger aria-label={t('grouping')} className="h-7 w-36 max-lg:h-11">
+                  <SelectTrigger aria-label={t('grouping')} className="w-36">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -202,7 +202,7 @@ export function DisplayOptions({ iconOnly = false }: { iconOnly?: boolean }) {
                         value={view.ordering}
                         onValueChange={(value) => view.setOrdering(value as OrderingKey)}
                      >
-                        <SelectTrigger aria-label={t('ordering')} className="h-7 w-28 max-lg:h-11">
+                        <SelectTrigger aria-label={t('ordering')} className="w-28">
                            <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

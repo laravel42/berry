@@ -411,7 +411,6 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                      <label className="grid w-28 gap-1.5">
                         <span className="text-muted-foreground">{t('dayOfMonth')}</span>
                         <Input
-                           className="h-7"
                            type="number"
                            min={1}
                            max={31}

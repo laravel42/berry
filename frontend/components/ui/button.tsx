@@ -51,14 +51,12 @@ const buttonVariants = cva(
             /** `quiet` whose ink turns to danger on hover (a row's delete). */
             'quiet-destructive':
                'text-muted-foreground hover:bg-settings-control hover:text-status-danger',
-            /** Filled track, same as the shell "Back to app" control.
-                Both heights are set, and that is the point: `size="default"`
-                carries a `min-h-(--ctl-h)` floor of 44px, and a `min-height`
-                beats a `height` no matter how important the `height` is. A
-                lone `!h-*` here looked like it set the size and did not.
-                A toolbar's `[&_button]:!h-[30px]` loses the same way. */
+            /** Filled track, same as the shell "Back to app" control. A
+                colour only: the size comes from `size` (`icon-sm` for an
+                icon, `sm` with a label), so an icon button is as wide as
+                it is tall. */
             'track':
-               '!h-(--field-h) !min-h-(--field-h) !rounded-full border-0 bg-segment-track px-2.5 text-muted-foreground shadow-none hover:bg-[var(--segment-hover)] hover:text-foreground data-[state=open]:!bg-[var(--segment-hover)] data-[state=open]:!text-foreground',
+               '!rounded-full border-0 bg-segment-track text-muted-foreground shadow-none hover:bg-[var(--segment-hover)] hover:text-foreground data-[state=open]:!bg-[var(--segment-hover)] data-[state=open]:!text-foreground',
          },
          size: {
             'default': 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
@@ -69,8 +67,8 @@ const buttonVariants = cva(
                toolbar), so every control on that line is one height. */
             'sm': 'h-(--field-h) gap-1.5 px-3 has-[>svg]:px-2.5',
             'icon-sm': 'size-(--field-h)',
-            /* 38px: between `sm` (30px) and the 44px floor, for a control
-               that wants more room to breathe than the compact sizes but
+            /* 38px, fixed: for a control that wants more room to breathe
+               than the compact sizes, does not sit on a line of fields, and
                does not carry the 44px touch-target requirement `default`
                and `lg` are for. Flat padding, no `has-[>svg]` split: unlike
                the compact sizes, an icon here is not meant to read as

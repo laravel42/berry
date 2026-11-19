@@ -452,7 +452,7 @@ function SkillCatalogLine({
             {canEdit ? (
                <AgentPicker targets={targets} labels={skill.labels} onPick={onAdd}>
                   <Button
-                     size="xxs"
+                     size="sm"
                      variant="soft"
                      disabled={adding}
                      aria-label={t('row.add', { name: skill.name })}

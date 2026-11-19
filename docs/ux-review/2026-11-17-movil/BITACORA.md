@@ -2,6 +2,31 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Prueba: todos los controles en línea a 44 px (2026-11-18)
+
+El usuario pidió poner a 44 px los controles que comparten línea (antes 32) para ver cómo queda. Es una prueba: si no convence, basta con volver `--field-h` a `2rem` en `app/globals.css`.
+
+**El token:**
+- `--field-h` pasa de 32 a 44 px. Lo usan `Input`, `SelectTrigger` y `selectTriggerClass`, `Button` `sm`/`icon-sm`, `TabsList` y `SegmentedControl`.
+- Las cabeceras de grupo (Tasks en lista y tablero, Reviews) toman la misma altura. A 36 px, el botón "+" de 44 no cabía.
+
+**Lo que no seguía el token:**
+- **Editor de Loops:** usaba su propio `insetFieldClass` de 32 px. Ahora usa `Input`, `SelectTrigger` y `selectTriggerClass`, y sus segmentos comparten `segmentTrackClass` con `SegmentedControl`.
+- **`variant="track"`:** forzaba la altura pero no el ancho, así que los botones de icono quedaban ovalados (32×44). Ahora es solo color, y cada botón lleva `icon-sm` (icono) o `sm` (con texto). Afecta al filtro, Display, Insights, Profile y Properties.
+- **Botones `xs`/`xxs` en filas:** pasaron a `sm`. Son Retry (Loops), Add (los dos catálogos), Add tasks (ciclo), Add label (skill) y New view (Views).
+- **Views:** las pestañas Issues/Projects estaban hechas a mano. Ahora son `SegmentedControl`.
+- **Compositores:** sub-tareas pasó de 48 a 44 px. Comentarios y Post update pasaron de 32 a 44: los botones son `icon-sm` y el textarea arranca en `--field-h`.
+- **Opciones del agente** (runtime, nivel, acceso): pasaron de 49 a 44 px.
+- **Selector de página de Settings en móvil:** pasó de 28 px a `selectTriggerClass`.
+- **Alturas fijas sin efecto:** se borraron 30 `h-7`/`h-8` en `Input`/`SelectTrigger` y 4 en `TabsList`. El mínimo `--field-h` ya los anulaba; solo confundían.
+
+**Medición:**
+- `probe-inline.cjs` con `TOL=0`, en todas las rutas a 1440 y 390: ninguna línea mezcla alturas.
+- Un censo de controles con borde o relleno que no miden `--field-h` solo deja contenido, no controles:
+  - las sugerencias de Chat y del nuevo Loop (chips de texto que se parten en varias líneas);
+  - los chips de label (20 px).
+- **Pendiente de decidir:** siguen 143 botones `xs`/`xxs` en sitios densos que no comparten línea con campos (badges, cabeceras de panel, acciones de tarjetas). No se tocaron en esta prueba.
+
 ## Controles de Settings en los componentes compartidos (2026-11-18)
 
 Settings tenía controles propios: campos y selects rectangulares, una búsqueda con borde, un switch y un checkbox con otra forma, y alturas escritas a mano (30, 26 y 44 px). El usuario decidió que todo use la forma del resto de la app, en píldora, y que los controles que comparten línea midan 32 px.

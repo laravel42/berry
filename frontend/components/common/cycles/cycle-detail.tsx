@@ -402,12 +402,12 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                   aside={
                      canEdit ? (
                         <Button
-                           size="xxs"
+                           size="sm"
                            variant="soft"
                            className="ml-auto"
                            onClick={() => setAdding(true)}
                         >
-                           <Plus className="size-3" aria-hidden />
+                           <Plus className="size-3.5" aria-hidden />
                            {t('detail.addTasks')}
                         </Button>
                      ) : null

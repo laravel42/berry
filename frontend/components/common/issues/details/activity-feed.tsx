@@ -1044,8 +1044,8 @@ export function ActivityCommentComposer({
                <Button
                   type="button"
                   variant="ghost"
-                  size="icon"
-                  className="mb-0.5 size-8 flex-none"
+                  size="icon-sm"
+                  className="flex-none"
                   aria-label={t('attach')}
                   onClick={() => filePicker.current?.click()}
                >
@@ -1096,16 +1096,16 @@ export function ActivityCommentComposer({
                      onBlur={() => setFocused(false)}
                      onPointerDown={(event) => event.stopPropagation()}
                      placeholder={t('placeholder')}
-                     className="max-h-40 min-h-8 w-full resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                     className="max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-3 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                   />
                </div>
                <Button
-                  size="icon"
+                  size="icon-sm"
                   // The default variant's berry gradient and white glyph. A
                   // `bg-*` override here only set the colour under that
                   // gradient image, so it never showed; its text colour did,
                   // and left a black glyph on berry in the light theme.
-                  className="mb-0.5 size-8 flex-none disabled:opacity-40"
+                  className="flex-none disabled:opacity-40"
                   aria-label={sendLabel}
                   title={sendLabel}
                   onClick={send}

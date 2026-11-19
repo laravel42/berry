@@ -200,17 +200,17 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                                  placeholder="Post an update…"
                                  aria-label="Project update"
                                  aria-autocomplete="list"
-                                 className="max-h-40 min-h-8 w-full resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                                 className="max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-3 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                               />
                            </div>
                            <Button
                               type="button"
-                              size="icon"
+                              size="icon-sm"
                               // Same as the task composer's send: the default
                               // berry gradient with a white glyph. The old
                               // `bg-secondary` sat under the gradient unseen,
                               // while its text colour turned the glyph black.
-                              className="mb-0.5 size-8 flex-none disabled:opacity-40"
+                              className="flex-none disabled:opacity-40"
                               aria-label="post update"
                               title="post update"
                               onClick={submitComment}

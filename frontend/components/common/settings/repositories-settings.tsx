@@ -475,7 +475,7 @@ function RepositoriesDirectory() {
                         <Input
                            aria-label={t('urlLabel')}
                            placeholder={t('urlPlaceholder')}
-                           className="h-8 font-mono sm:flex-[3]"
+                           className="font-mono sm:flex-[3]"
                            value={row.url}
                            disabled={!canManage}
                            onChange={(event) => edit(row.key, 'url', event.target.value)}
@@ -484,7 +484,7 @@ function RepositoriesDirectory() {
                         <Input
                            aria-label={t('descriptionLabel')}
                            placeholder={t('descriptionPlaceholder')}
-                           className="h-8 sm:flex-[4]"
+                           className="sm:flex-[4]"
                            maxLength={500}
                            value={row.description}
                            disabled={!canManage}

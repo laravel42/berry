@@ -571,7 +571,7 @@ export function PreviewPanel({
                   if (prefs.minimized) remember({ minimized: false });
                }}
             >
-               <TabsList className="h-8" aria-label={t('label')}>
+               <TabsList aria-label={t('label')}>
                   {tabs.map((entry) => (
                      <TabsTrigger key={entry.id} value={entry.id} className="gap-1.5">
                         {entry.label}

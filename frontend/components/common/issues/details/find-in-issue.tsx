@@ -147,7 +147,7 @@ export function FindInIssue({ scope }: { scope: RefObject<HTMLElement | null> })
             value={query}
             aria-label={t('placeholder')}
             placeholder={t('placeholder')}
-            className="h-7 w-48 border-0 bg-transparent shadow-none focus-visible:ring-0"
+            className="w-48 border-0 bg-transparent shadow-none focus-visible:ring-0"
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
                if (event.key === 'Escape') {

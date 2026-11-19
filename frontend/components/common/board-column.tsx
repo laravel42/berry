@@ -48,7 +48,7 @@ export function BoardColumnHeader({
       <div
          data-column-tint={tone}
          className={cn(
-            'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1',
+            'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5',
             COLUMN_TINT[tone]
          )}
       >
@@ -62,7 +62,7 @@ export function BoardColumnHeader({
 export function BoardColumn({ header, children }: { header: ReactNode; children: ReactNode }) {
    return (
       <div className="bg-container flex gap-4 h-full w-[278px] shrink-0 flex-col overflow-hidden rounded-lg">
-         <div className="sticky top-0 z-10 h-9 w-full shrink-0 rounded-t-lg bg-container">
+         <div className="sticky top-0 z-10 h-(--field-h) w-full shrink-0 rounded-t-lg bg-container">
             {header}
          </div>
          {children}

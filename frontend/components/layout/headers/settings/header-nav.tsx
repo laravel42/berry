@@ -14,7 +14,9 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { selectTriggerClass } from '@/components/ui/select';
 import { isNavItemActive } from '@/lib/nav-active';
+import { cn } from '@/lib/utils';
 
 /**
  * Pages under /settings that are not in the rail's list, which would otherwise
@@ -54,7 +56,7 @@ export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) 
          ?.labelKey;
 
    return (
-      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-5 py-1.5">
+      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-5">
          {/* Breadcrumb: "Settings › Page". The h1 stays "Settings"; the page
              name is the section below it. */}
          <div className="flex min-w-0 items-baseline gap-2">
@@ -79,12 +81,12 @@ export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) 
             <DropdownMenu>
                <DropdownMenuTrigger
                   aria-label={admin('jump.label')}
-                  className="lg:hidden inline-flex h-7 min-w-0 max-w-56 items-center gap-1.5 rounded-md border bg-container px-2.5 outline-none transition-colors hover:bg-accent"
+                  className={cn(selectTriggerClass, 'w-auto max-w-56 min-w-0 lg:hidden')}
                >
                   <span className="min-w-0 truncate">
                      {currentLabelKey ? admin(`nav.${currentLabelKey}`) : admin('jump.current')}
                   </span>
-                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
+                  <ChevronDown className="size-4 shrink-0 opacity-50" />
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="max-h-[70svh] min-w-52 overflow-y-auto">
                   {settingsNav.map((group, index) => (

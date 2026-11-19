@@ -230,7 +230,7 @@ export default function PluginDetail({
                                        <Input
                                           type="password"
                                           autoComplete="off"
-                                          className="h-8 w-44"
+                                          className="w-44"
                                           placeholder={secret.set ? 'Replace…' : 'Value'}
                                           value={secretDrafts[secret.name] ?? ''}
                                           onChange={(event) =>
@@ -299,7 +299,7 @@ export default function PluginDetail({
                               <Input
                                  type="password"
                                  autoComplete="off"
-                                 className="h-8 w-44"
+                                 className="w-44"
                                  placeholder={secret.set ? 'Replace…' : 'Value'}
                                  value={secretDrafts[secret.name] ?? ''}
                                  onChange={(event) =>

@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { View } from '@/data/views';
 import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { deleteSavedView, loadWorkspaceViews } from '@/lib/views';
 import { useSessionStore } from '@/store/session-store';
 import { useViewsStore } from '@/store/views-store';
@@ -71,7 +72,7 @@ function DisplayOptions() {
    return (
       <Popover>
          <PopoverTrigger asChild>
-            <Button size="xs" variant="ghost" aria-label="Display options">
+            <Button size="icon-sm" variant="ghost" aria-label="Display options">
                <SlidersHorizontal className="size-4" />
             </Button>
          </PopoverTrigger>
@@ -82,7 +83,7 @@ function DisplayOptions() {
                   value={ordering}
                   onValueChange={(value) => setOrdering(value as ViewsOrdering)}
                >
-                  <SelectTrigger className="w-32 h-7">
+                  <SelectTrigger className="w-32">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -243,24 +244,17 @@ export default function Views() {
    return (
       <div className="w-full h-full overflow-y-auto">
          <div className="flex items-center justify-between px-6 pt-3 pb-2">
-            <div className="flex items-center gap-1.5">
-               {TABS.map((candidate) => (
-                  <button
-                     key={candidate}
-                     onClick={() => setTab(candidate)}
-                     className={cn(
-                        'px-2.5 py-1 rounded-md border font-medium capitalize transition-colors',
-                        tab === candidate
-                           ? 'bg-accent border-transparent'
-                           : 'text-muted-foreground hover:bg-accent/50'
-                     )}
-                  >
-                     {candidate}
-                  </button>
-               ))}
-            </div>
+            <SegmentedControl
+               aria-label="View type"
+               options={TABS.map((value) => ({
+                  value,
+                  label: <span className="capitalize">{value}</span>,
+               }))}
+               value={tab}
+               onValueChange={(next) => void setTab(next)}
+            />
             <div className="flex items-center gap-1">
-               <Button size="xs" variant="ghost" onClick={() => setCreating(true)}>
+               <Button size="sm" variant="ghost" onClick={() => setCreating(true)}>
                   <Plus className="mr-1 size-3.5" />
                   {t('views.newView')}
                </Button>

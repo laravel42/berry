@@ -231,14 +231,8 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
             <Button
-               size="xs"
+               size="sm"
                variant="secondary"
-               /* `has-[>svg]:px-4` as well as `px-4`: `size="xs"` narrows a
-                  button that carries an icon to 8px, and that rule out-ranks
-                  a plain `px-*` because `:has()` adds specificity. Without
-                  the pair the label sits 8px from the edge of a 48px
-                  control. */
-               className="h-12 px-4 has-[>svg]:px-4"
                aria-label={t('attachTitle')}
                title={t('attachTitle')}
             >
@@ -251,7 +245,6 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
                autoFocus
                value={query}
                placeholder={t('attachPlaceholder')}
-               className="h-8"
                onChange={(event) => setQuery(event.target.value)}
             />
             <div className="mt-2 max-h-56 overflow-y-auto">
@@ -408,16 +401,15 @@ export function SubIssues({ issue }: { issue: Issue }) {
 
                <div className="flex flex-wrap items-center gap-2">
                   <Input
-                     className="h-12 min-w-full flex-1 sm:min-w-[180px]"
+                     className="min-w-full flex-1 sm:min-w-[180px]"
                      placeholder={t('addPlaceholder')}
                      value={title}
                      onChange={(event) => setTitle(event.target.value)}
                      onKeyDown={(event) => event.key === 'Enter' && add()}
                   />
                   <Button
-                     size="xs"
+                     size="sm"
                      variant="secondary"
-                     className="h-12 px-4 has-[>svg]:px-4"
                      disabled={!title.trim() || adding}
                      onClick={add}
                   >

@@ -96,7 +96,7 @@ function RetryButton({ run, onChanged }: { run: WorkspaceLoopRun; onChanged: () 
    };
    return (
       <Button
-         size="xs"
+         size="sm"
          variant="secondary"
          disabled={busy}
          onClick={() => void retry()}

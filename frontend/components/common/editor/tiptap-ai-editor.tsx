@@ -372,7 +372,7 @@ function BlockTypeSelect({
          <FormatHint label="Font type" shortcut={headingShortcut()}>
             <SelectTrigger
                aria-label="Font type"
-               className="mr-1 h-7 w-auto gap-1 px-2 py-0 shadow-none"
+               className="mr-1 w-auto gap-1 px-2 py-0 shadow-none"
                onClick={(event) => event.preventDefault()}
             >
                <SelectValue />

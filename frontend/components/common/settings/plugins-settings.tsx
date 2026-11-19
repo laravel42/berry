@@ -381,7 +381,7 @@ export default function PluginsSettings() {
                                     <Input
                                        type="password"
                                        autoComplete="off"
-                                       className="h-8 w-56"
+                                       className="w-56"
                                        disabled={busy}
                                        value={secretDrafts[secret.name] ?? ''}
                                        onChange={(event) =>

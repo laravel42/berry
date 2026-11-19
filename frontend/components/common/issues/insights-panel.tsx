@@ -106,7 +106,7 @@ export function InsightsPanel({ issues }: InsightsPanelProps) {
             <div className="flex flex-col gap-1">
                <span className="text-muted-foreground">Measure</span>
                <Select defaultValue="issue-count">
-                  <SelectTrigger className="h-8 w-full">
+                  <SelectTrigger className="w-full">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -117,7 +117,7 @@ export function InsightsPanel({ issues }: InsightsPanelProps) {
             <div className="flex flex-col gap-1">
                <span className="text-muted-foreground">Slice</span>
                <Select defaultValue="status">
-                  <SelectTrigger className="h-8 w-full">
+                  <SelectTrigger className="w-full">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -128,7 +128,7 @@ export function InsightsPanel({ issues }: InsightsPanelProps) {
             <div className="flex flex-col gap-1">
                <span className="text-muted-foreground">Segment</span>
                <Select defaultValue="priority">
-                  <SelectTrigger className="h-8 w-full">
+                  <SelectTrigger className="w-full">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

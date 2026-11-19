@@ -453,7 +453,7 @@ export function ProjectPropertiesPanel({
                />
             </div>
             <Tabs defaultValue="assignees">
-               <TabsList className="h-8 bg-transparent gap-1 p-0">
+               <TabsList className="bg-transparent gap-1 p-0">
                   <TabsTrigger value="assignees" className="px-2.5 rounded-full">
                      Assignees
                   </TabsTrigger>

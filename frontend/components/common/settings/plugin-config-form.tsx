@@ -47,7 +47,7 @@ export function PluginConfigForm({
                         />
                      ) : (
                         <Input
-                           className="h-8 w-56"
+                           className="w-56"
                            disabled={disabled}
                            type={field.type === 'number' ? 'number' : 'text'}
                            value={String(selected ?? '')}

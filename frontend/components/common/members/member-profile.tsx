@@ -277,7 +277,7 @@ export default function MemberProfile({ member }: { member: User }) {
 
                   <div className="px-5 py-4">
                      <Tabs defaultValue="labels">
-                        <TabsList className="h-8 bg-transparent gap-1 p-0">
+                        <TabsList className="bg-transparent gap-1 p-0">
                            <TabsTrigger value="labels" className="px-2.5 rounded-full">
                               Labels
                            </TabsTrigger>

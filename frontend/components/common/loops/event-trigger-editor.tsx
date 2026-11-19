@@ -4,11 +4,8 @@ import { Plus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
-import {
-   InsetSegments,
-   SettingRow,
-   insetFieldClass,
-} from '@/components/common/loops/loop-editor-parts';
+import { Input } from '@/components/ui/input';
+import { InsetSegments, SettingRow } from '@/components/common/loops/loop-editor-parts';
 import {
    Select,
    SelectContent,
@@ -177,10 +174,7 @@ export default function EventTriggerEditor({
                disabled={disabled}
                onValueChange={(value) => changeEvent(value as LoopEventType)}
             >
-               <SelectTrigger
-                  className={cn(insetFieldClass, 'justify-between')}
-                  aria-label={te('when')}
-               >
+               <SelectTrigger aria-label={te('when')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -303,10 +297,7 @@ function RuleRow({
                disabled={disabled}
                onValueChange={(value) => onChange({ field: value as ConditionField, values: [] })}
             >
-               <SelectTrigger
-                  className={cn(insetFieldClass, 'justify-between')}
-                  aria-label={t('field')}
-               >
+               <SelectTrigger aria-label={t('field')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -322,10 +313,7 @@ function RuleRow({
                disabled={disabled}
                onValueChange={(value) => onChange({ op: value === 'not_in' ? 'not_in' : 'in' })}
             >
-               <SelectTrigger
-                  className={cn(insetFieldClass, 'justify-between')}
-                  aria-label={t('operator')}
-               >
+               <SelectTrigger aria-label={t('operator')}>
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -335,9 +323,8 @@ function RuleRow({
             </Select>
             <Button
                type="button"
-               size="icon"
-               variant="ghost"
-               className="size-8 text-subtle-foreground hover:text-foreground"
+               size="icon-sm"
+               variant="quiet"
                disabled={disabled}
                onClick={onRemove}
                aria-label={t('removeFilter')}
@@ -379,8 +366,7 @@ function RuleRow({
                ))}
             </div>
          ) : (
-            <input
-               className={insetFieldClass}
+            <Input
                value={rule.values.join(', ')}
                placeholder={t('labelsPlaceholder')}
                aria-label={t('fields.label')}

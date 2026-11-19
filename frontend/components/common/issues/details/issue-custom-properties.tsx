@@ -218,7 +218,7 @@ function FieldEditor({
          return (
             <Input
                type="number"
-               className="h-7 w-32"
+               className="w-32"
                defaultValue={typeof value === 'number' ? value : ''}
                onBlur={(event) =>
                   onChange(event.target.value === '' ? null : Number(event.target.value))
@@ -229,7 +229,7 @@ function FieldEditor({
          return (
             <Input
                type="date"
-               className="h-7 w-36"
+               className="w-36"
                defaultValue={typeof value === 'string' ? value : ''}
                onChange={(event) => onChange(event.target.value || null)}
             />
@@ -240,7 +240,7 @@ function FieldEditor({
                value={typeof value === 'string' ? value : NONE}
                onValueChange={(next) => onChange(next === NONE ? null : next)}
             >
-               <SelectTrigger className="h-7 w-36">
+               <SelectTrigger className="w-36">
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -302,7 +302,7 @@ function FieldEditor({
                      );
                }}
             >
-               <SelectTrigger className="h-7 w-40">
+               <SelectTrigger className="w-40">
                   <SelectValue />
                </SelectTrigger>
                <SelectContent>
@@ -319,7 +319,7 @@ function FieldEditor({
       default:
          return (
             <Input
-               className="h-7 w-40"
+               className="w-40"
                type={definition.kind === 'url' ? 'url' : 'text'}
                defaultValue={typeof value === 'string' ? value : ''}
                onBlur={(event) => onChange(event.target.value.trim() || null)}

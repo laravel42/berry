@@ -336,7 +336,7 @@ export function DepartmentMultiselect({
       <Popover>
          <PopoverTrigger asChild>
             <Button
-               size="xs"
+               size="sm"
                variant="track"
                role="combobox"
                aria-label={t('filters.department')}
@@ -427,7 +427,7 @@ function RoleLine({
          <div className={cn('flex shrink-0 items-center justify-end', ACTION_WIDTH)}>
             {canEdit ? (
                <Button
-                  size="xxs"
+                  size="sm"
                   variant="soft"
                   disabled={adding}
                   onClick={onAdd}

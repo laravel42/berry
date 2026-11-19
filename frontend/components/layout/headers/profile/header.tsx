@@ -159,7 +159,7 @@ export default function Header({ member }: { member: User }) {
             <div className="flex items-center gap-1">
                <IssueFilterTrigger iconOnly />
                <Button
-                  size="xs"
+                  size="icon-sm"
                   variant="track"
                   aria-label={'Insights'}
                   title={'Insights'}
@@ -170,7 +170,7 @@ export default function Header({ member }: { member: User }) {
                   <BarChart3 className="size-4" aria-hidden="true" />
                </Button>
                <Button
-                  size="xs"
+                  size="icon-sm"
                   variant="track"
                   aria-label={'Profile'}
                   title={'Profile'}

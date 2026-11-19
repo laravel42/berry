@@ -22,7 +22,7 @@ import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from
 import { useSessionStore } from '@/store/session-store';
 
 /** Same footprint as the tier cards: selected keeps secondary gray, adds a berry border. */
-const CHOICE_SIZE = '!h-auto min-h-11 px-4 py-3';
+const CHOICE_SIZE = '!h-auto min-h-(--field-h) px-4 py-2';
 const CHOICE_SELECTED = '!border !border-primary';
 const CHOICE_IDLE = '!border !border-transparent';
 

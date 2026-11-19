@@ -37,7 +37,7 @@ export default function Header() {
                <div className="flex items-center gap-1">
                   <IssueFilterTrigger iconOnly />
                   <Button
-                     size="xs"
+                     size="icon-sm"
                      variant="track"
                      aria-label={'Insights'}
                      title={'Insights'}

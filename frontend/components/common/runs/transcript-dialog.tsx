@@ -1231,7 +1231,7 @@ export function RunTranscript({
                      value={query}
                      aria-label={t('search')}
                      placeholder={t('searchPlaceholder')}
-                     className="h-8 border-0 bg-transparent px-2 shadow-none focus-visible:border-transparent focus-visible:shadow-none focus-visible:ring-0"
+                     className="border-0 bg-transparent px-2 shadow-none focus-visible:border-transparent focus-visible:shadow-none focus-visible:ring-0"
                      onChange={(event) => {
                         setQuery(event.target.value);
                         setMatchIndex(0);

@@ -110,7 +110,7 @@ export default function Header({
                      <DisplayOptions iconOnly />
                      {/* The side panel is a column from xl; below that these open it as an overlay. */}
                      <Button
-                        size="xs"
+                        size="icon-sm"
                         variant="track"
                         aria-label="Insights"
                         title="Insights"
@@ -124,7 +124,7 @@ export default function Header({
                         <BarChart3 className="size-4" aria-hidden="true" />
                      </Button>
                      <Button
-                        size="xs"
+                        size="icon-sm"
                         variant="track"
                         aria-label="Properties"
                         title="Properties"

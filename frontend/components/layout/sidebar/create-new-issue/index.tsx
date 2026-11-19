@@ -499,7 +499,6 @@ export function CreateNewIssue() {
                               <Input
                                  autoFocus
                                  aria-label={definition.name}
-                                 className="h-7"
                                  type={
                                     definition.kind === 'number'
                                        ? 'number'

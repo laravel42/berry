@@ -204,7 +204,7 @@ export function ReviewDetail({
             className="flex min-h-0 flex-1 flex-col gap-0"
          >
             <div className="flex shrink-0 items-center border-b px-4 py-[6px]">
-               <TabsList className="h-8">
+               <TabsList>
                   <TabsTrigger value="overview">{t('sections.overview')}</TabsTrigger>
                   {item.issue.autoGate && (
                      <TabsTrigger value="guide">
