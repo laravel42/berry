@@ -63,7 +63,9 @@ export function IssueDescription({
       let frame = 0;
       const startedAt = performance.now();
       const focusWhenReady = () => {
-         const field = surface.current?.querySelector<HTMLElement>('.ProseMirror');
+         const field = surface.current?.querySelector<HTMLElement>(
+            '.ProseMirror[contenteditable="true"]'
+         );
          if (field) {
             field.focus();
             return;
