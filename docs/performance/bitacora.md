@@ -38,6 +38,8 @@ Por el túnel de Cloudflare el usuario midió 36.
 | T6 | Sin prefetch de las secciones del rail/pestañas | components/layout/shell/* | 95841b3a | verde (build). La parte de abrir SSE tarde se revirtió en d9a6bbe9: sin cursor obligaba a recargar las 2000 tareas |
 | T7 | Server: `serverTime` en bootstrap y `since` en /events | server-ts mounts/events.ts, me.ts, tests, gateway-v1.md | 5b562b40 | verde (typecheck; events.test 12/12; e2e: since reproduce solo lo nuevo). Hallazgo: sin cursor el stream reproducía TODO el backlog en cada carga |
 | T8 | Streams SSE abiertos tras la carga, en idle, con `since` | lib/auth, session-store, use-*-event-stream, lib/events, lib/runs | ab9e7506 | verde (build + lint; URLs con since; tiempo real comprobado cambiando un título por la API) |
+| T9 | Inter: solo eje wght (opsz fijo en 14) y features en uso, 206→115 KB | app/fonts/inter-variable-latin.woff2, comentario de layout.tsx | 3c3b2a56 | verde (build; cmap ⊇ anterior). Títulos >14 px pierden las formas de display de opsz |
+| T10 | Lista con alturas fijas (fila 2.5rem, cabecera 2rem) sin measureElement | virtual-issue-list.tsx | bb1bcd4a | verde (build + lint; sin solapes en escritorio y móvil táctil). measureElement eran 936 ms de 4.3 s en el perfil de prod con CPU 4× |
 
 ## Medición con sesión real (puppeteer + Lighthouse, tras T4)
 
@@ -54,3 +56,15 @@ Perfil de CPU en dev (Tasks, 15 s): `IssueContextMenu` ~900 ms inclusivo (monta 
 Tras T6 (prod :3001): Tasks 40 (TBT 3 150 ms), detalle 46, Inbox 45. LCP observado 3.3 s, simulado ~66 s: Lantern cuenta las dos conexiones SSE (que no terminan) como dependencias del LCP. De ahí T7/T8: `since` en /events + `serverTime` en bootstrap para abrir los streams tras el primer pintado sin perder eventos.
 
 Tras T8 (prod :3001): Tasks **53** (LCP 5.1 s, TBT 1 600 ms), detalle **74** (LCP 2.4 s, TBT 1 210 ms), Inbox **77** (TBT 830 ms). LCP observado en Tasks 1.6 s.
+
+### Final (build con T1–T10 en :3001 / túnel)
+
+| Ruta | Score | LCP | TBT |
+|------|-------|-----|-----|
+| Tasks | 52 | 5.1 s | 1 890 ms |
+| Detalle | 79 | 2.3 s | 830 ms |
+| Inbox | 76 | 2.5 s | 840 ms |
+| Projects | 76 | 2.5 s | 990 ms |
+| Sign-in | 93 | 1.4 s | 320 ms |
+
+Pendiente en Tasks: el LCP depende de bootstrap → boards → primera página de tareas; el TBT, de hidratar 2000 tareas y de las opciones de la barra de filtros (~120 ms, se construyen cerradas).
