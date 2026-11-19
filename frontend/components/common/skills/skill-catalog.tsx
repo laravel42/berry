@@ -12,6 +12,7 @@ import { DepartmentMultiselect } from '@/components/common/agents/agent-catalog'
 import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { SettingsChip } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
+import { PageBackTitle } from '@/components/common/page/page-parts';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -57,6 +58,7 @@ function departmentRank(department: string): number {
  */
 function SkillCatalogScreen() {
    const t = useTranslations('areas.skills.catalog');
+   const { orgId } = useParams<{ orgId: string }>();
    const tOrg = useTranslations('organization');
    const role = useSessionStore((state) => state.workspace?.role);
    const canEdit = canEditProduct(role);
@@ -200,6 +202,7 @@ function SkillCatalogScreen() {
 
    const header = (
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5">
+         <PageBackTitle href={`/${orgId}/skills`} backLabel={t('back')} title={t('title')} />
          <Input
             variant="search"
             className="w-64 max-sm:w-full"
@@ -439,8 +442,10 @@ function SkillCatalogLine({
             />
          ) : null}
          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex min-w-0 items-center gap-2">
-               <span className="truncate font-medium leading-none">{skill.name}</span>
+            {/* The department chips wrap under the name rather than squeeze it
+                to a few letters on a narrow row. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+               <span className="max-w-full truncate font-medium leading-none">{skill.name}</span>
                {skill.labels.map((label) => (
                   <SettingsChip key={label}>{label}</SettingsChip>
                ))}

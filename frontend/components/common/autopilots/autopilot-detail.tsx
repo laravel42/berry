@@ -329,7 +329,9 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
 
    return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-         <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b px-5">
+         {/* One row from `sm`. On a phone the actions take a row of their own
+             under the name, which a single row squeezed to a letter. */}
+         <header className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b px-5 py-2 sm:h-[52px] sm:flex-nowrap sm:py-0">
             <nav aria-label={t('title')} className="flex min-w-0 items-center gap-2.5">
                {inDrawer ? null : (
                   <>
@@ -349,7 +351,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
             </nav>
             {statePill}
 
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2 max-sm:basis-full max-sm:justify-end">
                {dirty ? (
                   <>
                      <span className="hidden text-subtle-foreground md:inline">
@@ -376,9 +378,6 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                         <Button
                            type="button"
                            variant="secondary"
-                           size="icon"
-                           // As tall as Run now and Save beside it.
-                           className="size-11"
                            aria-label={t('row.menu')}
                            disabled={busy}
                         >

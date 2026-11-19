@@ -207,7 +207,7 @@ export default function RuntimesList() {
                <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px]">
                   <Input
                      variant="search"
-                     className="w-64 max-sm:w-40"
+                     className="w-64 max-sm:w-full"
                      value={query}
                      onChange={(event) => setQuery(event.target.value)}
                      placeholder={t('catalogSearch')}

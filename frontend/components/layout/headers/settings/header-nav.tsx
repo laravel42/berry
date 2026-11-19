@@ -26,6 +26,8 @@ const offRailPages = [
    { segment: 'organization', labelKey: 'organization' },
    { segment: 'repositories', labelKey: 'repositories' },
    { segment: 'usage', labelKey: 'usage' },
+   { segment: 'ai', labelKey: 'agents' },
+   { segment: 'plugins', labelKey: 'plugins' },
 ] as const;
 
 /**

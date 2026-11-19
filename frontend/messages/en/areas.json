@@ -149,6 +149,7 @@
       },
       "catalog": {
          "title": "Skills catalog",
+         "back": "Back to Skills",
          "search": "Search skills and departments",
          "loading": "Loading skills…",
          "loadFailed": "The skills catalog could not be loaded.",

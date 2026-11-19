@@ -1,5 +1,8 @@
-import { cn } from '@/lib/utils';
+import { ChevronLeft } from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+
+import { cn } from '@/lib/utils';
 
 /**
  * The parts every page is set with, so the app reads as one hand: a page
@@ -234,5 +237,33 @@ export function PageKpiHeader({
          </div>
          {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} wrap={wrapKpis} /> : null}
       </header>
+   );
+}
+
+/**
+ * A page's title row with a way back to the page it belongs to (a catalog
+ * back to its list), for a page whose toolbar has no title of its own. It
+ * sits first in a toolbar padded `px-4 py-2.5` and runs edge to edge.
+ */
+export function PageBackTitle({
+   href,
+   backLabel,
+   title,
+}: {
+   href: string;
+   backLabel: string;
+   title: string;
+}) {
+   return (
+      <div className="-mx-4 -mt-2.5 flex w-[calc(100%+2rem)] items-center gap-1 border-b px-2 py-1.5">
+         <Link
+            href={href}
+            aria-label={backLabel}
+            className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+         >
+            <ChevronLeft className="size-5" aria-hidden />
+         </Link>
+         <h1 className="min-w-0 truncate">{title}</h1>
+      </div>
    );
 }

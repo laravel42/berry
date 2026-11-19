@@ -229,7 +229,9 @@ export function SettingsRow({
             )}
          >
             {icon ? <SettingsTile>{icon}</SettingsTile> : null}
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {/* An 8rem basis: a label never shrinks to a few letters beside a
+                wide control; on a narrow screen the control drops under it. */}
+            <div className="flex min-w-0 flex-[1_1_8rem] flex-col gap-0.5">
                <div className="flex min-w-0 flex-wrap items-center gap-2 font-medium text-foreground">
                   {title}
                </div>
