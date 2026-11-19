@@ -71,12 +71,17 @@ function GroupHeaderBar({
    isViewTypeGrid,
    showChevron,
    canCollapse,
+   collapsed,
+   onToggle,
 }: {
    group: IssueGroupDescriptor;
    count: number;
    isViewTypeGrid: boolean;
    showChevron: boolean;
    canCollapse: boolean;
+   /** Set by the virtualized list, which owns the collapsed state itself. */
+   collapsed?: boolean;
+   onToggle?: () => void;
 }) {
    const { openModal } = useCreateIssueStore();
 
@@ -87,7 +92,8 @@ function GroupHeaderBar({
                aria-hidden
                className={cn(
                   'size-3.5 shrink-0 transition-transform duration-200 group-data-[state=closed]/issue-group:-rotate-90',
-                  canCollapse ? 'text-muted-foreground' : 'text-muted-foreground/35'
+                  canCollapse ? 'text-muted-foreground' : 'text-muted-foreground/35',
+                  collapsed && '-rotate-90'
                )}
             />
          ) : null}
@@ -131,7 +137,20 @@ function GroupHeaderBar({
             data-column-tint={tone}
             className={cn('flex h-full w-full items-center justify-between px-6', GROUP_TINT[tone])}
          >
-            {showChevron ? (
+            {showChevron && onToggle ? (
+               <button
+                  type="button"
+                  disabled={!canCollapse}
+                  aria-expanded={!collapsed}
+                  onClick={onToggle}
+                  className={cn(
+                     'flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                     canCollapse ? 'cursor-pointer' : 'cursor-default'
+                  )}
+               >
+                  {label}
+               </button>
+            ) : showChevron ? (
                <CollapsibleTrigger asChild>
                   <button
                      type="button"
@@ -150,6 +169,35 @@ function GroupHeaderBar({
             {createButton}
          </div>
       </div>
+   );
+}
+
+/**
+ * The bar of a list group inside the virtualized list. It collapses through
+ * `onToggle` instead of a Collapsible, since the group's rows are not its
+ * children there.
+ */
+export function ListGroupHeader({
+   group,
+   count,
+   collapsed,
+   onToggle,
+}: {
+   group: IssueGroupDescriptor;
+   count: number;
+   collapsed: boolean;
+   onToggle: () => void;
+}) {
+   return (
+      <GroupHeaderBar
+         group={group}
+         count={count}
+         isViewTypeGrid={false}
+         showChevron
+         canCollapse={count > 0}
+         collapsed={collapsed}
+         onToggle={onToggle}
+      />
    );
 }
 

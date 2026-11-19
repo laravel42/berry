@@ -13,7 +13,6 @@ import { IssueDragType } from './issue-grid';
 import { LabelBadge } from './label-badge';
 import { SelectionCheckbox } from './selection-checkbox';
 import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';
-import { motion } from 'motion/react';
 
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
@@ -59,7 +58,6 @@ const CONTROL = 'relative z-[1]';
 
 function IssueLineView({
    issue,
-   layoutId = false,
    order = [],
    rowRef,
    isDragging,
@@ -74,10 +72,9 @@ function IssueLineView({
    return (
       <ContextMenu>
          <ContextMenuTrigger asChild>
-            <motion.div
+            <div
                ref={rowRef}
                style={{ opacity: isDragging ? 0.45 : 1 }}
-               {...(layoutId && { layoutId: `issue-line-${issue.identifier}` })}
                className={cn(
                   'group relative flex min-h-10 w-full items-center justify-start border-b border-border/45 px-4 transition-colors sm:px-6',
                   'hover:bg-accent/45 focus-within:bg-accent/45',
@@ -160,7 +157,7 @@ function IssueLineView({
                      </span>
                   )}
                </div>
-            </motion.div>
+            </div>
          </ContextMenuTrigger>
          <IssueContextMenu issueId={issue.id} />
       </ContextMenu>

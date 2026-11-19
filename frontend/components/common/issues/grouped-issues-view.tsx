@@ -21,6 +21,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { GroupIssues } from './group-issues';
+import { VirtualIssueList } from './virtual-issue-list';
 import { BoardMoveContext, CustomDragLayer, type BoardMove } from './issue-grid';
 import { EmptyQueue, NoMatches } from './issue-list-empty';
 import {
@@ -391,21 +392,18 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    return (
       <DndProvider backend={HTML5Backend}>
          <CustomDragLayer />
-         <div className="h-full overflow-y-auto divide-y-[3px] divide-background md:pb-[var(--shell-launcher-room)]">
-            {listGroups.length === 0 && (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
-            {listGroups.map((entry) => (
-               <GroupIssues
-                  key={entry.group.id}
-                  group={entry.group}
-                  issues={entry.issues}
-                  count={entry.issues.length}
-                  onDropIssue={dropFor(entry.group.id)}
-               />
-            ))}
-            {showFooter && listGroups.length > 0 && (
-               <HiddenByFiltersFooter hiddenCount={hiddenCount} />
-            )}
-         </div>
+         <VirtualIssueList
+            groups={listGroups}
+            onDropFor={dropFor}
+            empty={
+               listGroups.length === 0 ? hasActiveFilters ? <NoMatches /> : <EmptyQueue /> : null
+            }
+            footer={
+               showFooter && listGroups.length > 0 ? (
+                  <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+               ) : null
+            }
+         />
       </DndProvider>
    );
 };

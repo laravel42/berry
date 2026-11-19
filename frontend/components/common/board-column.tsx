@@ -2,7 +2,6 @@
 
 import { statusTone, type Status, type StatusTone } from '@/data/status';
 import { cn } from '@/lib/utils';
-import { AnimatePresence, motion } from 'motion/react';
 import type { ReactNode, Ref } from 'react';
 
 /**
@@ -100,19 +99,11 @@ export function BoardColumnBody({
          )}
          style={{ backgroundColor: BOARD_COLUMN_BODY_BG }}
       >
-         <AnimatePresence>
-            {isOverEmpty && isEmpty && (
-               <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                  className="pointer-events-none flex flex-1 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4"
-               >
-                  <p className="font-medium text-muted-foreground">Drop to move here</p>
-               </motion.div>
-            )}
-         </AnimatePresence>
+         {isOverEmpty && isEmpty && (
+            <div className="pointer-events-none flex flex-1 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4">
+               <p className="font-medium text-muted-foreground">Drop to move here</p>
+            </div>
+         )}
          {children}
       </div>
    );
