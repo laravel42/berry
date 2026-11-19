@@ -393,6 +393,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                            <div className="flex flex-wrap gap-2">
                               <Button
                                  type="button"
+                                 size="sm"
                                  variant="secondary"
                                  className={
                                     draft.runtimeId === NO_RUNTIME ? CHOICE_SELECTED : undefined
@@ -405,6 +406,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={runtime.id}
                                     type="button"
+                                    size="sm"
                                     variant="secondary"
                                     className={
                                        draft.runtimeId === runtime.id ? CHOICE_SELECTED : undefined
@@ -428,6 +430,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={level}
                                     type="button"
+                                    size="sm"
                                     variant="secondary"
                                     className={
                                        draft.concurrency === level ? CHOICE_SELECTED : undefined
@@ -450,6 +453,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={mode}
                                     type="button"
+                                    size="sm"
                                     variant="secondary"
                                     className={draft.access === mode ? CHOICE_SELECTED : undefined}
                                     onClick={() => set({ access: mode })}

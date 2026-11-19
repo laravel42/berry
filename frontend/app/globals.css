@@ -14,7 +14,8 @@
    - `--ctl-h` (44px) is the target floor for a BUTTON standing on its own.
      `--field-h` is the height of a field and of every control that shares
      its line (Button `sm`/`icon-sm`, a select, a search, tabs, a segmented
-     control); it is 44px too, so a line of controls is the button floor.
+     control); it is 40px, a little under that floor, so a line of controls
+     reads lighter than a standalone button.
      `--ctl-h-lg` is the sign-in primary action.
    - State is monochromatic deliberately. The accent is spent on the primary
      action and on the one state that needs a person; a green "done" or a blue
@@ -125,9 +126,9 @@
    --ctl-h: 44px;
    --ctl-h-lg: 48px;
    --ctl-px: 14px;
-   /* Fields and the controls on their line: 44px, and a pill. See the note
+   /* Fields and the controls on their line: 40px, and a pill. See the note
       at the top of this file. */
-   --field-h: 2.75rem;
+   --field-h: 2.5rem;
    /* Chips sit well under the control floor on purpose — a board row can carry
       twenty of them, and `.pill` in the kit is 26px with 10px of side padding.
       Stated once because three components draw a chip today (`ui/badge`,

@@ -1096,7 +1096,7 @@ export function ActivityCommentComposer({
                      onBlur={() => setFocused(false)}
                      onPointerDown={(event) => event.stopPropagation()}
                      placeholder={t('placeholder')}
-                     className="max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-3 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                     className="max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-[calc((var(--field-h)-1.25rem)/2)] leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                   />
                </div>
                <Button
