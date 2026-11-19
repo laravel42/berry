@@ -11,6 +11,15 @@ import './globals.css';
 // features are kept. Regenerate with pyftsubset (fonttools) --flavor=woff2
 // --layout-features='*' over Google Fonts' latin + latin-ext ranges plus every
 // non-ASCII character in messages/en, components, app and lib.
+//
+// Inter is cut further: `opsz` is pinned at its default (14) so only `wght`
+// stays variable, and only the OpenType features the app can reach are kept
+// (shaping basics plus tnum and zero, which Tailwind's tabular-nums and
+// slashed-zero ask for). Regenerate it with
+//   fonttools varLib.instancer inter-variable.woff2 opsz=14 -o inst.woff2
+//   pyftsubset inst.woff2 --unicodes=<codepoints of the current file>
+//     --flavor=woff2 --notdef-outline
+//     --layout-features='kern,liga,calt,ccmp,locl,mark,mkmk,case,frac,sups,subs,numr,dnom,tnum,zero'
 const jetBrainsMono = localFont({
    src: './fonts/jetbrains-mono-variable-latin.woff2',
    variable: '--font-jetbrains-mono',
