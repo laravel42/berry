@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { User } from '@/data/users';
-import { BerryApiError } from '@/lib/api';
+import { BerryApiError, resetSharedRequests } from '@/lib/api';
 import { devLogin, fetchBootstrap, logoutSession, type BootstrapWorkspace } from '@/lib/auth';
 import { AUTO_LOGIN_EMAIL } from '@/lib/config';
 import { listBoards, selectBoardId } from '@/lib/boards';
@@ -144,6 +144,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // connections.
       try {
          const ready = await loadReadyState();
+         resetSharedRequests();
          set({ status: 'ready', error: null, ...ready });
          return;
       } catch (error) {
@@ -163,6 +164,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
          try {
             await devLogin(AUTO_LOGIN_EMAIL);
             const ready = await loadReadyState();
+            resetSharedRequests();
             set({ status: 'ready', error: null, ...ready });
             return;
          } catch {
@@ -170,15 +172,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
          }
       }
 
+      resetSharedRequests();
       set({ ...ANONYMOUS });
    },
 
    signOut: async () => {
       await logoutSession();
+      resetSharedRequests();
       set({ ...ANONYMOUS });
    },
 
-   markAnonymous: () => set({ ...ANONYMOUS }),
+   markAnonymous: () => {
+      resetSharedRequests();
+      set({ ...ANONYMOUS });
+   },
 
    refreshWorkspaces: async () => {
       const ready = await loadReadyState();

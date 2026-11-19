@@ -86,6 +86,7 @@ export function setApiSession(session: ApiSession | undefined): void {
       throw new Error('Global Berry API sessions are browser-only; pass a session per request');
    }
    activeSession = session;
+   resetSharedRequests();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -198,6 +199,18 @@ interface SharedGet {
 }
 
 const sharedGets = new Map<string, SharedGet>();
+/** Bumped whenever the signed-in identity may change; part of every share key. */
+let sharedGeneration = 0;
+
+/**
+ * Stops later GETs from joining requests that started under another identity.
+ * Requests already in flight are not aborted: their current callers still get
+ * them, but no new caller can attach.
+ */
+export function resetSharedRequests(): void {
+   sharedGeneration += 1;
+   sharedGets.clear();
+}
 
 /**
  * Lets identical GETs that overlap share one network request. Each caller
@@ -306,7 +319,8 @@ export async function apiFetch<T>(
 
    // The token is part of the key so two sessions never share a response.
    await applySessionHeaders(headers, options);
-   const key = `${apiUrl(path)}
+   const key = `${sharedGeneration}
+${apiUrl(path)}
 ${headers.get('accept')}
 ${headers.get('authorization') ?? ''}
 ${init?.credentials ?? ''}
