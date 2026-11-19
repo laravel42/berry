@@ -28,3 +28,4 @@ Por el túnel de Cloudflare el usuario midió 36.
 
 | Id | Tarea | Alcance | Commit | Estado |
 |----|-------|---------|--------|--------|
+| T1 | Lista de tareas virtualizada, sin motion por fila, un solo set en la carga | components/common/issues, board-column, lib/issues.ts | 67672e20 | verde (build + lint; DOM de Tasks 1216 nodos con 2000 tareas, scroll OK). Cabeceras de grupo ya no son sticky |
