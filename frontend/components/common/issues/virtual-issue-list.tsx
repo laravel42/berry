@@ -3,7 +3,7 @@
 import type { Issue } from '@/data/issues';
 import { cn } from '@/lib/utils';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDrop } from 'react-dnd';
 import { ListGroupHeader, type IssueGroupDescriptor } from './group-issues';
 import { IssueDragType } from './issue-grid';
@@ -24,8 +24,29 @@ type ListItem =
         onDropIssue?: (issue: Issue) => void;
      };
 
-const ESTIMATED_ROW_HEIGHT = 40;
-const ESTIMATED_HEADER_HEIGHT = 32;
+// Exact sizes, in rem so they follow the root font size like the classes that
+// draw them: an issue line is `min-h-10` (its border sits inside the box), a
+// group header is `h-(--field-h)` (2rem), and every header after the first
+// carries a 3px band above it. Nothing is measured per row.
+const ROW_HEIGHT_REM = 2.5;
+const HEADER_HEIGHT_REM = 2;
+const HEADER_BAND_PX = 3;
+const DEFAULT_REM_PX = 16;
+
+/** The root font size in px, read once and again when the viewport resizes. */
+function useRootFontSize() {
+   const [rem, setRem] = useState(DEFAULT_REM_PX);
+   useEffect(() => {
+      const read = () => {
+         const size = parseFloat(getComputedStyle(document.documentElement).fontSize);
+         setRem(size > 0 ? size : DEFAULT_REM_PX);
+      };
+      read();
+      window.addEventListener('resize', read);
+      return () => window.removeEventListener('resize', read);
+   }, []);
+   return rem;
+}
 
 /** A row that is also where a dragged task lands, so it moves into this group. */
 function DropRow({
@@ -99,14 +120,27 @@ export function VirtualIssueList({
       return flat;
    }, [groups, collapsed, onDropFor]);
 
+   const rem = useRootFontSize();
+   const sizeOf = (item: ListItem | undefined) => {
+      if (item?.kind === 'header') {
+         return HEADER_HEIGHT_REM * rem + (item.index > 0 ? HEADER_BAND_PX : 0);
+      }
+      return ROW_HEIGHT_REM * rem;
+   };
+
    const virtualizer = useVirtualizer({
       count: items.length,
       getScrollElement: () => scrollRef.current,
-      estimateSize: (index) =>
-         items[index]?.kind === 'header' ? ESTIMATED_HEADER_HEIGHT : ESTIMATED_ROW_HEIGHT,
+      estimateSize: (index) => sizeOf(items[index]),
       getItemKey: (index) => items[index]?.key ?? index,
       overscan: 10,
    });
+
+   // Sizes are fixed, so a change of root font size or of the items only needs
+   // the cached offsets recomputed, not a measurement.
+   useEffect(() => {
+      virtualizer.measure();
+   }, [virtualizer, items, rem]);
 
    const toggle = (groupId: string) =>
       setCollapsed((current) => {
@@ -128,10 +162,11 @@ export function VirtualIssueList({
                return (
                   <div
                      key={virtualItem.key}
-                     data-index={virtualItem.index}
-                     ref={virtualizer.measureElement}
                      className="absolute top-0 left-0 w-full"
-                     style={{ transform: `translateY(${virtualItem.start}px)` }}
+                     style={{
+                        height: virtualItem.size,
+                        transform: `translateY(${virtualItem.start}px)`,
+                     }}
                   >
                      {item.kind === 'header' ? (
                         // The 3px band between groups the divide utility drew.
