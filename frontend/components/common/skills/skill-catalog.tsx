@@ -23,7 +23,7 @@ import {
    CommandItem,
    CommandList,
 } from '@/components/ui/command';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { BerryApiError } from '@/lib/api';
 import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
@@ -200,7 +200,8 @@ function SkillCatalogScreen() {
    const header = (
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5 [&_button]:!h-[30px]">
          <Input
-            className={`${searchFieldClass} w-64 max-sm:w-full`}
+            variant="search"
+            className="w-64 max-sm:w-full"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('search')}

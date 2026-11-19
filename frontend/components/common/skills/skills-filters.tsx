@@ -14,7 +14,7 @@ import {
    type ListFilterController,
 } from '@/components/common/filters/list-filters';
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isOrchestrator, type Agent } from '@/lib/agents';
 import { isOrchestratorSkillLabel, isSkillInUse, type Skill } from '@/lib/skills';
@@ -138,7 +138,8 @@ export default function SkillsFilters({
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] [&_button]:!h-[30px]">
          <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
             <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
+               variant="search"
+               className="w-64 max-sm:w-40"
                value={query}
                onChange={(event) => onQueryChange(event.target.value)}
                placeholder={t('search')}

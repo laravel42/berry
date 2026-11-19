@@ -2,6 +2,29 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Controles de Settings en los componentes compartidos (2026-11-18)
+
+Settings tenía controles propios: campos y selects rectangulares, una búsqueda con borde, un switch y un checkbox con otra forma, y alturas escritas a mano (30, 26 y 44 px). El usuario decidió que todo use la forma del resto de la app, en píldora, y que los controles que comparten línea midan 32 px.
+
+**Componentes compartidos:**
+- **`Button`:** `size="sm"` pasa de 30 a 32 px (`--field-h`). Se añaden `icon-sm` (32 px, cuadrado) y la variante `quiet-destructive`.
+- **`Input`:** tiene las variantes `search` (la búsqueda rellena; sustituye a `searchFieldClass`) e `inline` (el nombre que se edita en su fila). También acepta `size="lg"` (44 px).
+- **`Select`:** exporta `selectTriggerClass`, que `SelectMenu` y los selects hechos a mano usan. El trigger mide exactamente 32 px; antes medía 33.
+- **Variantes `settings` eliminadas:** se quitaron de `Input`, `Textarea`, `Switch` y `Checkbox`.
+
+**Settings:**
+- `SettingsSearch`, `SelectMenu` y `SettingsIconButton` están montados sobre los componentes compartidos. `SETTINGS_PILL` ya no existe.
+- Los botones de las filas llevan `size="sm"` (42 botones). Los pies de formulario y de diálogo y las acciones principales (Invite, Create key) siguen en 44.
+- La regla quedó escrita en `docs/design-system.md` (Spacing and sizing).
+
+**Medición:**
+- `probe-inline.cjs` acepta ahora `TOL` (la tolerancia en px). Con `TOL=0`, las 19 pantallas de Settings salen sin diferencias a 1440 y 390 px.
+- Solo aparecen dos casos que no son controles visibles: la muestra de color de los labels y la zona de clic invisible de la cabecera de cada tier.
+
+**Pendiente:**
+- Las barras de filtros fuera de Settings todavía fuerzan 30 px con `[&_button]:!h-[30px]` (12 barras).
+- `SegmentedControl` sigue midiendo 30 px.
+
 ## Espacio al final de Settings (2026-11-18)
 
 Cada pantalla de Settings (`SettingsShell` en `components/common/settings/shared.tsx`) terminaba con `pb-24`, es decir, 96 px vacíos tras el último bloque. El detalle de un plugin dejaba 64 px (`pb-16`).

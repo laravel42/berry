@@ -192,7 +192,6 @@ export default function PluginDetail({
                   description="A disabled plugin receives no calls and its tokens stop working."
                   trailing={
                      <Switch
-                        variant="settings"
                         checked={current.enabled}
                         disabled={plugin.saving}
                         onCheckedChange={(v) => void toggle(v)}
@@ -229,7 +228,6 @@ export default function PluginDetail({
                                  trailing={
                                     <span className="flex items-center gap-2">
                                        <Input
-                                          variant="settings"
                                           type="password"
                                           autoComplete="off"
                                           className="h-8 w-44"
@@ -243,6 +241,7 @@ export default function PluginDetail({
                                           }
                                        />
                                        <Button
+                                          size="sm"
                                           variant="quiet"
                                           onClick={() => void saveSecret(secret.name)}
                                        >
@@ -256,6 +255,7 @@ export default function PluginDetail({
                      ) : null}
                      {current.configFields.length > 0 ? (
                         <Button
+                           size="sm"
                            variant="quiet"
                            disabled={plugin.saving}
                            onClick={() => void saveConfig()}
@@ -275,7 +275,7 @@ export default function PluginDetail({
                               : 'Not connected. Sign in to list tools and let agents call them.'
                         }
                         trailing={
-                           <Button disabled={connecting} onClick={() => void connect()}>
+                           <Button size="sm" disabled={connecting} onClick={() => void connect()}>
                               {connecting ? 'Connecting…' : connected ? 'Reconnect' : 'Connect'}
                            </Button>
                         }
@@ -297,7 +297,6 @@ export default function PluginDetail({
                         trailing={
                            <span className="flex items-center gap-2">
                               <Input
-                                 variant="settings"
                                  type="password"
                                  autoComplete="off"
                                  className="h-8 w-44"
@@ -310,11 +309,16 @@ export default function PluginDetail({
                                     }))
                                  }
                               />
-                              <Button variant="quiet" onClick={() => void saveSecret(secret.name)}>
+                              <Button
+                                 size="sm"
+                                 variant="quiet"
+                                 onClick={() => void saveSecret(secret.name)}
+                              >
                                  Save
                               </Button>
                               {secret.set ? (
                                  <Button
+                                    size="sm"
                                     variant="quiet"
                                     onClick={() => void clearSecret(secret.name)}
                                  >
@@ -381,7 +385,6 @@ export default function PluginDetail({
                         description={toolSummary(tool.description) || undefined}
                         trailing={
                            <Switch
-                              variant="settings"
                               checked={tool.approved}
                               disabled={plugin.saving}
                               onCheckedChange={(v) => void approve(tool.name, v)}
@@ -438,7 +441,7 @@ export default function PluginDetail({
             title="Recent calls"
             description={invocations.error ?? undefined}
             action={
-               <Button variant="quiet" onClick={() => invocations.reload()}>
+               <Button size="sm" variant="quiet" onClick={() => invocations.reload()}>
                   Refresh
                </Button>
             }
@@ -474,6 +477,7 @@ export default function PluginDetail({
                   description="Deletes its settings, secrets, storage and history."
                   trailing={
                      <Button
+                        size="sm"
                         variant="quiet"
                         className="text-status-danger hover:text-status-danger"
                         onClick={() => setConfirmingUninstall(true)}

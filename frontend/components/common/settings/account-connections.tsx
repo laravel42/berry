@@ -130,6 +130,7 @@ export default function AccountConnections() {
                               .join(' · ')}
                            trailing={
                               <Button
+                                 size="sm"
                                  variant="soft-destructive"
                                  disabled={channels.saving}
                                  onClick={() => setRemoving(identity)}
@@ -161,7 +162,6 @@ export default function AccountConnections() {
                            }
                         />
                         <Input
-                           variant="settings"
                            value={address}
                            placeholder={channel === 'EMAIL' ? 'you@example.com' : '+1 555 0100'}
                            className="w-[200px]"
@@ -171,6 +171,7 @@ export default function AccountConnections() {
                            }}
                         />
                         <Button
+                           size="sm"
                            variant="soft"
                            disabled={adding || address.trim() === ''}
                            onClick={() => void add()}

@@ -136,7 +136,12 @@ export function JoinLinksPanel() {
                         disabled={creating}
                         onChange={setExpiry}
                      />
-                     <Button variant="soft" disabled={creating} onClick={() => void create()}>
+                     <Button
+                        size="sm"
+                        variant="soft"
+                        disabled={creating}
+                        onClick={() => void create()}
+                     >
                         {creating ? (
                            <Loader2 className="size-3.5 animate-spin" />
                         ) : (
@@ -155,7 +160,7 @@ export function JoinLinksPanel() {
                   }
                   description={t('joinLinksFresh')}
                   trailing={
-                     <Button variant="soft" onClick={() => void copy(fresh)}>
+                     <Button size="sm" variant="soft" onClick={() => void copy(fresh)}>
                         {t('copy')}
                      </Button>
                   }
@@ -177,7 +182,11 @@ export function JoinLinksPanel() {
                      )}
                      trailing={
                         state === 'joinLinksActive' ? (
-                           <Button variant="soft-destructive" onClick={() => setRevoking(link)}>
+                           <Button
+                              size="sm"
+                              variant="soft-destructive"
+                              onClick={() => setRevoking(link)}
+                           >
                               {t('revoke')}
                            </Button>
                         ) : null

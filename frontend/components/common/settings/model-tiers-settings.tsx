@@ -15,6 +15,7 @@ import {
 
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
    Command,
    CommandEmpty,
@@ -262,8 +263,9 @@ function SortableModelList({
                )}
             >
                {sortable ? (
-                  <button
-                     type="button"
+                  <Button
+                     variant="quiet"
+                     size="icon-sm"
                      aria-label={t('reorder', { name: labelFor(id) })}
                      disabled={disabled || ids.length < 2}
                      onPointerDown={onGripDown(index)}
@@ -271,10 +273,10 @@ function SortableModelList({
                      onPointerUp={endDrag}
                      onPointerCancel={endDrag}
                      onKeyDown={onKeyDown(index)}
-                     className="-mx-1 inline-flex size-5 shrink-0 [@media(hover:none)]:-mx-1.5 [@media(hover:none)]:size-6 cursor-grab touch-none items-center justify-center rounded-[4px] text-settings-field-focus outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing disabled:cursor-default"
+                     className="-mx-2 cursor-grab touch-none active:cursor-grabbing disabled:cursor-default"
                   >
                      <GripVertical className="size-3" />
-                  </button>
+                  </Button>
                ) : null}
                <span
                   data-settings-type="caption"
@@ -463,9 +465,9 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
             <SettingsCard>
                <div className="flex h-12 w-full items-center gap-2.5 pr-3 pl-2.5">
                   <CollapsibleTrigger asChild>
-                     <button
-                        type="button"
-                        className="inline-flex size-[26px] shrink-0 cursor-pointer items-center justify-center rounded-[6px] text-subtle-foreground outline-none transition-colors hover:bg-settings-control hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                     <Button
+                        variant="quiet"
+                        size="icon-sm"
                         aria-label={t('collapse', { name: names[tier] })}
                      >
                         <ChevronDown
@@ -473,7 +475,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                            strokeWidth={2.5}
                            className="size-[11px] transition-transform duration-150 group-data-[state=closed]/tier:-rotate-90 motion-reduce:transition-none"
                         />
-                     </button>
+                     </Button>
                   </CollapsibleTrigger>
                   <span
                      aria-hidden
@@ -484,7 +486,8 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                      <>
                         {/* The name reads as a heading until it is pointed at;
                             it is still the field that renames the tier. */}
-                        <input
+                        <Input
+                           variant="inline"
                            aria-label={t('renameTier')}
                            value={nameDraft[tier]}
                            maxLength={32}
@@ -511,7 +514,7 @@ function SubscriptionRoster({ runtimes }: { runtimes: AiRuntimeDefinition[] }) {
                                  event.currentTarget.blur();
                               }
                            }}
-                           className="-ml-1.5 h-[30px] max-w-56 min-w-12 shrink-0 rounded-[7px] [field-sizing:content] border border-transparent bg-transparent px-1.5 text-foreground outline-none hover:border-settings-field-line focus-visible:border-primary focus-visible:bg-settings-field disabled:opacity-50"
+                           className="w-auto max-w-56 min-w-12 shrink-0 [field-sizing:content]"
                         />
                         {nameChanged(tier) ? (
                            <span className="flex items-center">
@@ -660,7 +663,7 @@ function AddRuntimeModel({
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
-            <Button variant="quiet" className="px-2.5" disabled={disabled || choices.length === 0}>
+            <Button size="sm" variant="quiet" disabled={disabled || choices.length === 0}>
                <Plus className="size-3" strokeWidth={2.2} />
                {t('add')}
             </Button>

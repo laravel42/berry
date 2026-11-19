@@ -7,9 +7,8 @@ import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import { SegmentedControl } from '@/components/common/segmented-control';
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { canEditProduct } from '@/lib/workspace-role';
-import { cn } from '@/lib/utils';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
@@ -48,7 +47,8 @@ export default function Header() {
          <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2 [&_button]:!h-[30px]">
             <div className="flex flex-wrap items-center gap-1 max-sm:contents">
                <Input
-                  className={cn(searchFieldClass, 'w-64 max-sm:w-full')}
+                  variant="search"
+                  className="w-64 max-sm:w-full"
                   placeholder={t('search')}
                   value={searchQuery}
                   onChange={(event) => {

@@ -131,7 +131,6 @@ export default function IssueLabelsSettings() {
             />
             <div className="flex shrink-0 items-center gap-2">
                <Input
-                  variant="settings"
                   placeholder={t('newLabel')}
                   aria-label={t('newLabel')}
                   value={name}
@@ -142,7 +141,11 @@ export default function IssueLabelsSettings() {
                      if (event.key === 'Enter') void create();
                   }}
                />
-               <Button disabled={creating || name.trim() === ''} onClick={() => void create()}>
+               <Button
+                  size="sm"
+                  disabled={creating || name.trim() === ''}
+                  onClick={() => void create()}
+               >
                   {creating ? <Loader2 className="size-3.5 animate-spin" /> : t('create')}
                </Button>
             </div>
@@ -193,10 +196,11 @@ export default function IssueLabelsSettings() {
                   </Popover>
                   {/* The name is the rename field; it reads as plain text until
                       it is pointed at. */}
-                  <input
+                  <Input
+                     variant="inline"
                      defaultValue={label.name}
                      aria-label={t('rename', { name: label.name })}
-                     className="-ml-1.5 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-primary focus-visible:bg-settings-field"
+                     className="flex-1 truncate"
                      onBlur={(event) => rename(label, event.target.value)}
                      onKeyDown={(event) => {
                         if (event.key === 'Enter') event.currentTarget.blur();

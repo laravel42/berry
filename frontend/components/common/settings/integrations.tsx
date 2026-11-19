@@ -391,12 +391,17 @@ function ProviderConnectionPanel({
                description={description}
                trailing={
                   provider.connected && !renewing ? (
-                     <Button variant="soft-destructive" disabled={busy} onClick={onDisconnect}>
+                     <Button
+                        size="sm"
+                        variant="soft-destructive"
+                        disabled={busy}
+                        onClick={onDisconnect}
+                     >
                         <Trash2 aria-hidden />
                         {busy ? 'Working…' : 'Disconnect'}
                      </Button>
                   ) : (
-                     <Button disabled={busy || !provider.configured} onClick={onConnect}>
+                     <Button size="sm" disabled={busy || !provider.configured} onClick={onConnect}>
                         {busy ? 'Opening…' : renewing ? 'Reconnect' : 'Connect'}
                      </Button>
                   )
@@ -634,7 +639,6 @@ function IntegrationsDirectory() {
                            <label className="flex flex-col gap-1" htmlFor="scm-access-token">
                               <span>Access token</span>
                               <Input
-                                 variant="settings"
                                  id="scm-access-token"
                                  type="password"
                                  autoComplete="off"

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { selectTriggerClass } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { loadWorkspaceAgents, type Agent } from '@/lib/agents';
@@ -28,6 +29,7 @@ import {
    updateQuickAction,
    type QuickAction,
 } from '@/lib/quick-actions';
+import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 import { Archive, ChevronDown, Trash2, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -179,7 +181,7 @@ export default function QuickActionsSettings() {
             </div>
             {action.archivedAt ? (
                <span className="flex shrink-0 items-center gap-1">
-                  <Button variant="quiet" onClick={() => void restore(action)}>
+                  <Button size="sm" variant="quiet" onClick={() => void restore(action)}>
                      {t('restore')}
                   </Button>
                   <SettingsIconButton
@@ -217,7 +219,6 @@ export default function QuickActionsSettings() {
                <div className="flex flex-col gap-2.5 px-4 py-3.5">
                   <div className="flex flex-wrap gap-2">
                      <Input
-                        variant="settings"
                         placeholder={t('namePlaceholder')}
                         aria-label={t('namePlaceholder')}
                         value={name}
@@ -233,20 +234,17 @@ export default function QuickActionsSettings() {
                            <button
                               type="button"
                               aria-label={t('agent')}
-                              className="relative inline-flex h-[30px] w-[150px] shrink-0 items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none focus-visible:border-primary"
+                              className={cn(selectTriggerClass, 'w-[150px] shrink-0')}
                            >
                               <span className="min-w-0 truncate">
                                  {chosenAgent?.name ?? t('agent')}
                               </span>
-                              <ChevronDown
-                                 strokeWidth={2.5}
-                                 className="pointer-events-none absolute top-1/2 right-2.5 size-2.5 -translate-y-1/2 text-subtle-foreground"
-                              />
+                              <ChevronDown className="size-4 opacity-50" />
                            </button>
                         }
                      />
                      <SelectMenu
-                        className="w-[120px]"
+                        className="w-32"
                         aria-label={t('scopeLabel')}
                         options={['workspace', 'private']}
                         labels={{
@@ -258,7 +256,6 @@ export default function QuickActionsSettings() {
                      />
                   </div>
                   <Textarea
-                     variant="settings"
                      placeholder={t('promptPlaceholder')}
                      aria-label={t('promptPlaceholder')}
                      value={prompt}
@@ -301,11 +298,7 @@ export default function QuickActionsSettings() {
             </SettingsCard>
             {archived.length > 0 ? (
                <label className="flex w-fit cursor-pointer items-center gap-2 pt-1">
-                  <Switch
-                     variant="settings"
-                     checked={showArchived}
-                     onCheckedChange={setShowArchived}
-                  />
+                  <Switch checked={showArchived} onCheckedChange={setShowArchived} />
                   <span>{t('showArchived', { count: archived.length })}</span>
                </label>
             ) : null}

@@ -19,7 +19,7 @@ import {
    DialogHeader,
    DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/layout/headers/settings/header';
 import MainLayout from '@/components/layout/main-layout';
@@ -206,7 +206,8 @@ export default function RuntimesList() {
                <Header />
                <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] [&_button]:!h-[30px]">
                   <Input
-                     className={`${searchFieldClass} w-64 max-sm:w-40`}
+                     variant="search"
+                     className="w-64 max-sm:w-40"
                      value={query}
                      onChange={(event) => setQuery(event.target.value)}
                      placeholder={t('catalogSearch')}
@@ -306,7 +307,6 @@ export default function RuntimesList() {
                      <label className="flex flex-col gap-1" htmlFor="runtime-server-address">
                         <span>{t('serverLabel')}</span>
                         <Input
-                           variant="settings"
                            id="runtime-server-address"
                            type="url"
                            inputMode="url"
@@ -326,7 +326,6 @@ export default function RuntimesList() {
                            : t('tokenLabel')}
                      </span>
                      <Input
-                        variant="settings"
                         id="runtime-api-token"
                         type="password"
                         autoComplete="off"

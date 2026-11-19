@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { health as HEALTH, Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import type { Status } from '@/data/status';
@@ -16,7 +16,6 @@ import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects
 import { useSessionStore } from '@/store/session-store';
 import { Box, ChartNoAxesGantt, LayoutGrid, List } from 'lucide-react';
 import { SegmentedControl } from '@/components/common/segmented-control';
-import { cn } from '@/lib/utils';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -328,7 +327,8 @@ export default function Projects() {
          <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2 [&_button]:!h-[30px]">
             <div className="flex flex-wrap items-center gap-1 max-sm:contents">
                <Input
-                  className={cn(searchFieldClass, 'w-64 max-sm:w-full')}
+                  variant="search"
+                  className="w-64 max-sm:w-full"
                   placeholder={lists('projects.search')}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}

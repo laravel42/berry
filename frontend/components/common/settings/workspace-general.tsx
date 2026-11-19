@@ -210,7 +210,6 @@ export default function WorkspaceGeneral() {
                      <span className="flex items-center gap-2">
                         <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
                         <Input
-                           variant="settings"
                            value={name.value ?? ''}
                            aria-label={t('name')}
                            disabled={!canEdit || workspace.loading}
@@ -239,7 +238,6 @@ export default function WorkspaceGeneral() {
                   }
                >
                   <Textarea
-                     variant="settings"
                      value={description.value ?? ''}
                      rows={3}
                      maxLength={5000}
@@ -269,7 +267,6 @@ export default function WorkspaceGeneral() {
                   trailing={
                      <span className="flex items-center gap-2">
                         <Input
-                           variant="settings"
                            value={prefix}
                            aria-label={t('prefix')}
                            disabled={!canEdit || workspace.loading}
@@ -293,6 +290,7 @@ export default function WorkspaceGeneral() {
                         {/* Neutral until there is a valid change to make; then
                             it is the page's one primary action. */}
                         <Button
+                           size="sm"
                            variant={canEdit && prefixValid && prefixChanged ? 'default' : 'soft'}
                            disabled={!canEdit || !prefixValid || !prefixChanged}
                            onClick={() => setConfirmingPrefix(true)}
@@ -312,6 +310,7 @@ export default function WorkspaceGeneral() {
                   description={soleOwner ? t('leaveSoleOwner') : t('leaveDescription')}
                   trailing={
                      <Button
+                        size="sm"
                         variant="soft"
                         disabled={soleOwner || leaving || !workspaceId}
                         className="disabled:pointer-events-auto disabled:cursor-not-allowed"
@@ -327,6 +326,7 @@ export default function WorkspaceGeneral() {
                      description={t('deleteDescription')}
                      trailing={
                         <Button
+                           size="sm"
                            variant="soft-destructive"
                            className="hover:bg-settings-danger-hover"
                            disabled={!workspaceId}
@@ -403,7 +403,6 @@ export default function WorkspaceGeneral() {
             onConfirm={confirmDelete}
          >
             <Input
-               variant="settings"
                value={typedName}
                aria-label={t('deleteTypeName')}
                placeholder={record?.name ?? ''}

@@ -21,7 +21,7 @@ import {
    CommandItem,
    CommandList,
 } from '@/components/ui/command';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { loadWorkspaceAgents } from '@/lib/agents';
 import {
@@ -179,7 +179,8 @@ function AgentCatalogScreen() {
             <h1 className="min-w-0 truncate">{t('title')}</h1>
          </div>
          <Input
-            className={`${searchFieldClass} w-64 max-sm:w-full`}
+            variant="search"
+            className="w-64 max-sm:w-full"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('search')}

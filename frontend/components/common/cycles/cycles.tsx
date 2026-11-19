@@ -8,7 +8,7 @@ import { EmptyCycles } from '@/components/common/cycles/empty-cycles';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { useCycleIssues } from '@/hooks/use-cycle-issues';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { formatRange } from '@/lib/cycle-math';
@@ -69,7 +69,9 @@ export default function Cycles() {
          {cycles.length > 0 ? (
             <Input
                // As tall as the create button beside it: one line, one height.
-               className={`${searchFieldClass} min-h-11 w-[clamp(160px,22vw,280px)]`}
+               variant="search"
+               size="lg"
+               className="w-[clamp(160px,22vw,280px)]"
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={t('list.search')}

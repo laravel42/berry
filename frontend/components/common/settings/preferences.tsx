@@ -121,7 +121,6 @@ export default function Preferences() {
                      <span className="flex items-center gap-2">
                         <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
                         <Input
-                           variant="settings"
                            value={name.value ?? ''}
                            aria-label={t('name')}
                            disabled={profile.loading}
@@ -174,7 +173,6 @@ export default function Preferences() {
                   description={t5('stickyCommentBarDescription')}
                   trailing={
                      <Switch
-                        variant="settings"
                         checked={ui.stickyCommentBar}
                         onCheckedChange={ui.setStickyCommentBar}
                      />
@@ -193,7 +191,6 @@ export default function Preferences() {
                      title={t5(`createField_${field}`)}
                      trailing={
                         <Switch
-                           variant="settings"
                            checked={ui.createFields[field]}
                            onCheckedChange={(shown) => ui.setCreateField(field, shown)}
                         />
@@ -223,7 +220,12 @@ export default function Preferences() {
                   title={t('sidebar')}
                   description={t('sidebarDescription')}
                   trailing={
-                     <Button type="button" variant="soft" onClick={() => setCustomizeOpen(true)}>
+                     <Button
+                        size="sm"
+                        type="button"
+                        variant="soft"
+                        onClick={() => setCustomizeOpen(true)}
+                     >
                         {t('customize')}
                      </Button>
                   }
@@ -233,7 +235,6 @@ export default function Preferences() {
                   description={t('reduceMotionDescription')}
                   trailing={
                      <Switch
-                        variant="settings"
                         checked={settings.value?.reducedMotion ?? false}
                         disabled={settings.loading || settings.saving}
                         onCheckedChange={(reducedMotion) => change({ reducedMotion })}

@@ -164,7 +164,9 @@ export function KeyboardShortcuts() {
             />
             <AlertDialog>
                <AlertDialogTrigger asChild>
-                  <Button variant="soft">{t('restoreAll')}</Button>
+                  <Button size="sm" variant="soft">
+                     {t('restoreAll')}
+                  </Button>
                </AlertDialogTrigger>
                <AlertDialogContent>
                   <AlertDialogHeader>
@@ -213,16 +215,17 @@ export function KeyboardShortcuts() {
                                     </div>
                                  ) : null}
                               </div>
-                              <button
-                                 type="button"
+                              <Button
+                                 variant="quiet"
+                                 size="sm"
                                  onClick={() => {
                                     setProblem(null);
                                     setRecording(isRecording ? null : shortcut.id);
                                  }}
                                  aria-label={t('record', { action: label(shortcut) })}
                                  className={cn(
-                                    'flex min-h-[26px] cursor-pointer items-center gap-1 rounded-[7px] px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                    isRecording && 'ring-1 ring-settings-field-focus'
+                                    'gap-1 px-1 font-normal',
+                                    isRecording && 'ring-1 ring-primary'
                                  )}
                               >
                                  {isRecording ? (
@@ -246,7 +249,7 @@ export function KeyboardShortcuts() {
                                        {shortcut.id in overrides ? t('disabled') : t('unbound')}
                                     </span>
                                  )}
-                              </button>
+                              </Button>
                               <span className="hidden group-focus-within:flex group-hover:flex">
                                  <SettingsIconButton
                                     label={t('disableAction', { action: label(shortcut) })}

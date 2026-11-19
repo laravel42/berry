@@ -11,6 +11,7 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { selectTriggerClass } from '@/components/ui/select';
 import {
    addWorkspaceRepositories,
    describeGitHubFailure,
@@ -202,7 +203,7 @@ export function GitHubImportPicker({
             <div className="flex flex-wrap gap-2">
                <select
                   aria-label="GitHub account"
-                  className="h-[30px] rounded-[7px] border bg-card px-2 text-foreground"
+                  className={cn(selectTriggerClass, 'w-auto')}
                   value={account}
                   onChange={(event) => setAccount(event.target.value)}
                >
@@ -219,7 +220,6 @@ export function GitHubImportPicker({
                <div className="relative min-w-[12rem] flex-1">
                   <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
-                     variant="settings"
                      placeholder="Search every account"
                      aria-label="Search repositories"
                      value={query}
@@ -275,7 +275,6 @@ export function GitHubImportPicker({
                                        )}
                                     >
                                        <Checkbox
-                                          variant="settings"
                                           id={id}
                                           className="mt-0.5 [@media(hover:none)]:-mt-0.5"
                                           disabled={reason !== null}
@@ -324,7 +323,12 @@ export function GitHubImportPicker({
                )}
                {cursor && !loading && !error && (
                   <div className="border-t border-border/60 p-2 text-center">
-                     <Button variant="soft" disabled={loadingMore} onClick={() => void loadMore()}>
+                     <Button
+                        size="sm"
+                        variant="soft"
+                        disabled={loadingMore}
+                        onClick={() => void loadMore()}
+                     >
                         {loadingMore
                            ? 'Loading…'
                            : `Load more (${total - repositories.length} left)`}

@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { useMilestonesListStore } from '@/store/milestones-list-store';
 
 function HeaderOptions() {
@@ -13,7 +13,8 @@ function HeaderOptions() {
    return (
       <div className="flex h-[52px] w-full items-center border-b px-5">
          <Input
-            className={`${searchFieldClass} min-w-0 flex-1`}
+            variant="search"
+            className="min-w-0 flex-1"
             placeholder={t('list.search')}
             value={query}
             onChange={(event) => setQuery(event.target.value)}

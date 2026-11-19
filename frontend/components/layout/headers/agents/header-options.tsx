@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAgentFilterColumns } from '@/components/common/agents/agent-filter-columns';
 import { ListFilterTrigger, useListFilters } from '@/components/common/filters/list-filters';
@@ -56,7 +56,8 @@ export default function HeaderOptions() {
       <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[2px] [&_button]:!h-[30px] [&_a]:!h-[30px]">
          <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
             <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
+               variant="search"
+               className="w-64 max-sm:w-40"
                value={query}
                onChange={(event) => setQuery(event.target.value)}
                placeholder={tHeader('search')}

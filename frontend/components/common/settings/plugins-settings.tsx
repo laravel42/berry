@@ -10,7 +10,7 @@ import {
    DialogHeader,
    DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
    installPlugin,
@@ -242,7 +242,8 @@ export default function PluginsSettings() {
                <PageKpiHeader label="Connect" />
                <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] [&_button]:!h-[30px]">
                   <Input
-                     className={`${searchFieldClass} w-64 max-sm:w-full`}
+                     variant="search"
+                     className="w-64 max-sm:w-full"
                      value={query}
                      onChange={(event) => setQuery(event.target.value)}
                      placeholder="Search plugins"
@@ -332,6 +333,7 @@ export default function PluginsSettings() {
                      {signingSecret}
                   </code>
                   <Button
+                     size="sm"
                      variant="soft"
                      className="w-fit"
                      onClick={() => {
@@ -377,7 +379,6 @@ export default function PluginsSettings() {
                                  description={secret.description || undefined}
                                  trailing={
                                     <Input
-                                       variant="settings"
                                        type="password"
                                        autoComplete="off"
                                        className="h-8 w-56"

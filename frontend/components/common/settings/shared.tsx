@@ -14,16 +14,13 @@ import {
    DropdownMenuItem,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { selectTriggerClass } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-
-/** The settings secondary button, for a `<button>` or `<Link>` that cannot be a `Button`. */
-export const SETTINGS_PILL_SHAPE =
-   'inline-flex h-[30px] w-fit shrink-0 cursor-pointer items-center gap-1.5 rounded-[7px] bg-settings-control px-3 font-medium whitespace-nowrap transition-colors hover:bg-settings-control-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] disabled:pointer-events-none disabled:text-subtle-foreground';
-
-export const SETTINGS_PILL = `${SETTINGS_PILL_SHAPE} text-foreground`;
 
 /** Centered settings page: optional title and description, stacked sections. */
 export function SettingsShell({
@@ -408,7 +405,7 @@ export function StatTileGrid({
    );
 }
 
-/** 28px icon button; `destructive` turns the glyph red on hover. */
+/** A row's icon action (edit, delete, restore): `Button` at the field height. */
 export function SettingsIconButton({
    label,
    onClick,
@@ -418,28 +415,26 @@ export function SettingsIconButton({
 }: {
    label: string;
    onClick?: () => void;
+   /** The glyph turns red on hover. */
    destructive?: boolean;
    disabled?: boolean;
    children: React.ReactNode;
 }) {
    return (
-      <button
-         type="button"
+      <Button
+         variant={destructive ? 'quiet-destructive' : 'quiet'}
+         size="icon-sm"
          aria-label={label}
          title={label}
          onClick={onClick}
          disabled={disabled}
-         className={cn(
-            'inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] text-subtle-foreground transition-colors outline-none hover:bg-settings-control focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-[13px]',
-            destructive ? 'hover:text-status-danger' : 'hover:text-foreground'
-         )}
       >
          {children}
-      </button>
+      </Button>
    );
 }
 
-/** A filled search field with a leading glyph, used above settings lists. */
+/** The list filter above a settings list: the app's search field. */
 export function SettingsSearch({
    value,
    onChange,
@@ -454,35 +449,25 @@ export function SettingsSearch({
    'aria-label'?: string;
 }) {
    return (
-      <label
-         className={cn(
-            'flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-settings-field-line bg-settings-field px-2.5 text-settings-placeholder focus-within:border-primary',
-            className
-         )}
-      >
-         <Search className="size-[13px] shrink-0" aria-hidden />
-         <input
-            // Not type="search": globals.css pins that type to 16px, and this
-            // field sits in a 13px row.
-            type="text"
-            role="searchbox"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={placeholder}
-            aria-label={ariaLabel ?? placeholder}
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none [font:inherit] [@media(hover:none)]:min-h-6 placeholder:text-settings-placeholder [&::-webkit-search-cancel-button]:hidden"
-         />
-      </label>
+      <Input
+         variant="search"
+         // Not type="search": globals.css pins that type to 16px.
+         type="text"
+         role="searchbox"
+         value={value}
+         onChange={(event) => onChange(event.target.value)}
+         placeholder={placeholder}
+         aria-label={ariaLabel ?? placeholder}
+         className={cn('min-w-0 flex-1', className)}
+      />
    );
 }
 
 /** Width of a control right-aligned in a row. */
 export const SETTINGS_CONTROL_WIDTH = 'w-[220px]';
 
-const selectTriggerClass =
-   'relative inline-flex h-[30px] w-[220px] max-w-full items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none transition-colors focus-visible:border-primary data-[state=open]:border-primary disabled:cursor-not-allowed disabled:opacity-60';
-const selectChevronClass =
-   'pointer-events-none absolute top-1/2 right-2.5 size-2.5 -translate-y-1/2 text-subtle-foreground';
+/** `SelectMenu`'s trigger: the app's select, 220px unless the caller sizes it. */
+const selectMenuTriggerClass = cn(selectTriggerClass, 'w-[220px] max-w-full');
 
 /** Small functional select (local state) used across the settings pages. */
 export function SelectMenu({
@@ -535,10 +520,10 @@ export function SelectMenu({
             <PopoverTrigger
                disabled={disabled}
                aria-label={ariaLabel}
-               className={cn(selectTriggerClass, className)}
+               className={cn(selectMenuTriggerClass, className)}
             >
                <span className="min-w-0 truncate">{display}</span>
-               <ChevronDown className={selectChevronClass} strokeWidth={2.5} />
+               <ChevronDown className="size-4 opacity-50" />
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 p-0">
                <Command
@@ -580,10 +565,10 @@ export function SelectMenu({
          <DropdownMenuTrigger
             disabled={disabled}
             aria-label={ariaLabel}
-            className={cn(selectTriggerClass, className)}
+            className={cn(selectMenuTriggerClass, className)}
          >
             <span className="min-w-0 truncate">{display}</span>
-            <ChevronDown className={selectChevronClass} strokeWidth={2.5} />
+            <ChevronDown className="size-4 opacity-50" />
          </DropdownMenuTrigger>
          <DropdownMenuContent align="end" className="max-h-72 min-w-40 overflow-y-auto">
             {options.map((option) => (

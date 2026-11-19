@@ -152,9 +152,25 @@ The frontend uses Tailwind's 4 px spacing base. Its working compact scale is:
 | `space-8` | 32 px | Large section separation |
 | `space-10` | 40 px | Empty/loading state breathing room |
 
-Controls are 30 px tall (`--control-height`) with 7 px radius. List rows are 40 px.
-Page toolbars are 52 px; sub-toolbars 44 px. Group headers are 36 px. Default
-icons are 16 px in navigation and 14–15 px in toolbars.
+Controls come in two heights, and the size prop picks one. A height is never set in a
+`className` (`h-[30px]`, `!h-…`, `min-h-11`), so a change to a token reaches every control:
+
+| Height | Token | What takes it |
+| --- | --- | --- |
+| 32 px | `--field-h` | `Input` (and `variant="search"`, `variant="inline"`), `SelectTrigger`, settings' `SelectMenu`, `Button size="sm"`, `Button size="icon-sm"` |
+| 44 px | `--ctl-h` | `Button` at its default size, `Input size="lg"` |
+
+Controls that share a line are one height. A field and the buttons beside it (a settings
+row, a toolbar, an add-row) take 32 px. A button that stands on its own takes 44 px: a
+page's primary action, a dialog footer. A field beside one of those takes `size="lg"`.
+
+Every control is a pill. Settings has no controls of its own: its fields, selects, search,
+switches and checkboxes are the ones every other page uses. The selects that are not a
+Radix `Select` (a `DropdownMenu` or `Popover` trigger) take `selectTriggerClass` from
+`components/ui/select.tsx`.
+
+List rows are 40 px. Page toolbars are 52 px; sub-toolbars 44 px. Group headers are
+36 px. Default icons are 16 px in navigation and 14–15 px in toolbars.
 
 Layout constants currently embedded in components should move to named tokens when those
 components are revised:

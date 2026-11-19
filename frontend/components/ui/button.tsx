@@ -7,11 +7,11 @@ import { cva, type VariantProps } from 'class-variance-authority';
  * gradient rather than a flat berry. `gate` is the review gate, the one action
  * the monochrome palette still spends colour on.
  *
- * `default` carries the 44px target floor (WCAG 2.5.8) as a MIN height, so a
- * button that has to wrap grows instead of clipping, and so it agrees with
- * `Input`, which takes the same floor. The compact sizes below are explicit
- * opt-ins for dense chrome and deliberately sit under the floor; a toolbar
- * asking for `xs` is asking for that tradeoff by name.
+ * `default` carries the 44px target floor as a MIN height, so a button that
+ * has to wrap grows instead of clipping. It is for a button that stands on its
+ * own: a page's primary action, a dialog footer. A button that shares a line
+ * with a field takes `sm` (or `icon-sm`), the field height, so the line is one
+ * height. The other compact sizes are explicit opt-ins for dense chrome.
  */
 const buttonVariants = cva(
    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-pill font-bold cursor-pointer transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-45 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
@@ -48,6 +48,9 @@ const buttonVariants = cva(
                'bg-settings-control text-status-danger hover:bg-settings-control-hover disabled:opacity-100 disabled:text-subtle-foreground',
             /** Settings ghost: muted ink, fills on hover. */
             'quiet': 'text-muted-foreground hover:bg-settings-control hover:text-foreground',
+            /** `quiet` whose ink turns to danger on hover (a row's delete). */
+            'quiet-destructive':
+               'text-muted-foreground hover:bg-settings-control hover:text-status-danger',
             /** Filled track, same as the shell "Back to app" control.
                 Both heights are set, and that is the point: `size="default"`
                 carries a `min-h-(--ctl-h)` floor of 44px, and a `min-height`
@@ -58,19 +61,23 @@ const buttonVariants = cva(
                '!h-(--field-h) !min-h-(--field-h) !rounded-full border-0 bg-segment-track px-2.5 text-muted-foreground shadow-none hover:bg-[var(--segment-hover)] hover:text-foreground data-[state=open]:!bg-[var(--segment-hover)] data-[state=open]:!text-foreground',
          },
          size: {
-            default: 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
-            xxs: 'h-6 gap-1.5 px-2.5 has-[>svg]:px-2',
-            xs: 'h-7 gap-1.5 px-2.5 has-[>svg]:px-2',
-            sm: 'h-[30px] gap-1.5 px-3 has-[>svg]:px-2.5',
+            'default': 'min-h-(--ctl-h) min-w-(--ctl-h) px-(--ctl-px)',
+            'xxs': 'h-6 gap-1.5 px-2.5 has-[>svg]:px-2',
+            'xs': 'h-7 gap-1.5 px-2.5 has-[>svg]:px-2',
+            /* The field height: what a button takes when it shares a line
+               with an Input, a select or a search (a settings row, a
+               toolbar), so every control on that line is one height. */
+            'sm': 'h-(--field-h) gap-1.5 px-3 has-[>svg]:px-2.5',
+            'icon-sm': 'size-(--field-h)',
             /* 38px: between `sm` (30px) and the 44px floor, for a control
                that wants more room to breathe than the compact sizes but
                does not carry the 44px touch-target requirement `default`
                and `lg` are for. Flat padding, no `has-[>svg]` split: unlike
                the compact sizes, an icon here is not meant to read as
                narrower than the label it sits beside. */
-            md: 'h-[38px] gap-1.5 px-4',
-            lg: 'min-h-(--ctl-h-lg) min-w-(--ctl-h-lg) px-(--ctl-px)',
-            icon: 'size-7',
+            'md': 'h-[38px] gap-1.5 px-4',
+            'lg': 'min-h-(--ctl-h-lg) min-w-(--ctl-h-lg) px-(--ctl-px)',
+            'icon': 'size-7',
          },
       },
       defaultVariants: {

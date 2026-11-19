@@ -56,6 +56,7 @@ export default function AccountSecurity() {
             action={
                currentId && others.length > 0 ? (
                   <Button
+                     size="sm"
                      variant="soft"
                      disabled={sessions.saving}
                      onClick={() => void signOutOthers()}
@@ -98,6 +99,7 @@ export default function AccountSecurity() {
                                  </SettingsChip>
                               ) : (
                                  <Button
+                                    size="sm"
                                     variant="soft"
                                     disabled={sessions.saving}
                                     onClick={() => void signOut(session)}
@@ -207,7 +209,7 @@ function TwoFactorSection() {
                   <p className="text-muted-foreground">Authenticator 2FA is on for this account.</p>
                   <Input
                      // As tall as the button under it.
-                     className="min-h-(--ctl-h)"
+                     size="lg"
                      type="password"
                      autoComplete="current-password"
                      placeholder="Password to turn off"
@@ -240,7 +242,7 @@ function TwoFactorSection() {
                   </div>
                   <Input
                      // As tall as the button under it.
-                     className="min-h-(--ctl-h)"
+                     size="lg"
                      inputMode="numeric"
                      placeholder="6-digit code"
                      value={verifyCode}
@@ -263,7 +265,7 @@ function TwoFactorSection() {
                   </p>
                   <Input
                      // As tall as the button under it.
-                     className="min-h-(--ctl-h)"
+                     size="lg"
                      type="password"
                      autoComplete="current-password"
                      placeholder="Current password"

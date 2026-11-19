@@ -335,6 +335,7 @@ function RepositoriesDirectory() {
                   </div>
                   {canManage && (
                      <Button
+                        size="sm"
                         variant="soft"
                         disabled={refreshing || !workspaceId}
                         onClick={() => void refreshAccess()}
@@ -472,7 +473,6 @@ function RepositoriesDirectory() {
                   <li key={row.key} className="rounded-lg border bg-container px-3 py-2.5">
                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
                         <Input
-                           variant="settings"
                            aria-label={t('urlLabel')}
                            placeholder={t('urlPlaceholder')}
                            className="h-8 font-mono sm:flex-[3]"
@@ -482,7 +482,6 @@ function RepositoriesDirectory() {
                            onBlur={() => saveNow(row.key)}
                         />
                         <Input
-                           variant="settings"
                            aria-label={t('descriptionLabel')}
                            placeholder={t('descriptionPlaceholder')}
                            className="h-8 sm:flex-[4]"
@@ -494,9 +493,9 @@ function RepositoriesDirectory() {
                         />
                         {canManage && (
                            <Button
-                              size="icon"
+                              size="icon-sm"
                               variant="quiet"
-                              className="size-8 shrink-0"
+                              className="shrink-0"
                               aria-label={t('remove')}
                               onClick={() => (row.id ? setRemoving(row) : void remove(row))}
                            >

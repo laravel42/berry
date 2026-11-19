@@ -1,7 +1,7 @@
 // Controls that sit on one line inside the same flex row must share a height.
 // For every route: find rows (a flex-row ancestor holding 2+ controls whose
 // centres align) and report those mixing heights. Usage:
-//   node probe-inline.cjs <tag> [widths] [route filter]    (BASE env overrides the origin)
+//   node probe-inline.cjs <tag> [widths] [route filter]    (BASE overrides the origin, TOL the 2px tolerance)
 const { chromium } = require('E:/projects/work/berry/node_modules/.bun/playwright-core@1.65.0/node_modules/playwright-core');
 const fs = require('fs');
 const src = fs.readFileSync(__dirname + '/mobile-audit2.cjs', 'utf8');
@@ -11,7 +11,8 @@ const tag = process.argv[2] || 'now';
 const widths = (process.argv[3] || '1440,390').split(',').map(Number);
 const only = process.argv[4] ? new RegExp(process.argv[4]) : null;
 const BASE = process.env.BASE || 'http://localhost:3100';
-function rowsWithMixedHeights() {
+const TOL = Number(process.env.TOL ?? 2); // px two controls on one line may differ by
+function rowsWithMixedHeights(tol) {
    const vis = (e) => { const s = getComputedStyle(e); if (s.display === 'none' || s.visibility === 'hidden') return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
    const label = (e) => (e.getAttribute('aria-label') || e.getAttribute('placeholder') || e.innerText || e.title || e.tagName).trim().replace(/\s+/g, ' ').slice(0, 22);
    const raw = [...document.querySelectorAll('button, a[data-slot=button], input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), select, [role=combobox]')].filter(vis);
@@ -38,7 +39,7 @@ function rowsWithMixedHeights() {
    for (const [a, set] of groups) {
       const items = [...set].map((e) => ({ k: label(e), h: Math.round(e.getBoundingClientRect().height), t: Math.round(e.getBoundingClientRect().top) }));
       const hs = items.map((i) => i.h);
-      if (Math.max(...hs) - Math.min(...hs) > 2) out.push({ top: Math.min(...items.map((i) => i.t)), items: items.map((i) => `${i.k}:${i.h}`) });
+      if (Math.max(...hs) - Math.min(...hs) > tol) out.push({ top: Math.min(...items.map((i) => i.t)), items: items.map((i) => `${i.k}:${i.h}`) });
    }
    return out.sort((x, y) => x.top - y.top);
 }
@@ -54,7 +55,7 @@ function rowsWithMixedHeights() {
          try {
             await go();
             await p.waitForTimeout(2200);
-            const r = await p.evaluate(rowsWithMixedHeights);
+            const r = await p.evaluate(rowsWithMixedHeights, TOL);
             all[`${name}@${w}`] = r;
             console.log(`${String(w).padStart(4)} ${name.padEnd(22)} ${r.length ? r.map((g) => `[y${g.top}] ` + g.items.join(' | ')).join('  ||  ') : 'ok'}`);
          } catch (e) { console.log(w, name, 'fail', String(e).slice(0, 90)); }

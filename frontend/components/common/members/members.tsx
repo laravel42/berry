@@ -376,7 +376,7 @@ export default function Members() {
                            <span className="flex items-center gap-2">
                               {canManage && !locked ? (
                                  <SelectMenu
-                                    className="w-28"
+                                    className="w-32"
                                     aria-label={t('roleFor', { name: member.name })}
                                     options={WORKSPACE_ROLES.filter(
                                        // Only an owner may hand out owner.
@@ -401,6 +401,7 @@ export default function Members() {
                               )}
                               {canManage && !locked && member.userId !== myId ? (
                                  <Button
+                                    size="sm"
                                     variant="soft-destructive"
                                     disabled={busy === member.userId}
                                     onClick={() => setRemoving(member)}
@@ -448,6 +449,7 @@ export default function Members() {
                               ].join(' · ')}
                               trailing={
                                  <Button
+                                    size="sm"
                                     variant="soft-destructive"
                                     onClick={() => setRevoking(invitation)}
                                  >
@@ -472,7 +474,6 @@ export default function Members() {
                </DialogHeader>
                <div className="flex flex-col gap-3">
                   <Input
-                     variant="settings"
                      value={email}
                      type="email"
                      autoComplete="off"
