@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
 import { AutonomyLevelChip } from '@/components/common/agents/autonomy-level-chip';
+import { SectionTabs, type Section } from '@/components/common/section-tabs';
 import { FormRow } from '@/components/common/settings/form-row';
 import { SettingsCard } from '@/components/common/settings/shared';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
@@ -155,32 +156,34 @@ export function AgentRoleTab({
 
    const permissionsLocked = readOnly || saving;
 
+   const permissionsList = (
+      <SettingsCard>
+         {AGENT_PERMISSIONS.map((permission) => (
+            <label
+               key={permission.key}
+               className="flex items-start gap-3 px-4 py-3"
+               htmlFor={`${agent.id}-${permission.key}`}
+            >
+               <span className="min-w-0 flex-1">
+                  <span className={cn('block', 'dangerous' in permission && 'text-status-danger')}>
+                     {permission.label}
+                  </span>
+                  <span className="block text-muted-foreground">{permission.description}</span>
+               </span>
+               <Switch
+                  id={`${agent.id}-${permission.key}`}
+                  checked={permissions.includes(permission.key)}
+                  disabled={permissionsLocked}
+                  onCheckedChange={(granted) => togglePermission(permission.key, granted)}
+               />
+            </label>
+         ))}
+      </SettingsCard>
+   );
+
    const permissionsPanel = (
       <FormRow label={admin('permissions')} caption={admin('permissionsHint')}>
-         <SettingsCard>
-            {AGENT_PERMISSIONS.map((permission) => (
-               <label
-                  key={permission.key}
-                  className="flex items-start gap-3 px-4 py-3"
-                  htmlFor={`${agent.id}-${permission.key}`}
-               >
-                  <span className="min-w-0 flex-1">
-                     <span
-                        className={cn('block', 'dangerous' in permission && 'text-status-danger')}
-                     >
-                        {permission.label}
-                     </span>
-                     <span className="block text-muted-foreground">{permission.description}</span>
-                  </span>
-                  <Switch
-                     id={`${agent.id}-${permission.key}`}
-                     checked={permissions.includes(permission.key)}
-                     disabled={permissionsLocked}
-                     onCheckedChange={(granted) => togglePermission(permission.key, granted)}
-                  />
-               </label>
-            ))}
-         </SettingsCard>
+         {permissionsList}
       </FormRow>
    );
 
@@ -189,10 +192,10 @@ export function AgentRoleTab({
          <UnsavedChangesBar busy={saving} onDiscard={discard} onSave={() => void save()} />
       ) : null;
 
-   // The form scrolls; the save bar stays on the bottom edge of the tab.
+   // The page scrolls the form; the save bar sticks to its bottom edge.
    const pane = (body: ReactNode) => (
-      <div className="flex h-full min-h-0 flex-1 flex-col">
-         <div className="min-h-0 flex-1 overflow-auto px-8 py-6">{body}</div>
+      <div className="flex flex-1 flex-col">
+         <div className="flex-1 px-8 py-6">{body}</div>
          {saveBar}
       </div>
    );
@@ -237,66 +240,85 @@ export function AgentRoleTab({
 
    const levelLocked = !canEdit || saving;
 
+   const levelPicker = (
+      <div
+         role="radiogroup"
+         aria-label={t('roleTab.autonomyLevel')}
+         className="flex flex-col overflow-hidden rounded-md border"
+      >
+         {AUTONOMY_LEVELS.map((entry) => {
+            const selected = entry === level;
+            return (
+               <button
+                  key={entry}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  disabled={levelLocked}
+                  onClick={() => {
+                     if (!selected) chooseLevel(entry);
+                  }}
+                  className={cn(
+                     'flex min-w-0 items-center gap-3 border-t px-3 py-2 text-left outline-none first:border-t-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
+                     selected ? 'bg-accent/60' : 'enabled:hover:bg-accent/30'
+                  )}
+               >
+                  <AutonomyLevelChip
+                     level={entry}
+                     className="inline-flex shrink-0 items-center rounded-md px-2 py-1"
+                  />
+                  <span className={cn('min-w-0 flex-1', !selected && 'text-muted-foreground')}>
+                     {t(`levels.${String(entry) as LevelKey}`)}
+                  </span>
+                  {selected ? (
+                     <Check aria-hidden className="text-(--primary) size-4 shrink-0" />
+                  ) : null}
+               </button>
+            );
+         })}
+      </div>
+   );
+
+   const sections: Section[] = [
+      {
+         key: 'level',
+         label: t('roleTab.autonomyLevel'),
+         caption: t('roleTab.autonomyLevelHint'),
+         dirty: levelDirty,
+         content: levelPicker,
+      },
+      {
+         key: 'permissions',
+         label: admin('permissions'),
+         caption: admin('permissionsHint'),
+         dirty: permissionsDirty,
+         content: permissionsList,
+      },
+   ];
+   if (agent.customized && !readOnly) {
+      sections.push({
+         key: 'customized',
+         label: t('roleTab.customized'),
+         caption: t('roleTab.customizedHint'),
+         content: (
+            <div className="flex flex-col items-start gap-1">
+               <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={resetting || !canEdit || saving}
+                  onClick={() => setConfirmingReset(true)}
+               >
+                  {t('roleTab.reset')}
+               </Button>
+               {!canEdit ? <p className="text-muted-foreground">{t('roleTab.adminOnly')}</p> : null}
+            </div>
+         ),
+      });
+   }
+
    return pane(
       <>
-         <FormRow label={t('roleTab.autonomyLevel')} caption={t('roleTab.autonomyLevelHint')}>
-            <div
-               role="radiogroup"
-               aria-label={t('roleTab.autonomyLevel')}
-               className="flex flex-col overflow-hidden rounded-md border"
-            >
-               {AUTONOMY_LEVELS.map((entry) => {
-                  const selected = entry === level;
-                  return (
-                     <button
-                        key={entry}
-                        type="button"
-                        role="radio"
-                        aria-checked={selected}
-                        disabled={levelLocked}
-                        onClick={() => {
-                           if (!selected) chooseLevel(entry);
-                        }}
-                        className={cn(
-                           'flex min-w-0 items-center gap-3 border-t px-3 py-2 text-left outline-none first:border-t-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
-                           selected ? 'bg-accent/60' : 'enabled:hover:bg-accent/30'
-                        )}
-                     >
-                        <AutonomyLevelChip
-                           level={entry}
-                           className="inline-flex shrink-0 items-center rounded-md px-2 py-1"
-                        />
-                        <span
-                           className={cn('min-w-0 flex-1', !selected && 'text-muted-foreground')}
-                        >
-                           {t(`levels.${String(entry) as LevelKey}`)}
-                        </span>
-                        {selected ? (
-                           <Check aria-hidden className="text-(--primary) size-4 shrink-0" />
-                        ) : null}
-                     </button>
-                  );
-               })}
-            </div>
-         </FormRow>
-         {permissionsPanel}
-         {agent.customized && !readOnly ? (
-            <FormRow label={t('roleTab.customized')} caption={t('roleTab.customizedHint')}>
-               <div className="flex flex-col items-start gap-1">
-                  <Button
-                     size="sm"
-                     variant="outline"
-                     disabled={resetting || !canEdit || saving}
-                     onClick={() => setConfirmingReset(true)}
-                  >
-                     {t('roleTab.reset')}
-                  </Button>
-                  {!canEdit ? (
-                     <p className="text-muted-foreground">{t('roleTab.adminOnly')}</p>
-                  ) : null}
-               </div>
-            </FormRow>
-         ) : null}
+         <SectionTabs label={admin('rolePermissions')} sections={sections} />
          <AlertDialog open={confirmingReset} onOpenChange={setConfirmingReset}>
             <AlertDialogContent>
                <AlertDialogHeader>

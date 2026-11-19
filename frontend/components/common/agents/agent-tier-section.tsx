@@ -107,7 +107,7 @@ export function AgentTierSection({
             disabled={disabled}
             onClick={() => choose(name)}
             className={cn(
-               'relative flex min-w-0 items-center justify-between gap-2 rounded-md border px-4 py-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
+               'relative flex h-(--field-h) min-w-0 items-center justify-between gap-2 rounded-pill border px-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
                selected ? TIER_CARD[name].chosen : TIER_CARD[name].idle
             )}
          >
@@ -142,7 +142,7 @@ export function AgentTierSection({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                <span>{t('pinned', { model: nameOf(pinnedModel) })}</span>
                {disabled ? null : (
-                  <Button variant="secondary" size="xs" onClick={onUnpin}>
+                  <Button variant="secondary" size="sm" onClick={onUnpin}>
                      {t('useTier')}
                   </Button>
                )}

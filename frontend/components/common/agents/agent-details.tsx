@@ -237,9 +237,12 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    ];
 
    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      // One scroller for the whole agent: the header scrolls away, the tab
+      // strip sticks to the top, and a tab's save bar to the bottom. A tab
+      // never scrolls on its own, so a long form is never a short window.
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
          <div
-            className="relative px-8 pt-7 pb-5"
+            className="relative shrink-0 px-8 pt-7 pb-5"
             style={{
                // The agent's own hue, faded out, so each drawer reads as that agent.
                backgroundImage: `radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, ${tint} 18%, transparent), transparent 60%)`,
@@ -302,11 +305,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
          <Tabs
             value={view}
             onValueChange={(value) => requestTab(value as DetailTab)}
-            className="flex min-h-0 flex-1 flex-col gap-0"
+            className="flex flex-1 flex-col gap-0"
          >
             <div
                ref={tabsScroller}
-               className="no-scrollbar overflow-x-auto border-b px-8 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]"
+               className="no-scrollbar sticky top-0 z-20 shrink-0 overflow-x-auto border-b bg-container px-8 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]"
             >
                <TabsList
                   aria-label={agent.name}
@@ -328,9 +331,9 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
             {/* Rendered outside TabsContent so a tab's own state is dropped
                 when it closes: a half-loaded task page that comes back on
                 return would be showing a moment that has since passed. */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col">
                {view === 'overview' ? (
-                  <div className="min-h-0 flex-1 overflow-auto">
+                  <div className="flex-1">
                      <AgentOverviewTab
                         agent={agent}
                         roster={roster}

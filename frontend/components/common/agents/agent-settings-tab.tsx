@@ -174,14 +174,10 @@ export default function AgentSettingsTab({
    });
 
    return (
-      <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div
-               className={cn(
-                  'overflow-auto px-8 pt-6 pb-4',
-                  children ? 'shrink-0' : 'min-h-0 flex-1'
-               )}
-            >
+      // Name to runtime is one form in one box: the page scrolls all of it.
+      <div className="flex flex-1 flex-col">
+         <div className="flex flex-1 flex-col">
+            <div className={cn('px-8 pt-6 pb-4', !children && 'flex-1')}>
                <div className="flex flex-col">
                   <FormRow label={t('setName')} caption={t('setNameHint')} htmlFor="agent-name">
                      <Input
@@ -222,9 +218,7 @@ export default function AgentSettingsTab({
             </div>
 
             {execution ? (
-               <div className="flex min-h-0 flex-1 flex-col border-t border-border/70">
-                  {execution}
-               </div>
+               <div className="flex flex-1 flex-col border-t border-border/70">{execution}</div>
             ) : null}
          </div>
 
