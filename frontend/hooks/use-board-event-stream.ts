@@ -11,6 +11,19 @@ import { useEffect } from 'react';
 /** How long to wait for a burst to settle before refetching. */
 const REFRESH_DEBOUNCE_MS = 400;
 
+/** Longest the stream waits for the browser to go idle before it opens anyway. */
+const OPEN_IDLE_TIMEOUT_MS = 3000;
+
+/** Runs `run` when the browser is idle (or after the timeout); returns a canceller. */
+function whenIdle(run: () => void): () => void {
+   if (typeof window.requestIdleCallback === 'function') {
+      const handle = window.requestIdleCallback(run, { timeout: OPEN_IDLE_TIMEOUT_MS });
+      return () => window.cancelIdleCallback(handle);
+   }
+   const timer = setTimeout(run, OPEN_IDLE_TIMEOUT_MS);
+   return () => clearTimeout(timer);
+}
+
 /** How long to wait before reconnecting a dropped stream. */
 const RECONNECT_DELAY_MS = 3000;
 
@@ -114,6 +127,9 @@ function isLaterWrite(stored: string | undefined, incoming: string | undefined):
  */
 export function useBoardEventStream(): void {
    const status = useSessionStore((state) => state.status);
+   // The stream opens only once the first load has settled, so it does not
+   // compete with the load for the browser's few connections per origin.
+   const loadState = useIssuesStore((state) => state.loadState);
    const boardId = useSessionStore((state) => state.boardId);
    const hydrateIssues = useIssuesStore((state) => state.hydrateIssues);
    const mergeIssues = useIssuesStore((state) => state.mergeIssues);
@@ -123,7 +139,7 @@ export function useBoardEventStream(): void {
    const upsertRun = useRunsStore((state) => state.upsertRun);
 
    useEffect(() => {
-      if (status !== 'ready' || !boardId) return;
+      if (status !== 'ready' || !boardId || loadState === 'loading') return;
 
       const controller = new AbortController();
       let cancelled = false;
@@ -251,16 +267,26 @@ export function useBoardEventStream(): void {
          }, RECONNECT_DELAY_MS);
       };
 
-      void consume();
+      // Opening late would miss what changed since the first load, and this
+      // stream has no replay cursor. So the opening does what a dropped stream
+      // already does: it marks the whole board stale and refetches it.
+      const cancelIdle = whenIdle(() => {
+         if (cancelled) return;
+         pending.needsFull = true;
+         scheduleRefresh();
+         void consume();
+      });
 
       return () => {
          cancelled = true;
+         cancelIdle();
          controller.abort();
          if (refreshTimer) clearTimeout(refreshTimer);
          if (reconnectTimer) clearTimeout(reconnectTimer);
       };
    }, [
       status,
+      loadState,
       boardId,
       hydrateIssues,
       mergeIssues,

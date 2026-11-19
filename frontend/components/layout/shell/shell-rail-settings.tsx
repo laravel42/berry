@@ -43,6 +43,7 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
       <div className="flex flex-col pb-3.5">
          <div className="flex items-center justify-between gap-2 px-3 pt-3.5 pb-1">
             <Link
+               prefetch={false}
                href={`/${orgId}/tasks`}
                className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-[7px] bg-segment-track px-2.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] md:h-[30px] md:min-h-0"
             >
@@ -72,6 +73,7 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
                      return (
                         <li key={`${group.labelKey}-${item.labelKey}`}>
                            <Link
+                              prefetch={false}
                               data-shell-nav
                               href={href}
                               aria-current={active ? 'page' : undefined}

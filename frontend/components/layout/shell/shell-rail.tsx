@@ -257,6 +257,7 @@ export function ShellRail({
                               <li key={route.id}>
                                  {route.href ? (
                                     <Link
+                                       prefetch={false}
                                        data-shell-nav
                                        href={`/${orgId}${route.href}`}
                                        aria-current={on ? 'page' : undefined}
@@ -326,6 +327,7 @@ export function ShellRail({
                         return (
                            <li key={path}>
                               <Link
+                                 prefetch={false}
                                  data-shell-nav
                                  href={href}
                                  aria-current={on ? 'page' : undefined}

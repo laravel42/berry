@@ -124,6 +124,7 @@ export const ShellTabBar = forwardRef<
             </div>
          </div>
          <Link
+            prefetch={false}
             href={`/${orgId}/inbox`}
             aria-current={onInbox ? 'page' : undefined}
             className={cn(tab, tone(selected === 0))}
@@ -150,6 +151,7 @@ export const ShellTabBar = forwardRef<
             ) : null}
          </Link>
          <Link
+            prefetch={false}
             href={`/${orgId}/tasks`}
             aria-current={active === 'issues' ? 'page' : undefined}
             className={cn(tab, tone(selected === 1))}
@@ -162,6 +164,7 @@ export const ShellTabBar = forwardRef<
             </span>
          </Link>
          <Link
+            prefetch={false}
             href={`/${orgId}/projects`}
             aria-current={active === 'projects' ? 'page' : undefined}
             className={cn(tab, tone(selected === 2))}

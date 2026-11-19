@@ -13,12 +13,26 @@ import { useCyclesStore } from '@/store/cycles-store';
 import { useEventStreamStore } from '@/store/event-stream-store';
 import { useMilestonesStore } from '@/store/milestones-store';
 import { useNotificationsStore } from '@/store/notifications-store';
+import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { useEffect } from 'react';
 
 /** How long to wait for a burst to settle before refetching. */
 const REFRESH_DEBOUNCE_MS = 400;
+
+/** Longest the stream waits for the browser to go idle before it opens anyway. */
+const OPEN_IDLE_TIMEOUT_MS = 3000;
+
+/** Runs `run` when the browser is idle (or after the timeout); returns a canceller. */
+function whenIdle(run: () => void): () => void {
+   if (typeof window.requestIdleCallback === 'function') {
+      const handle = window.requestIdleCallback(run, { timeout: OPEN_IDLE_TIMEOUT_MS });
+      return () => window.cancelIdleCallback(handle);
+   }
+   const timer = setTimeout(run, OPEN_IDLE_TIMEOUT_MS);
+   return () => clearTimeout(timer);
+}
 
 /** Reconnect delays: first retry quickly, then back off to the cap. */
 const RECONNECT_MIN_MS = 3000;
@@ -50,6 +64,9 @@ function familiesFor(event: EventEnvelope): Family[] {
  */
 export function useWorkspaceEventStream(): void {
    const status = useSessionStore((state) => state.status);
+   // The stream opens only once the first load has settled, so it does not
+   // compete with the load for the browser's few connections per origin.
+   const loadState = useIssuesStore((state) => state.loadState);
    const workspaceId = useSessionStore((state) => state.workspace?.id);
    const user = useSessionStore((state) => state.user);
    const hydrateGoals = useMilestonesStore((state) => state.hydrateGoals);
@@ -62,7 +79,7 @@ export function useWorkspaceEventStream(): void {
    const setLastEventId = useEventStreamStore((state) => state.setLastEventId);
 
    useEffect(() => {
-      if (status !== 'ready' || !workspaceId) return;
+      if (status !== 'ready' || !workspaceId || loadState === 'loading') return;
 
       useEventStreamStore.getState().setScope(`${user?.id ?? 'anonymous'}:${workspaceId}`);
       const controller = new AbortController();
@@ -147,10 +164,20 @@ export function useWorkspaceEventStream(): void {
          reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
       };
 
-      void consume();
+      // Opening late misses what changed since the first load unless the
+      // server can replay it. With a remembered event id it does (`after`);
+      // without one, refetch every family, as a dropped stream already does.
+      const cancelIdle = whenIdle(() => {
+         if (cancelled) return;
+         if (!useEventStreamStore.getState().lastEventId) {
+            scheduleRefresh(['milestones', 'cycles', 'approvals', 'inbox', 'projects']);
+         }
+         void consume();
+      });
 
       return () => {
          cancelled = true;
+         cancelIdle();
          controller.abort();
          setConnected(false);
          if (refreshTimer) clearTimeout(refreshTimer);
@@ -158,6 +185,7 @@ export function useWorkspaceEventStream(): void {
       };
    }, [
       status,
+      loadState,
       workspaceId,
       user,
       hydrateGoals,

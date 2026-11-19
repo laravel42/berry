@@ -181,6 +181,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                         <GripVertical className="size-3" />
                      </span>
                      <Link
+                        prefetch={false}
                         data-shell-nav
                         href={hrefFor(orgId, pin)}
                         className="flex min-w-0 flex-1 items-center gap-2 truncate rounded py-1.5 text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]"

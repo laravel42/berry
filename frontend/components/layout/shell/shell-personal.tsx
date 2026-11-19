@@ -58,6 +58,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
          <ul className="flex flex-col gap-0 px-3 md:gap-1">
             <li>
                <Link
+                  prefetch={false}
                   data-shell-nav
                   href={`/${orgId}/inbox`}
                   aria-current={onInbox ? 'page' : undefined}
@@ -76,6 +77,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
             </li>
             <li>
                <Link
+                  prefetch={false}
                   data-shell-nav
                   href={`/${orgId}${MY_TASKS_HREF}`}
                   aria-current={onIssues ? 'page' : undefined}
@@ -89,6 +91,7 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
             </li>
             <li>
                <Link
+                  prefetch={false}
                   data-shell-nav
                   href={`/${orgId}/reviews`}
                   aria-current={onReviews ? 'page' : undefined}

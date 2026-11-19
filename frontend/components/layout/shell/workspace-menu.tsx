@@ -135,7 +135,7 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
       <>
          <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-               <Link href={`/${slug}/settings`}>
+               <Link href={`/${slug}/settings`} prefetch={false}>
                   Settings
                   <DropdownMenuShortcut>G then S</DropdownMenuShortcut>
                </Link>
