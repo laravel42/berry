@@ -290,6 +290,7 @@ export function Treemap({ items, label }: { items: TreemapItem[]; label: string 
          <Link
             key={item.id}
             href={item.href}
+            data-treemap-tile=""
             className={className}
             style={style}
             title={`${item.label} · ${item.figure}`}
@@ -299,6 +300,7 @@ export function Treemap({ items, label }: { items: TreemapItem[]; label: string 
       ) : (
          <div
             key={item.id}
+            data-treemap-tile=""
             className={className}
             style={style}
             title={`${item.label} · ${item.figure}`}

@@ -109,6 +109,15 @@ export function ChatThread({
       endRef.current?.scrollIntoView({ block: 'end' });
    }, [streamingText]);
 
+   // Suggested follow-ups arrive after the reply was scrolled to, and landed
+   // under the composer's edge. Bring them in too, while the reader is still
+   // at the bottom.
+   const suggestionKey = suggestions.map((suggestion) => suggestion.label).join('|');
+   useEffect(() => {
+      if (!suggestionKey || !following.current) return;
+      endRef.current?.scrollIntoView({ block: 'end' });
+   }, [suggestionKey]);
+
    useLayoutEffect(() => {
       const element = scroller.current;
       if (!element || !anchor.current) return;

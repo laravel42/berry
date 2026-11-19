@@ -905,6 +905,25 @@
       font-size: 1.25rem;
    }
 
+   /* A treemap tile is as wide as its share, and its figure is sized by rank,
+      so a narrow tile cut its own number ("$11.…"). The tile is a container
+      and its figure shrinks with it, down from its named size. */
+   [data-treemap-tile] {
+      container-type: inline-size;
+   }
+
+   [data-treemap-tile] [data-figure='lg'] {
+      font-size: min(2.5rem, 18cqi);
+   }
+
+   [data-treemap-tile] [data-figure='md'] {
+      font-size: min(1.75rem, 18cqi);
+   }
+
+   [data-treemap-tile] [data-figure='sm'] {
+      font-size: min(1.25rem, 18cqi);
+   }
+
    [data-auth-title] {
       font-size: 1.875rem;
       line-height: 1.15;
