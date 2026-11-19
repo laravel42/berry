@@ -81,7 +81,9 @@ export function eventMounts(options: EventOptions): Mount[] {
       const cutoff = new Date(clock().getTime() - retentionMs).toISOString();
 
       let after: OutboxCursor | null = null;
-      if (request.cursor !== '') {
+      if (request.since !== null) {
+         after = sinceCursor(request.since, clock(), cutoff);
+      } else if (request.cursor !== '') {
          if (!UUID.test(request.cursor)) throw cursorExpired();
          after = await options.replay
             .resolveCursor(column, request.scopeId, topics, request.cursor, cutoff)
@@ -275,12 +277,31 @@ interface ParsedRequest {
    scope: 'board' | 'workspace';
    scopeId: string;
    cursor: string;
+   /** `since=` as a UTC instant with milliseconds, or null when not given. */
+   since: string | null;
+}
+
+const RFC3339 = /^\d{4}-\d{2}-\d{2}[Tt]\d{2}:\d{2}:\d{2}(\.\d+)?([Zz]|[+-]\d{2}:\d{2})$/;
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * The cursor for `since`: everything with `occurred_at >= since`.
+ *
+ * Replay compares `(occurred_at, id) > cursor`, and the zero uuid sorts before
+ * every other id, so an event stamped exactly `since` is included. A future
+ * `since` is treated as now, and one older than retention is the same
+ * `CURSOR_EXPIRED` an old event id gets.
+ */
+export function sinceCursor(since: string, now: Date, cutoff: string): OutboxCursor {
+   const at = new Date(Math.min(Date.parse(since), now.getTime())).toISOString();
+   if (at < cutoff) throw cursorExpired();
+   return { occurredAt: at, id: ZERO_UUID };
 }
 
 /** Exactly one of boardId or workspaceId, and at most one cursor. */
 export function parseRequest(url: URL, headers: Headers): ParsedRequest {
    for (const name of url.searchParams.keys()) {
-      if (!['boardId', 'workspaceId', 'after'].includes(name)) {
+      if (!['boardId', 'workspaceId', 'after', 'since'].includes(name)) {
          throw invalid('Unknown query parameter.');
       }
       if (url.searchParams.getAll(name).length !== 1) {
@@ -320,7 +341,22 @@ export function parseRequest(url: URL, headers: Headers): ParsedRequest {
    if (Buffer.byteLength(cursor, 'utf8') > MAX_CURSOR_BYTES) {
       throw invalid('The event cursor is malformed.');
    }
-   return { scope, scopeId: raw.toLowerCase(), cursor };
+
+   let since: string | null = null;
+   const rawSince = url.searchParams.get('since');
+   if (rawSince !== null) {
+      if (cursor !== '') {
+         throw invalid('Provide only one of since, after or the Last-Event-ID header.');
+      }
+      const parsed = Date.parse(rawSince.trim());
+      if (!RFC3339.test(rawSince.trim()) || Number.isNaN(parsed)) {
+         throw new ApiError(422, 'VALIDATION_FAILED', 'since must be an RFC 3339 timestamp.', {
+            fields: [{ path: '/query/since', code: 'invalid', message: 'since must be an RFC 3339 timestamp.' }],
+         });
+      }
+      since = new Date(parsed).toISOString();
+   }
+   return { scope, scopeId: raw.toLowerCase(), cursor, since };
 }
 
 function invalid(message: string): ApiError {

@@ -155,8 +155,9 @@ describe(
       test('bootstrap carries it, so the shell has it without a second call', async () => {
          await patch({ description: 'On the bootstrap.' });
          const response = await call('/api/v1/me/bootstrap');
-         const body = (await response.json()) as { user: { description: string } };
+         const body = (await response.json()) as { user: { description: string }; serverTime: string };
          assert.equal(body.user.description, 'On the bootstrap.');
+         assert.match(body.serverTime, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
       });
    }
 );
