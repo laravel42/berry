@@ -145,7 +145,7 @@ export function BerryMark({
  * Lockup heights, in pixels. The lockup is the brand asset, so it scales as
  * one drawing; do not restyle it from the UI type scale.
  */
-const wordmarkSizes = { sm: 18, md: 22, lg: 28, xl: 40 } as const;
+const wordmarkSizes = { sm: 18, md: 22, lg: 28, xl: 34 } as const;
 
 /** The asset is 352 wide on a 100 grid, so a height picks the width. */
 const LOCKUP_RATIO = 3.52;
@@ -187,18 +187,22 @@ interface BerryWordmarkProps {
     * element of its own.
     */
    href?: string | null;
-   /** The berry breathes, as BerryMark's `pulse` does: the dot and a ring around it. */
+   /**
+    * A ring leaves the berry, growing and fading (`berry-ripple`). The dot
+    * itself holds still: this is the logo, so it stays whole while it moves.
+    */
    pulse?: boolean;
 }
 
 /**
- * BerryMark's pulse, for a dot that is not at the centre of its drawing. In
- * the 100x100 mark the view box's centre is the dot's, so `origin-center` is
- * enough; on the 352x100 lockup it would scale the dot toward the middle of
- * the word, so the box becomes the circle's own.
+ * The ring scales on its own box, not the view box: on the 352x100 lockup the
+ * view box's centre is the middle of the word, and `origin-center` alone would
+ * pull the ring toward it. It starts at the dot's edge and stops just inside
+ * the brackets. Under reduced motion there is no ring at all, rather than one
+ * standing still around the dot.
  */
-const lockupPulse =
-   'origin-center [transform-box:fill-box] animate-[berry-working_2s_ease-in-out_infinite]';
+const lockupRipple =
+   'origin-center [transform-box:fill-box] animate-[berry-ripple_2.4s_ease-out_infinite] motion-reduce:hidden';
 
 /** The pulsing mark and a line, centred, while a pane is still fetching. */
 export function BerryLoading({ label, className }: { label: string; className?: string }) {
@@ -240,16 +244,11 @@ function WordmarkLabel({
                cx="50"
                cy="50"
                r="35"
-               className={cn('fill-none stroke-current text-lockup-berry', lockupPulse)}
+               className={cn('fill-none stroke-current text-lockup-berry', lockupRipple)}
                strokeWidth="4.7"
             />
          ) : null}
-         <circle
-            cx="50"
-            cy="50"
-            r={DOT}
-            className={cn('text-lockup-berry', pulse && lockupPulse)}
-         />
+         <circle cx="50" cy="50" r={DOT} className="text-lockup-berry" />
          {WORD_LETTERS.map((d) => (
             <path key={d.slice(0, 12)} d={d} />
          ))}

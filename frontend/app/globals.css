@@ -1239,6 +1239,22 @@ input[type='search'] {
    }
 }
 
+/* The lockup's berry on the auth screens (BerryWordmark `pulse`). The dot
+   holds still; a ring of r=35 leaves it at 0.72 (r=25, the dot's own edge)
+   and fades out by 1, where its outer edge is still inside the brackets. */
+@keyframes berry-ripple {
+   0% {
+      opacity: 0.9;
+      transform: scale(0.72);
+   }
+
+   70%,
+   100% {
+      opacity: 0;
+      transform: scale(1);
+   }
+}
+
 @media (prefers-reduced-motion: reduce) {
    *,
    *::before,

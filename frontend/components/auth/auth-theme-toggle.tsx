@@ -49,17 +49,27 @@ export function AuthThemeToggle({ className }: { className?: string }) {
          role="group"
          aria-label="Theme"
          className={cn(
-            'inline-flex items-center gap-0.5 rounded-pill bg-segment-track p-0.5',
+            'relative inline-flex items-center gap-0.5 rounded-pill bg-segment-track p-0.5',
             className
          )}
       >
+         {/*
+            The selection is one thumb that slides between the two, drawn as
+            SegmentIndicator draws its own. It follows the class on <html>, so
+            it is right on the first paint and needs no state; it moves on a
+            transform, which reduced motion settles instantly.
+         */}
+         <span
+            aria-hidden
+            className="pointer-events-none absolute top-0.5 left-0.5 size-(--field-h) rounded-full bg-segment-selected shadow-[0_1px_2px_rgb(0_0_0/0.08),0_0_0_0.5px_rgb(0_0_0/0.04)] transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] dark:translate-x-[calc(var(--field-h)+0.125rem)] dark:bg-[#3a3a40] dark:shadow-[inset_0_1px_0_rgb(255_255_255/0.07),0_1px_3px_rgb(0_0_0/0.5)]"
+         />
          <Button
             type="button"
             variant="quiet"
             size="icon-sm"
             aria-label="Light"
             aria-pressed={theme === null ? undefined : theme === 'light'}
-            className="bg-card text-foreground shadow-xs dark:bg-transparent dark:text-muted-foreground dark:shadow-none"
+            className="relative text-foreground hover:bg-transparent hover:text-foreground dark:text-muted-foreground"
             onClick={() => choose('light')}
          >
             <Sun aria-hidden />
@@ -70,7 +80,7 @@ export function AuthThemeToggle({ className }: { className?: string }) {
             size="icon-sm"
             aria-label="Dark"
             aria-pressed={theme === null ? undefined : theme === 'dark'}
-            className="dark:bg-card dark:text-foreground dark:shadow-xs"
+            className="relative text-muted-foreground hover:bg-transparent hover:text-foreground dark:text-foreground"
             onClick={() => choose('dark')}
          >
             <Moon aria-hidden />
