@@ -2,6 +2,31 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Inspección completa en escritorio y móvil (2026-11-18)
+
+Se recorrieron todas las rutas de la auditoría (45 pantallas, más los detalles de tarea, proyecto, ciclo, agente, review y loop), en claro y oscuro:
+- **Móvil (390 px):** con `mobile-audit2.cjs`.
+- **Escritorio (1440 px):** con una copia de escritorio del mismo script, sin emulación táctil.
+
+**Mediciones:**
+- Ninguna pantalla se desplaza de lado en ninguna de las dos anchuras.
+- Casi todos los avisos automáticos son falsos positivos:
+  - **Texto cortado:** textos solo para lectores de pantalla (`sr-only`).
+  - **Fuera de pantalla:** contenido dentro de zonas con scroll lateral a propósito.
+  - **Objetivos pequeños:** los switches y el botón Copy del chat ya amplían su área táctil con un pseudo-elemento.
+
+**Arreglado:**
+- **Review (móvil):** el texto se partía palabra por palabra junto a Accept/Decline. Ahora tiene base de 16rem y los botones bajan de línea.
+- **Loop (móvil):** el nombre quedaba en una letra. La cabecera se parte por debajo de `sm`: nombre y estado arriba, acciones en su fila. El "…" usa el tamaño por defecto en vez de `size-11`.
+- **New agent (móvil):** la fila de pestañas centrada se salía por la izquierda ("neral"). Ahora usa `justify-center-safe` con scroll lateral.
+- **`SettingsRow`:** la etiqueta tenía base 0 y se encogía a "Transp" junto a un control ancho. Con base de 8rem, el control baja de línea en pantallas angostas.
+- **AI providers (móvil):** la búsqueda pasa a todo el ancho; antes cortaba su placeholder.
+- **Catálogos de agentes y skills:** no tenían título en escritorio, y el de skills tampoco en móvil. Ahora comparten `PageBackTitle` (flecha de vuelta y título) en todas las anchuras. Se añadió "Back to Skills".
+- **Catálogo de skills (móvil):** los chips de departamento reducían el nombre a 1–4 letras. Ahora pasan a la línea de abajo.
+- **Settings → Agents (`/settings/ai`) y Connect (`/settings/plugins`):** el selector y la ruta de migas decían "Settings". Ahora nombran la página.
+- **Chat:** las sugerencias llegaban después de bajar al último mensaje y quedaban bajo el borde del compositor. Ahora se traen a la vista si el lector sigue al final.
+- **Usage → "Who spent it":** el monto de un bloque angosto se truncaba ("$11.…"). Cada bloque es ahora un contenedor y el monto se achica con él (`min(tamaño, 18cqi)`).
+
 ## Detalle del agente, Usage y elementos flotantes (2026-11-18)
 
 El usuario devolvió `--field-h` a 32 px a mano (y añadió `px-4` a `KpiStrip`); se subió tal cual en ad6a61ae. Después pidió:
