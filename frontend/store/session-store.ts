@@ -11,6 +11,16 @@ import { selectWorkspace } from '@/lib/workspaces';
 
 export type SessionStatus = 'booting' | 'anonymous' | 'ready';
 
+// Server clock minus client clock, in ms, from the last bootstrap. Event
+// streams ask the server for "everything since" a moment, and that moment must
+// be on the server's clock, not on one that may be minutes off.
+let serverClockOffsetMs = 0;
+
+/** The server's current time, estimated from the offset bootstrap reported. */
+export function serverNow(): Date {
+   return new Date(Date.now() + serverClockOffsetMs);
+}
+
 export interface SessionWorkspace {
    id: string;
    name: string;
@@ -105,6 +115,8 @@ async function loadReadyState(
       bootstrap = await fetchBootstrap();
       boards = await listBoards();
    }
+   const serverAt = bootstrap.serverTime ? Date.parse(bootstrap.serverTime) : Number.NaN;
+   serverClockOffsetMs = Number.isNaN(serverAt) ? 0 : serverAt - Date.now();
    const workspace = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
    return {
       user: toUiUser({

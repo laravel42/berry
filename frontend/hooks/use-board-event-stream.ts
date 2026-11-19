@@ -5,8 +5,8 @@ import { getBoardIssue, loadBoardIssues } from '@/lib/issues';
 import { getRun, loadBoardRuns, type RunEvent, streamBoardEvents } from '@/lib/runs';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunsStore } from '@/store/runs-store';
-import { useSessionStore } from '@/store/session-store';
-import { useEffect } from 'react';
+import { serverNow, useSessionStore } from '@/store/session-store';
+import { useEffect, useRef } from 'react';
 
 /** How long to wait for a burst to settle before refetching. */
 const REFRESH_DEBOUNCE_MS = 400;
@@ -19,6 +19,20 @@ const RECONNECT_DELAY_MS = 3000;
  * cheaper than one request per issue — a bulk move or an import, say.
  */
 const MAX_TARGETED_ISSUES = 25;
+
+/** How long to wait for an idle moment before opening the stream anyway. */
+const IDLE_TIMEOUT_MS = 3000;
+
+/**
+ * How far back from "now" the stream's cursor reaches. A repeated event is
+ * harmless (the handler refetches by id), a missed one is not.
+ */
+const SINCE_MARGIN_MS = 5000;
+
+/** A server-time cursor, RFC 3339, `SINCE_MARGIN_MS` before the server's now. */
+function sinceCursor(): string {
+   return new Date(serverNow().getTime() - SINCE_MARGIN_MS).toISOString();
+}
 
 /** A board frame names no issue with the nil uuid rather than with null. */
 const NO_ID = '00000000-0000-0000-0000-000000000000';
@@ -121,9 +135,20 @@ export function useBoardEventStream(): void {
    const getIssueById = useIssuesStore((state) => state.getIssueById);
    const hydrateRuns = useRunsStore((state) => state.hydrateRuns);
    const upsertRun = useRunsStore((state) => state.upsertRun);
+   // The stream opens only once the first load of tasks is over, so it must
+   // not have to guess when that load began: the cursor is taken here, when
+   // the board starts loading, and covers whatever happens meanwhile.
+   const loaded = useIssuesStore((state) => state.loadState !== 'loading');
+   const loadStartedAt = useRef<{ boardId: string; since: string } | null>(null);
 
    useEffect(() => {
-      if (status !== 'ready' || !boardId) return;
+      if (status === 'ready' && boardId) loadStartedAt.current = { boardId, since: sinceCursor() };
+   }, [status, boardId]);
+
+   useEffect(() => {
+      if (status !== 'ready' || !boardId || !loaded) return;
+      const started = loadStartedAt.current;
+      let since = started && started.boardId === boardId ? started.since : sinceCursor();
 
       const controller = new AbortController();
       let cancelled = false;
@@ -225,7 +250,7 @@ export function useBoardEventStream(): void {
 
       const consume = async () => {
          try {
-            const events = streamBoardEvents(boardId, controller.signal);
+            const events = streamBoardEvents(boardId, since, controller.signal);
             // Only the event's type and ids are read, to know which issue or
             // run to fetch again; the server's own projection of it is what
             // lands in the store. Applying the payload would mean maintaining
@@ -241,6 +266,9 @@ export function useBoardEventStream(): void {
             // error the person cannot act on.
          }
          if (cancelled) return;
+         // The next connection replays from here; the full refresh below
+         // covers what came before.
+         since = sinceCursor();
          // The stream ending is itself a reason to refresh, and a full one:
          // whatever happened while it was down is not in the store, and no
          // event will name it.
@@ -251,17 +279,31 @@ export function useBoardEventStream(): void {
          }, RECONNECT_DELAY_MS);
       };
 
-      void consume();
+      // Opened when the browser is idle, so the connection does not compete
+      // with the first paint; the timeout keeps it from waiting forever.
+      let idleHandle: number | undefined;
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      const open = () => {
+         if (!cancelled) void consume();
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+         idleHandle = window.requestIdleCallback(open, { timeout: IDLE_TIMEOUT_MS });
+      } else {
+         idleTimer = setTimeout(open, IDLE_TIMEOUT_MS);
+      }
 
       return () => {
          cancelled = true;
          controller.abort();
+         if (idleHandle !== undefined) window.cancelIdleCallback(idleHandle);
+         if (idleTimer) clearTimeout(idleTimer);
          if (refreshTimer) clearTimeout(refreshTimer);
          if (reconnectTimer) clearTimeout(reconnectTimer);
       };
    }, [
       status,
       boardId,
+      loaded,
       hydrateIssues,
       mergeIssues,
       deleteIssue,

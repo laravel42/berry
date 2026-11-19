@@ -374,10 +374,11 @@ function isReadyComment(block: string): boolean {
  */
 export async function* streamBoardEvents(
    boardId: string,
+   since: string,
    signal?: AbortSignal
 ): AsyncGenerator<RunEvent> {
    const response = await apiStream(
-      `/api/v1/events?boardId=${encodeURIComponent(boardId)}`,
+      `/api/v1/events?boardId=${encodeURIComponent(boardId)}&since=${encodeURIComponent(since)}`,
       undefined,
       { signal }
    );

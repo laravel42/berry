@@ -36,6 +36,8 @@ const bootstrapSchema = z.object({
    }),
    workspaces: z.array(workspaceSchema),
    currentWorkspaceId: z.string().nullable(),
+   /** The server's clock (RFC 3339 UTC) when it answered; older servers omit it. */
+   serverTime: z.string().optional(),
 });
 
 const configSchema = z.object({
