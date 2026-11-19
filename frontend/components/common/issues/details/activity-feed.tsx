@@ -1031,7 +1031,10 @@ export function ActivityCommentComposer({
              legend: it takes no line of its own, so the box neither jumps when
              it appears nor keeps an empty line under it for it. */}
          {!isReply && draft.trim() ? (
-            <span className="pointer-events-none absolute -top-2 right-3 z-10 bg-container px-1 leading-4 text-muted-foreground">
+            <span
+               data-field-legend
+               className="pointer-events-none absolute -top-2 right-3 z-10 bg-container px-1 text-subtle-foreground"
+            >
                {t('draft')}
             </span>
          ) : null}

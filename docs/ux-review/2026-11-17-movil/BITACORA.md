@@ -13,6 +13,7 @@
   - Elegir 🎉 desde la búsqueda crea la reacción.
   - El compositor queda "hola 🚀" con el foco devuelto.
   - La reacción de prueba se borró después.
+- **"Draft saved":** la leyenda sobre el borde del cuadro de comentario bajó a 14 px (`--text-2xs`, entrada `[data-field-legend]` en `globals.css`) y usa el tono `subtle-foreground`, más apagado que `muted-foreground`.
 
 ## Cabecera del agente: estado, tier y avisos (2026-11-19)
 

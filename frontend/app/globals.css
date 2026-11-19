@@ -806,6 +806,14 @@
       line-height: 1rem;
    }
 
+   /* A note riding on a field's top edge, like a legend ("Draft saved" on a
+      comment box). A step under the body, so it reads as a remark about the
+      box rather than as part of what is written in it. */
+   [data-field-legend] {
+      font-size: var(--text-2xs);
+      line-height: 1rem;
+   }
+
    /* Section labels ("Sub-tasks", "Files", "Activity", and the folds that
       open a rail or sidebar section).
 
