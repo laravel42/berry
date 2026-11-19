@@ -17,23 +17,10 @@ interface Props {
    timeframe: 'window' | 'live';
    query: UsageQuery;
    onChange: (query: UsageQuery) => void;
-   lastUpdated: Date | null;
-   loading: boolean;
-   onRefresh: () => void;
 }
 
-/**
- * What every usage read is asking: how far back and on which project —
- * plus when the answer on screen arrived, and a way to ask again.
- */
-export default function UsageFilters({
-   timeframe,
-   query,
-   onChange,
-   lastUpdated,
-   loading,
-   onRefresh,
-}: Props) {
+/** What every usage read is asking: how far back and on which project. */
+export default function UsageFilters({ timeframe, query, onChange }: Props) {
    const t = useTranslations('areas.usage.filters');
 
    // A 20rem basis: beside the tabs when there is room, on its own line when
@@ -56,19 +43,36 @@ export default function UsageFilters({
             projectId={query.projectId ?? null}
             onChange={(projectId) => onChange({ ...query, projectId })}
          />
-
-         <span className="ml-auto flex items-center gap-2 text-muted-foreground">
-            {lastUpdated ? t('updated', { when: lastUpdated.toLocaleTimeString() }) : t('never')}
-            <Button
-               size="icon-sm"
-               variant="ghost"
-               aria-label={t('refresh')}
-               disabled={loading}
-               onClick={onRefresh}
-            >
-               <RefreshCw className="size-4" />
-            </Button>
-         </span>
       </div>
+   );
+}
+
+/**
+ * When the numbers on screen arrived, and a way to ask again. It sits in the
+ * page's title row, a meta line in the mono face a step under the body.
+ */
+export function UsageUpdated({
+   lastUpdated,
+   loading,
+   onRefresh,
+}: {
+   lastUpdated: Date | null;
+   loading: boolean;
+   onRefresh: () => void;
+}) {
+   const t = useTranslations('areas.usage.filters');
+   return (
+      <span className="flex items-center gap-1 font-mono text-2xs text-muted-foreground tabular-nums">
+         {lastUpdated ? t('updated', { when: lastUpdated.toLocaleTimeString() }) : t('never')}
+         <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label={t('refresh')}
+            disabled={loading}
+            onClick={onRefresh}
+         >
+            <RefreshCw className="size-3.5" />
+         </Button>
+      </span>
    );
 }

@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useState } from 'react';
 
 import { PageKpiHeader } from '@/components/common/page/page-parts';
-import UsageFilters from '@/components/common/usage/usage-filters';
+import UsageFilters, { UsageUpdated } from '@/components/common/usage/usage-filters';
 import UsageSpend from '@/components/common/usage/usage-spend';
 import UsageWork from '@/components/common/usage/usage-work';
 import MainLayout from '@/components/layout/main-layout';
@@ -73,7 +73,13 @@ function UsageScreen() {
 
    const header = (
       <>
-         <PageKpiHeader label={t('title')} />
+         <PageKpiHeader label={t('title')}>
+            <UsageUpdated
+               lastUpdated={state.lastUpdated}
+               loading={state.loading}
+               onRefresh={state.reload}
+            />
+         </PageKpiHeader>
          <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px]">
             <Tabs value={tab} onValueChange={(value) => open(value as Tab)}>
                <TabsList aria-label={t('tabs.label')}>
@@ -84,14 +90,7 @@ function UsageScreen() {
                   ))}
                </TabsList>
             </Tabs>
-            <UsageFilters
-               timeframe="window"
-               query={query}
-               onChange={setQuery}
-               lastUpdated={state.lastUpdated}
-               loading={state.loading}
-               onRefresh={state.reload}
-            />
+            <UsageFilters timeframe="window" query={query} onChange={setQuery} />
          </div>
       </>
    );
