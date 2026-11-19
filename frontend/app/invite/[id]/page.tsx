@@ -7,6 +7,8 @@ import { useEffect, useState } from 'react';
 
 import { AuthCard } from '@/components/auth/auth-card';
 import { AuthPrimaryButton, AuthSecondaryButton } from '@/components/auth/auth-fields';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { useSignOut } from '@/components/auth/use-sign-out';
 import {
    acceptInvitation,
@@ -107,7 +109,7 @@ export default function InvitePage() {
    if (status !== 'ready' || state.kind === 'loading') {
       return (
          <AuthCard title={t('checkingTitle')}>
-            <p className="text-[var(--brand-ash)]">{t('checking')}</p>
+            <p className="text-muted-foreground">{t('checking')}</p>
          </AuthCard>
       );
    }
@@ -134,25 +136,23 @@ export default function InvitePage() {
             title="You’re invited"
             description={
                <>
-                  Join the <span className="text-[var(--brand-chalk)]">{workspace}</span> workspace
-                  on Berry.
+                  Join the <span className="font-medium text-foreground">{workspace}</span>{' '}
+                  workspace on Berry.
                </>
             }
          >
-            <div className="flex flex-col gap-3.5">
-               <div className="flex items-center gap-3 rounded-[10px] border border-[#2a2a2f] bg-[#19191c] p-3.5">
-                  <span className="flex h-11 w-10 shrink-0 items-center justify-center rounded-[9px] bg-[#2b2516] font-bold text-[#e8c15c]">
+            <div className="flex flex-col gap-4">
+               <div className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3.5">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary-text">
                      {mark}
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">
                      <span className="truncate font-semibold">{workspace}</span>
-                     <span className="text-[var(--brand-slate)]">
+                     <span className="text-2xs text-subtle-foreground">
                         Invited as {roleLabel} · expires {expires}
                      </span>
                   </span>
-                  <span className="rounded-[5px] bg-[#242428] px-2 py-0.5 text-[var(--brand-ash)]">
-                     {roleLabel}
-                  </span>
+                  <Badge variant="secondary">{roleLabel}</Badge>
                </div>
                <AuthPrimaryButton
                   ready={!accepting}
@@ -161,14 +161,16 @@ export default function InvitePage() {
                <AuthSecondaryButton disabled={accepting} onClick={() => router.push('/onboarding')}>
                   Create my own workspace instead
                </AuthSecondaryButton>
-               <button
+               <Button
                   type="button"
-                  className="text-center text-[var(--brand-slate)] hover:text-[var(--brand-ash)]"
+                  variant="quiet"
+                  size="sm"
+                  className="self-center"
                   disabled={accepting}
                   onClick={() => setState({ kind: 'declined' })}
                >
                   {t('decline')}
-               </button>
+               </Button>
             </div>
          </AuthCard>
       );
@@ -179,9 +181,9 @@ export default function InvitePage() {
          title={state.kind === 'failed' ? t('failedTitle') : t('unavailableTitle')}
          description={state.kind === 'failed' ? t('failedBody') : t('unavailableBody')}
       >
-         <div className="flex flex-col gap-3.5">
+         <div className="flex flex-col gap-4">
             {me?.email ? (
-               <p className="text-[var(--brand-ash)]">{t('signedInAs', { email: me.email })}</p>
+               <p className="text-muted-foreground">{t('signedInAs', { email: me.email })}</p>
             ) : null}
             <AuthPrimaryButton ready onClick={() => router.replace('/onboarding')}>
                {t('myWorkspaces')}

@@ -5,8 +5,9 @@ import { Suspense, useState, type FormEvent } from 'react';
 
 import { AuthCard } from '@/components/auth/auth-card';
 import {
-   AuthField,
+   AuthCheckbox,
    AuthFieldGroup,
+   AuthPasswordField,
    AuthPrimaryButton,
    PasswordStrength,
 } from '@/components/auth/auth-fields';
@@ -62,11 +63,10 @@ function ResetPasswordContent() {
          onBack={() => router.push('/sign-in')}
          error={error}
       >
-         <form className="flex flex-col gap-3.5" onSubmit={(event) => void submit(event)}>
+         <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
             <AuthFieldGroup label="New password" htmlFor="new-password">
-               <AuthField
+               <AuthPasswordField
                   id="new-password"
-                  type="password"
                   autoComplete="new-password"
                   required
                   minLength={12}
@@ -80,34 +80,9 @@ function ResetPasswordContent() {
                />
             </AuthFieldGroup>
             <PasswordStrength password={password} />
-            <label className="flex cursor-pointer items-center gap-2.5 text-[var(--brand-ash)]">
-               <button
-                  type="button"
-                  role="checkbox"
-                  aria-checked={revoke}
-                  onClick={() => setRevoke((current) => !current)}
-                  className="flex size-4 items-center justify-center rounded border"
-                  style={{
-                     borderColor: revoke ? '#e3b341' : '#3a3a40',
-                     background: revoke ? '#e3b341' : 'transparent',
-                  }}
-               >
-                  {revoke ? (
-                     <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#111113"
-                        strokeWidth="3"
-                        aria-hidden
-                     >
-                        <path d="M5 12l5 5 9-10" />
-                     </svg>
-                  ) : null}
-               </button>
+            <AuthCheckbox id="reset-revoke-sessions" checked={revoke} onCheckedChange={setRevoke}>
                Sign out of all other devices
-            </label>
+            </AuthCheckbox>
             <AuthPrimaryButton type="submit" ready={passwordOk && Boolean(token) && !pending}>
                {pending ? 'Saving…' : 'Set password and sign in'}
             </AuthPrimaryButton>
@@ -118,7 +93,7 @@ function ResetPasswordContent() {
 
 export default function ResetPasswordPage() {
    return (
-      <Suspense fallback={<div className="min-h-svh bg-[var(--brand-void)]" />}>
+      <Suspense fallback={<div className="h-full bg-background" />}>
          <ResetPasswordContent />
       </Suspense>
    );

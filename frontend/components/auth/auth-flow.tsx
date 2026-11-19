@@ -1,17 +1,22 @@
 'use client';
 
 import { RiGithubFill } from '@remixicon/react';
+import { Mail } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
-import { AuthCard } from '@/components/auth/auth-card';
+import { AuthCard, AuthLegalNote } from '@/components/auth/auth-card';
 import {
+   AuthCheckbox,
    AuthField,
    AuthFieldGroup,
+   AuthPasswordField,
    AuthPrimaryButton,
    AuthSecondaryButton,
    PasswordStrength,
+   authLinkClass,
 } from '@/components/auth/auth-fields';
+import { cn } from '@/lib/utils';
 import {
    requestMagicLink,
    requestPasswordReset,
@@ -39,30 +44,22 @@ function TopSwitch({
 }) {
    if (step === 'signin') {
       return (
-         <>
+         <p>
             No account?{' '}
-            <button
-               type="button"
-               className="text-[#e8c15c] hover:text-[#f2d27e]"
-               onClick={() => onSwitch('signup')}
-            >
+            <button type="button" className={authLinkClass} onClick={() => onSwitch('signup')}>
                Sign up
             </button>
-         </>
+         </p>
       );
    }
    if (step === 'signup') {
       return (
-         <>
+         <p>
             Have an account?{' '}
-            <button
-               type="button"
-               className="text-[#e8c15c] hover:text-[#f2d27e]"
-               onClick={() => onSwitch('signin')}
-            >
+            <button type="button" className={authLinkClass} onClick={() => onSwitch('signin')}>
                Sign in
             </button>
-         </>
+         </p>
       );
    }
    return null;
@@ -83,30 +80,18 @@ function PasswordField({
    placeholder: string;
    trailing?: ReactNode;
 }) {
-   const [show, setShow] = useState(false);
    return (
       <AuthFieldGroup label="Password" htmlFor={id} trailing={trailing}>
-         <div className="flex h-11 items-center rounded-[10px] border border-[#2a2a2f] bg-[#161618] pr-1 pl-3 focus-within:border-[#e3b341] focus-within:shadow-[0_0_0_3px_rgba(227,179,65,0.2)]">
-            <input
-               id={id}
-               type={show ? 'text' : 'password'}
-               autoComplete={autoComplete}
-               required
-               minLength={12}
-               maxLength={256}
-               value={value}
-               placeholder={placeholder}
-               onChange={(event) => onChange(event.target.value)}
-               className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[var(--brand-chalk)] outline-none placeholder:text-[var(--brand-slate)]"
-            />
-            <button
-               type="button"
-               className="flex h-[30px] items-center rounded-md px-2 text-[var(--brand-ash)] hover:bg-[#242428] hover:text-[var(--brand-chalk)]"
-               onClick={() => setShow((current) => !current)}
-            >
-               {show ? 'Hide' : 'Show'}
-            </button>
-         </div>
+         <AuthPasswordField
+            id={id}
+            autoComplete={autoComplete}
+            required
+            minLength={12}
+            maxLength={256}
+            value={value}
+            placeholder={placeholder}
+            onChange={(event) => onChange(event.target.value)}
+         />
       </AuthFieldGroup>
    );
 }
@@ -121,11 +106,10 @@ function CodeCells({ code }: { code: string }) {
                <span
                   key={index}
                   data-auth-code-cell
-                  className="flex h-[52px] items-center justify-center rounded-[10px] border bg-[#19191c] font-semibold"
-
-                  style={{
-                     borderColor: active ? '#e3b341' : filled ? '#3a3a40' : '#2e2e33',
-                  }}
+                  className={cn(
+                     'flex h-13 items-center justify-center rounded-xl border bg-card font-mono font-semibold shadow-xs',
+                     active ? 'border-primary' : filled ? 'border-foreground/30' : 'border-input'
+                  )}
                >
                   {filled}
                </span>
@@ -295,37 +279,12 @@ export function AuthFlow({
                            : event.target.value.replace(/\D/g, '').slice(0, 6)
                      )
                   }
-                  className="h-9 border-dashed bg-transparent text-[var(--brand-ash)]"
+                  aria-label={backup ? 'Backup code' : 'Authentication code'}
                />
                {!backup ? (
-                  <label className="flex cursor-pointer items-center gap-2.5 text-[var(--brand-ash)]">
-                     <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={trust}
-                        onClick={() => setTrust((current) => !current)}
-                        className="flex size-4 items-center justify-center rounded border"
-                        style={{
-                           borderColor: trust ? '#e3b341' : '#3a3a40',
-                           background: trust ? '#e3b341' : 'transparent',
-                        }}
-                     >
-                        {trust ? (
-                           <svg
-                              width="10"
-                              height="10"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="#111113"
-                              strokeWidth="3"
-                              aria-hidden
-                           >
-                              <path d="M5 12l5 5 9-10" />
-                           </svg>
-                        ) : null}
-                     </button>
+                  <AuthCheckbox id="auth-trust-device" checked={trust} onCheckedChange={setTrust}>
                      Trust this device for 30 days
-                  </label>
+                  </AuthCheckbox>
                ) : null}
                <AuthPrimaryButton
                   type="submit"
@@ -333,11 +292,11 @@ export function AuthFlow({
                >
                   {pending ? 'Verifying…' : 'Verify'}
                </AuthPrimaryButton>
-               <div className="flex justify-between text-[var(--brand-slate)]">
+               <div className="flex justify-between gap-3 text-muted-foreground">
                   <span>{backup ? 'Lost your codes?' : 'Lost your device?'}</span>
                   <button
                      type="button"
-                     className="text-[#e8c15c] hover:text-[#f2d27e]"
+                     className={authLinkClass}
                      onClick={() => go(backup ? 'twofa' : 'twofa-backup')}
                   >
                      {backup ? 'Use authenticator' : 'Use a backup code'}
@@ -356,7 +315,7 @@ export function AuthFlow({
             onBack={() => go('signin')}
             error={error}
          >
-            <form className="flex flex-col gap-3.5" onSubmit={(event) => void sendReset(event)}>
+            <form className="flex flex-col gap-4" onSubmit={(event) => void sendReset(event)}>
                <AuthFieldGroup label="Email" htmlFor="forgot-email">
                   <AuthField
                      id="forgot-email"
@@ -391,30 +350,22 @@ export function AuthFlow({
             onBack={() => go(sentKind === 'magic' ? 'signin' : 'forgot')}
          >
             <div className="flex flex-col gap-3">
-               <div className="flex items-center gap-3 rounded-[10px] border border-[#2a2a2f] bg-[#19191c] p-3.5">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[#242428]">
-                     <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="#a9a7ad"
-                        strokeWidth="1.8"
-                        aria-hidden
-                     >
-                        <path d="M3 6h18v12H3zM3 7l9 6 9-6" />
-                     </svg>
+               <div className="flex items-center gap-3 rounded-xl border bg-muted/40 p-3.5">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                     <Mail aria-hidden className="size-4" />
                   </span>
                   <span className="flex min-w-0 flex-1 flex-col">
                      <span className="truncate font-medium">{email || 'you@company.com'}</span>
-                     <span className="text-[var(--brand-slate)]">Link expires in 15 minutes</span>
+                     <span className="text-2xs text-subtle-foreground">
+                        Link expires in 15 minutes
+                     </span>
                   </span>
                </div>
-               <p className="m-0 text-[var(--brand-slate)]">
+               <p className="m-0 text-muted-foreground">
                   Nothing arrived? Check spam, or{' '}
                   <button
                      type="button"
-                     className="text-[#e8c15c] hover:text-[#f2d27e]"
+                     className={authLinkClass}
                      onClick={() => go(sentKind === 'magic' ? 'signin' : 'forgot')}
                   >
                      use another email
@@ -435,21 +386,24 @@ export function AuthFlow({
       <AuthCard
          title={title}
          description={description}
-         topAction={
-            options.emailRegistration ? (
-               <TopSwitch
-                  step={step}
-                  onSwitch={(next) => {
-                     go(next);
-                     setPassword('');
-                  }}
-               />
-            ) : undefined
+         aside={
+            <>
+               {options.emailRegistration ? (
+                  <TopSwitch
+                     step={step}
+                     onSwitch={(next) => {
+                        go(next);
+                        setPassword('');
+                     }}
+                  />
+               ) : null}
+               <AuthLegalNote />
+            </>
          }
          error={error}
          steps={registering ? { total: 3, current: 0 } : undefined}
       >
-         <form className="flex flex-col gap-3.5" onSubmit={(event) => void submitEntry(event)}>
+         <form className="flex flex-col gap-4" onSubmit={(event) => void submitEntry(event)}>
             {registering ? (
                <AuthFieldGroup label="Name" htmlFor="register-name">
                   <AuthField
@@ -489,11 +443,7 @@ export function AuthFlow({
                placeholder={registering ? 'At least 12 characters' : '••••••••••••'}
                trailing={
                   !registering && options.passwordReset ? (
-                     <button
-                        type="button"
-                        className="text-[#e8c15c] hover:text-[#f2d27e]"
-                        onClick={() => go('forgot')}
-                     >
+                     <button type="button" className={authLinkClass} onClick={() => go('forgot')}>
                         Forgot?
                      </button>
                   ) : undefined
@@ -505,23 +455,12 @@ export function AuthFlow({
             </AuthPrimaryButton>
             {!registering && options.magicLink ? (
                <AuthSecondaryButton disabled={pending} onClick={() => void sendMagic()}>
-                  <svg
-                     width="14"
-                     height="14"
-                     viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="currentColor"
-                     strokeWidth="1.8"
-                     aria-hidden
-                  >
-                     <path d="M3 6h18v12H3zM3 7l9 6 9-6" />
-                  </svg>
+                  <Mail aria-hidden />
                   Email me a sign-in link
                </AuthSecondaryButton>
             ) : null}
             {options.github ? (
                <AuthSecondaryButton
-                  inverted
                   disabled={pending}
                   onClick={() => {
                      setPending(true);
@@ -538,29 +477,6 @@ export function AuthFlow({
                   <RiGithubFill aria-hidden className="size-4" />
                   Continue with GitHub
                </AuthSecondaryButton>
-            ) : null}
-            {registering ? (
-               <p className="m-0 leading-relaxed text-[var(--brand-slate)]">
-                  By creating an account you agree to the{' '}
-                  <a
-                     href="https://berry.pm/terms"
-                     target="_blank"
-                     rel="noreferrer"
-                     className="text-[#e8c15c] hover:text-[#f2d27e]"
-                  >
-                     Terms
-                  </a>{' '}
-                  and{' '}
-                  <a
-                     href="https://berry.pm/privacy"
-                     target="_blank"
-                     rel="noreferrer"
-                     className="text-[#e8c15c] hover:text-[#f2d27e]"
-                  >
-                     Privacy Policy
-                  </a>
-                  .
-               </p>
             ) : null}
          </form>
       </AuthCard>
