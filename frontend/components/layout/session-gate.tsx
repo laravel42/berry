@@ -56,7 +56,14 @@ function BootScreen({ error, onRetry }: { error: string | null; onRetry: () => v
    );
 }
 
-export function SessionGate({ children }: { children: React.ReactNode }) {
+export function SessionGate({
+   children,
+   hasSession,
+}: {
+   children: React.ReactNode;
+   /** The request carried a session cookie (decided on the server, in the layout). */
+   hasSession: boolean;
+}) {
    const pathname = usePathname();
    const router = useRouter();
    const status = useSessionStore((state) => state.status);
@@ -65,18 +72,18 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
    const hydrateFromStorage = useSessionStore((state) => state.hydrateFromStorage);
 
    useEffect(() => {
-      void hydrateFromStorage();
-   }, [hydrateFromStorage]);
+      void hydrateFromStorage(hasSession);
+   }, [hydrateFromStorage, hasSession]);
 
    // While the API is down we stay on the boot screen; keep asking until it
    // answers so a brief outage does not leave the visitor stuck after recovery.
    useEffect(() => {
       if (status !== 'booting' || !error) return;
       const timer = window.setInterval(() => {
-         void hydrateFromStorage();
+         void hydrateFromStorage(hasSession);
       }, 2_000);
       return () => window.clearInterval(timer);
-   }, [status, error, hydrateFromStorage]);
+   }, [status, error, hydrateFromStorage, hasSession]);
 
    useEffect(() => {
       if (status === 'booting') return;
@@ -98,13 +105,23 @@ export function SessionGate({ children }: { children: React.ReactNode }) {
    }, [status, pathname, router, workspace?.slug]);
 
    if (status === 'booting') {
-      return <BootScreen error={error} onRetry={() => void hydrateFromStorage()} />;
+      // The server and the first client render both land here with an empty
+      // store, so this must depend only on the path and the cookie. An auth or
+      // public page, or any page when a session cookie came with the request,
+      // draws its own structure now; the shell and pages show loading states
+      // until the session is ready. LocaleSync and ThemeSync stay unmounted:
+      // they read account preferences that do not exist yet.
+      if (error || !(isAnonymousAllowed(pathname) || hasSession)) {
+         return <BootScreen error={error} onRetry={() => void hydrateFromStorage(hasSession)} />;
+      }
    }
 
    return (
       <>
-         <LocaleSync />
-         <ThemeSync />
+         {/* Fixed slots: `children` keeps its position when the syncs mount,
+             so the page is not remounted the moment the session is ready. */}
+         {status === 'booting' ? null : <LocaleSync />}
+         {status === 'booting' ? null : <ThemeSync />}
          {children}
       </>
    );

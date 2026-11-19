@@ -36,7 +36,12 @@ interface SessionState {
    /** Settings calls this after saving, so ThemeSync does not revert the choice. */
    setPreferredTheme: (theme: ThemePreference) => void;
    error: string | null;
-   hydrateFromStorage: () => Promise<void>;
+   /**
+    * `hasSession` is whether the page was served with a session cookie. Only
+    * `false` changes anything: bootstrap is asked first and the board list only
+    * if it answers, so an anonymous visit does not request `/boards` for nothing.
+    */
+   hydrateFromStorage: (hasSession?: boolean) => Promise<void>;
    signOut: () => Promise<void>;
    /** Drops to anonymous locally, without a server round trip (sign-out fallback). */
    markAnonymous: () => void;
@@ -79,7 +84,9 @@ const toSessionWorkspace = (workspace: BootstrapWorkspace): SessionWorkspace => 
    role: workspace.role,
 });
 
-async function loadReadyState(): Promise<
+async function loadReadyState(
+   hasSession = true
+): Promise<
    Pick<
       SessionState,
       'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale' | 'preferredTheme'
@@ -88,7 +95,16 @@ async function loadReadyState(): Promise<
    // Both at once: the board list is per account and needs nothing from
    // bootstrap. A bootstrap failure still rejects here as before (callers
    // tell anonymous from unreachable by it); listBoards never rejects.
-   const [bootstrap, boards] = await Promise.all([fetchBootstrap(), listBoards()]);
+   // Without a session cookie bootstrap goes first, so an anonymous visitor
+   // (a 401 here) never asks for boards. With a cookie nothing is serialised.
+   let bootstrap: Awaited<ReturnType<typeof fetchBootstrap>>;
+   let boards: Awaited<ReturnType<typeof listBoards>>;
+   if (hasSession) {
+      [bootstrap, boards] = await Promise.all([fetchBootstrap(), listBoards()]);
+   } else {
+      bootstrap = await fetchBootstrap();
+      boards = await listBoards();
+   }
    const workspace = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
    return {
       user: toUiUser({
@@ -135,7 +151,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
    setPreferredTheme: (theme) => set({ preferredTheme: theme }),
 
-   hydrateFromStorage: async () => {
+   hydrateFromStorage: async (hasSession = true) => {
       // The session is a cookie the browser sends on its own, so "is anyone
       // signed in" is simply whether bootstrap answers. A 401 is the normal
       // anonymous answer, not an error worth showing. Any other failure
@@ -143,7 +159,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // that bounced people to /sign-in whenever the server briefly refused
       // connections.
       try {
-         const ready = await loadReadyState();
+         const ready = await loadReadyState(hasSession);
          resetSharedRequests();
          set({ status: 'ready', error: null, ...ready });
          return;

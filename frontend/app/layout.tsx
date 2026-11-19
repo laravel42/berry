@@ -83,7 +83,12 @@ export default async function RootLayout({
    // Decided on the server from a cookie, exactly as the locale is: the class
    // is in the first byte, so light mode needs no inline script and has
    // nothing to reconcile during hydration. ThemeSync maintains the cookie.
-   const theme = resolveTheme((await cookies()).get(THEME_COOKIE)?.value);
+   const jar = await cookies();
+   const theme = resolveTheme(jar.get(THEME_COOKIE)?.value);
+   // Same test as proxy.ts and app/page.tsx. It only tells the gate whether to
+   // draw the app's structure while the session loads; the session itself is
+   // still resolved by the client.
+   const hasSession = jar.has('berry.session_token');
    return (
       <html
          lang={locale}
@@ -93,7 +98,7 @@ export default async function RootLayout({
          <body className="antialiased" suppressHydrationWarning>
             <NextIntlClientProvider>
                <NuqsAdapter>
-                  <SessionGate>
+                  <SessionGate hasSession={hasSession}>
                      {children}
                      <Toaster />
                   </SessionGate>
