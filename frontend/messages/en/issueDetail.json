@@ -9,7 +9,8 @@
    "header": {
       "breadcrumb": "Where this task sits",
       "noProject": "No project",
-      "parentOf": "sub-task of",
+      "parentOf": "Sub-task of {identifier}: {title}",
+      "openParent": "Open the parent task, {identifier}",
       "previousTask": "Previous task",
       "nextTask": "Next task",
       "unsavedTitle": "Leave without saving?",

@@ -17,7 +17,7 @@ import { getBoardIssue } from '@/lib/issues';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
 import { hasUnsavedEdits, useUnsavedEditsStore } from '@/store/unsaved-edits-store';
-import { ChevronDown, ChevronUp, CornerUpLeft } from 'lucide-react';
+import { ChevronDown, ChevronUp, CornerLeftUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -82,11 +82,38 @@ export default function HeaderNav() {
          <div className="flex min-w-0 items-center gap-2">
             {issue ? (
                <>
-                  <nav aria-label={t('breadcrumb')} className="flex min-w-0 items-center gap-1.5">
+                  {/* A sub-task's way up: one quiet icon before the
+                      breadcrumb, named in full for touch and screen readers. */}
+                  {parent ? (
+                     <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="shrink-0 text-muted-foreground"
+                        asChild
+                     >
+                        <Link
+                           href={`/${orgId}/issue/${parent.identifier}`}
+                           aria-label={t('openParent', { identifier: parent.identifier })}
+                           title={t('parentOf', {
+                              identifier: parent.identifier,
+                              title: parent.title,
+                           })}
+                        >
+                           <CornerLeftUp className="size-4" aria-hidden />
+                        </Link>
+                     </Button>
+                  ) : null}
+
+                  {/* Overflow is clipped: a narrow header shortens the
+                      project and the title rather than drawing past its edge. */}
+                  <nav
+                     aria-label={t('breadcrumb')}
+                     className="flex min-w-0 items-center gap-1.5 overflow-hidden"
+                  >
                      {issue.project ? (
                         <Link
                            href={`/${orgId}/project/${issue.project.id}/issues`}
-                           className="max-w-[160px] shrink-0 truncate whitespace-nowrap text-muted-foreground hover:underline"
+                           className="max-w-[160px] min-w-[3ch] shrink truncate whitespace-nowrap text-muted-foreground hover:underline"
                         >
                            {issue.project.name}
                         </Link>
@@ -105,18 +132,6 @@ export default function HeaderNav() {
                         <span className="font-medium">{issue.title}</span>
                      </span>
                   </nav>
-
-                  {parent ? (
-                     <Link
-                        href={`/${orgId}/issue/${parent.identifier}`}
-                        title={parent.title}
-                        className="flex max-w-[200px] shrink-0 items-center gap-1 rounded bg-accent px-1.5 text-muted-foreground hover:underline"
-                     >
-                        <CornerUpLeft className="size-3 shrink-0" />
-                        <span className="shrink-0">{t('parentOf')}</span>
-                        <span className="min-w-0 truncate">{parent.identifier}</span>
-                     </Link>
-                  ) : null}
                </>
             ) : null}
          </div>
