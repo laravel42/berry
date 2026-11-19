@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
 import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
+import { ChatMarkdown } from '@/components/common/chat/chat-markdown';
 import { Button } from '@/components/ui/button';
 import { Check, Copy, ImageIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -32,7 +33,9 @@ import { ImageViewer, type ViewerImage } from './image-viewer';
  * all of them, since the second screenshot is usually the point.
  *
  * Markdown is edited with TipTap (same editor as project create) and committed
- * on blur so keystrokes do not PATCH the issue.
+ * on blur so keystrokes do not PATCH the issue. Until someone focuses or
+ * clicks the text it is drawn read-only: the editor is ~560 KB of script that
+ * most visits to a task never need.
  */
 export function IssueDescription({
    issueId,
@@ -50,6 +53,26 @@ export function IssueDescription({
    const [dragging, setDragging] = useState(false);
    const [viewerAt, setViewerAt] = useState<number | null>(null);
    const [copied, setCopied] = useState(false);
+   const [editing, setEditing] = useState(false);
+   const surface = useRef<HTMLDivElement>(null);
+
+   // The editor arrives a moment after the click that asked for it; once its
+   // text field exists, put the caret there so the click was not wasted.
+   useEffect(() => {
+      if (!editing) return;
+      let frame = 0;
+      const startedAt = performance.now();
+      const focusWhenReady = () => {
+         const field = surface.current?.querySelector<HTMLElement>('.ProseMirror');
+         if (field) {
+            field.focus();
+            return;
+         }
+         if (performance.now() - startedAt < 5000) frame = requestAnimationFrame(focusWhenReady);
+      };
+      frame = requestAnimationFrame(focusWhenReady);
+      return () => cancelAnimationFrame(frame);
+   }, [editing]);
 
    // What a person reads: the text without the plugin links the editor hides.
    const readable = stripPluginMentions(description).trim();
@@ -174,20 +197,46 @@ export function IssueDescription({
             )}
          >
             <CollapsibleDescription>
-               <TiptapAiEditor
-                  value={stripPluginMentions(description)}
-                  onChange={() => undefined}
-                  onBlur={(markdown) => {
-                     const next = keepPluginMentions(markdown, description);
-                     if (next.trim() === description.trim()) return;
-                     updateIssueDescription(issueId, next);
-                  }}
-                  placeholder={dragging ? t('dropHere') : 'Add description…'}
-                  aria-label="Task description"
-                  className="min-h-24 [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold [&_.ProseMirror>:last-child]:!mb-0"
-                  aiAssist={false}
-                  formatting
-               />
+               <div ref={surface}>
+                  {editing ? (
+                     <TiptapAiEditor
+                        value={stripPluginMentions(description)}
+                        onChange={() => undefined}
+                        onBlur={(markdown) => {
+                           const next = keepPluginMentions(markdown, description);
+                           if (next.trim() === description.trim()) return;
+                           updateIssueDescription(issueId, next);
+                        }}
+                        placeholder={dragging ? t('dropHere') : 'Add description…'}
+                        aria-label="Task description"
+                        className="min-h-24 [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold [&_.ProseMirror>:last-child]:!mb-0"
+                        aiAssist={false}
+                        formatting
+                     />
+                  ) : (
+                     <div
+                        role="textbox"
+                        aria-readonly="true"
+                        aria-label="Task description"
+                        tabIndex={0}
+                        onFocus={() => setEditing(true)}
+                        onClick={(event) => {
+                           if (!(event.target as HTMLElement).closest('a')) setEditing(true);
+                        }}
+                        className="tiptap-ai-editor formatting-editor min-h-24 cursor-text"
+                     >
+                        <div className="ProseMirror min-h-0 !font-thin [&_*]:!font-thin [&_strong]:!font-bold [&_b]:!font-bold [&_strong_*]:!font-bold [&_b_*]:!font-bold [&>:last-child]:!mb-0">
+                           {readable ? (
+                              <ChatMarkdown body={stripPluginMentions(description)} tone="page" />
+                           ) : (
+                              <p className="text-muted-foreground">
+                                 {dragging ? t('dropHere') : 'Add description…'}
+                              </p>
+                           )}
+                        </div>
+                     </div>
+                  )}
+               </div>
             </CollapsibleDescription>
          </div>
          <div className="-mt-0.5 flex justify-end">

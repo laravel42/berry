@@ -1,10 +1,21 @@
 import { MetaBadge } from '@/components/common/meta-badge';
-import { INTEGRATION_LOGOS } from '@/components/common/settings/integration-logos';
+import { ClaudeLogo } from '@/components/common/settings/logo-claude';
 import { cn } from '@/lib/utils';
 import { Cpu } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useId, type ReactNode } from 'react';
 
 type LogoProps = { className?: string };
+
+/**
+ * Any other integration's logo, fetched on first use: pulling the whole logo
+ * set in for one mark would put ~86 KB in every route that shows a badge.
+ * The placeholder holds the mark's box so nothing moves when it lands.
+ */
+const IntegrationLogo = dynamic(
+   () => import('@/components/common/settings/integration-logo-by-id'),
+   { loading: () => <span aria-hidden className="inline-block size-3.5" /> }
+);
 
 function GrokLogo({ className }: LogoProps) {
    return (
@@ -84,13 +95,15 @@ const RUNTIME_LOGOS: Record<string, (props: LogoProps) => ReactNode> = {
    kimi: KimiLogo,
    qoder: QoderLogo,
    openai: OpenAiLogo,
-   anthropic: INTEGRATION_LOGOS.claude,
+   anthropic: ClaudeLogo,
+   claude: ClaudeLogo,
    gemini: GeminiLogo,
 };
 
 function RuntimeMark({ runtimeId, className }: { runtimeId?: string | null; className?: string }) {
-   const Logo = runtimeId ? (RUNTIME_LOGOS[runtimeId] ?? INTEGRATION_LOGOS[runtimeId]) : undefined;
+   const Logo = runtimeId ? RUNTIME_LOGOS[runtimeId] : undefined;
    if (Logo) return <Logo className={className} />;
+   if (runtimeId) return <IntegrationLogo id={runtimeId} className={className} />;
    return <Cpu className={className} aria-hidden />;
 }
 
