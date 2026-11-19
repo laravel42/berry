@@ -57,11 +57,17 @@ export function AuthCard({
             AuthCard is mounted, in either theme. The rule goes with the page.
          */}
          <style>{':root:root:root{--app-frame:var(--background)}'}</style>
-         <main className="mx-auto flex w-full max-w-[470px] flex-1 flex-col items-center justify-center gap-5 px-5 py-10">
+         {/*
+            On a phone the whole screen (lockup, card, the lines under it and
+            the footer) fits one viewport: the vertical rhythm tightens below
+            sm, where every 8px is the difference between seeing the footer
+            and scrolling for it. Wider screens keep the roomier spacing.
+         */}
+         <main className="mx-auto flex w-full max-w-[470px] flex-1 flex-col items-center justify-center gap-4 px-4 py-5 sm:gap-5 sm:px-5 sm:py-10">
             <BerryWordmark size="xl" pulse />
 
-            <section className="flex w-full flex-col gap-5 rounded-card border bg-card p-6 shadow-sm">
-               <header className="flex flex-col gap-2 text-center">
+            <section className="flex w-full flex-col gap-4 rounded-card border bg-card p-5 shadow-sm sm:gap-5 sm:p-6">
+               <header className="flex flex-col gap-1.5 text-center sm:gap-2">
                   {onBack ? (
                      <Button
                         type="button"
@@ -116,7 +122,7 @@ export function AuthCard({
             ) : null}
          </main>
 
-         <footer className="flex shrink-0 items-center justify-between gap-4 px-5 pt-2 pb-5">
+         <footer className="flex shrink-0 items-center justify-between gap-4 px-4 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pt-2 sm:pb-5">
             <AuthThemeToggle />
             <p className="flex items-center gap-1.5 text-2xs text-subtle-foreground">
                Made with
