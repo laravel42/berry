@@ -44,7 +44,7 @@ export function UnsavedChangesBar({
          ref={ref}
          className="sticky bottom-0 z-10 flex w-full shrink-0 flex-wrap items-center gap-3 bg-[linear-gradient(to_top,color-mix(in_oklab,var(--status-warning)_12%,var(--container))_55%,transparent)] px-8 pt-10 pb-4"
       >
-         <span className="mr-auto text-status-warning">{t('unsaved')}</span>
+         <span className="mr-auto font-mono text-status-warning">{t('unsaved')}</span>
          <Button variant="ghost" disabled={busy} onClick={onDiscard}>
             {discardLabel ?? t('discard')}
          </Button>
