@@ -5,6 +5,7 @@ import { ArrowUp, Mic, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useComposerPalette } from '@/components/common/composer-palette';
+import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import type { Agent } from '@/lib/agents';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { MODE_COPY, ChatModeSelect } from './chat-mode-select';
@@ -162,6 +163,15 @@ export function ChatComposer({
                      />
                   </div>
                   <div className="flex items-center gap-2">
+                     <EmojiInsertButton
+                        textareaRef={input}
+                        value={value}
+                        onChange={onChange}
+                        disabled={disabled}
+                        align="end"
+                        side="top"
+                        className="rounded-full text-[var(--shell-text)] hover:bg-[var(--shell-line)] hover:text-[var(--shell-text)]"
+                     />
                      {false && onVoice ? (
                         <button
                            type="button"

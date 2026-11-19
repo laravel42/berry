@@ -287,6 +287,28 @@ a hand-built `AlertDialog`. Their confirm button now takes the destructive style
 contract requires for deletes. Both still close at once and report progress in the list, so
 `onConfirm` starts the work without awaiting it.
 
+## Emoji: `EmojiPicker`, `EmojiPickerPopover`, `EmojiInsertButton`
+
+`components/common/emoji-picker.tsx` wraps [emoji-mart](https://github.com/missive/emoji-mart):
+the whole catalogue, with search, categories, skin tones and the emoji used lately. The
+`emoji-mart` and `@emoji-mart/data` packages are imported only when a picker first opens, so
+a page that never opens one never downloads them. The picker draws in a shadow root and takes
+its colours as `r, g, b` triplets. They are read from `--popover`, `--popover-foreground`,
+`--primary` and `--background` when the picker opens, so it follows the theme with no colours
+of its own. It returns the emoji's character, skin tone included.
+
+- `EmojiPickerPopover`: a trigger that opens the catalogue and closes it on a choice. With
+  `quick`, the popover first offers that short row and a More button. `isActive` marks the
+  ones already chosen, and `returnFocusTo` says where focus goes on close.
+- `EmojiInsertButton`: the message box's button. It puts the emoji where the caret was, over
+  any selection, and hands focus back to the box. It is used by the task comment, project
+  update and chat composers.
+- **Reactions:** `ReactionBar` uses the popover with `QUICK_EMOJI` as its quick row. The quick
+  row toggles a reaction, as the chips do. From the catalogue, a reaction already given stays.
+
+The React wrapper `@emoji-mart/react` is not used: it declares React 18 at most, and the
+component builds emoji-mart's `Picker` element itself.
+
 ## `PageTitleBar`
 
 `PageTitleBar` is the top row of a list page. It holds the page's one `<h1>` and, as

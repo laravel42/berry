@@ -10,6 +10,7 @@ import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useComposerPalette } from '@/components/common/composer-palette';
+import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { useSessionStore } from '@/store/session-store';
 import { ProjectOverviewSkeleton } from '@/components/common/details/detail-skeletons';
@@ -164,6 +165,12 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                         )}
                      >
                         <div className="flex items-end gap-2">
+                           <EmojiInsertButton
+                              textareaRef={updateRef}
+                              value={draft}
+                              onChange={setDraft}
+                              side="top"
+                           />
                            <div className="relative min-w-0 flex-1">
                               {palette.list}
                               <textarea

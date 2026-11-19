@@ -2,6 +2,18 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Tarea padre y selector de emojis (2026-11-19)
+
+- **Tarea padre:** el enlace "↰ sub-task of BER-…" era una píldora con texto que, en una cabecera angosta (móvil o drawer), se dibujaba encima de la ruta de migas. Ahora es un botón fantasma solo con icono (`CornerLeftUp`, `icon-sm`) antes de la ruta. Lleva la etiqueta accesible "Open the parent task, BER-…", y al pasar el cursor muestra "Sub-task of BER-…: título". La ruta recorta lo que no cabe (`overflow-hidden`, y el proyecto puede encogerse).
+- **Emojis:** se añadió emoji-mart (`emoji-mart` 5.6.0 y `@emoji-mart/data` 1.2.1) en `components/common/emoji-picker.tsx`. Tiene búsqueda, categorías, tonos de piel y "usados recientemente". Se carga solo al abrirse, y sus colores se leen de los tokens del tema, en claro y en oscuro. No se usa `@emoji-mart/react` porque declara React 18 como máximo.
+  - **Reacciones de comentarios:** primero la fila rápida de siempre, y un botón "+" (More emoji) abre el catálogo completo en el mismo popover.
+  - **Compositores:** comentarios de tarea (también las respuestas), actualizaciones de proyecto y chat tienen un botón 🙂 que inserta el emoji donde estaba el cursor.
+- **Verificado a 390 y 1280 px, en claro y oscuro:**
+  - El catálogo cabe en pantalla: 316×416 px en móvil.
+  - Elegir 🎉 desde la búsqueda crea la reacción.
+  - El compositor queda "hola 🚀" con el foco devuelto.
+  - La reacción de prueba se borró después.
+
 ## Cabecera del agente: estado, tier y avisos (2026-11-19)
 
 Bajo el nombre del agente había tres piezas de alturas distintas: "Working" (33 px), el tier "Mid" (20 px) y el aviso de runtime (22 px, de tres líneas en móvil).

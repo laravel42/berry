@@ -1,15 +1,20 @@
 'use client';
 
+import { EmojiPickerPopover } from '@/components/common/emoji-picker';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { loadReactions, QUICK_EMOJI, toggleReaction, type ReactionGroup } from '@/lib/reactions';
 import { cn } from '@/lib/utils';
 import { SmilePlus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-/** Reaction chips for a task or a comment, plus a small picker. */
+/**
+ * Reaction chips for a task or a comment, and the button that adds one: the
+ * usual few in one tap, the whole emoji catalogue behind More.
+ */
 export function ReactionBar({ target, id }: { target: 'issue' | 'comment'; id: string }) {
+   const t = useTranslations('common.reactions');
    const [groups, setGroups] = useState<ReactionGroup[]>([]);
 
    useEffect(() => {
@@ -23,11 +28,13 @@ export function ReactionBar({ target, id }: { target: 'issue' | 'comment'; id: s
       };
    }, [target, id]);
 
+   const reacted = (emoji: string) =>
+      groups.find((group) => group.emoji === emoji)?.reactedByMe ?? false;
+
    const toggle = (emoji: string) => {
-      const reacted = groups.find((group) => group.emoji === emoji)?.reactedByMe ?? false;
-      void toggleReaction(target, id, emoji, reacted)
+      void toggleReaction(target, id, emoji, reacted(emoji))
          .then(setGroups)
-         .catch(() => toast.error('The reaction could not be saved.'));
+         .catch(() => toast.error(t('failed')));
    };
 
    return (
@@ -47,25 +54,19 @@ export function ReactionBar({ target, id }: { target: 'issue' | 'comment'; id: s
                {group.emoji} {group.count}
             </Button>
          ))}
-         <Popover>
-            <PopoverTrigger asChild>
-               <Button variant="ghost" size="icon-sm" aria-label="Add reaction">
-                  <SmilePlus className="size-4" />
-               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="flex w-auto gap-1 p-1.5" align="start">
-               {QUICK_EMOJI.map((emoji) => (
-                  <button
-                     key={emoji}
-                     type="button"
-                     className="rounded px-1.5 py-1 hover:bg-accent"
-                     onClick={() => toggle(emoji)}
-                  >
-                     {emoji}
-                  </button>
-               ))}
-            </PopoverContent>
-         </Popover>
+         <EmojiPickerPopover
+            quick={QUICK_EMOJI}
+            isActive={reacted}
+            // The quick row toggles, as the chips do. From the catalogue a
+            // reaction already given stays given rather than being taken back.
+            onSelect={(emoji, from) => {
+               if (from === 'quick' || !reacted(emoji)) toggle(emoji);
+            }}
+         >
+            <Button variant="ghost" size="icon-sm" aria-label={t('add')} title={t('add')}>
+               <SmilePlus className="size-4" />
+            </Button>
+         </EmojiPickerPopover>
       </div>
    );
 }

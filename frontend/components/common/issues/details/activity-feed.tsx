@@ -4,6 +4,7 @@ import { useShortcut } from '@/components/layout/shortcut-provider';
 import { BerryMark } from '@/components/brand/berry-mark';
 import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
+import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
 import { AttachedFileList } from '@/components/common/issues/details/file-list';
 import { Button } from '@/components/ui/button';
@@ -1055,6 +1056,12 @@ export function ActivityCommentComposer({
                      <Paperclip className="size-4" />
                   )}
                </Button>
+               <EmojiInsertButton
+                  textareaRef={textareaRef}
+                  value={draft}
+                  onChange={setDraft}
+                  side="top"
+               />
                <input
                   ref={filePicker}
                   type="file"

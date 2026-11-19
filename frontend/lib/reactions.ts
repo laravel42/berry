@@ -11,7 +11,7 @@ const groupSchema = z.object({
 export type ReactionGroup = z.infer<typeof groupSchema>;
 const groupsSchema = z.object({ nodes: z.array(groupSchema) });
 
-/** The picker's fixed set: enough to react, without an emoji catalogue. */
+/** The quick row of the reaction picker: the usual few, one tap each. The whole catalogue is behind its More. */
 export const QUICK_EMOJI = ['👍', '🎉', '❤️', '👀', '🚀', '😄'] as const;
 
 type Target = 'issue' | 'comment';

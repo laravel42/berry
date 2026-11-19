@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect, within } from 'storybook/test';
+import { expect, waitFor, within } from 'storybook/test';
 import type { ReactionGroup } from '@/lib/reactions';
 import { IssueReactions, ReactionBar } from './issue-reactions';
 
@@ -69,6 +69,18 @@ export const AddFromPicker: Story = {
       const body = within(canvasElement.ownerDocument.body);
       await userEvent.click(await body.findByRole('button', { name: '👀' }));
       await expect(await canvas.findByRole('button', { name: '👀 1' })).toBeInTheDocument();
+   },
+};
+
+/** More swaps the quick row for the whole emoji catalogue, in the same popover. */
+export const OpenTheWholeCatalogue: Story = {
+   play: async ({ canvas, canvasElement, userEvent }) => {
+      await userEvent.click(canvas.getByRole('button', { name: 'Add reaction' }));
+      const body = within(canvasElement.ownerDocument.body);
+      await userEvent.click(await body.findByRole('button', { name: 'More emoji' }));
+      await waitFor(() =>
+         expect(canvasElement.ownerDocument.querySelector('em-emoji-picker')).not.toBeNull()
+      );
    },
 };
 

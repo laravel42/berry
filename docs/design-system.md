@@ -300,7 +300,8 @@ requires. State the condition in words alongside it; the dot is never the only s
 Above the primitives, `frontend/components/README.md` catalogues the shared product
 components: the property pickers (`OptionPicker`, `PriorityPicker`, `StatusPicker`,
 `LeadPicker`), `EmptyState`, `SegmentedControl`, `StatusBadge`, `ConfirmAction`,
-`PageTitleBar`, the detail section labels and `StatTile`. Reach for one of these before
+`PageTitleBar`, the detail section labels, `StatTile` and the emoji picker
+(`EmojiPicker`, `EmojiPickerPopover`, `EmojiInsertButton`). Reach for one of these before
 writing a feature-local copy of the same pattern, and add new shared components there with
 their purpose, props, accessibility notes and what they replaced. Each has a Storybook file
 whose `play` functions are its tests.
