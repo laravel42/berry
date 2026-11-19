@@ -145,7 +145,7 @@ export function BerryMark({
  * Lockup heights, in pixels. The lockup is the brand asset, so it scales as
  * one drawing; do not restyle it from the UI type scale.
  */
-const wordmarkSizes = { sm: 18, md: 22, lg: 28 } as const;
+const wordmarkSizes = { sm: 18, md: 22, lg: 28, xl: 40 } as const;
 
 /** The asset is 352 wide on a 100 grid, so a height picks the width. */
 const LOCKUP_RATIO = 3.52;
@@ -187,7 +187,18 @@ interface BerryWordmarkProps {
     * element of its own.
     */
    href?: string | null;
+   /** The berry breathes, as BerryMark's `pulse` does: the dot and a ring around it. */
+   pulse?: boolean;
 }
+
+/**
+ * BerryMark's pulse, for a dot that is not at the centre of its drawing. In
+ * the 100x100 mark the view box's centre is the dot's, so `origin-center` is
+ * enough; on the 352x100 lockup it would scale the dot toward the middle of
+ * the word, so the box becomes the circle's own.
+ */
+const lockupPulse =
+   'origin-center [transform-box:fill-box] animate-[berry-working_2s_ease-in-out_infinite]';
 
 /** The pulsing mark and a line, centred, while a pane is still fetching. */
 export function BerryLoading({ label, className }: { label: string; className?: string }) {
@@ -204,7 +215,13 @@ export function BerryLoading({ label, className }: { label: string; className?: 
    );
 }
 
-function WordmarkLabel({ size }: { size: keyof typeof wordmarkSizes }) {
+function WordmarkLabel({
+   size,
+   pulse = false,
+}: {
+   size: keyof typeof wordmarkSizes;
+   pulse?: boolean;
+}) {
    const height = wordmarkSizes[size];
    return (
       <svg
@@ -218,7 +235,21 @@ function WordmarkLabel({ size }: { size: keyof typeof wordmarkSizes }) {
          focusable="false"
       >
          <path d={BRACKETS} />
-         <circle cx="50" cy="50" r={DOT} className="text-lockup-berry" />
+         {pulse ? (
+            <circle
+               cx="50"
+               cy="50"
+               r="35"
+               className={cn('fill-none stroke-current text-lockup-berry', lockupPulse)}
+               strokeWidth="4.7"
+            />
+         ) : null}
+         <circle
+            cx="50"
+            cy="50"
+            r={DOT}
+            className={cn('text-lockup-berry', pulse && lockupPulse)}
+         />
          {WORD_LETTERS.map((d) => (
             <path key={d.slice(0, 12)} d={d} />
          ))}
@@ -227,20 +258,25 @@ function WordmarkLabel({ size }: { size: keyof typeof wordmarkSizes }) {
    );
 }
 
-export function BerryWordmark({ className, size = 'md', href = '/' }: BerryWordmarkProps) {
+export function BerryWordmark({
+   className,
+   size = 'md',
+   href = '/',
+   pulse = false,
+}: BerryWordmarkProps) {
    const lockup = cn('inline-flex items-center text-inherit no-underline', className);
 
    if (href === null) {
       return (
          <span className={lockup} aria-hidden>
-            <WordmarkLabel size={size} />
+            <WordmarkLabel size={size} pulse={pulse} />
          </span>
       );
    }
 
    return (
       <a href={href} aria-label="Berry home" className={lockup}>
-         <WordmarkLabel size={size} />
+         <WordmarkLabel size={size} pulse={pulse} />
       </a>
    );
 }

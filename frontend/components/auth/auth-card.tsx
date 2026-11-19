@@ -58,7 +58,7 @@ export function AuthCard({
          */}
          <style>{':root:root:root{--app-frame:var(--background)}'}</style>
          <main className="mx-auto flex w-full max-w-[470px] flex-1 flex-col items-center justify-center gap-5 px-5 py-10">
-            <BerryWordmark size="lg" />
+            <BerryWordmark size="xl" pulse />
 
             <section className="flex w-full flex-col gap-5 rounded-card border bg-card p-6 shadow-sm">
                <header className="flex flex-col gap-2 text-center">
