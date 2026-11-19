@@ -1,8 +1,9 @@
 'use client';
 
-import { ChevronLeft, CircleAlert } from 'lucide-react';
+import { ChevronLeft, CircleAlert, Heart } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { AuthThemeToggle } from '@/components/auth/auth-theme-toggle';
 import { BerryWordmark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,14 +45,19 @@ export function AuthCard({
    className,
 }: AuthCardProps) {
    return (
-      <div className={cn('h-full overflow-y-auto bg-background text-foreground', className)}>
+      <div
+         className={cn(
+            'flex h-full flex-col overflow-y-auto bg-background text-foreground',
+            className
+         )}
+      >
          {/*
             A page with no shell has nothing for the app frame (the body
             border) to frame, so the frame takes the page colour while an
             AuthCard is mounted, in either theme. The rule goes with the page.
          */}
          <style>{':root:root:root{--app-frame:var(--background)}'}</style>
-         <main className="mx-auto flex min-h-full w-full max-w-[470px] flex-col items-center justify-center gap-5 px-5 py-10">
+         <main className="mx-auto flex w-full max-w-[470px] flex-1 flex-col items-center justify-center gap-5 px-5 py-10">
             <BerryWordmark size="lg" />
 
             <section className="flex w-full flex-col gap-5 rounded-card border bg-card p-6 shadow-sm">
@@ -109,6 +115,15 @@ export function AuthCard({
                </div>
             ) : null}
          </main>
+
+         <footer className="flex shrink-0 items-center justify-between gap-4 px-5 pt-2 pb-5">
+            <AuthThemeToggle />
+            <p className="flex items-center gap-1.5 text-2xs text-subtle-foreground">
+               Made with
+               <Heart role="img" aria-label="love" className="size-3.5 fill-current text-primary" />
+               by <span className="font-semibold text-muted-foreground">Laravel42</span>
+            </p>
+         </footer>
       </div>
    );
 }
