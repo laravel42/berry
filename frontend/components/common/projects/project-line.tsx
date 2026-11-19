@@ -121,7 +121,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                            onChange={(member) => updateProjectLead(project.id, member)}
                         >
                            <Button
-                              className="flex h-7 w-full min-w-0 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                              className="w-full min-w-0 justify-start gap-1 px-2 has-[>svg]:px-2"
                               size="sm"
                               variant="ghost"
                               role="combobox"

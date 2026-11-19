@@ -596,7 +596,7 @@ export function Chat() {
                            setRenaming(true);
                         }}
                         title={t('rename')}
-                        className="min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+                        className="h-(--field-h) min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
                      >
                         {active.topic}
                      </button>
@@ -616,7 +616,7 @@ export function Chat() {
                         <button
                            type="button"
                            aria-label={t('headerMenu')}
-                           className="flex size-8 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] max-lg:size-11"
+                           className="flex size-(--field-h) flex-none items-center justify-center rounded-full text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
                         >
                            <MoreHorizontal className="size-4" />
                         </button>

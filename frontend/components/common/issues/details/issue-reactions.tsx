@@ -33,28 +33,34 @@ export function ReactionBar({ target, id }: { target: 'issue' | 'comment'; id: s
    return (
       <div className="flex flex-wrap items-center gap-1.5">
          {groups.map((group) => (
-            <button
+            <Button
                key={group.emoji}
-               type="button"
+               variant="outline"
+               size="sm"
                onClick={() => toggle(group.emoji)}
                aria-pressed={group.reactedByMe}
                className={cn(
-                  'inline-flex items-center gap-1 rounded-full border border-border/60 px-2 py-0.5',
+                  'gap-1 px-2.5 font-normal shadow-none',
                   group.reactedByMe ? 'bg-accent' : 'bg-transparent'
                )}
             >
                {group.emoji} {group.count}
-            </button>
+            </Button>
          ))}
          <Popover>
             <PopoverTrigger asChild>
-               <Button variant="ghost" size="icon" className="size-7" aria-label="Add reaction">
+               <Button variant="ghost" size="icon-sm" aria-label="Add reaction">
                   <SmilePlus className="size-4" />
                </Button>
             </PopoverTrigger>
             <PopoverContent className="flex w-auto gap-1 p-1.5" align="start">
                {QUICK_EMOJI.map((emoji) => (
-                  <button key={emoji} type="button" className="rounded px-1.5 py-1 hover:bg-accent" onClick={() => toggle(emoji)}>
+                  <button
+                     key={emoji}
+                     type="button"
+                     className="rounded px-1.5 py-1 hover:bg-accent"
+                     onClick={() => toggle(emoji)}
+                  >
                      {emoji}
                   </button>
                ))}

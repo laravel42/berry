@@ -415,7 +415,7 @@ function CommentCard({
                <ReactionBar target="comment" id={comment.id} />
                <Button
                   variant="ghost"
-                  size="xxs"
+                  size="sm"
                   className="text-muted-foreground"
                   onClick={() => setReplying((value) => !value)}
                >
@@ -424,7 +424,7 @@ function CommentCard({
                {!comment.parentId ? (
                   <Button
                      variant="ghost"
-                     size="xxs"
+                     size="sm"
                      className="text-muted-foreground"
                      onClick={() => (comment.resolvedAt ? resolve(false, '') : setResolving(true))}
                   >
@@ -434,7 +434,7 @@ function CommentCard({
                {replies.length > 0 ? (
                   <Button
                      variant="ghost"
-                     size="xxs"
+                     size="sm"
                      className="text-muted-foreground"
                      aria-expanded={!collapsed}
                      onClick={() => setCollapsed((value) => !value)}

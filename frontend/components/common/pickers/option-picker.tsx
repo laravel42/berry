@@ -129,8 +129,8 @@ export function OptionPicker({
 type PickerButtonProps = Omit<ComponentProps<typeof Button>, 'variant' | 'size' | 'role'>;
 
 /**
- * A 28px ghost square holding only a glyph, for dense rows and property
- * panels. It has no visible text, so `aria-label` is required: name the
+ * A ghost square at the field height holding only a glyph, for rows and
+ * property panels, so it lines up with the other controls on its line. It has no visible text, so `aria-label` is required: name the
  * property and its current value ("Priority: Urgent").
  */
 export function PickerIconButton({
@@ -138,13 +138,7 @@ export function PickerIconButton({
    ...props
 }: PickerButtonProps & { 'aria-label': string }) {
    return (
-      <Button
-         role="combobox"
-         size="icon"
-         variant="ghost"
-         className={cn('flex size-7 items-center justify-center', className)}
-         {...props}
-      />
+      <Button role="combobox" size="icon-sm" variant="ghost" className={className} {...props} />
    );
 }
 

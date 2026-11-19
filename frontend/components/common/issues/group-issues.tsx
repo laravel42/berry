@@ -103,8 +103,7 @@ function GroupHeaderBar({
 
    const createButton = (
       <Button
-         className={cn(isViewTypeGrid ? 'size-5' : 'size-6')}
-         size="icon"
+         size="icon-sm"
          variant="ghost"
          aria-label={`Create task in ${group.name}`}
          onClick={(event) => {
@@ -112,7 +111,7 @@ function GroupHeaderBar({
             openModal(group.status);
          }}
       >
-         <Plus className={cn(isViewTypeGrid ? 'size-3.5' : 'size-4')} />
+         <Plus className="size-4" />
       </Button>
    );
 

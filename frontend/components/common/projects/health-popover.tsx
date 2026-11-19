@@ -104,7 +104,7 @@ export function HealthPopover({
             ) : (
                <Button
                   id={id}
-                  className="flex h-7 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                  className="justify-start gap-1 px-2 has-[>svg]:px-2"
                   size="sm"
                   variant="ghost"
                   role="combobox"

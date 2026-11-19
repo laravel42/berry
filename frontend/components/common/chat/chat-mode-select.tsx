@@ -49,7 +49,7 @@ export function ChatModeSelect({ disabled = false }: { disabled?: boolean }) {
                type="button"
                disabled={disabled}
                aria-label={t('modeCurrent', { mode: currentName })}
-               className="flex h-6 min-w-0 items-center gap-1 rounded-[5px] bg-[var(--shell-line)] px-2.5 text-[var(--shell-text-muted)] transition-colors hover:text-[var(--shell-text)] outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[var(--shell-text-muted)]"
+               className="flex h-(--field-h) min-w-0 items-center gap-1 rounded-full bg-[var(--shell-line)] px-3 text-[var(--shell-text-muted)] transition-colors hover:text-[var(--shell-text)] outline-none disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:text-[var(--shell-text-muted)]"
             >
                <Current className="size-3.5 flex-none" aria-hidden />
                <span className="truncate">{currentName}</span>

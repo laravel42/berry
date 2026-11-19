@@ -168,7 +168,7 @@ export function ChatComposer({
                            onClick={onVoice ?? undefined}
                            aria-label={t('voiceOpen')}
                            title={t('voiceOpen')}
-                           className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)]"
+                           className="flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)]"
                         >
                            <Mic className="size-4" aria-hidden />
                         </button>
@@ -179,7 +179,7 @@ export function ChatComposer({
                            onClick={onStop}
                            aria-label={t('stopReply')}
                            title={t('stopReply')}
-                           className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full bg-[var(--shell-text)] text-[var(--shell-canvas)] transition-colors hover:opacity-90"
+                           className="flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full bg-[var(--shell-text)] text-[var(--shell-canvas)] transition-colors hover:opacity-90"
                         >
                            <Square className="size-3 fill-current" aria-hidden />
                         </button>
@@ -191,7 +191,7 @@ export function ChatComposer({
                            aria-label={sendLabel}
                            title={sendLabel}
                            className={[
-                              'flex size-8 flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
+                              'flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
                               SEND_VARIANT[sendVariant],
                            ].join(' ')}
                         >

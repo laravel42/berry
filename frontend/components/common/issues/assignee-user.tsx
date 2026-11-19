@@ -180,8 +180,10 @@ export function AssigneeUser({
                   )}
                </Button>
             ) : (
-               <button
-                  type="button"
+               // The field height, like the priority and status beside it.
+               <Button
+                  variant="ghost"
+                  size={showName && currentAssignee ? 'sm' : 'icon-sm'}
                   aria-haspopup="listbox"
                   aria-expanded={open}
                   aria-label={
@@ -190,8 +192,8 @@ export function AssigneeUser({
                         : t('unassigned')
                   }
                   className={cn(
-                     'relative flex min-w-0 items-center gap-1.5 rounded-sm outline-none transition-colors hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:none)]:-m-0.5 [@media(hover:none)]:min-h-6 [@media(hover:none)]:min-w-6 [@media(hover:none)]:justify-center',
-                     showName ? 'max-w-full' : 'w-fit'
+                     'relative min-w-0 gap-1.5 font-normal',
+                     showName && currentAssignee ? 'max-w-full justify-start px-1.5' : 'w-fit'
                   )}
                >
                   {currentAssignee ? (
@@ -220,7 +222,7 @@ export function AssigneeUser({
                   ) : (
                      <AssigneePlaceholder />
                   )}
-               </button>
+               </Button>
             )}
          </PopoverTrigger>
          <PopoverContent

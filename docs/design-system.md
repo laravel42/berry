@@ -161,7 +161,8 @@ Controls come in two heights, and the size prop picks one. A height is never set
 | 44 px | `--ctl-h` | `Button` at its default size, `Input size="lg"` |
 
 Controls that share a line are one height. A field and the buttons beside it (a settings
-row, a toolbar, an add-row) take 32 px. A button that stands on its own takes 44 px: a
+row, a toolbar, an add-row) take 32 px, and so do a list row's pickers and icon actions
+(`PickerIconButton`, a row menu, a delete). A button that stands on its own takes 44 px: a
 page's primary action, a dialog footer. A field beside one of those takes `size="lg"`.
 
 Every control is a pill. Settings has no controls of its own: its fields, selects, search,

@@ -161,11 +161,22 @@ export default function SkillLabelsSettings() {
                      className="flex min-h-[42px] min-w-0 items-center gap-2 rounded-[10px] bg-settings-group pr-1.5 pl-3 transition-colors hover:bg-settings-row-hover"
                   >
                      <Popover>
-                        <PopoverTrigger
-                           aria-label={t('changeColour', { name: label.name })}
-                           className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none [@media(hover:none)]:-mx-[7px] [@media(hover:none)]:size-6 [@media(hover:none)]:bg-clip-content [@media(hover:none)]:p-[7px] focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
-                           style={{ backgroundColor: label.color }}
-                        />
+                        {/* A field-height button around the dot, so the row's controls share
+                            one height; the negative margin keeps the dot where it was. */}
+                        <PopoverTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={t('changeColour', { name: label.name })}
+                              className="-mx-[11px] shrink-0"
+                           >
+                              <span
+                                 aria-hidden
+                                 className="size-2.5 rounded-full"
+                                 style={{ backgroundColor: label.color }}
+                              />
+                           </Button>
+                        </PopoverTrigger>
                         <PopoverContent align="start" className="w-auto p-3">
                            <div className="grid grid-cols-4 gap-2">
                               {PALETTE.map((colour) => (

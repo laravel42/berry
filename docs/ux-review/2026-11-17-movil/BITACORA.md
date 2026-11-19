@@ -29,12 +29,16 @@ Settings tenía controles propios: campos y selects rectangulares, una búsqueda
 - Logs, el editor de horario de Loops y los días del trigger dejaron de escribir 30 px a mano.
 - **Medición:** con `TOL=0`, Inbox, My tasks, Projects, Cycles, Tasks, Agents, Skills, los dos catálogos, Connect, Usage y Views salen sin diferencias en sus barras, a 1440 y 390 px.
 
-**Quedan, fuera de las barras** (son filas de lista, no formularios; no se tocaron):
-- En las filas de Tasks: prioridad 28, estado 28 y asignado 24.
-- En las tarjetas de Loops: menú 24 y Pause/Resume 22.
-- En los comentarios: reacción 28, Reply 24 y Resolve 24.
-- En el chat: el chip de modo 24 junto a Send 32.
-- En Reviews a 390 px: "All reviews" 28 junto a Accept/Decline 44.
+**Filas de lista (tercer commit; el usuario pidió igualarlas también):**
+- **Botones de icono a 32 px (`icon-sm`):** `PickerIconButton` (prioridad y estado en las filas y los paneles), el "+" de los grupos de tareas, el menú de las tarjetas de Loops, el menú de los comentarios, "Add reaction", el borrar de los hitos y la muestra de color de los labels.
+- **Botones con texto a 32 px (`sm`):** el asignado de las filas, las reacciones, Reply/Resolve y la fecha de los hitos.
+- **Filas de Projects:** Health, Lead, la fecha, el estado y Cancel en Runs eran `size="sm"` con un `h-7` o `h-8` a mano. Se quitó ese añadido.
+- **Chat:** el chip de modo, el título y los botones del compositor miden 32 (`--field-h`) y son píldora. El menú de la cabecera ya no sube a 44 en el teléfono.
+- **Reviews en el teléfono:** la flecha "All reviews" mide 44, como Accept y Decline, que comparten su línea.
+- **Sonda:** los switches quedan fuera de la medición, igual que los checkboxes. Se dibujan por debajo de la altura de control a propósito.
+- **Medición:** con `TOL=0` en todas las rutas, a 1440 y 390 px, solo queda la cabecera de los grupos de Tasks. Es el área de clic de toda la cabecera (36 px) junto al "+" (32), no una caja visible.
+
+**Aviso de datos:** a las 01:45:56 UTC del 19 de noviembre (19:45 hora local), una sola actualización en bloque asignó todas las tareas del tablero a Liam Novak. Los scripts de medición solo leen páginas, no hacen clic. No se pudo saber quién la hizo, porque la API no registra las peticiones.
 
 ## Espacio al final de Settings (2026-11-18)
 

@@ -18,6 +18,7 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import type { Autopilot } from '@/lib/autopilots';
 import { cn } from '@/lib/utils';
@@ -91,13 +92,14 @@ export default function LoopCard({
                {canEdit ? (
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
-                        <button
-                           type="button"
+                        <Button
+                           variant="ghost"
+                           size="icon-sm"
                            aria-label={t('row.menu')}
-                           className="rounded-md p-1 text-muted-foreground [@media(hover:hover)]:opacity-0 transition-opacity hover:text-foreground [@media(hover:hover)]:focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+                           className="text-muted-foreground transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:focus-visible:opacity-100 [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
                         >
                            <MoreHorizontal className="size-4" />
-                        </button>
+                        </Button>
                      </DropdownMenuTrigger>
                      <DropdownMenuContent align="end" className="min-w-44">
                         <DropdownMenuItem asChild>

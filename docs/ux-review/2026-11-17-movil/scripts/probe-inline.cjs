@@ -19,7 +19,8 @@ function rowsWithMixedHeights(tol) {
    const units = new Set();
    for (const c of raw) {
       if (c.closest('[role=menu], [role=listbox], [role=dialog] [role=option], [data-radix-popper-content-wrapper]')) continue;
-      if (c.getAttribute('role') === 'checkbox' || c.dataset.slot === 'checkbox') continue;
+      // Checkboxes and switches are drawn under the control height on purpose.
+      if (c.getAttribute('role') === 'checkbox' || c.dataset.slot === 'checkbox' || c.getAttribute('role') === 'switch') continue;
       const g = c.closest('[role=group], [role=tablist], [role=radiogroup]');
       units.add(g && g.querySelectorAll('button, [role=tab], [role=radio]').length > 1 ? g : c);
    }

@@ -269,7 +269,6 @@ export default function RunOverview() {
                      <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8"
                         disabled={cancelling}
                         onClick={() => void onCancelSelected()}
                      >
