@@ -2,6 +2,12 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Ajuste: los controles en línea a 40 px (2026-11-18)
+
+Después de ver la prueba a 44 px, el usuario pidió bajarla un poco. `--field-h` queda en 40 px (`2.5rem`), entre los 32 de antes y los 44 del botón suelto. No hizo falta tocar ningún componente, porque todos toman la altura del token.
+
+Solo cambió una cosa: el textarea de los compositores (comentarios y Post update) calcula su relleno a partir de `--field-h` (`py-[calc((var(--field-h)-1.25rem)/2)]`). Así mide lo mismo que sus botones con cualquier valor del token.
+
 ## Prueba: todos los controles en línea a 44 px (2026-11-18)
 
 El usuario pidió poner a 44 px los controles que comparten línea (antes 32) para ver cómo queda. Es una prueba: si no convence, basta con volver `--field-h` a `2rem` en `app/globals.css`.

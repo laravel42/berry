@@ -154,11 +154,11 @@ The frontend uses Tailwind's 4 px spacing base. Its working compact scale is:
 
 Controls take their height from two tokens, and the size prop picks one. A height is never
 set in a `className` (`h-[30px]`, `!h-…`, `min-h-11`), so a change to a token reaches every
-control. Both are 44 px today (on trial since 2026-11-18; `--field-h` was 32 px):
+control. `--field-h` is 40 px (on trial since 2026-11-18; it was 32 px, then 44 px):
 
 | Height | Token | What takes it |
 | --- | --- | --- |
-| 44 px | `--field-h` | `Input` (and `variant="search"`, `variant="inline"`), `SelectTrigger` and `selectTriggerClass`, settings' `SelectMenu`, `Button size="sm"`, `Button size="icon-sm"`, `TabsList`, `SegmentedControl` and `segmentTrackClass`, a list's group header |
+| 40 px | `--field-h` | `Input` (and `variant="search"`, `variant="inline"`), `SelectTrigger` and `selectTriggerClass`, settings' `SelectMenu`, `Button size="sm"`, `Button size="icon-sm"`, `TabsList`, `SegmentedControl` and `segmentTrackClass`, a list's group header |
 | 44 px | `--ctl-h` | `Button` at its default size, `Input size="lg"` |
 
 Controls that share a line are one height. A field and the buttons beside it (a settings
