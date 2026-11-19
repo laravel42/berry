@@ -74,7 +74,7 @@ function UsageScreen() {
    const header = (
       <>
          <PageKpiHeader label={t('title')} />
-         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
+         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px]">
             <Tabs value={tab} onValueChange={(value) => open(value as Tab)}>
                <TabsList aria-label={t('tabs.label')}>
                   {TABS.map((name) => (

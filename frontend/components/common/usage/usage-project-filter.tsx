@@ -48,10 +48,11 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                 the Projects rail icon. */}
             <Button
                variant="outline"
+               // Field height, like the range control and the tabs on its line.
+               size="sm"
                role="combobox"
                aria-label={`${t('project')}: ${chosen ? chosen.name : t('allProjects')}`}
-               // Field height, like the range control and the tabs on its line.
-               className="max-w-56 min-h-(--field-h) border-muted-foreground/15"
+               className="max-w-56 border-muted-foreground/15"
             >
                <Box className="size-4" />
                <span className="truncate">{chosen ? chosen.name : t('allProjects')}</span>

@@ -111,7 +111,7 @@ export default function AutopilotsFilters({
    return (
       // Filter on the left, the All | Archived scope on the right; `ml-auto`
       // keeps the scope right-aligned when the row wraps on a narrow screen.
-      <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-6 py-2 [&_button]:!h-[30px]">
+      <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-6 py-2">
          <ListFilterTrigger filter={filter} />
          <Tabs
             value={scope}

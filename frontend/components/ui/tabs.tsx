@@ -98,7 +98,7 @@ function TabsTrigger({
          className={cn(
             "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium transition-[color,box-shadow] focus-visible:ring-2 focus-visible:ring-foreground/20 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
             variant === 'pill'
-               ? 'relative isolate h-[26px] rounded-[5px] px-3 transition-colors data-[slot=tabs-trigger]:!h-[26px] hover:text-foreground data-[state=active]:text-foreground'
+               ? 'relative isolate h-[26px] rounded-[5px] px-3 transition-colors hover:text-foreground data-[state=active]:text-foreground'
                : 'h-10 rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none',
             className
          )}

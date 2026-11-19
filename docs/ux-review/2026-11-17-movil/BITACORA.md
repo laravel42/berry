@@ -21,9 +21,20 @@ Settings tenía controles propios: campos y selects rectangulares, una búsqueda
 - `probe-inline.cjs` acepta ahora `TOL` (la tolerancia en px). Con `TOL=0`, las 19 pantallas de Settings salen sin diferencias a 1440 y 390 px.
 - Solo aparecen dos casos que no son controles visibles: la muestra de color de los labels y la zona de clic invisible de la cabecera de cada tier.
 
-**Pendiente:**
-- Las barras de filtros fuera de Settings todavía fuerzan 30 px con `[&_button]:!h-[30px]` (12 barras).
-- `SegmentedControl` sigue midiendo 30 px.
+**Barras de filtros (segundo commit):**
+- Se quitó `[&_button]:!h-[30px]` de las 12 barras. Cada control mide ahora lo que dice su `size`:
+  - el filtro (`track`), las pestañas y el control segmentado miden 32;
+  - el menú de Inbox, el botón de refrescar de Usage y el filtro de proyecto de Usage pasaron a `icon-sm`/`sm`.
+- Ya no hacían falta los `!h-[26px]` de `TabsTrigger` y `SegmentedControl`, que solo existían para ganarle a esas barras. Se quitó también la talla `md` de `SegmentedControl`, que nadie usaba.
+- Logs, el editor de horario de Loops y los días del trigger dejaron de escribir 30 px a mano.
+- **Medición:** con `TOL=0`, Inbox, My tasks, Projects, Cycles, Tasks, Agents, Skills, los dos catálogos, Connect, Usage y Views salen sin diferencias en sus barras, a 1440 y 390 px.
+
+**Quedan, fuera de las barras** (son filas de lista, no formularios; no se tocaron):
+- En las filas de Tasks: prioridad 28, estado 28 y asignado 24.
+- En las tarjetas de Loops: menú 24 y Pause/Resume 22.
+- En los comentarios: reacción 28, Reply 24 y Resolve 24.
+- En el chat: el chip de modo 24 junto a Send 32.
+- En Reviews a 390 px: "All reviews" 28 junto a Accept/Decline 44.
 
 ## Espacio al final de Settings (2026-11-18)
 

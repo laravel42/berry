@@ -60,9 +60,8 @@ export default function UsageFilters({
          <span className="ml-auto flex items-center gap-2 text-muted-foreground">
             {lastUpdated ? t('updated', { when: lastUpdated.toLocaleTimeString() }) : t('never')}
             <Button
-               size="icon"
+               size="icon-sm"
                variant="ghost"
-               className="size-(--field-h)"
                aria-label={t('refresh')}
                disabled={loading}
                onClick={onRefresh}

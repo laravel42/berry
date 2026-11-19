@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { selectTriggerClass } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { describeAutopilotFailure, previewCron } from '@/lib/autopilots';
 import {
@@ -286,7 +287,6 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                      <span className="text-muted-foreground">{t('time')}</span>
                      <Input
                         type="time"
-                        className="h-[30px]"
                         value={clock(schedule.hour, schedule.minute)}
                         onChange={(event) => set(readClock(event.target.value, schedule))}
                      />
@@ -326,7 +326,7 @@ export default function ScheduleEditor({ expression, timezone, onChange }: Props
                               <label key={edge} className="grid gap-1.5">
                                  <span className="text-muted-foreground">{t(edge)}</span>
                                  <select
-                                    className="h-[30px] rounded-[7px] border bg-card px-2 text-foreground"
+                                    className={selectTriggerClass}
                                     value={schedule.window?.[edge] ?? (edge === 'from' ? 9 : 17)}
                                     onChange={(event) =>
                                        set({

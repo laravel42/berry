@@ -387,7 +387,7 @@ function ScheduleRows({
                               })
                            }
                            className={cn(
-                              'h-[30px] min-w-0 truncate rounded-[7px] border font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
+                              'h-(--field-h) min-w-0 truncate rounded-pill border font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
                               on
                                  ? 'border-foreground/25 bg-segment-selected text-foreground'
                                  : 'border-border/70 bg-background text-subtle-foreground enabled:hover:text-foreground'

@@ -18,8 +18,6 @@ interface SegmentedControlProps<T extends string | number> {
    'value': T;
    'onValueChange': (value: T) => void;
    'className'?: string;
-   /** `md` is the settings size: a 30px track with 26px segments. */
-   'size'?: 'default' | 'md';
 }
 
 /**
@@ -36,7 +34,6 @@ export function SegmentedControl<T extends string | number>({
    value,
    onValueChange,
    className,
-   size = 'default',
 }: SegmentedControlProps<T>) {
    const groupId = useSegmentGroupId();
    return (
@@ -45,10 +42,9 @@ export function SegmentedControl<T extends string | number>({
          aria-label={label}
          className={cn(
             // Dark: a hairline edge, so the box reads against the canvas.
-            'flex w-fit items-center bg-segment-track dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]',
-            size === 'md'
-               ? 'h-[30px] gap-0.5 overflow-hidden rounded-[7px] p-0.5'
-               : 'h-8 rounded-[8px] p-[3px]',
+            // As tall as a field (`--field-h`), so it lines up with the search
+            // and buttons of the toolbar it sits in.
+            'flex h-(--field-h) w-fit items-center rounded-[8px] bg-segment-track p-[3px] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]',
             className
          )}
       >
@@ -61,22 +57,14 @@ export function SegmentedControl<T extends string | number>({
                   aria-pressed={active}
                   aria-label={option.title}
                   title={option.title}
-                  data-settings-type={size === 'md' ? 'segment' : undefined}
                   onClick={() => onValueChange(option.value)}
                   className={cn(
                      'relative isolate inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
-                     size === 'md'
-                        ? 'h-full gap-1.5 px-2.5 leading-none'
-                        : 'h-[26px] px-3 [&[aria-pressed]]:!h-[26px]',
+                     'h-full px-3',
                      active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                   )}
                >
-                  {active ? (
-                     <SegmentIndicator
-                        layoutId={groupId}
-                        className={size === 'md' ? 'bg-settings-segment-on' : undefined}
-                     />
-                  ) : null}
+                  {active ? <SegmentIndicator layoutId={groupId} /> : null}
                   {option.label}
                </button>
             );
