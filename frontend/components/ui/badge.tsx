@@ -26,6 +26,10 @@ const badgeVariants = cva(
             destructive:
                'border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
             outline: 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
+            /** Something that stops work, said in a chip; as a link or button it
+                leads to where it is fixed. */
+            warning:
+               'border-status-warning/40 bg-status-warning/10 text-status-warning [a&]:hover:bg-status-warning/15 [button&]:hover:bg-status-warning/15 [button&]:cursor-pointer',
          },
       },
       defaultVariants: {

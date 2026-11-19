@@ -305,6 +305,20 @@ writing a feature-local copy of the same pattern, and add new shared components 
 their purpose, props, accessibility notes and what they replaced. Each has a Storybook file
 whose `play` functions are its tests.
 
+#### Chips under a title
+
+Every chip in a header row is one height, `--chip-h` (26px). Each one takes it from `Badge` or
+`CHIP_GEOMETRY`, never from a padding of its own. The agent's header uses three pieces:
+- **What it is doing:** `AgentWorkloadMark` sits beside the name, raised the way an exponent sits
+  beside a number, in the mono face of a meta line. It is laid out next to the heading, not inside
+  it. Working is the one state that moves: its dot, in the agent's colour, keeps sending a ring
+  outward. Queued holds the dot still, and Idle greys it.
+- **Its tier:** `TierChip variant="chip"` paints the tier as the tier picker paints its chosen
+  option (`TIER_OPTION_STYLE` in `lib/agents.ts`, shared by both). The default `compact`
+  variant stays for dense rows and tables.
+- **What stops it:** `Badge variant="warning"` with a short label ("No runtime"). The whole
+  sentence shows on hover, and a click opens the place where it is fixed.
+
 Cross-cutting patterns already present include a command palette, create-issue dialog,
 responsive off-canvas sidebar, stacked headers, list/grid/board/timeline views, filter builder,
 property selectors, empty/loading states, toasts, charts, diff views, and settings forms.

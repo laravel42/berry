@@ -42,3 +42,19 @@ export const AllTiers: Story = {
       }
    },
 };
+
+/** The header's chip: one chip height, painted as the tier picker's chosen option. */
+export const AsHeaderChip: Story = {
+   render: () => (
+      <div className="flex flex-wrap gap-2">
+         {TIERS.map((tier) => (
+            <TierChip key={tier} tier={tier} variant="chip" />
+         ))}
+      </div>
+   ),
+   play: async ({ canvas }) => {
+      for (const tier of TIERS) {
+         await expect(canvas.getByText(TIER_NAMES[tier])).toBeVisible();
+      }
+   },
+};

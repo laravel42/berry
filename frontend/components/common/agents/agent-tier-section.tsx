@@ -4,45 +4,19 @@ import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
-import { gatewayPin, isTier, MAIN_TIERS, type Agent, type Tier } from '@/lib/agents';
+import {
+   gatewayPin,
+   isTier,
+   MAIN_TIERS,
+   TIER_OPTION_STYLE,
+   type Agent,
+   type Tier,
+} from '@/lib/agents';
 import { useTierNames } from '@/lib/tier-names';
 import { cn } from '@/lib/utils';
 
 /** The list's order: the paid tiers, best first. */
 export const TIER_ORDER = MAIN_TIERS;
-
-/**
- * Each tier's card in its own colour, the one its chip uses (`TIER_STYLE`): a
- * light tint while it waits, a solid border and a deeper tint when chosen.
- * Written out whole so the class names are in the source.
- */
-const TIER_CARD: Record<Tier, { idle: string; chosen: string; check: string }> = {
-   berry_max: {
-      idle: 'border-primary/30 bg-primary/5 enabled:hover:bg-primary/10',
-      chosen: 'border-primary bg-primary/15',
-      check: 'text-primary',
-   },
-   berry_xhigh: {
-      idle: 'border-iris/30 bg-iris/5 enabled:hover:bg-iris/10',
-      chosen: 'border-iris bg-iris/15',
-      check: 'text-iris',
-   },
-   berry_high: {
-      idle: 'border-review-pending/30 bg-review-pending/5 enabled:hover:bg-review-pending/10',
-      chosen: 'border-review-pending bg-review-pending/15',
-      check: 'text-review-pending',
-   },
-   berry_mid: {
-      idle: 'border-status-info/30 bg-status-info/5 enabled:hover:bg-status-info/10',
-      chosen: 'border-status-info bg-status-info/15',
-      check: 'text-status-info',
-   },
-   berry_low: {
-      idle: 'border-status-success/30 bg-status-success/5 enabled:hover:bg-status-success/10',
-      chosen: 'border-status-success bg-status-success/15',
-      check: 'text-status-success',
-   },
-};
 
 /**
  * The tier an agent runs on when it names none, as the server resolves it
@@ -108,12 +82,15 @@ export function AgentTierSection({
             onClick={() => choose(name)}
             className={cn(
                'relative flex h-(--field-h) min-w-0 items-center justify-between gap-2 rounded-pill border px-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-default',
-               selected ? TIER_CARD[name].chosen : TIER_CARD[name].idle
+               selected ? TIER_OPTION_STYLE[name].chosen : TIER_OPTION_STYLE[name].idle
             )}
          >
             <span className="truncate">{names[name]}</span>
             {selected ? (
-               <Check aria-hidden className={cn('size-4 shrink-0', TIER_CARD[name].check)} />
+               <Check
+                  aria-hidden
+                  className={cn('size-4 shrink-0', TIER_OPTION_STYLE[name].check)}
+               />
             ) : null}
          </button>
       );

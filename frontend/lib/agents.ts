@@ -343,6 +343,42 @@ export const TIER_STYLE: Record<Tier, string> = {
    berry_low: 'border-status-success/40 bg-status-success/10 text-status-success',
 };
 
+/**
+ * A tier as an option to choose, in the colour its chip uses (`TIER_STYLE`):
+ * a light tint while it waits, a solid border and a deeper tint when chosen,
+ * and the colour of its check mark. The tier picker draws its options with
+ * it, and the agent's header draws its tier as the chosen option, so the two
+ * read as the same thing. Written out whole so the class names are in the
+ * source.
+ */
+export const TIER_OPTION_STYLE: Record<Tier, { idle: string; chosen: string; check: string }> = {
+   berry_max: {
+      idle: 'border-primary/30 bg-primary/5 enabled:hover:bg-primary/10',
+      chosen: 'border-primary bg-primary/15',
+      check: 'text-primary',
+   },
+   berry_xhigh: {
+      idle: 'border-iris/30 bg-iris/5 enabled:hover:bg-iris/10',
+      chosen: 'border-iris bg-iris/15',
+      check: 'text-iris',
+   },
+   berry_high: {
+      idle: 'border-review-pending/30 bg-review-pending/5 enabled:hover:bg-review-pending/10',
+      chosen: 'border-review-pending bg-review-pending/15',
+      check: 'text-review-pending',
+   },
+   berry_mid: {
+      idle: 'border-status-info/30 bg-status-info/5 enabled:hover:bg-status-info/10',
+      chosen: 'border-status-info bg-status-info/15',
+      check: 'text-status-info',
+   },
+   berry_low: {
+      idle: 'border-status-success/30 bg-status-success/5 enabled:hover:bg-status-success/10',
+      chosen: 'border-status-success bg-status-success/15',
+      check: 'text-status-success',
+   },
+};
+
 /** The paid tiers, best first. */
 export const MAIN_TIERS = [
    'berry_max',

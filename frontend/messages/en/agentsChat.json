@@ -118,6 +118,7 @@
       "bannerArchived": "This agent is archived and takes no work.",
       "bannerArchivedRestore": "Restore it",
       "bannerNoRuntime": "This agent has no runtime, so its work cannot run.",
+      "chipNoRuntime": "No runtime",
       "bannerNoRuntimeLink": "Choose one in settings",
       "notFound": "This agent does not exist, or is not in this workspace.",
       "notFoundBack": "Back to agents",

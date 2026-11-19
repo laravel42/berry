@@ -2,6 +2,14 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Cabecera del agente: estado, tier y avisos (2026-11-19)
+
+Bajo el nombre del agente había tres piezas de alturas distintas: "Working" (33 px), el tier "Mid" (20 px) y el aviso de runtime (22 px, de tres líneas en móvil).
+- **Estado:** pasa junto al nombre, elevado como un exponente (`AgentWorkloadMark`, mono pequeña). Working lleva un punto con el color del agente que emite un anillo en bucle; Queued deja el punto quieto e Idle lo pone en gris. El nombre ya no se trunca en móvil, sino que parte en dos líneas.
+- **Tier:** `TierChip variant="chip"` se pinta como la opción elegida del selector de tier. Sus colores (`TIER_OPTION_STYLE`) pasan a `lib/agents.ts` y los comparten el selector y el chip.
+- **Sin runtime:** `Badge` gana el tono `warning`. El chip dice "No runtime", muestra la frase completa al pasar el cursor y al hacer clic abre General, donde se elige el runtime.
+- Tier y aviso miden lo mismo: 26 px (`--chip-h`).
+
 ## Inspección completa en escritorio y móvil (2026-11-18)
 
 Se recorrieron todas las rutas de la auditoría (45 pantallas, más los detalles de tarea, proyecto, ciclo, agente, review y loop), en claro y oscuro:

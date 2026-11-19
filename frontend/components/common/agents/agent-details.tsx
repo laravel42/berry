@@ -22,6 +22,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BerryApiError } from '@/lib/api';
 import {
@@ -41,7 +42,7 @@ import { AgentModelChip } from './agent-model-chip';
 import AgentOverviewTab from './agent-overview-tab';
 import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
-import { AgentWorkloadChip } from './agent-workload-chip';
+import { AgentWorkloadMark } from './agent-workload-mark';
 
 const TABS = ['settings', 'instructions', 'role', 'skills', 'mcp', 'overview'] as const;
 type DetailTab = (typeof TABS)[number];
@@ -263,15 +264,29 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   )}
                </span>
                <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
-                  <h1 className="truncate leading-tight">{agent.name}</h1>
+                  {/* What the agent is doing rides beside its name, raised
+                      like an exponent; the chips below are all one height. */}
+                  <div className="flex min-w-0 items-start gap-2">
+                     <h1 className="min-w-0 leading-tight text-balance break-words">
+                        {agent.name}
+                     </h1>
+                     <AgentWorkloadMark roster={roster} tint={tint} className="-mt-1.5" />
+                  </div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                     <AgentWorkloadChip roster={roster} />
-                     <AgentModelChip agent={agent} />
+                     <AgentModelChip agent={agent} variant="chip" />
                      {needsRuntime ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 leading-none text-status-warning max-sm:min-w-0 max-sm:shrink max-sm:items-start max-sm:rounded-xl max-sm:leading-tight">
-                           <TriangleAlert className="size-3 shrink-0 max-sm:mt-px" aria-hidden />
-                           {t('bannerNoRuntime')}
-                        </span>
+                        // Short in the chip; the whole sentence on hover, and a
+                        // click opens General, where the runtime is chosen.
+                        <Badge asChild variant="warning">
+                           <button
+                              type="button"
+                              title={t('bannerNoRuntime')}
+                              onClick={() => requestTab('settings')}
+                           >
+                              <TriangleAlert aria-hidden />
+                              {t('chipNoRuntime')}
+                           </button>
+                        </Badge>
                      ) : null}
                   </div>
                   {agent.description ? (
