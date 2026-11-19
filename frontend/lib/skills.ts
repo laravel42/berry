@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { apiFetch } from './api';
+import { newIdempotencyKey } from './api-schemas';
 
 /**
  * The workspace skills catalogue: reusable instructions (and files) an agent
@@ -102,7 +103,7 @@ export const createSkill = async (input: SkillInput) =>
    parse(
       await apiFetch('/api/v1/skills', {
          method: 'POST',
-         headers: { 'idempotency-key': crypto.randomUUID() },
+         headers: { 'idempotency-key': newIdempotencyKey() },
          body: JSON.stringify(input),
       })
    );

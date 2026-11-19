@@ -2,7 +2,7 @@ import type { User } from '@/data/users';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
 import { apiBlob, apiFetch } from './api';
-import { connectionSchema } from './api-schemas';
+import { connectionSchema, newIdempotencyKey } from './api-schemas';
 import { toUiUser } from './catalog';
 import { roleContractSchema, type RoleContract } from './organization';
 
@@ -694,7 +694,7 @@ export const copyAgent = async (id: string) =>
    parseAgent(
       await apiFetch(agentPath(id, '/copy'), {
          method: 'POST',
-         headers: { 'idempotency-key': crypto.randomUUID() },
+         headers: { 'idempotency-key': newIdempotencyKey() },
          body: '{}',
       })
    );
@@ -885,7 +885,7 @@ export async function createAgent(input: {
    return parseAgent(
       await apiFetch('/api/v1/agents', {
          method: 'POST',
-         headers: { 'idempotency-key': crypto.randomUUID() },
+         headers: { 'idempotency-key': newIdempotencyKey() },
          body: JSON.stringify(input),
       })
    );
