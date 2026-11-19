@@ -400,6 +400,23 @@ Avoiding likeness is a system-level task: changing a logo or accent color alone 
 insufficient. At least navigation hierarchy, workspace framing, row/card anatomy, status
 language, agent representation, and review interactions should express Berry's model.
 
+## Settings rows
+
+Every settings row is a `SettingsRow` (`components/common/settings/shared.tsx`): a title and
+its description on the left, the control on the right. On a wide screen the control is
+centred on the row. On a phone it depends on the kind of control:
+
+- A switch, a button or a chip stays on the right, centred on the title's line, and the
+  description runs under the title beside it.
+- A field (an input, a select, or a field with its button) is marked `wide`. On a phone it
+  goes under the label and stretches across the row. A button that belongs to the row
+  rather than the field goes in `action` and stays on the title's line, as a member's
+  Remove does beside their role.
+
+Buttons in a row carry the verb alone ("Leave", "Delete", "Sign out"): the title already
+names what it acts on. The danger zone's rows sit in `SettingsCard tone="danger"`, the
+group's grey with a berry cast (`--settings-group-danger`).
+
 ## Confirming irreversible actions
 
 Anything that cannot be undone from the app - delete, remove, revoke, uninstall, leave -

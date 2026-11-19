@@ -139,6 +139,7 @@ export default function OrganizationSettings() {
                               />
                            ) : (
                               <SettingsRow
+                                 wide
                                  key={role.roleKey}
                                  title={role.name}
                                  description={roleDescription(role)}

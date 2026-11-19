@@ -156,18 +156,27 @@ export function SettingsSection({
    );
 }
 
-/** A filled group of rows. Rows are divided by a hairline; the group has no outer border. */
+/**
+ * A filled group of rows. Rows are divided by a hairline; the group has no
+ * outer border. `danger` tints it berry, for rows whose action cannot be
+ * taken back (leaving or deleting the workspace).
+ */
 export function SettingsCard({
    children,
+   tone = 'default',
    className,
 }: {
    children: React.ReactNode;
+   tone?: 'default' | 'danger';
    className?: string;
 }) {
    return (
       <div
          className={cn(
-            'flex flex-col divide-y divide-settings-divider overflow-hidden rounded-[10px] bg-settings-group',
+            'flex flex-col divide-y overflow-hidden rounded-[10px]',
+            tone === 'danger'
+               ? 'divide-settings-danger-divider bg-settings-group-danger'
+               : 'divide-settings-divider bg-settings-group',
             className
          )}
       >
@@ -176,15 +185,29 @@ export function SettingsCard({
    );
 }
 
+/**
+ * One line of the title tall on a phone, so a control taller than the text
+ * is centred on the title's line and spills evenly into the row's padding.
+ */
+const TITLE_LINE = 'max-sm:h-[1lh]';
+
 /** The handoff's name for a group of rows. */
 export const SettingsGroup = SettingsCard;
 
-/** A single settings row: optional icon, label + description, trailing control. */
+/**
+ * A single settings row: optional icon, label + description, trailing control.
+ *
+ * On a phone a switch, a button or a chip stays on the right, centred on the
+ * title's line. A field (`wide`) takes the row's whole width under the label
+ * instead, with `action` kept on the title's line.
+ */
 export function SettingsRow({
    icon,
    title,
    description,
    trailing,
+   wide,
+   action,
    chevron,
    onClick,
    muted,
@@ -197,6 +220,17 @@ export function SettingsRow({
    title: React.ReactNode;
    description?: React.ReactNode;
    trailing?: React.ReactNode;
+   /**
+    * The trailing control is a field: an input, a select, or a field with its
+    * button. On a phone it goes under the label and stretches across the row.
+    */
+   wide?: boolean;
+   /**
+    * A button kept on the title's line on a phone while a `wide` control goes
+    * under the label (a member's Remove beside their role). On a wider screen
+    * it follows the trailing control.
+    */
+   action?: React.ReactNode;
    chevron?: boolean;
    onClick?: () => void;
    muted?: boolean;
@@ -225,12 +259,15 @@ export function SettingsRow({
          <div
             className={cn(
                'flex w-full min-w-0 gap-3 max-sm:flex-wrap',
-               align === 'start' ? 'items-start' : 'items-center'
+               align === 'start' ? 'items-start' : 'items-center',
+               // Beside a title and its description, a phone's control sits on
+               // the title's line rather than between the two.
+               description && 'max-sm:items-start'
             )}
          >
             {icon ? <SettingsTile>{icon}</SettingsTile> : null}
             {/* An 8rem basis: a label never shrinks to a few letters beside a
-                wide control; on a narrow screen the control drops under it. */}
+                control; one too wide to fit beside it wraps under it. */}
             <div className="flex min-w-0 flex-[1_1_8rem] flex-col gap-0.5">
                <div className="flex min-w-0 flex-wrap items-center gap-2 font-medium text-foreground">
                   {title}
@@ -245,11 +282,17 @@ export function SettingsRow({
                <div
                   className={cn(
                      'flex max-w-full shrink-0 items-center gap-2 text-muted-foreground',
-                     description && 'max-sm:basis-full max-sm:justify-start'
+                     wide
+                        ? // Last, on a line of its own, the field stretched across it.
+                          'max-sm:order-last max-sm:basis-full max-sm:*:min-w-0 max-sm:*:flex-1'
+                        : TITLE_LINE
                   )}
                >
                   {trailing}
                </div>
+            ) : null}
+            {action ? (
+               <div className={cn('flex shrink-0 items-center gap-2', TITLE_LINE)}>{action}</div>
             ) : null}
             {chevron ? <ChevronRight className="size-4 shrink-0 text-subtle-foreground" /> : null}
          </div>

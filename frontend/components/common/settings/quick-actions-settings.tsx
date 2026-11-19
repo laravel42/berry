@@ -217,12 +217,14 @@ export default function QuickActionsSettings() {
          <SettingsSection title={t('newTitle')}>
             <SettingsCard>
                <div className="flex flex-col gap-2.5 px-4 py-3.5">
-                  <div className="flex flex-wrap gap-2">
+                  {/* On a phone the name takes a line and the agent and who
+                      sees it share the next, half each. */}
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                      <Input
                         placeholder={t('namePlaceholder')}
                         aria-label={t('namePlaceholder')}
                         value={name}
-                        className="min-w-[180px] flex-1"
+                        className="col-span-2 min-w-[180px] flex-1"
                         onChange={(event) => setName(event.target.value)}
                      />
                      <AgentPicker
@@ -234,7 +236,7 @@ export default function QuickActionsSettings() {
                            <button
                               type="button"
                               aria-label={t('agent')}
-                              className={cn(selectTriggerClass, 'w-[150px] shrink-0')}
+                              className={cn(selectTriggerClass, 'min-w-0 shrink-0 sm:w-[150px]')}
                            >
                               <span className="min-w-0 truncate">
                                  {chosenAgent?.name ?? t('agent')}
@@ -244,7 +246,7 @@ export default function QuickActionsSettings() {
                         }
                      />
                      <SelectMenu
-                        className="w-32"
+                        className="w-full min-w-0 sm:w-32"
                         aria-label={t('scopeLabel')}
                         options={['workspace', 'private']}
                         labels={{
@@ -277,6 +279,7 @@ export default function QuickActionsSettings() {
                   ) : null}
                   <div className="flex justify-end">
                      <Button
+                        className="max-sm:w-full"
                         onClick={() => void create()}
                         disabled={
                            !name.trim() || !agentId || !prompt.trim() || badVariables.length > 0

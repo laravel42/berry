@@ -374,6 +374,7 @@ export default function PluginsSettings() {
                         <SettingsCard>
                            {pluginOauthSetupSecrets(preview.secrets).map((secret) => (
                               <SettingsRow
+                                 wide
                                  key={secret.name}
                                  title={secret.title ?? secret.name}
                                  description={secret.description || undefined}

@@ -107,6 +107,7 @@ export function JoinLinksPanel() {
       >
          <SettingsCard>
             <SettingsRow
+               wide
                title={t('joinLinksCreate')}
                className="[&>div]:flex-wrap"
                trailing={

@@ -206,14 +206,15 @@ export default function WorkspaceGeneral() {
                <SettingsRow
                   title={t('name')}
                   description={t('nameDescription')}
+                  wide
                   trailing={
-                     <span className="flex items-center gap-2">
+                     <span className="flex items-center gap-2 max-sm:flex-row-reverse">
                         <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
                         <Input
                            value={name.value ?? ''}
                            aria-label={t('name')}
                            disabled={!canEdit || workspace.loading}
-                           className="w-[220px]"
+                           className="w-[220px] max-sm:min-w-0 max-sm:flex-1"
                            onChange={(event) => name.change(event.target.value)}
                            onBlur={() =>
                               (name.value ?? '').trim() === '' ? name.revert() : name.flush()
@@ -264,6 +265,7 @@ export default function WorkspaceGeneral() {
                         t('prefixInvalid')
                      )
                   }
+                  wide
                   trailing={
                      <span className="flex items-center gap-2">
                         <Input
@@ -271,7 +273,7 @@ export default function WorkspaceGeneral() {
                            aria-label={t('prefix')}
                            disabled={!canEdit || workspace.loading}
                            maxLength={PREFIX_MAX}
-                           className="w-24 font-semibold uppercase"
+                           className="w-24 font-semibold uppercase max-sm:min-w-0 max-sm:flex-1"
                            onChange={(event) =>
                               // Filtered as it is typed: the field only ever holds
                               // characters the server accepts, so the example
@@ -304,7 +306,7 @@ export default function WorkspaceGeneral() {
          </SettingsSection>
 
          <SettingsSection title={t('danger')}>
-            <SettingsCard>
+            <SettingsCard tone="danger">
                <SettingsRow
                   title={t('leave')}
                   description={soleOwner ? t('leaveSoleOwner') : t('leaveDescription')}
@@ -316,7 +318,7 @@ export default function WorkspaceGeneral() {
                         className="disabled:pointer-events-auto disabled:cursor-not-allowed"
                         onClick={() => setConfirmingLeave(true)}
                      >
-                        {t('leave')}
+                        {t('leaveAction')}
                      </Button>
                   }
                />
@@ -335,7 +337,7 @@ export default function WorkspaceGeneral() {
                               setConfirmingDelete(true);
                            }}
                         >
-                           {t('delete')}
+                           {t('deleteAction')}
                         </Button>
                      }
                   />

@@ -189,6 +189,7 @@ export default function ApiTokens() {
          <SettingsSection title={t('newTitle')} description={t('newDescription')}>
             <SettingsCard>
                <SettingsRow
+                  wide
                   title={t('name')}
                   trailing={
                      <Input
@@ -204,6 +205,7 @@ export default function ApiTokens() {
                   }
                />
                <SettingsRow
+                  wide
                   title={t('expiry')}
                   description={t('expiryDescription')}
                   trailing={

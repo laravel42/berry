@@ -2,6 +2,15 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Filas de Settings en el móvil (2026-11-19)
+
+- **Patrón de fila:** `SettingsRow` deja el interruptor, botón o chip a la derecha, centrado en la línea del título; la descripción corre debajo del título. Así se ven Notifications, las sesiones de Security y la zona de peligro.
+- **Campos:** las filas con un input o un select llevan `wide`. En el móvil el campo baja bajo el título y ocupa toda la fila: nombre y prefijo del workspace, nombre, idioma, zona horaria y tema en Preferences, y los campos de tokens, MCP, plugins, conexiones y enlaces de ingreso. El indicador de guardado ya no ocupa hueco mientras está vacío, y en el móvil va después del campo.
+- **Zona de peligro:** los botones dicen solo "Leave" y "Delete", y la tarjeta tiene un tinte berry (`SettingsCard tone="danger"`, token `--settings-group-danger`).
+- **Members:** Remove va en la línea del nombre (prop `action`), el rol es un select a todo el ancho, el correo es un enlace `mailto:` en el color berry de Settings, y la fecha de ingreso va un paso más chica.
+- **Task labels y Skill labels:** el campo "New label" ocupa la fila con Create a su lado. **Quick actions:** el nombre ocupa una línea, agente y visibilidad comparten la siguiente a mitades, y "Add quick action" va a todo el ancho.
+- Verificado a 390 px en claro y a 1280 px en oscuro. En el móvil, el centro de cada control coincide con el del título.
+
 ## Tarea padre y selector de emojis (2026-11-19)
 
 - **Tarea padre:** el enlace "↰ sub-task of BER-…" era una píldora con texto que, en una cabecera angosta (móvil o drawer), se dibujaba encima de la ruta de migas. Ahora es un botón fantasma solo con icono (`CornerLeftUp`, `icon-sm`) antes de la ruta. Lleva la etiqueta accesible "Open the parent task, BER-…", y al pasar el cursor muestra "Sub-task of BER-…: título". La ruta recorta lo que no cabe (`overflow-hidden`, y el proyecto puede encogerse).

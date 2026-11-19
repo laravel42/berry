@@ -143,6 +143,7 @@ export default function AccountConnections() {
                   })
                )}
                <SettingsRow
+                  wide
                   title="Add an address"
                   className="[&>div]:flex-wrap"
                   trailing={
@@ -164,7 +165,7 @@ export default function AccountConnections() {
                         <Input
                            value={address}
                            placeholder={channel === 'EMAIL' ? 'you@example.com' : '+1 555 0100'}
-                           className="w-[200px]"
+                           className="w-[200px] max-sm:min-w-0 max-sm:flex-1"
                            onChange={(event) => setAddress(event.target.value)}
                            onKeyDown={(event) => {
                               if (event.key === 'Enter') void add();

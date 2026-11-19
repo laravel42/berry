@@ -26,6 +26,7 @@ export function PluginConfigForm({
             const selected = value[field.key];
             return (
                <SettingsRow
+                  wide={field.type !== 'boolean'}
                   key={field.key}
                   title={field.required ? `${title} *` : title}
                   description={field.name ? field.label : undefined}

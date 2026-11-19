@@ -116,16 +116,17 @@ export default function Preferences() {
          >
             <SettingsCard>
                <SettingsRow
+                  wide
                   title={t('name')}
                   trailing={
-                     <span className="flex items-center gap-2">
+                     <span className="flex items-center gap-2 max-sm:flex-row-reverse">
                         <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
                         <Input
                            value={name.value ?? ''}
                            aria-label={t('name')}
                            disabled={profile.loading}
                            placeholder={t('namePlaceholder')}
-                           className="w-[220px]"
+                           className="w-[220px] max-sm:min-w-0 max-sm:flex-1"
                            onChange={(event) => name.change(event.target.value)}
                            onBlur={() =>
                               (name.value ?? '').trim() === '' ? name.revert() : name.flush()
@@ -139,6 +140,7 @@ export default function Preferences() {
                   }
                />
                <SettingsRow
+                  wide
                   title={t('language')}
                   description={t('languageDescription')}
                   trailing={
@@ -152,6 +154,7 @@ export default function Preferences() {
                   }
                />
                <SettingsRow
+                  wide
                   title={t('timezone')}
                   description={t('timezoneDescription')}
                   trailing={
@@ -203,6 +206,7 @@ export default function Preferences() {
          <SettingsSection title={t('interface')}>
             <SettingsCard>
                <SettingsRow
+                  wide
                   title={t('theme')}
                   description={t('themeDescription')}
                   trailing={

@@ -300,6 +300,7 @@ function AddServerForm({
       return (
          <SettingsCard>
             <SettingsRow
+               wide
                title="Name"
                description="Lowercase, e.g. docs."
                trailing={
@@ -313,6 +314,7 @@ function AddServerForm({
                }
             />
             <SettingsRow
+               wide
                title="URL"
                trailing={
                   <Input
@@ -325,6 +327,7 @@ function AddServerForm({
                }
             />
             <SettingsRow
+               wide
                title="Transport"
                trailing={
                   <SelectMenu

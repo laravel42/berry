@@ -222,6 +222,7 @@ export default function PluginDetail({
                         <SettingsCard>
                            {setupSecrets.map((secret) => (
                               <SettingsRow
+                                 wide
                                  key={secret.name}
                                  title={secret.title ?? secret.name}
                                  description={secret.set ? 'Set' : secret.description || 'Not set'}
@@ -230,7 +231,7 @@ export default function PluginDetail({
                                        <Input
                                           type="password"
                                           autoComplete="off"
-                                          className="w-44"
+                                          className="w-44 max-sm:min-w-0 max-sm:flex-1"
                                           placeholder={secret.set ? 'Replace…' : 'Value'}
                                           value={secretDrafts[secret.name] ?? ''}
                                           onChange={(event) =>
@@ -291,6 +292,7 @@ export default function PluginDetail({
                <SettingsCard>
                   {current.secrets.map((secret) => (
                      <SettingsRow
+                        wide
                         key={secret.name}
                         title={secret.title ?? secret.name}
                         description={secret.set ? 'Set' : secret.description || 'Not set'}
@@ -299,7 +301,7 @@ export default function PluginDetail({
                               <Input
                                  type="password"
                                  autoComplete="off"
-                                 className="w-44"
+                                 className="w-44 max-sm:min-w-0 max-sm:flex-1"
                                  placeholder={secret.set ? 'Replace…' : 'Value'}
                                  value={secretDrafts[secret.name] ?? ''}
                                  onChange={(event) =>
