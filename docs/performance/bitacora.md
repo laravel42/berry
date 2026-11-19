@@ -34,6 +34,7 @@ Por el túnel de Cloudflare el usuario midió 36.
 | T3 | Palette, chat flotante, CreateWorkspaceDialog, Tiptap y logos bajo demanda; LazyMotion en SegmentIndicator | app/[orgId]/layout.tsx, workspace-runtime, issue-description, logos, segment-indicator | 84731b7d | verde (build + lint; detalle sin chunks de Tiptap/palette/chat hasta usarlos) |
 | T3b | Caret en el editor de descripción tras cargarlo | issue-description.tsx | 589394ee | verde (clic real: foco en el editable). Lo tecleado antes de que cargue el chunk se pierde |
 | T4 | El shell se pinta durante el boot si hay cookie; /sign-in sin esperar bootstrap; /boards solo con sesión | app/layout.tsx, session-gate.tsx, session-store.ts | a4f98071 | verde (build; Tasks/Inbox/Projects/detalle OK en prod :3001; sign-in Lighthouse 79→94). El detalle de tarea espera a las 2000 tareas (~5 s local) |
+| T5 | Menú contextual y pickers de fila construidos solo al abrirse | issue-context-menu, assignee-user, option-picker, status-picker | ec25ad25 | verde (build + lint; CPU de carga en dev 4.7→3.8 s, IssueContextMenu fuera del perfil; menú y submenú Assignee OK) |
 
 ## Medición con sesión real (puppeteer + Lighthouse, tras T4)
 
