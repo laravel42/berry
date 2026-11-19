@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { BulkBar } from '@/components/common/bulk-bar';
 import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import MainLayout from '@/components/layout/main-layout';
@@ -284,7 +285,7 @@ function AgentCatalogScreen() {
                ))}
             </div>
             {canEdit && selected.length > 0 ? (
-               <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+               <BulkBar>
                   <Button size="sm" disabled={adding.length > 0} onClick={() => void add(selected)}>
                      {adding.length > 0 ? t('adding') : t('bulk.add', { count: selected.length })}
                   </Button>
@@ -296,7 +297,7 @@ function AgentCatalogScreen() {
                   >
                      {t('bulk.clear')}
                   </Button>
-               </div>
+               </BulkBar>
             ) : null}
          </div>
       );

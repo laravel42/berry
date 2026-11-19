@@ -15,6 +15,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { BulkBar } from '@/components/common/bulk-bar';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
@@ -512,7 +513,7 @@ export default function Agents() {
          </div>
 
          {selectedRows.length > 0 ? (
-            <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+            <BulkBar>
                <span className="font-bold">
                   {t('bulkSelected', { count: selectedRows.length })}
                </span>
@@ -669,7 +670,7 @@ export default function Agents() {
                >
                   {t('bulkClear')}
                </Button>
-            </div>
+            </BulkBar>
          ) : null}
 
          <AlertDialog

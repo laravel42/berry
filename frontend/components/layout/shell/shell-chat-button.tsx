@@ -1,16 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
+import { TUCKED_CLASS, useIdleTuck } from '@/hooks/use-idle-tuck';
 import { SparkIcon } from '@/components/ui/spark-icon';
 import { cn } from '@/lib/utils';
 import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
-
-const TUCK_AFTER_MS = 10_000;
 
 /**
  * Flat "Agents" launcher at the bottom-right of the body frame.
@@ -81,9 +79,7 @@ export function ShellChatButton() {
          data-tucked={tucked ? 'true' : undefined}
          className={cn(
             'relative transition-[translate,opacity,box-shadow] duration-300 ease-out data-[open=true]:text-foreground motion-reduce:transition-none',
-            // 90% of its own width plus the 1rem gap to the frame's edge
-            // (and any inset) puts all but a tenth past the right edge.
-            'data-[tucked=true]:translate-x-[calc(90%+var(--app-inset-r)+1rem)]',
+            TUCKED_CLASS,
             onChatPage && 'opacity-40'
          )}
       >
@@ -91,32 +87,4 @@ export function ShellChatButton() {
          {t('nav.agents')}
       </Button>
    );
-}
-
-/**
- * Tucked after `TUCK_AFTER_MS` without interaction. `wake` brings it back
- * and holds it there (pointer over it, or focused); `rest` starts the idle
- * clock again. While `held` is true — the chat is open — it stays out.
- */
-function useIdleTuck(held: boolean) {
-   const [tucked, setTucked] = useState(false);
-   const [engaged, setEngaged] = useState(false);
-   const [restedAt, setRestedAt] = useState(0);
-
-   useEffect(() => {
-      if (held || engaged) {
-         setTucked(false);
-         return;
-      }
-      const timer = window.setTimeout(() => setTucked(true), TUCK_AFTER_MS);
-      return () => window.clearTimeout(timer);
-   }, [held, engaged, restedAt]);
-
-   const wake = useCallback(() => setEngaged(true), []);
-   const rest = useCallback(() => {
-      setEngaged(false);
-      setRestedAt(Date.now());
-   }, []);
-
-   return { tucked, wake, rest };
 }

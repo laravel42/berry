@@ -15,6 +15,12 @@ import { create } from 'zustand';
  */
 
 export const FLOATING_ORDER = {
+   /**
+    * A bar pinned to the page's bottom edge, such as Unsaved changes. It is
+    * not lifted (it sits in the page), but everything floating stands above it
+    * so nothing covers its Save.
+    */
+   bar: -10,
    /** A page's own floating actions, such as a task's Restart and Console. */
    page: 0,
    /** The Agents launcher: the shell's own, so it stands on top. */
@@ -90,4 +96,13 @@ export function useFloatingStackItem(order: number) {
 
    const ref = useCallback((element: HTMLElement | null) => setNode(element), []);
    return { ref, lift, bottom: `calc(var(--shell-launcher-b) + ${lift}px)` };
+}
+
+/**
+ * Join the stack's floor: a bar pinned to the page's bottom edge (Unsaved
+ * changes, a list's bulk actions). Put the ref on the bar; while it is mounted
+ * every floating control stands above it, so none covers its buttons.
+ */
+export function useFloatingFloor() {
+   return useFloatingStackItem(FLOATING_ORDER.bar).ref;
 }

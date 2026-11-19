@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
+import { useFloatingFloor } from '@/store/floating-stack-store';
 
 interface UnsavedChangesBarProps {
    onDiscard: () => void;
@@ -19,6 +20,11 @@ interface UnsavedChangesBarProps {
  *
  * Same bar skills use: discard restores the loaded copy, save writes it. Kept
  * as one helper so agent and skill surfaces stay aligned.
+ *
+ * It sticks to the bottom of whatever scrolls the form. No rule on top: a
+ * warning tint rises from the bottom edge and fades out into the card, the
+ * inverse of the tint a detail header falls from, so the form scrolls under
+ * it. Discard and Save stand on their own, so they take the button height.
  */
 export function UnsavedChangesBar({
    onDiscard,
@@ -29,14 +35,20 @@ export function UnsavedChangesBar({
    saveLabel,
 }: UnsavedChangesBarProps) {
    const t = useTranslations('common.unsavedBar');
+   // Joins the floating stack's floor, so the Agents launcher and a task's
+   // Console rise above the bar instead of covering Save.
+   const ref = useFloatingFloor();
 
    return (
-      <div className="z-10 flex w-full shrink-0 flex-wrap items-center gap-3 border-t border-status-warning/40 bg-status-warning/10 px-6 py-2">
+      <div
+         ref={ref}
+         className="sticky bottom-0 z-10 flex w-full shrink-0 flex-wrap items-center gap-3 bg-[linear-gradient(to_top,color-mix(in_oklab,var(--status-warning)_12%,var(--container))_55%,transparent)] px-8 pt-10 pb-4"
+      >
          <span className="mr-auto text-status-warning">{t('unsaved')}</span>
-         <Button size="xs" variant="ghost" disabled={busy} onClick={onDiscard}>
+         <Button variant="ghost" disabled={busy} onClick={onDiscard}>
             {discardLabel ?? t('discard')}
          </Button>
-         <Button size="xs" disabled={busy || saveDisabled} onClick={onSave}>
+         <Button disabled={busy || saveDisabled} onClick={onSave}>
             {saveLabel ?? (busy ? t('saving') : t('save'))}
          </Button>
       </div>

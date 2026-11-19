@@ -37,6 +37,7 @@ import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
 import { FLOATING_ORDER, useFloatingStackItem } from '@/store/floating-stack-store';
+import { TUCKED_CLASS, useIdleTuck } from '@/hooks/use-idle-tuck';
 import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
 import { useParams, useRouter } from 'next/navigation';
@@ -51,14 +52,35 @@ const RESTARTABLE_STATUSES = new Set(['to-do', 'in-progress']);
  * Folded Restart/Console float in the bottom-right corner as part of the shared
  * stack (floating-stack-store.ts): they take its lowest place and the Agents
  * launcher rises above them, instead of the two landing on the same spot.
+ *
+ * They behave like the launcher: left alone for ten seconds they tuck off the
+ * right edge, leaving a tenth showing, and pointing at them or focusing them
+ * brings them back. The launcher keeps its own clock, so each answers to its
+ * own hover. On touch, the first tap on the tucked sliver only brings it back.
  */
 function FoldedRunActions({ children }: { children: ReactNode }) {
    const { ref, bottom } = useFloatingStackItem(FLOATING_ORDER.page);
+   const { tucked, wake, rest } = useIdleTuck(false);
    return (
       <div
          ref={ref}
          style={{ bottom }}
-         className="fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] z-50 flex items-center justify-end gap-2"
+         data-tucked={tucked ? 'true' : undefined}
+         onPointerEnter={wake}
+         onPointerLeave={rest}
+         onFocus={wake}
+         onBlur={rest}
+         onClickCapture={(event) => {
+            if (!tucked) return;
+            event.preventDefault();
+            event.stopPropagation();
+            wake();
+            rest();
+         }}
+         className={cn(
+            'fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] z-50 flex items-center justify-end gap-2 transition-[translate,bottom] duration-300 ease-out motion-reduce:transition-none data-[tucked=true]:*:shadow-md',
+            TUCKED_CLASS
+         )}
       >
          {children}
       </div>

@@ -7,6 +7,7 @@ import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { BulkBar } from '@/components/common/bulk-bar';
 import { DepartmentMultiselect } from '@/components/common/agents/agent-catalog';
 import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { SettingsChip } from '@/components/common/settings/shared';
@@ -308,7 +309,7 @@ function SkillCatalogScreen() {
                ))}
             </div>
             {canEdit && selected.length > 0 ? (
-               <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+               <BulkBar>
                   <AgentPicker
                      targets={targets}
                      labels={[...new Set(selected.flatMap((skill) => skill.labels))]}
@@ -328,7 +329,7 @@ function SkillCatalogScreen() {
                   >
                      {t('bulk.clear')}
                   </Button>
-               </div>
+               </BulkBar>
             ) : null}
          </div>
       );
