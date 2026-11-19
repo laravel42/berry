@@ -50,11 +50,13 @@ export function StatusPicker({ status, options, onChange, variant, countFor }: S
 
    return (
       <OptionPicker
-         options={options.map((option) => ({
-            value: option.status.id,
-            label: option.label,
-            icon: <option.status.icon />,
-         }))}
+         options={() =>
+            options.map((option) => ({
+               value: option.status.id,
+               label: option.label,
+               icon: <option.status.icon />,
+            }))
+         }
          value={status.id}
          onValueChange={choose}
          emptyLabel="No status found."

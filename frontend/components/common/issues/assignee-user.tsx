@@ -81,24 +81,25 @@ function AssigneeItem({
    );
 }
 
-export function AssigneeUser({
-   user,
-   issueId,
-   monogram = true,
-   showName = false,
-   plainName = false,
-   nameClassName,
-   row = false,
-   emptyLabel,
-}: AssigneeUserProps) {
+/**
+ * The list inside the popover. `PopoverContent` mounts it only while the menu
+ * is open, so the member and agent stores, the filtering and the items cost a
+ * closed control nothing.
+ */
+function AssigneeMenu({
+   currentAssignee,
+   open,
+   onChoose,
+}: {
+   currentAssignee: User | null;
+   open: boolean;
+   onChoose: (assignee: User | null) => void;
+}) {
    const t = useTranslations('issueLists.assignee');
    const listRef = useRef<HTMLDivElement>(null);
-   const [open, setOpen] = useState(false);
    const [query, setQuery] = useState('');
-   const [currentAssignee, setCurrentAssignee] = useState<User | null>(user);
    const agents = useAgentsStore((state) => state.agents);
    const members = useMembersStore((state) => state.members);
-   const updateIssueAssignee = useIssuesStore((state) => state.updateIssueAssignee);
 
    const agentAssignees = useMemo(
       () => agents.filter((agent) => !agent.archivedAt).map(agentToUser),
@@ -122,14 +123,6 @@ export function AssigneeUser({
          ? { shown: visibleAgents.length, total: agentAssignees.length }
          : null;
 
-   useEffect(() => {
-      setCurrentAssignee(user);
-   }, [user]);
-
-   useEffect(() => {
-      if (!open) setQuery('');
-   }, [open]);
-
    // The menu opens from a sheet, whose scroll lock swallows the wheel. A
    // non-passive listener on the list keeps that gesture on the names.
    useEffect(() => {
@@ -143,6 +136,94 @@ export function AssigneeUser({
       list.addEventListener('wheel', onWheel, { passive: false });
       return () => list.removeEventListener('wheel', onWheel);
    }, [open]);
+
+   return (
+      <Command className="h-auto max-h-full">
+         {searchable ? (
+            <CommandInput
+               autoFocus
+               value={query}
+               onValueChange={setQuery}
+               placeholder={t('search')}
+               aria-label={t('search')}
+            />
+         ) : null}
+         <CommandList
+            ref={listRef}
+            className="max-h-[min(300px,var(--radix-popover-content-available-height))] overscroll-contain"
+         >
+            <CommandEmpty>{t('noMatch')}</CommandEmpty>
+            <CommandGroup>
+               <CommandItem
+                  value={t('none')}
+                  onSelect={() => onChoose(null)}
+                  className="flex items-center gap-2"
+               >
+                  <AssigneePlaceholder />
+                  <span>{t('none')}</span>
+                  {!currentAssignee ? (
+                     <CheckIcon className="text-(--primary) ml-auto size-4 shrink-0" />
+                  ) : null}
+               </CommandItem>
+            </CommandGroup>
+
+            {members.length > 0 ? (
+               <>
+                  <CommandSeparator />
+                  <CommandGroup heading={t('people')}>
+                     {members.map((member) => (
+                        <AssigneeItem
+                           key={member.id}
+                           person={member}
+                           selected={currentAssignee?.id === member.id}
+                           onSelect={() => onChoose(member)}
+                        />
+                     ))}
+                  </CommandGroup>
+               </>
+            ) : null}
+
+            {agentAssignees.length > 0 ? (
+               <>
+                  <CommandSeparator />
+                  <CommandGroup heading={t('agents')}>
+                     {visibleAgents.map((agent) => (
+                        <AssigneeItem
+                           key={agent.id}
+                           person={agent}
+                           selected={currentAssignee?.id === agent.id}
+                           onSelect={() => onChoose(agent)}
+                        />
+                     ))}
+                  </CommandGroup>
+                  {capped ? (
+                     <p className="px-3 pb-1.5 text-muted-foreground">{t('showing', capped)}</p>
+                  ) : null}
+               </>
+            ) : null}
+         </CommandList>
+      </Command>
+   );
+}
+
+export function AssigneeUser({
+   user,
+   issueId,
+   monogram = true,
+   showName = false,
+   plainName = false,
+   nameClassName,
+   row = false,
+   emptyLabel,
+}: AssigneeUserProps) {
+   const t = useTranslations('issueLists.assignee');
+   const [open, setOpen] = useState(false);
+   const [currentAssignee, setCurrentAssignee] = useState<User | null>(user);
+   const updateIssueAssignee = useIssuesStore((state) => state.updateIssueAssignee);
+
+   useEffect(() => {
+      setCurrentAssignee(user);
+   }, [user]);
 
    const choose = (assignee: User | null) => {
       setCurrentAssignee(assignee);
@@ -233,73 +314,7 @@ export function AssigneeUser({
                row ? 'w-full min-w-[var(--radix-popper-anchor-width)]' : 'w-[240px]'
             )}
          >
-            <Command className="h-auto max-h-full">
-               {searchable ? (
-                  <CommandInput
-                     autoFocus
-                     value={query}
-                     onValueChange={setQuery}
-                     placeholder={t('search')}
-                     aria-label={t('search')}
-                  />
-               ) : null}
-               <CommandList
-                  ref={listRef}
-                  className="max-h-[min(300px,var(--radix-popover-content-available-height))] overscroll-contain"
-               >
-                  <CommandEmpty>{t('noMatch')}</CommandEmpty>
-                  <CommandGroup>
-                     <CommandItem
-                        value={t('none')}
-                        onSelect={() => choose(null)}
-                        className="flex items-center gap-2"
-                     >
-                        <AssigneePlaceholder />
-                        <span>{t('none')}</span>
-                        {!currentAssignee ? (
-                           <CheckIcon className="text-(--primary) ml-auto size-4 shrink-0" />
-                        ) : null}
-                     </CommandItem>
-                  </CommandGroup>
-
-                  {members.length > 0 ? (
-                     <>
-                        <CommandSeparator />
-                        <CommandGroup heading={t('people')}>
-                           {members.map((member) => (
-                              <AssigneeItem
-                                 key={member.id}
-                                 person={member}
-                                 selected={currentAssignee?.id === member.id}
-                                 onSelect={() => choose(member)}
-                              />
-                           ))}
-                        </CommandGroup>
-                     </>
-                  ) : null}
-
-                  {agentAssignees.length > 0 ? (
-                     <>
-                        <CommandSeparator />
-                        <CommandGroup heading={t('agents')}>
-                           {visibleAgents.map((agent) => (
-                              <AssigneeItem
-                                 key={agent.id}
-                                 person={agent}
-                                 selected={currentAssignee?.id === agent.id}
-                                 onSelect={() => choose(agent)}
-                              />
-                           ))}
-                        </CommandGroup>
-                        {capped ? (
-                           <p className="px-3 pb-1.5 text-muted-foreground">
-                              {t('showing', capped)}
-                           </p>
-                        ) : null}
-                     </>
-                  ) : null}
-               </CommandList>
-            </Command>
+            <AssigneeMenu currentAssignee={currentAssignee} open={open} onChoose={choose} />
          </PopoverContent>
       </Popover>
    );

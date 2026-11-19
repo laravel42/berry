@@ -96,6 +96,16 @@ function dueDatePreset(dueDate?: string): 'today' | 'tomorrow' | 'next-week' | '
  * opening anything, the ways out of the list, the relations, and delete.
  */
 export function IssueContextMenu({ issueId, moveTo }: IssueContextMenuProps) {
+   // The content mounts only while the menu is open, so the body below, with
+   // its store subscriptions and its items, costs nothing for a closed row.
+   return (
+      <ContextMenuContent className="w-64">
+         <IssueContextMenuBody issueId={issueId} moveTo={moveTo} />
+      </ContextMenuContent>
+   );
+}
+
+function IssueContextMenuBody({ issueId, moveTo }: IssueContextMenuProps) {
    const t = useTranslations('issueLists');
    const actions = useIssueActions(issueId);
    const issue = actions.issue;
@@ -114,7 +124,7 @@ export function IssueContextMenu({ issueId, moveTo }: IssueContextMenuProps) {
    );
 
    return (
-      <ContextMenuContent className="w-64">
+      <>
          <ContextMenuGroup>
             {moveTo ? (
                <ContextMenuSub>
@@ -361,6 +371,6 @@ export function IssueContextMenu({ issueId, moveTo }: IssueContextMenuProps) {
          </ContextMenuItem>
 
          <DeleteIssueDialog deletion={deletion} />
-      </ContextMenuContent>
+      </>
    );
 }
