@@ -29,3 +29,5 @@ Por el túnel de Cloudflare el usuario midió 36.
 | Id | Tarea | Alcance | Commit | Estado |
 |----|-------|---------|--------|--------|
 | T1 | Lista de tareas virtualizada, sin motion por fila, un solo set en la carga | components/common/issues, board-column, lib/issues.ts | 67672e20 | verde (build + lint; DOM de Tasks 1216 nodos con 2000 tareas, scroll OK). Cabeceras de grupo ya no son sticky |
+| T2 | Dedupe de GETs en vuelo; views/milestones/cycles/approvals/runs en idle | lib/api.ts, hooks/use-hydrate-workspace-data.ts | e3689168 | verde (build + lint). SSE ya recargaba por id. Quedan repeticiones no solapadas en el detalle |
+| T2b | La dedupe no cruza sesiones (generación + reset en sign-in/out) | lib/api.ts, store/session-store.ts | b76d3b2d | verde (build + lint). Correctivo por revisión de seguridad |
