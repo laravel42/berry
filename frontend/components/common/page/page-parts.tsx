@@ -167,7 +167,7 @@ export function KpiStrip({ kpis, wrap = false }: { kpis: Kpi[]; wrap?: boolean }
    return (
       <dl
          className={cn(
-            'no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
+            'px-4 no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
             // One row of equal columns on phones instead of a strip that scrolls off-screen.
             wrap && 'max-sm:mx-0 max-sm:gap-2 max-sm:overflow-visible max-sm:px-0'
          )}

@@ -128,7 +128,7 @@
    --ctl-px: 14px;
    /* Fields and the controls on their line: 40px, and a pill. See the note
       at the top of this file. */
-   --field-h: 2.5rem;
+   --field-h: 2rem;
    /* Chips sit well under the control floor on purpose — a board row can carry
       twenty of them, and `.pill` in the kit is 26px with 10px of side padding.
       Stated once because three components draw a chip today (`ui/badge`,
