@@ -38,6 +38,20 @@ let seededBoardId: string | null = null;
 let seededBoardRetry = -1;
 
 /**
+ * Runs `task` when the browser is idle (a timeout where there is no idle
+ * callback) and returns a function that cancels it. The off-screen stores load
+ * through this so they do not compete with the first paint.
+ */
+function whenIdle(task: () => void): () => void {
+   if (typeof window.requestIdleCallback === 'function') {
+      const handle = window.requestIdleCallback(task, { timeout: 2000 });
+      return () => window.cancelIdleCallback(handle);
+   }
+   const handle = window.setTimeout(task, 200);
+   return () => window.clearTimeout(handle);
+}
+
+/**
  * Seeds workspace data from the API once a session is ready.
  */
 export function useHydrateWorkspaceData(): void {
@@ -82,7 +96,7 @@ export function useHydrateWorkspaceData(): void {
       // read as its deletion. A board switch or a retry keeps the list it
       // has until the whole new one replaces it below.
       const initialLoad = !sameBoard && useIssuesStore.getState().issues.length === 0;
-      void loadBoardIssues(boardId, {
+      const issuesLoad = loadBoardIssues(boardId, {
          onPage: initialLoad
             ? (page) => {
                  if (!cancelled) mergeIssues(page);
@@ -103,20 +117,29 @@ export function useHydrateWorkspaceData(): void {
                error instanceof BerryApiError ? error.message : 'Tasks could not be loaded.'
             );
          });
-      void loadBoardRuns(boardId, { first: 200 })
-         .then((runs) => {
-            if (!cancelled) hydrateRuns(runs, null);
-         })
-         .catch((error: unknown) => {
-            if (!cancelled) {
-               hydrateRuns(
-                  [],
-                  error instanceof BerryApiError ? error.message : 'Runs could not be loaded.'
-               );
-            }
+      // The run list is not part of the first screen: it loads when the
+      // tasks have landed and the browser is idle.
+      let cancelIdle: (() => void) | undefined;
+      const loadRuns = () => {
+         cancelIdle = whenIdle(() => {
+            void loadBoardRuns(boardId, { first: 200 })
+               .then((runs) => {
+                  if (!cancelled) hydrateRuns(runs, null);
+               })
+               .catch((error: unknown) => {
+                  if (!cancelled) {
+                     hydrateRuns(
+                        [],
+                        error instanceof BerryApiError ? error.message : 'Runs could not be loaded.'
+                     );
+                  }
+               });
          });
+      };
+      void issuesLoad.then(loadRuns, loadRuns);
       return () => {
          cancelled = true;
+         cancelIdle?.();
       };
    }, [status, boardId, hydrateIssues, mergeIssues, hydrateRuns, setIssuesLoadState, retryToken]);
 
@@ -128,47 +151,67 @@ export function useHydrateWorkspaceData(): void {
       // mapped. Load the roster first: running both requests in parallel meant a
       // fast project response permanently became "Unknown member", because the
       // later member hydration did not remap projects already in the store.
-      void loadWorkspaceMembers(workspaceId).then(async (members) => {
-         if (cancelled) return;
-         hydrateMembers(members);
-         const projects = await loadWorkspaceProjects(workspaceId);
-         if (!cancelled) hydrateProjects(projects);
-      });
-      void loadWorkspaceInbox(workspaceId, viewer).then((items) => {
-         if (!cancelled) hydrateNotifications(items);
-      });
-      void loadInboxUnreadCount(workspaceId).then((count) => {
-         if (!cancelled) setServerUnreadCount(count);
-      });
-      void loadWorkspaceAgents()
-         .then((agents) => {
-            if (!cancelled) hydrateAgents(agents, null);
+      const critical: Promise<unknown>[] = [];
+      critical.push(
+         loadWorkspaceMembers(workspaceId).then(async (members) => {
+            if (cancelled) return;
+            hydrateMembers(members);
+            const projects = await loadWorkspaceProjects(workspaceId);
+            if (!cancelled) hydrateProjects(projects);
+         }),
+         loadWorkspaceInbox(workspaceId, viewer).then((items) => {
+            if (!cancelled) hydrateNotifications(items);
+         }),
+         loadInboxUnreadCount(workspaceId).then((count) => {
+            if (!cancelled) setServerUnreadCount(count);
+         }),
+         loadWorkspaceAgents()
+            .then((agents) => {
+               if (!cancelled) hydrateAgents(agents, null);
+            })
+            .catch((error: unknown) => {
+               if (!cancelled) {
+                  hydrateAgents(
+                     [],
+                     error instanceof BerryApiError
+                        ? error.message
+                        : 'Agent runtime is unavailable.'
+                  );
+               }
+            }),
+         loadWorkspaceLabels(workspaceId).then((labels) => {
+            if (!cancelled) hydrateLabels(labels);
          })
-         .catch((error: unknown) => {
-            if (!cancelled) {
-               hydrateAgents(
-                  [],
-                  error instanceof BerryApiError ? error.message : 'Agent runtime is unavailable.'
-               );
-            }
+      );
+      // Views, milestones, cycles and approvals are not on the first screen:
+      // they load once the critical data has landed and the browser is idle.
+      // Other screens read these stores and expect them to fill by themselves.
+      let cancelIdle: (() => void) | undefined;
+      const loadDeferred = () => {
+         if (cancelled) return;
+         cancelIdle = whenIdle(() => {
+            if (cancelled) return;
+            loadDeferredBody();
          });
-      void loadWorkspaceLabels(workspaceId).then((labels) => {
-         if (!cancelled) hydrateLabels(labels);
-      });
-      void loadWorkspaceViews(workspaceId, viewer).then((views) => {
-         if (!cancelled) hydrateViews(views);
-      });
-      void loadWorkspaceMilestones(workspaceId).then((milestones) => {
-         if (!cancelled) hydrateGoals(milestones);
-      });
-      void loadWorkspaceCycles(workspaceId).then((cycles) => {
-         if (!cancelled) hydrateCycles(cycles);
-      });
-      void loadWorkspaceApprovals(workspaceId).then((approvals) => {
-         if (!cancelled) hydrateApprovals(approvals);
-      });
+      };
+      const loadDeferredBody = () => {
+         void loadWorkspaceViews(workspaceId, viewer).then((views) => {
+            if (!cancelled) hydrateViews(views);
+         });
+         void loadWorkspaceMilestones(workspaceId).then((milestones) => {
+            if (!cancelled) hydrateGoals(milestones);
+         });
+         void loadWorkspaceCycles(workspaceId).then((cycles) => {
+            if (!cancelled) hydrateCycles(cycles);
+         });
+         void loadWorkspaceApprovals(workspaceId).then((approvals) => {
+            if (!cancelled) hydrateApprovals(approvals);
+         });
+      };
+      void Promise.allSettled(critical).then(loadDeferred);
       return () => {
          cancelled = true;
+         cancelIdle?.();
       };
    }, [
       status,

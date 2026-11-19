@@ -189,6 +189,83 @@ async function berryResponse(
    return response;
 }
 
+interface SharedGet {
+   promise: Promise<unknown>;
+   controller: AbortController;
+   /** Callers still waiting on this request; it is aborted when the last leaves. */
+   waiters: number;
+   requestId?: string;
+}
+
+const sharedGets = new Map<string, SharedGet>();
+
+/**
+ * Lets identical GETs that overlap share one network request. Each caller
+ * keeps its own `AbortSignal`: aborting one only detaches that caller, and
+ * the request is cancelled when nobody is left waiting on it.
+ */
+function shareGet<T>(
+   key: string,
+   run: (signal: AbortSignal, entry: SharedGet) => Promise<T>,
+   options: ApiFetchOptions
+): Promise<T> {
+   let entry = sharedGets.get(key);
+   if (!entry) {
+      const controller = new AbortController();
+      const created: SharedGet = { promise: undefined as never, controller, waiters: 0 };
+      created.promise = run(controller.signal, created).finally(() => {
+         if (sharedGets.get(key) === created) sharedGets.delete(key);
+      });
+      // Every caller observes the rejection through its own wait below.
+      created.promise.catch(() => undefined);
+      sharedGets.set(key, created);
+      entry = created;
+   }
+   const shared = entry;
+   shared.waiters += 1;
+   const { signal } = options;
+
+   return new Promise<T>((resolve, reject) => {
+      let settled = false;
+      const detach = () => {
+         signal?.removeEventListener('abort', onAbort);
+      };
+      const onAbort = () => {
+         if (settled) return;
+         settled = true;
+         detach();
+         shared.waiters -= 1;
+         if (shared.waiters === 0) {
+            if (sharedGets.get(key) === shared) sharedGets.delete(key);
+            shared.controller.abort();
+         }
+         reject(signal?.reason ?? new DOMException('The operation was aborted.', 'AbortError'));
+      };
+      if (signal?.aborted) {
+         onAbort();
+         return;
+      }
+      signal?.addEventListener('abort', onAbort, { once: true });
+      shared.promise.then(
+         (value) => {
+            if (settled) return;
+            settled = true;
+            detach();
+            shared.waiters -= 1;
+            if (shared.requestId) options.onRequestId?.(shared.requestId);
+            resolve(value as T);
+         },
+         (error: unknown) => {
+            if (settled) return;
+            settled = true;
+            detach();
+            shared.waiters -= 1;
+            reject(error);
+         }
+      );
+   });
+}
+
 /** JSON fetch against Berry; throws a structured `BerryApiError` on HTTP errors. */
 export async function apiFetch<T>(
    path: string,
@@ -202,11 +279,39 @@ export async function apiFetch<T>(
    if (typeof init?.body === 'string' && !headers.has('content-type')) {
       headers.set('content-type', 'application/json');
    }
-   const response = await berryResponse(path, { ...init, headers }, options);
-   if (response.status === 204) {
-      return undefined as T;
+   const read = async (requestOptions: ApiFetchOptions, entry?: SharedGet): Promise<T> => {
+      const response = await berryResponse(
+         path,
+         { ...init, headers },
+         entry
+            ? {
+                 ...requestOptions,
+                 onRequestId: (requestId) => {
+                    entry.requestId = requestId;
+                    options.onRequestId?.(requestId);
+                 },
+              }
+            : requestOptions
+      );
+      if (response.status === 204) {
+         return undefined as T;
+      }
+      return (await response.json()) as T;
+   };
+
+   const method = (init?.method ?? 'GET').toUpperCase();
+   if (method !== 'GET' || init?.body != null || init?.signal) {
+      return read(options);
    }
-   return (await response.json()) as T;
+
+   // The token is part of the key so two sessions never share a response.
+   await applySessionHeaders(headers, options);
+   const key = `${apiUrl(path)}
+${headers.get('accept')}
+${headers.get('authorization') ?? ''}
+${init?.credentials ?? ''}
+${init?.cache ?? ''}`;
+   return shareGet<T>(key, (signal, entry) => read({ ...options, signal }, entry), options);
 }
 
 /** Text fetch against Berry, for a body that is not JSON — a diff. */
