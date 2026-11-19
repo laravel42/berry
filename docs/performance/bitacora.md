@@ -35,6 +35,7 @@ Por el túnel de Cloudflare el usuario midió 36.
 | T3b | Caret en el editor de descripción tras cargarlo | issue-description.tsx | 589394ee | verde (clic real: foco en el editable). Lo tecleado antes de que cargue el chunk se pierde |
 | T4 | El shell se pinta durante el boot si hay cookie; /sign-in sin esperar bootstrap; /boards solo con sesión | app/layout.tsx, session-gate.tsx, session-store.ts | a4f98071 | verde (build; Tasks/Inbox/Projects/detalle OK en prod :3001; sign-in Lighthouse 79→94). El detalle de tarea espera a las 2000 tareas (~5 s local) |
 | T5 | Menú contextual y pickers de fila construidos solo al abrirse | issue-context-menu, assignee-user, option-picker, status-picker | ec25ad25 | verde (build + lint; CPU de carga en dev 4.7→3.8 s, IssueContextMenu fuera del perfil; menú y submenú Assignee OK) |
+| T6 | Sin prefetch de las secciones del rail/pestañas | components/layout/shell/* | 95841b3a | verde (build). La parte de abrir SSE tarde se revirtió en d9a6bbe9: sin cursor obligaba a recargar las 2000 tareas |
 
 ## Medición con sesión real (puppeteer + Lighthouse, tras T4)
 
@@ -47,3 +48,5 @@ La medición base con `--extra-headers` acababa en 401 a mitad de carga y no ref
 | Inbox | 45 | 2 290 ms | 2.1 s |
 
 Perfil de CPU en dev (Tasks, 15 s): `IssueContextMenu` ~900 ms inclusivo (monta el menú completo por fila), `AssigneeUser` ~200 ms, `OptionPicker` ~100 ms.
+
+Tras T6 (prod :3001): Tasks 40 (TBT 3 150 ms), detalle 46, Inbox 45. LCP observado 3.3 s, simulado ~66 s: Lantern cuenta las dos conexiones SSE (que no terminan) como dependencias del LCP. De ahí T7/T8: `since` en /events + `serverTime` en bootstrap para abrir los streams tras el primer pintado sin perder eventos.
