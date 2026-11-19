@@ -154,11 +154,11 @@ The frontend uses Tailwind's 4 px spacing base. Its working compact scale is:
 
 Controls take their height from two tokens, and the size prop picks one. A height is never
 set in a `className` (`h-[30px]`, `!h-…`, `min-h-11`), so a change to a token reaches every
-control. `--field-h` is 40 px (on trial since 2026-11-18; it was 32 px, then 44 px):
+control. `--field-h` is 32 px (44 px and 40 px were tried on 2026-11-18 and set back):
 
 | Height | Token | What takes it |
 | --- | --- | --- |
-| 40 px | `--field-h` | `Input` (and `variant="search"`, `variant="inline"`), `SelectTrigger` and `selectTriggerClass`, settings' `SelectMenu`, `Button size="sm"`, `Button size="icon-sm"`, `TabsList`, `SegmentedControl` and `segmentTrackClass`, a list's group header |
+| 32 px | `--field-h` | `Input` (and `variant="search"`, `variant="inline"`), `SelectTrigger` and `selectTriggerClass`, settings' `SelectMenu`, `Button size="sm"`, `Button size="icon-sm"`, `TabsList`, `SegmentedControl` and `segmentTrackClass`, a list's group header |
 | 44 px | `--ctl-h` | `Button` at its default size, `Input size="lg"` |
 
 Controls that share a line are one height. A field and the buttons beside it (a settings
@@ -176,6 +176,32 @@ Radix `Select` (a `DropdownMenu` or `Popover` trigger) take `selectTriggerClass`
 
 List rows are 40 px. Page toolbars are 52 px; sub-toolbars 44 px. Group headers take
 `--field-h`. Default icons are 16 px in navigation and 14–15 px in toolbars.
+
+A meta line set in the mono face (when a page's numbers arrived, a counter) takes
+`text-2xs`, 14 px: JetBrains Mono reads larger than Inter at one size.
+
+A form too long for one column of rows (an agent's Instructions, its Role and Permissions)
+uses `SectionTabs` (`components/common/section-tabs.tsx`): the sections as tabs on the
+left, the chosen one on the right as its title, caption and control at full width. Below
+`md` the tabs become a row that scrolls sideways. A detail page scrolls as one box: its
+header scrolls away, its tab strip sticks to the top, and a tab never scrolls on its own.
+
+### Floating controls and bottom bars
+
+Everything that floats in the bottom-right corner joins one stack
+(`store/floating-stack-store.ts`), so nothing lands on anything else: a page's controls
+(a task's Restart and Console) take the lowest place and the Agents launcher stands above
+them. A bar pinned to a page's bottom edge, `UnsavedChangesBar` or a list's `BulkBar`, is
+the stack's floor (`useFloatingFloor`): while it shows, every floating control stands
+above it, so none covers its buttons.
+
+Corner controls behave alike (`hooks/use-idle-tuck.ts`): left alone for ten seconds they
+tuck off the right edge, leaving a tenth showing, and pointing at one or focusing it
+brings that one back. Each keeps its own clock.
+
+`UnsavedChangesBar` has no rule on top: a warning tint rises from its bottom edge and
+fades into the card, the inverse of the tint a detail header falls from. Discard and Save
+stand on their own, so they take the button height (`--ctl-h`).
 
 Layout constants currently embedded in components should move to named tokens when those
 components are revised:

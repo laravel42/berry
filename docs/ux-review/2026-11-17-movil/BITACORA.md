@@ -2,6 +2,25 @@
 
 > Estado para retomar el trabajo. El plan está en [PLAN.md](PLAN.md) y el análisis en [README.md](README.md).
 
+## Detalle del agente, Usage y elementos flotantes (2026-11-18)
+
+El usuario devolvió `--field-h` a 32 px a mano (y añadió `px-4` a `KpiStrip`); se subió tal cual en ad6a61ae. Después pidió:
+
+**Detalle del agente:**
+- **Un solo scroll:** la cabecera del agente se desplaza, la fila de pestañas queda fija arriba y ninguna pestaña tiene scroll propio. En General, el formulario y Runtime ya no son dos cajas, con la de abajo apretada.
+- **Barra de cambios sin guardar:** sin borde arriba; un tinte de aviso sube desde abajo y se pierde en la card, al revés que el de la cabecera. Discard y Save miden 44 px. Queda pegada al fondo de lo que hace scroll.
+- **Tiers y Access:** los tiers pasan a píldoras de `--field-h` (antes cajas de 48 px). Las opciones de runtime, concurrencia y acceso usan `size="sm"`, sin `!h-auto`.
+- **Instructions y Role and Permissions:** nuevo componente `SectionTabs`. Las secciones aparecen como pestañas a la izquierda y, a la derecha, título (h3 en mono), descripción y el control a todo el ancho (textarea de 14 filas). Las secciones con cambios llevan un punto. En móvil, las pestañas son una fila con scroll lateral.
+
+**Usage:**
+- "Updated …" y el botón de refrescar suben a la fila del título, en JetBrains Mono y un paso más pequeño.
+- Para ese tamaño se añadió `text-2xs` (14 px) a la escala, en vez de escribirlo a mano.
+
+**Elementos flotantes:**
+- **Console se esconde como Agents:** `useIdleTuck` y `TUCKED_CLASS` salieron de `ShellChatButton` a `hooks/use-idle-tuck.ts`. Restart/Console se esconde a los 10 s y vuelve al pasar el cursor o al enfocarlo, cada uno con su propio reloj.
+- **Comprobado en BER-511:** los dos se esconden y se apilan (Console abajo, Agents encima). El hover sobre Console solo hace volver a Console.
+- **Las barras fijas abajo son el piso de la pila** (`FLOATING_ORDER.bar`, `useFloatingFloor`): `UnsavedChangesBar` y la nueva `BulkBar` (las barras de selección de Agents, el catálogo de agentes, Skills y el catálogo de skills, que antes repetían la misma clase). Mientras se ven, Agents y Console suben por encima y ya no tapan Save.
+
 ## Ajuste: los controles en línea a 40 px (2026-11-18)
 
 Después de ver la prueba a 44 px, el usuario pidió bajarla un poco. `--field-h` queda en 40 px (`2.5rem`), entre los 32 de antes y los 44 del botón suelto. No hizo falta tocar ningún componente, porque todos toman la altura del token.
