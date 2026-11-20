@@ -21,6 +21,7 @@ import { IssueLinkedPullRequests } from './issue-linked-pull-requests';
 import { IssueParentSection } from './issue-parent-section';
 import { IssueCycleProperty } from './issue-cycle-property';
 import { IssueProjectProperty } from './issue-project-property';
+import { IssueRepositoryProperty } from './issue-repository-property';
 import { IssueQuickActions } from './issue-quick-actions';
 import { IssueDependenciesSection, IssueMilestoneSection } from './issue-relations';
 import { Section } from './panel-section';
@@ -103,6 +104,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   />
 
                   <IssueProjectProperty issue={issue} />
+                  <IssueRepositoryProperty issue={issue} />
                   <IssueCycleProperty issue={issue} />
                   {/* AutoGate reviews an agent's delivery, so it only
                       applies when an agent holds the task. */}

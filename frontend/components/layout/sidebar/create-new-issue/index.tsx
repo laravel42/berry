@@ -60,6 +60,7 @@ import { AssigneeSelector } from './assignee-selector';
 import { descriptionWithPlugins, CreatePluginSelect } from './plugin-select';
 import { CycleSelector } from './cycle-selector';
 import { ProjectSelector } from './project-selector';
+import { RepositoryPicker } from '@/components/common/projects/repository-selector';
 
 /** Fixed prompt for the create-task footer: expand the description for clarity. */
 const IMPROVE_DESCRIPTION_INSTRUCTION =
@@ -136,6 +137,21 @@ export function CreateNewIssue() {
       undefined;
    const startDate = parseDraftDate(draft.startDate);
    const dueDate = parseDraftDate(draft.targetDate);
+   // The task's own repository. Unpicked, the task takes its project's
+   // default on the server, so that is what the picker shows meanwhile.
+   const [repository, setRepository] = useState<{
+      provider: 'github' | 'gitlab';
+      fullName: string;
+   } | null>(null);
+   useEffect(() => {
+      if (!isOpen) setRepository(null);
+   }, [isOpen]);
+   const projectRepository = selectedProject?.gitlabRepo
+      ? { provider: 'gitlab' as const, fullName: selectedProject.gitlabRepo }
+      : selectedProject?.githubRepo
+        ? { provider: 'github' as const, fullName: selectedProject.githubRepo }
+        : null;
+   const shownRepository = repository ?? projectRepository;
    const selectedAssignee = useMemo(() => {
       if (!draft.assignee) return null;
       if (draft.assignee.type === 'agent') {
@@ -294,6 +310,7 @@ export function CreateNewIssue() {
             projectId,
             startDate: draft.startDate || undefined,
             dueDate: draft.targetDate || undefined,
+            ...(repository ? { repository } : {}),
          });
 
          addIssue(localIssue(created));
@@ -423,6 +440,15 @@ export function CreateNewIssue() {
                         onChange={(next) => setDraft({ projectId: next?.id ?? null })}
                      />
                   ) : null}
+                  <RepositoryPicker
+                     value={shownRepository?.fullName}
+                     valueProvider={shownRepository?.provider}
+                     onSelect={setRepository}
+                     placeholder={t('repository')}
+                     variant="secondary"
+                     size="xs"
+                     className="w-auto max-w-44"
+                  />
 
                   <CycleSelector
                      cycleId={draft.cycleId}
