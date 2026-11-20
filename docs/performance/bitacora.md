@@ -93,3 +93,19 @@ Perfil de prod sin mangling, CPU 4×: CPU de carga de Tasks 4.3 s → 2.6 s; nin
 | Inbox | 86 | 2.0 s | | 510 ms |
 
 Con caché caliente (segunda visita) Tasks da 83. Lo que queda en Tasks es CPU antes del LCP: ~1.6 MB de JS en todas las rutas y el render de la lista; la simulación ×4 de CPU lo convierte en 4.6 s.
+
+### Lighthouse desktop (preset `desktop`, build con T14, sesión real)
+
+Hasta aquí todo se midió con el preset móvil (CPU 4×, 4G lento). Con el preset desktop:
+
+| Ruta | Score | LCP | TBT |
+|------|-------|-----|-----|
+| Tasks, caché fría (local) | 84–95 | 1.1–1.5 s | 150–280 ms |
+| Tasks, caché fría (túnel) | 99 | 0.8 s | 60 ms |
+| Tasks, segunda visita | 100 | 0.6–0.7 s | 40 ms |
+| Detalle | 99 | 0.8 s | 40 ms |
+| Inbox | 100 | 0.6 s | 10 ms |
+| Projects | 100 | 0.6 s | 20 ms |
+| Sign-in (anónimo) | 100 | 0.3 s | 0 ms |
+
+No hay medición desktop del baseline para comparar. El margen que queda está en móvil, donde la CPU simulada ×4 multiplica el JS común.
