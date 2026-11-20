@@ -40,6 +40,9 @@ Por el túnel de Cloudflare el usuario midió 36.
 | T8 | Streams SSE abiertos tras la carga, en idle, con `since` | lib/auth, session-store, use-*-event-stream, lib/events, lib/runs | ab9e7506 | verde (build + lint; URLs con since; tiempo real comprobado cambiando un título por la API) |
 | T9 | Inter: solo eje wght (opsz fijo en 14) y features en uso, 206→115 KB | app/fonts/inter-variable-latin.woff2, comentario de layout.tsx | 3c3b2a56 | verde (build; cmap ⊇ anterior). Títulos >14 px pierden las formas de display de opsz |
 | T10 | Lista con alturas fijas (fila 2.5rem, cabecera 2rem) sin measureElement | virtual-issue-list.tsx | bb1bcd4a | verde (build + lint; sin solapes en escritorio y móvil táctil). measureElement eran 936 ms de 4.3 s en el perfil de prod con CPU 4× |
+| T11 | Barra y menú de filtros sin trabajo mientras no hay filtros ni menú abierto | issue-filter-bar.tsx, issue-filter-trigger.tsx | 43cd0760 | verde (build + lint; menú, filtro Blocked y Clear probados en prod) |
+| T12 | Preload de bootstrap y boards desde el HTML con cookie | app/layout.tsx, lib/auth.ts, lib/boards.ts | 2715643d | verde (las dos peticiones salen del parser y JS no las repite) |
+| T13 | Sin prefetch por fila; ThemeSync/LocaleSync sin router.refresh | issue-line.tsx, theme-sync.tsx, locale-sync.tsx | 812f503a | verde (perfil nuevo: 0 peticiones `_rsc` en Tasks; tema aplicado) |
 
 ## Medición con sesión real (puppeteer + Lighthouse, tras T4)
 
@@ -68,3 +71,14 @@ Tras T8 (prod :3001): Tasks **53** (LCP 5.1 s, TBT 1 600 ms), detalle **74** (LC
 | Sign-in | 93 | 1.4 s | 320 ms |
 
 Pendiente en Tasks: el LCP depende de bootstrap → boards → primera página de tareas; el TBT, de hidratar 2000 tareas y de las opciones de la barra de filtros (~120 ms, se construyen cerradas).
+
+### Tras T11–T13
+
+Perfil de prod sin mangling, CPU 4×: CPU de carga de Tasks 4.3 s → 2.6 s; ningún componente supera unas decenas de ms.
+
+| Ruta | Score | LCP | TBT |
+|------|-------|-----|-----|
+| Tasks | 60–63 | 4.4–4.5 s | 990–1 300 ms |
+| Detalle | 84 | 2.5 s | 520 ms |
+| Inbox | 84 | 2.1 s | 520 ms |
+| Projects | 82 | 2.4 s | 610 ms |
