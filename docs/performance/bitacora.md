@@ -43,6 +43,7 @@ Por el túnel de Cloudflare el usuario midió 36.
 | T11 | Barra y menú de filtros sin trabajo mientras no hay filtros ni menú abierto | issue-filter-bar.tsx, issue-filter-trigger.tsx | 43cd0760 | verde (build + lint; menú, filtro Blocked y Clear probados en prod) |
 | T12 | Preload de bootstrap y boards desde el HTML con cookie | app/layout.tsx, lib/auth.ts, lib/boards.ts | 2715643d | verde (las dos peticiones salen del parser y JS no las repite) |
 | T13 | Sin prefetch por fila; ThemeSync/LocaleSync sin router.refresh | issue-line.tsx, theme-sync.tsx, locale-sync.tsx | 812f503a | verde (perfil nuevo: 0 peticiones `_rsc` en Tasks; tema aplicado) |
+| T14 | Cookie `berry_board` y preload de la primera página de tareas desde el HTML | lib/issue-urls.ts, lib/issues.ts, session-store.ts, app/layout.tsx | 5df17999 | verde (las 3 peticiones salen del parser a ~180 ms, sin duplicados) |
 
 ## Medición con sesión real (puppeteer + Lighthouse, tras T4)
 
@@ -82,3 +83,13 @@ Perfil de prod sin mangling, CPU 4×: CPU de carga de Tasks 4.3 s → 2.6 s; nin
 | Detalle | 84 | 2.5 s | 520 ms |
 | Inbox | 84 | 2.1 s | 520 ms |
 | Projects | 82 | 2.4 s | 610 ms |
+
+### Tras T14 (usuario que vuelve: cookie de board puesta, caché fría)
+
+| Ruta | Score | LCP sim | LCP observado | TBT |
+|------|-------|---------|---------------|-----|
+| Tasks | 61 | 4.6 s | 1.1 s (antes 1.8 s) | 1 080 ms |
+| Detalle | 86 | 2.4 s | | 460 ms |
+| Inbox | 86 | 2.0 s | | 510 ms |
+
+Con caché caliente (segunda visita) Tasks da 83. Lo que queda en Tasks es CPU antes del LCP: ~1.6 MB de JS en todas las rutas y el render de la lista; la simulación ×4 de CPU lo convierte en 4.6 s.
