@@ -109,3 +109,21 @@ Hasta aquí todo se midió con el preset móvil (CPU 4×, 4G lento). Con el pres
 | Sign-in (anónimo) | 100 | 0.3 s | 0 ms |
 
 No hay medición desktop del baseline para comparar. El margen que queda está en móvil, donde la CPU simulada ×4 multiplica el JS común.
+
+## Mapa del JS inicial (`next analyze`, build con T14)
+
+`NEXT_DIST_DIR=.next-analyze npx next analyze -o --experimental-app-only` y `npx next analyze export --dist-dir .next-analyze --route '/[orgId]/tasks'` dan los módulos de cada chunk. JS inicial sin CSS, fuentes ni `polyfill-nomodule` (Chrome no lo carga): Tasks 1 588 KB, Inbox 1 631 KB, Projects 1 553 KB, detalle 1 398 KB (sin minificar).
+
+| Pieza | KB | Por dónde entra |
+|-------|----|-----------------|
+| next + react-dom | 448 | framework |
+| zod | 107 | esquemas de `lib/*` (53 archivos) |
+| motion-dom + framer-motion | 128 | `ui/tabs` → `segment-indicator`, solo vía `data-table-filter/filter-value` (filtros activos) |
+| data-table-filter + slider | 50 | `common/filters/list-filters`, `issues/issue-filter-bar` |
+| Select de Radix + `issue-table` | ~40 | `my-issues` importa la vista de tabla aunque se vea la lista |
+| create-new-issue, create-milestone, cmdk | ~45 | `workspace-runtime` → proveedores de los diálogos de crear |
+| better-auth + better-fetch | 26 | `session-store` → `lib/auth` → `lib/auth-client` |
+| parser ICU de next-intl | 31 | formateo de mensajes en el cliente |
+| sonner | 34 | `toast()` en stores y componentes |
+
+Plan B1–B5 (≈300 KB): filtros, vistas tabla/tablero, diálogos de crear, cliente de auth, mensajes precompilados. `zod/mini` queda fuera por tamaño.
