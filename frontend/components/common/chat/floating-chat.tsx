@@ -26,7 +26,6 @@ import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { toast } from 'sonner';
 import { ChatComposer } from './chat-composer';
-import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatThread as ThreadView } from './chat-thread';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 
@@ -236,8 +235,7 @@ export function FloatingChat() {
       setSending(true);
       setComposer('');
       try {
-         const prefs = useUiPrefsStore.getState();
-         const queued = await sendMessage(activeId, text, prefs.chatMode, chatRepositoryToSend());
+         const queued = await sendMessage(activeId, text);
          setSent({ conversationId: activeId, runId: queued.runId });
       } catch {
          /* The reply that never comes is the report. */
