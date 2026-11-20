@@ -187,7 +187,7 @@ export function VirtualIssueList({
 
    // WebKit has no scroll anchoring, and batches of tasks land above the
    // viewport while the list loads, which shifted the content under the
-   // finger. On a touch screen, find the first row still in view in the
+   // finger. On a touch screen, find the first row fully in view in the
    // previous list and put it back at the same offset in the new one.
    // scrollTop is untouched by the DOM update, so it still holds the position
    // from before the change.
@@ -211,7 +211,7 @@ export function VirtualIssueList({
       let offset = 0;
       for (const item of prev) {
          const bottom = top + sizeOf(item);
-         if (bottom > viewTop) {
+         if (top >= viewTop) {
             key = item.key;
             offset = top - viewTop;
             break;
