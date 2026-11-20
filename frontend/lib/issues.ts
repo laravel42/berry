@@ -6,6 +6,7 @@ import { useProjectsStore } from '@/store/projects-store';
 import { Box } from 'lucide-react';
 import { z } from 'zod';
 import { apiFetch, BerryApiError } from './api';
+import { BOARD_ISSUES_PAGE_SIZE, boardIssuesFirstPagePath } from './issue-urls';
 import { actorRefSchema, connectionSchema, newIdempotencyKey } from './api-schemas';
 import type { User } from '@/data/users';
 import {
@@ -31,7 +32,7 @@ export function assigneeToApi(user: User | null): { type: 'user' | 'agent'; id: 
  * Failed or malformed responses return [] so the board/list UI stays bootable.
  */
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = BOARD_ISSUES_PAGE_SIZE;
 const MAX_PAGES = 20;
 
 /**
@@ -286,15 +287,14 @@ async function fetchAllBoardIssues(
 
       for (let page = 0; page < MAX_PAGES; page += 1) {
          const pageStart = collected.length;
-         const params = new URLSearchParams({
-            boardId,
-            first: String(PAGE_SIZE),
-         });
+         let path = boardIssuesFirstPagePath(boardId);
          if (after) {
+            const params = new URLSearchParams({ boardId, first: String(PAGE_SIZE) });
             params.set('after', after);
+            path = `/api/v1/issues?${params.toString()}`;
          }
 
-         const json: unknown = await apiFetch(`/api/v1/issues?${params.toString()}`);
+         const json: unknown = await apiFetch(path);
          const parsed = issueConnectionSchema.safeParse(json);
          if (!parsed.success) {
             return collected;

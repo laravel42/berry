@@ -237,3 +237,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return target;
    },
 }));
+
+// The board is remembered in a cookie so the root layout can start the first page
+// of its tasks from the HTML, before bootstrap and boards have answered. Nothing
+// else reads it, and a stale value only wastes that one preload.
+const BOARD_COOKIE = 'berry_board';
+
+function writeBoardCookie(boardId: string | null): void {
+   if (typeof document === 'undefined') return;
+   document.cookie = boardId
+      ? `${BOARD_COOKIE}=${encodeURIComponent(boardId)}; path=/; max-age=31536000; samesite=lax`
+      : `${BOARD_COOKIE}=; path=/; max-age=0; samesite=lax`;
+}
+
+useSessionStore.subscribe((state, previous) => {
+   const next = state.status === 'ready' ? state.boardId : null;
+   const before = previous.status === 'ready' ? previous.boardId : null;
+   if (next !== before || state.status !== previous.status) writeBoardCookie(next);
+});

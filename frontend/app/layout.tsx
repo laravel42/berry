@@ -85,8 +85,11 @@ import { preload } from 'react-dom';
 import { apiUrl } from '@/lib/api';
 import { BOOTSTRAP_PATH } from '@/lib/auth';
 import { BOARDS_FIRST_PAGE_PATH } from '@/lib/boards';
+import { boardIssuesFirstPagePath } from '@/lib/issue-urls';
 
 import { THEME_COOKIE, resolveTheme } from '@/lib/theme/theme';
+
+const BOARD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export default async function RootLayout({
    children,
@@ -109,6 +112,15 @@ export default async function RootLayout({
       // which is crossOrigin 'use-credentials' here; the URLs are the ones it asks for.
       preload(apiUrl(BOOTSTRAP_PATH), { as: 'fetch', crossOrigin: 'use-credentials' });
       preload(apiUrl(BOARDS_FIRST_PAGE_PATH), { as: 'fetch', crossOrigin: 'use-credentials' });
+      // The board remembered by the session store. Only a canonical UUID goes into
+      // the URL; if it is stale the preload is wasted and nothing else changes.
+      const boardId = jar.get('berry_board')?.value;
+      if (boardId && BOARD_ID_PATTERN.test(boardId)) {
+         preload(apiUrl(boardIssuesFirstPagePath(boardId)), {
+            as: 'fetch',
+            crossOrigin: 'use-credentials',
+         });
+      }
    }
    return (
       <html
