@@ -17,6 +17,14 @@ export function IssueFilterBar({
    /** When false, Clear / save live elsewhere (e.g. the Tasks header). */
    showActions?: boolean;
 }) {
+   // Reading only the count keeps the issues and the filter columns out of the
+   // render path while no filter is applied.
+   const { filters } = useFilterStore();
+   if (filters.length === 0) return null;
+   return <IssueFilterChips showActions={showActions} />;
+}
+
+function IssueFilterChips({ showActions }: { showActions: boolean }) {
    const issues = useIssuesStore((state) => state.issues);
    const { filters, setFilters } = useFilterStore();
    const issueFilterColumns = useIssueFilterColumns();
@@ -33,8 +41,6 @@ export function IssueFilterBar({
       filters: knownFilters,
       onFiltersChange: setFilters,
    });
-
-   if (filters.length === 0) return null;
 
    return (
       <div className="flex w-full items-start gap-2 border-b border-border/60 bg-container px-6 py-2">
