@@ -13,7 +13,7 @@ import { useShortcutBindings } from '@/store/shortcuts-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 
 /**
- * Flat "Agents" launcher at the bottom-right of the body frame.
+ * Flat "Agent" launcher at the bottom-right of the body frame.
  *
  * Opens the floating chat window that `FloatingChat` draws. Always rendered:
  * Preferences → General can turn the floating *panel* off, and that preference
@@ -77,7 +77,7 @@ export function ShellChatButton() {
             className="relative h-full min-h-0 border-0 bg-container shadow-none hover:bg-container hover:text-foreground data-[open=true]:bg-container data-[open=true]:text-foreground"
          >
             <Sparkles className="size-3.5" aria-hidden="true" />
-            {t('nav.agents')}
+            {t('chat.label')}
             {unread > 0 && !open ? (
                <span
                   aria-hidden="true"
