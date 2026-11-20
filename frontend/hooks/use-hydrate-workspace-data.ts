@@ -38,6 +38,9 @@ import { useWorkspaceEventStream } from './use-workspace-event-stream';
 let seededBoardId: string | null = null;
 let seededBoardRetry = -1;
 
+/** Buffered task pages are merged into the store once this many are waiting. */
+const MERGE_BATCH_SIZE = 500;
+
 /**
  * Runs `task` when the browser is idle (a timeout where there is no idle
  * callback) and returns a function that cancels it. The off-screen stores load
@@ -98,8 +101,9 @@ export function useHydrateWorkspaceData(): void {
       // has until the whole new one replaces it below.
       const initialLoad = !sameBoard && useIssuesStore.getState().issues.length === 0;
       // The first page lands at once; later pages are buffered and merged in
-      // one store update when the browser is idle, so pages arriving close
-      // together do not re-render the list once each or during a busy frame.
+      // one store update when the browser is idle, once MERGE_BATCH_SIZE tasks
+      // are waiting, so pages arriving close together do not re-render the
+      // list once each. The tail below a full batch lands with the final list.
       let firstPageSeen = false;
       let buffered: Issue[] = [];
       let cancelFlush: (() => void) | undefined;
@@ -125,7 +129,7 @@ export function useHydrateWorkspaceData(): void {
                     return;
                  }
                  buffered.push(...page);
-                 cancelFlush ??= whenIdle(flushBuffered);
+                 if (buffered.length >= MERGE_BATCH_SIZE) cancelFlush ??= whenIdle(flushBuffered);
               }
             : undefined,
       })
