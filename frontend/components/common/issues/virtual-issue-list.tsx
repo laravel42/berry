@@ -49,17 +49,42 @@ function useRootFontSize() {
 }
 
 /**
- * Rows kept beyond each edge of the viewport. A finger's fling outruns a
- * wheel by far, and WebKit (every browser on an iPhone) paints rows added
- * mid-fling late, so on a touch screen the window reaches much further and
- * the rows a fling uncovers already exist.
+ * True on a touch screen. There the list is not windowed: WebKit (every
+ * browser on an iPhone) holds back scroll events during a fling, so a
+ * windowed list only learned where it was once the fling ended and showed
+ * blank space until then. Touch screens get every row in normal flow instead
+ * (see `FlowRows`), and the browser skips painting the ones off screen.
  */
-function useOverscan() {
-   const [overscan, setOverscan] = useState(10);
+function useCoarsePointer() {
+   const [coarse, setCoarse] = useState(false);
    useEffect(() => {
-      if (window.matchMedia('(pointer: coarse)').matches) setOverscan(30);
+      setCoarse(window.matchMedia('(pointer: coarse)').matches);
    }, []);
-   return overscan;
+   return coarse;
+}
+
+/** Rows mounted on the first render on a touch screen, then this many more per idle slice. */
+const FLOW_FIRST_ROWS = 80;
+const FLOW_ROWS_PER_SLICE = 250;
+
+/**
+ * How many of `total` rows to mount: a first screenful at once, the rest in
+ * slices while the browser is idle, so the first paint costs what the
+ * windowed list did and scrolling never waits on script.
+ */
+function useProgressiveCount(total: number, active: boolean) {
+   const [count, setCount] = useState(FLOW_FIRST_ROWS);
+   useEffect(() => {
+      if (!active || count >= total) return;
+      const next = () => setCount((current) => current + FLOW_ROWS_PER_SLICE);
+      if ('requestIdleCallback' in window) {
+         const id = window.requestIdleCallback(next, { timeout: 500 });
+         return () => window.cancelIdleCallback(id);
+      }
+      const id = setTimeout(next, 50);
+      return () => clearTimeout(id);
+   }, [active, count, total]);
+   return Math.min(count, total);
 }
 
 /** A row that is also where a dragged task lands, so it moves into this group. */
@@ -135,7 +160,8 @@ export function VirtualIssueList({
    }, [groups, collapsed, onDropFor]);
 
    const rem = useRootFontSize();
-   const overscan = useOverscan();
+   const coarse = useCoarsePointer();
+   const flowCount = useProgressiveCount(items.length, coarse);
    const sizeOf = (item: ListItem | undefined) => {
       if (item?.kind === 'header') {
          return HEADER_HEIGHT_REM * rem + (item.index > 0 ? HEADER_BAND_PX : 0);
@@ -144,11 +170,12 @@ export function VirtualIssueList({
    };
 
    const virtualizer = useVirtualizer({
-      count: items.length,
+      // Windowed with a mouse or trackpad only; a touch screen renders in flow.
+      count: coarse ? 0 : items.length,
       getScrollElement: () => scrollRef.current,
       estimateSize: (index) => sizeOf(items[index]),
       getItemKey: (index) => items[index]?.key ?? index,
-      overscan,
+      overscan: 10,
    });
 
    // Sizes are fixed, so a change of root font size or of the items only needs
@@ -164,6 +191,23 @@ export function VirtualIssueList({
          return next;
       });
 
+   const renderItem = (item: ListItem) =>
+      item.kind === 'header' ? (
+         // The 3px band between groups the divide utility drew.
+         <div className={cn(item.index > 0 && 'border-t-[3px] border-background')}>
+            <ListGroupHeader
+               group={item.entry.group}
+               count={item.entry.issues.length}
+               collapsed={item.collapsed}
+               onToggle={() => toggle(item.entry.group.id)}
+            />
+         </div>
+      ) : (
+         <DropRow onDropIssue={item.onDropIssue}>
+            <IssueLine issue={item.issue} order={item.order} draggable />
+         </DropRow>
+      );
+
    return (
       // `overscroll-contain`: the list sits inside the shell's own scroller,
       // and on an iPhone a fling that reached the end chained into it and
@@ -173,41 +217,52 @@ export function VirtualIssueList({
          className="h-full overflow-y-auto overscroll-contain md:pb-[var(--shell-launcher-room)]"
       >
          {empty}
-         <div
-            className="relative w-full bg-container"
-            style={{ height: virtualizer.getTotalSize() }}
-         >
-            {virtualizer.getVirtualItems().map((virtualItem) => {
-               const item = items[virtualItem.index];
-               if (!item) return null;
-               return (
+         {coarse ? (
+            <div className="w-full bg-container">
+               {items.slice(0, flowCount).map((item) => (
                   <div
-                     key={virtualItem.key}
-                     className="absolute top-0 left-0 w-full"
-                     // Placed with `top`, not a transform: WebKit gives each
-                     // transformed row its own layer, and creating and
-                     // dropping those mid-fling made rows blink out and back.
-                     style={{ height: virtualItem.size, top: virtualItem.start }}
+                     key={item.key}
+                     // Painted only near the viewport, by the browser itself;
+                     // the size it holds meanwhile is the row's exact size.
+                     style={{
+                        contentVisibility: 'auto',
+                        containIntrinsicSize: `auto ${sizeOf(item)}px`,
+                        height: sizeOf(item),
+                     }}
                   >
-                     {item.kind === 'header' ? (
-                        // The 3px band between groups the divide utility drew.
-                        <div className={cn(item.index > 0 && 'border-t-[3px] border-background')}>
-                           <ListGroupHeader
-                              group={item.entry.group}
-                              count={item.entry.issues.length}
-                              collapsed={item.collapsed}
-                              onToggle={() => toggle(item.entry.group.id)}
-                           />
-                        </div>
-                     ) : (
-                        <DropRow onDropIssue={item.onDropIssue}>
-                           <IssueLine issue={item.issue} order={item.order} draggable />
-                        </DropRow>
-                     )}
+                     {renderItem(item)}
                   </div>
-               );
-            })}
-         </div>
+               ))}
+               {flowCount < items.length ? (
+                  // Room for the rows still to mount, so the scrollbar is right from the start.
+                  <div
+                     aria-hidden
+                     style={{
+                        height: items.slice(flowCount).reduce((sum, item) => sum + sizeOf(item), 0),
+                     }}
+                  />
+               ) : null}
+            </div>
+         ) : (
+            <div
+               className="relative w-full bg-container"
+               style={{ height: virtualizer.getTotalSize() }}
+            >
+               {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const item = items[virtualItem.index];
+                  if (!item) return null;
+                  return (
+                     <div
+                        key={virtualItem.key}
+                        className="absolute left-0 w-full"
+                        style={{ height: virtualItem.size, top: virtualItem.start }}
+                     >
+                        {renderItem(item)}
+                     </div>
+                  );
+               })}
+            </div>
+         )}
          {footer}
       </div>
    );
