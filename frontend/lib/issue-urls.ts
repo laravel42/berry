@@ -3,6 +3,9 @@
 
 export const BOARD_ISSUES_PAGE_SIZE = 100;
 
+/** The first page is smaller so the list paints sooner; later pages use the full size. */
+export const BOARD_ISSUES_FIRST_PAGE_SIZE = 50;
+
 /**
  * The path of a board's first page of tasks. The fetch in lib/issues.ts and the
  * <link rel="preload"> in app/layout.tsx both build it here, so the preload is
@@ -11,7 +14,7 @@ export const BOARD_ISSUES_PAGE_SIZE = 100;
 export function boardIssuesFirstPagePath(boardId: string): string {
    const params = new URLSearchParams({
       boardId,
-      first: String(BOARD_ISSUES_PAGE_SIZE),
+      first: String(BOARD_ISSUES_FIRST_PAGE_SIZE),
    });
    return `/api/v1/issues?${params.toString()}`;
 }

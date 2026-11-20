@@ -307,10 +307,10 @@ async function fetchAllBoardIssues(
             }
          }
 
-         // Only the first page is reported: it is the first paint. Merging
-         // every page would re-render the whole list once per 100 tasks, and
-         // the caller gets the full list in one piece when the fetch resolves.
-         if (onPage && page === 0 && collected.length > pageStart) {
+         // Every page is reported as it lands: the first is the first paint,
+         // the rest are for the caller to batch. The caller still gets the
+         // full list in one piece when the fetch resolves.
+         if (onPage && collected.length > pageStart) {
             try {
                onPage(collected.slice(pageStart));
             } catch {
@@ -335,9 +335,10 @@ async function fetchAllBoardIssues(
 /**
  * One in-flight list fetch per board; empty when no board is selected.
  *
- * `onPage` receives the first page's issues as they land, so a first paint
- * need not wait for the last page; the rest arrive with the resolved list. Only the call that starts the fetch gets pages: a
- * call that joins one already in flight gets just the whole list at the end.
+ * `onPage` receives each page's issues as they land, so a first paint need
+ * not wait for the last page; the resolved list holds all of them. Only the
+ * call that starts the fetch gets pages: a call that joins one already in
+ * flight gets just the whole list at the end.
  */
 export function loadBoardIssues(
    boardId: string,

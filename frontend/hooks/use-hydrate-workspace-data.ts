@@ -1,5 +1,6 @@
 'use client';
 
+import type { Issue } from '@/data/issues';
 import { currentUser } from '@/data/users';
 import { BerryApiError } from '@/lib/api';
 import { loadWorkspaceAgents } from '@/lib/agents';
@@ -96,14 +97,41 @@ export function useHydrateWorkspaceData(): void {
       // read as its deletion. A board switch or a retry keeps the list it
       // has until the whole new one replaces it below.
       const initialLoad = !sameBoard && useIssuesStore.getState().issues.length === 0;
+      // The first page lands at once; later pages are buffered and merged in
+      // one store update when the browser is idle, so pages arriving close
+      // together do not re-render the list once each or during a busy frame.
+      let firstPageSeen = false;
+      let buffered: Issue[] = [];
+      let cancelFlush: (() => void) | undefined;
+      const dropBuffered = () => {
+         cancelFlush?.();
+         cancelFlush = undefined;
+         buffered = [];
+      };
+      const flushBuffered = () => {
+         cancelFlush = undefined;
+         if (cancelled || buffered.length === 0) return;
+         const batch = buffered;
+         buffered = [];
+         mergeIssues(batch);
+      };
       const issuesLoad = loadBoardIssues(boardId, {
          onPage: initialLoad
             ? (page) => {
-                 if (!cancelled) mergeIssues(page);
+                 if (cancelled) return;
+                 if (!firstPageSeen) {
+                    firstPageSeen = true;
+                    mergeIssues(page);
+                    return;
+                 }
+                 buffered.push(...page);
+                 cancelFlush ??= whenIdle(flushBuffered);
               }
             : undefined,
       })
          .then((issues) => {
+            // The full list supersedes any batch still waiting.
+            dropBuffered();
             if (cancelled) return;
             seededBoardId = boardId;
             seededBoardRetry = retryToken;
@@ -139,6 +167,7 @@ export function useHydrateWorkspaceData(): void {
       void issuesLoad.then(loadRuns, loadRuns);
       return () => {
          cancelled = true;
+         dropBuffered();
          cancelIdle?.();
       };
    }, [status, boardId, hydrateIssues, mergeIssues, hydrateRuns, setIssuesLoadState, retryToken]);
