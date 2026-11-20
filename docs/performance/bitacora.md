@@ -135,3 +135,4 @@ Plan B1–B5 (≈300 KB): filtros, vistas tabla/tablero, diálogos de crear, cli
 | B1 | Barra y menú de filtros bajo demanda (`list-filters-lazy`, `list-filters-ui`) | b7971302 | verde (lint + tsc + build). Saca motion, slider y data-table-filter de Tasks, Inbox y Projects |
 | — | Indicador de los segmentados vuelve a deslizarse (regresión de T3: features cargadas tras montar) | 3004516d | verde (posición muestreada en headless) |
 | B2 | Vistas tabla y tablero bajo demanda; `issue-dnd.ts` con lo compartido | 32967104 | verde (lint + tsc + build; lista 27 filas → tablero 98 tarjetas → lista, sin errores). La lista ya no pinta el fantasma de tarjeta al arrastrar filas: queda la imagen nativa |
+| B3 | Diálogos de crear tarea y goal al primer uso, precargados en idle | 21a28f30 | verde (lint + tsc + build; "New task" abre el diálogo en headless, sin errores) |
