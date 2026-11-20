@@ -2,7 +2,7 @@
 
 import { Bot, CircleDot, Repeat, UserPen, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 import {
    agentFilterOption,
@@ -89,6 +89,8 @@ export function useAutopilotFilterColumns(
 }
 
 interface Props {
+   /** The list's search, first on the row (a `ToolbarSearch`). */
+   search?: ReactNode;
    filter: ListFilterController<Autopilot>;
    scope?: AutopilotScope;
    onScopeChange?: (scope: AutopilotScope) => void;
@@ -97,6 +99,7 @@ interface Props {
 
 /** Which Loops are shown: live or archived, and the filters over them. */
 export default function AutopilotsFilters({
+   search,
    filter,
    scope = 'all',
    onScopeChange,
@@ -109,10 +112,15 @@ export default function AutopilotsFilters({
    };
 
    return (
-      // Filter on the left, the All | Archived scope on the right; `ml-auto`
-      // keeps the scope right-aligned when the row wraps on a narrow screen.
-      <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-6 py-2">
-         <ListFilterTrigger filter={filter} />
+      // Search and filter on the left, the All | Archived scope on the right;
+      // `ml-auto` keeps the scope right-aligned when the row wraps. On a
+      // phone the left group dissolves into the row, so an opened search can
+      // take the first line on its own.
+      <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-6 py-2 max-sm:gap-x-1">
+         <div className="flex items-center gap-1 max-sm:contents">
+            {search}
+            <ListFilterTrigger filter={filter} />
+         </div>
          <Tabs
             value={scope}
             onValueChange={(value) => onScopeChange?.(value as AutopilotScope)}

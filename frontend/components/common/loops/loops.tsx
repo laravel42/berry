@@ -22,7 +22,7 @@ import type { FiltersState } from '@/components/data-table-filter/core/types';
 import MainLayout from '@/components/layout/main-layout';
 import { useShortcut } from '@/components/layout/shortcut-provider';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import type { User } from '@/data/users';
 import { useAutopilots } from '@/hooks/use-autopilots';
 import { useLoopActivity } from '@/hooks/use-loop-activity';
@@ -165,16 +165,6 @@ export default function Loops() {
    const header = (
       <>
          <PageKpiHeader label={t('title')} kpis={kpis} wrapKpis>
-            <Input
-               // As tall as the create button beside it: one line, one height.
-               variant="search"
-               size="lg"
-               className="w-64 max-sm:w-40"
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={t('search')}
-               aria-label={t('search')}
-            />
             {canEdit ? (
                <Button asChild className="shrink-0">
                   <Link
@@ -187,6 +177,7 @@ export default function Loops() {
             ) : null}
          </PageKpiHeader>
          <AutopilotsFilters
+            search={<ToolbarSearch label={t('search')} value={query} onChange={setQuery} />}
             filter={filter}
             scope={scope}
             onScopeChange={(next) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { health as HEALTH, Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import type { Status } from '@/data/status';
@@ -321,18 +321,12 @@ export default function Projects() {
                <CreateProjectButton />
             </PageKpiHeader>
          </div>
-         {/* On a phone the search takes the first line on its own and the
-             filter, display and layout controls share the second, the layout
-             switch on the right: one line cannot hold them all. */}
+         {/* On a phone the search rests as an icon beside the filter,
+             display and layout controls; opened, it takes the first line and
+             they move to the second (see ToolbarSearch). */}
          <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2">
             <div className="flex flex-wrap items-center gap-1 max-sm:contents">
-               <Input
-                  variant="search"
-                  className="w-64 max-sm:w-full"
-                  placeholder={lists('projects.search')}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-               />
+               <ToolbarSearch label={lists('projects.search')} value={query} onChange={setQuery} />
                <ListFilterTrigger filter={filter} iconOnly />
                <ProjectsDisplayOptions iconOnly />
             </div>

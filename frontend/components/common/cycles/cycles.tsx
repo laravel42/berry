@@ -8,7 +8,7 @@ import { EmptyCycles } from '@/components/common/cycles/empty-cycles';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { useCycleIssues } from '@/hooks/use-cycle-issues';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { formatRange } from '@/lib/cycle-math';
@@ -65,27 +65,22 @@ export default function Cycles() {
    const openCreate = canEdit ? () => setCreateOpen(true) : undefined;
 
    const header = (
-      <PageKpiHeader label={t('list.title')}>
+      <>
+         <PageKpiHeader label={t('list.title')}>
+            {canEdit ? (
+               <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" aria-hidden />
+                  {t('list.new')}
+               </Button>
+            ) : null}
+         </PageKpiHeader>
+         {/* The toolbar row the other lists have under their title. */}
          {cycles.length > 0 ? (
-            <Input
-               // As tall as the create button beside it: one line, one height.
-               variant="search"
-               size="lg"
-               className="w-[clamp(160px,22vw,280px)]"
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={t('list.search')}
-               aria-label={t('list.search')}
-               type="search"
-            />
+            <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2">
+               <ToolbarSearch label={t('list.search')} value={query} onChange={setQuery} />
+            </div>
          ) : null}
-         {canEdit ? (
-            <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
-               <Plus className="size-4" aria-hidden />
-               {t('list.new')}
-            </Button>
-         ) : null}
-      </PageKpiHeader>
+      </>
    );
 
    let body: ReactNode;
