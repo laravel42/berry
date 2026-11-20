@@ -1,0 +1,214 @@
+{
+   "project": {
+      "name": "Code review follow-ups",
+      "description": "Work found in the full-repository review of 2026-11-13: red CI checks, security and robustness gaps, unwired pieces, missing tests, maintainability and stale docs.",
+      "status": "planned",
+      "priority": "high",
+      "reviewedOn": "2026-11-13"
+   },
+   "milestones": [
+      {
+         "title": "M0: Get CI green",
+         "description": "Both jobs in .github/workflows/verify.yml fail on main today.",
+         "priority": "urgent",
+         "tasks": [
+            {
+               "title": "Fix the stale self-tests for the model-SDK check",
+               "description": "scripts/test_check_no_model_in_server.py: two tests still expect allowances (Bedrock control plane in agents/catalog.ts, `openai` in the runtime manifest) that scripts/check-no-model-in-server.py no longer grants. The check passes; its tests do not, so `bun run check:models` exits 1.",
+               "status": "backlog",
+               "priority": "urgent",
+               "assignee": null
+            },
+            {
+               "title": "Rename the `module` variable in preview-frame.tsx",
+               "description": "frontend/components/common/issues/details/preview-frame.tsx:144 trips @next/next/no-assign-module-variable and fails `bun run lint`.",
+               "status": "backlog",
+               "priority": "urgent",
+               "assignee": null
+            },
+            {
+               "title": "Remove the text-sm utility in session-gate.tsx",
+               "description": "frontend/components/layout/session-gate.tsx:47 breaks the font-size rule (no-restricted-syntax) and fails `bun run lint`.",
+               "status": "backlog",
+               "priority": "urgent",
+               "assignee": null
+            },
+            {
+               "title": "Add .next-desktop-bundle to the ESLint ignores",
+               "description": "The directory is gitignored but linted, so a local `bun run lint` reports 2,446 errors from build output and buries real ones.",
+               "status": "backlog",
+               "priority": "urgent",
+               "assignee": null
+            }
+         ]
+      },
+      {
+         "title": "M1: Security and robustness",
+         "description": "Gaps found while reading the request path and outbound calls.",
+         "priority": "high",
+         "tasks": [
+            {
+               "title": "Add rate limiting to the HTTP API",
+               "description": "No limiter exists anywhere in server-ts/src. Cover at least the public /v1 API, /api/webhooks/autopilots/:token and /api/v1/previews/:token/*.",
+               "status": "backlog",
+               "priority": "high",
+               "assignee": null
+            },
+            {
+               "title": "Refuse private addresses in MCP server URLs",
+               "description": "server-ts/src/mounts/mcp-servers.ts:20 only checks for http(s). Trace where the URL is fetched to confirm exposure, then reuse the address guards in runtime/agent-tools/fetch-url.ts or plugins/net.ts.",
+               "status": "backlog",
+               "priority": "high",
+               "assignee": null
+            },
+            {
+               "title": "Resolve the dependency audit findings",
+               "description": "`bun audit` reports 1 high (decode-uri-component) and 3 moderate (decode-uri-component, glob, minimatch), mostly through electron-builder, Storybook, Expo and @livekit/agents.",
+               "status": "backlog",
+               "priority": "high",
+               "assignee": null
+            },
+            {
+               "title": "Review the silent `.catch(() => undefined)` sites in the server",
+               "description": "About 124 in non-test server code. Some are deliberate; others hide permanent failures, e.g. the preview reaper at server-ts/src/index.ts:377. Log at minimum.",
+               "status": "backlog",
+               "priority": "high",
+               "assignee": null
+            }
+         ]
+      },
+      {
+         "title": "M2: Unwired and half-finished pieces",
+         "description": "Code that exists and is tested but is not connected, and deferred scope that needs a decision.",
+         "priority": "medium",
+         "tasks": [
+            {
+               "title": "Wire the Valkey relay or delete it",
+               "description": "server-ts/src/index.ts:335 constructs Distributed(hub, null). realtime/relay.ts is tested but unused, so events arrive only on the ~500 ms poll.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            },
+            {
+               "title": "Decide the fate of BERRY_RUNTIME_DRIVER",
+               "description": "server-ts/src/config/config.ts:517 parses and validates it (including Docker URL and token requirements) but nothing selects a driver from it. Wire it or remove the parsing.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            },
+            {
+               "title": "Drop or restore the deferred routes and decide on Automations",
+               "description": "server-ts/SCOPE.md lists POST /projects/:id/generated-issues and POST /agents/:id/ask as unregistered, and /workflows, /workflow-runs, /hooks as unserved. Remove the leftovers or schedule them.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            }
+         ]
+      },
+      {
+         "title": "M3: Tests",
+         "description": "Coverage and CI gaps.",
+         "priority": "medium",
+         "tasks": [
+            {
+               "title": "Add frontend tests to CI",
+               "description": "There are no frontend test files. 291 Storybook stories and a vitest.config.ts with the Storybook plugin exist, but there is no `test` script and CI never runs them.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            },
+            {
+               "title": "Cover the largest untested server files",
+               "description": "No sibling test file: mounts/integrations.ts (1,830 lines), mounts/projects.ts, mounts/issues.ts, mounts/agents.ts, identity/secrets.ts, core/projects.ts. Check for indirect coverage first.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            },
+            {
+               "title": "Run plugin, desktop and VS Code tests in CI",
+               "description": "test:plugins, typecheck:plugins and the tests in apps/desktop and apps/vscode are not in verify.yml. apps/mobile and apps/web have no tests.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            },
+            {
+               "title": "Make DB-backed tests easy to run locally",
+               "description": "140 suites skip silently without BERRY_TEST_DATABASE_URL. Add a script that creates the schema-only copy described in server-ts/ROUTING.md.",
+               "status": "backlog",
+               "priority": "medium",
+               "assignee": null
+            }
+         ]
+      },
+      {
+         "title": "M4: Maintainability",
+         "description": "Size and rule-conformance cleanups.",
+         "priority": "low",
+         "tasks": [
+            {
+               "title": "Split the composition root",
+               "description": "server-ts/src/index.ts is 1,805 lines of hand wiring. Split into per-area composition functions without adding a DI container.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            },
+            {
+               "title": "Break up the largest frontend components",
+               "description": "issue-artifacts.tsx (1,470), transcript-dialog.tsx (1,355), command-palette.tsx (1,156), activity-feed.tsx (1,154).",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            },
+            {
+               "title": "Audit hard-coded colours against the semantic tokens",
+               "description": "A rough grep finds about 166 hex or palette-class usages outside components/ui/. See docs/design-system.md.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            },
+            {
+               "title": "Revisit the react-hooks/exhaustive-deps suppressions",
+               "description": "16 suppressions in frontend source.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            },
+            {
+               "title": "Narrow the non-null assertions in server code",
+               "description": "About 181 by a rough grep, against the \"narrow instead of !\" rule in AGENTS.md.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            }
+         ]
+      },
+      {
+         "title": "M5: Docs and stale references",
+         "description": "Guides and comments that no longer match the code.",
+         "priority": "low",
+         "tasks": [
+            {
+               "title": "Fix CLAUDE.md",
+               "description": "It cites src/execution/factory.ts, which no longer exists, and says \"three packages\" while the root manifest lists seven workspace entries.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            },
+            {
+               "title": "Fix AGENTS.md",
+               "description": "It says \"five workspace packages\" and omits apps/vscode and apps/web.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            },
+            {
+               "title": "Clean stale comments in the server",
+               "description": "Kilo is still mentioned in 9 files and ADR-0017 in 21 (e.g. the tiers comment in mounts/usage.ts). The relay comment at index.ts:332 says it will be wired \"when the SSE endpoints land\", which they have.",
+               "status": "backlog",
+               "priority": "low",
+               "assignee": null
+            }
+         ]
+      }
+   ]
+}
