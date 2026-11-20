@@ -23,6 +23,7 @@ import {
    setProjectRepository,
    type GitHubAccess,
    type GitHubRepository,
+   type RepositoryChoices,
    type RepositoryOwner,
    type ScmProvider,
 } from '@/lib/projects';
@@ -52,7 +53,53 @@ type ListedRepository = GitHubRepository & { provider: ScmProvider };
 /** How many repositories the idle picker shows before the person searches. */
 const IDLE_LIST_LIMIT = 20;
 
-/** Which SCM hosts this workspace can list repositories from. */
+/** Each host's repository listing, or null when that host cannot list. */
+type ScmProbe = Record<ScmProvider, RepositoryChoices | null>;
+
+/** How long a probe answers for a workspace before the hosts are asked again. */
+const PROBE_TTL_MS = 60_000;
+
+const probes = new Map<string, { at: number; result: Promise<ScmProbe> }>();
+
+/**
+ * Which hosts actually work, by asking each connected one for its
+ * repositories: the call the picker itself makes.
+ *
+ * "Connected" only says a connection row exists. A revoked token, a
+ * deployment with no GitHub credential or a host that refuses the request
+ * all still read as connected, and the picker would open on an error. So a
+ * host counts only when its listing comes back. The listing is kept, so the
+ * first opening reuses it rather than asking again, and one probe per
+ * workspace serves every picker on screen for a minute.
+ */
+function probeScm(workspaceId: string): Promise<ScmProbe> {
+   const cached = probes.get(workspaceId);
+   if (cached && Date.now() - cached.at < PROBE_TTL_MS) return cached.result;
+   const result = loadProviders(workspaceId).then(async (providers) => {
+      const connected = (id: ScmProvider) =>
+         providers.some((provider) => provider.id === id && provider.connected);
+      const [github, gitlab] = await Promise.all([
+         connected('github') ? loadGitHubRepositories().catch(() => null) : null,
+         connected('gitlab') ? loadGitLabRepositories().catch(() => null) : null,
+      ]);
+      return { github, gitlab };
+   });
+   probes.set(workspaceId, { at: Date.now(), result });
+   result.catch(() => probes.delete(workspaceId));
+   return result;
+}
+
+/** The probe's listing for one host, when a fresh one is cached. */
+async function probedListing(
+   workspaceId: string,
+   provider: ScmProvider
+): Promise<RepositoryChoices | null> {
+   const cached = probes.get(workspaceId);
+   if (!cached || Date.now() - cached.at >= PROBE_TTL_MS) return null;
+   return (await cached.result.catch(() => null))?.[provider] ?? null;
+}
+
+/** Which SCM hosts can actually list repositories for this workspace. */
 function useConnectedScm(): { github: boolean; gitlab: boolean; ready: boolean } {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const [state, setState] = useState({ github: false, gitlab: false, ready: false });
@@ -63,14 +110,14 @@ function useConnectedScm(): { github: boolean; gitlab: boolean; ready: boolean }
          return;
       }
       let cancelled = false;
-      void loadProviders(workspaceId).then((providers) => {
-         if (cancelled) return;
-         setState({
-            github: providers.some((provider) => provider.id === 'github' && provider.connected),
-            gitlab: providers.some((provider) => provider.id === 'gitlab' && provider.connected),
-            ready: true,
+      void probeScm(workspaceId)
+         .then((probe) => {
+            if (cancelled) return;
+            setState({ github: probe.github !== null, gitlab: probe.gitlab !== null, ready: true });
+         })
+         .catch(() => {
+            if (!cancelled) setState({ github: false, gitlab: false, ready: true });
          });
-      });
       return () => {
          cancelled = true;
       };
@@ -130,9 +177,9 @@ function connectedProviders(connected: { github: boolean; gitlab: boolean }): Sc
  */
 export function RepositoryPicker(props: RepositoryPickerProps) {
    const connected = useConnectedScm();
-   // Nothing to link until an SCM is connected: the button would only open a
-   // picker the server refuses. Stay hidden until that is known so the row
-   // does not flash in.
+   // Nothing to link until a host actually lists repositories: the button
+   // would only open a picker that fails. Stay hidden until that is known so
+   // the row does not flash in.
    if (!connected.ready) return null;
    const providers = connectedProviders(connected);
    if (providers.length === 0) return null;
@@ -154,6 +201,8 @@ export function RepositoryPickers(props: RepositoryPickerProps) {
    if (providers.length === 0) return null;
    if (props.value) {
       const linked = props.valueProvider ?? 'github';
+      // A host that stopped working shows no picker, linked or not.
+      if (!providers.includes(linked)) return null;
       return <RepositoryPickerView {...props} providers={[linked]} />;
    }
    // The same label on every row: each trigger carries its host's mark.
@@ -201,46 +250,55 @@ function RepositoryPickerView({
    // take the GitHub list down with it. An empty list and a list that failed
    // to load look identical, and the fixes are opposite — so a failure's
    // reason is shown, beside whatever the other hosts returned.
-   const load = useCallback(async () => {
-      setLoading(true);
-      setError(null);
-      const results = await Promise.allSettled(
-         providers.map(async (provider) => {
-            const listing =
-               provider === 'gitlab'
-                  ? await loadGitLabRepositories()
-                  : await loadGitHubRepositories();
-            return { provider, listing };
-         })
-      );
-      const listed: ListedRepository[] = [];
-      const failures: string[] = [];
-      let githubAccess: GitHubAccess | null = null;
-      for (const [index, result] of results.entries()) {
-         const provider = providers[index] ?? 'github';
-         if (result.status === 'rejected') {
-            const cause: unknown = result.reason;
-            failures.push(
-               cause instanceof BerryApiError
-                  ? cause.message
-                  : `${HOST_LABEL[provider]} repositories could not be loaded.`
-            );
-            continue;
+   //
+   // The first opening takes the probe's listing when it is still fresh;
+   // Reload always asks the host again.
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
+   const load = useCallback(
+      async (reuseProbe = false) => {
+         setLoading(true);
+         setError(null);
+         const results = await Promise.allSettled(
+            providers.map(async (provider) => {
+               const probed = reuseProbe ? await probedListing(workspaceId, provider) : null;
+               const listing =
+                  probed ??
+                  (provider === 'gitlab'
+                     ? await loadGitLabRepositories()
+                     : await loadGitHubRepositories());
+               return { provider, listing };
+            })
+         );
+         const listed: ListedRepository[] = [];
+         const failures: string[] = [];
+         let githubAccess: GitHubAccess | null = null;
+         for (const [index, result] of results.entries()) {
+            const provider = providers[index] ?? 'github';
+            if (result.status === 'rejected') {
+               const cause: unknown = result.reason;
+               failures.push(
+                  cause instanceof BerryApiError
+                     ? cause.message
+                     : `${HOST_LABEL[provider]} repositories could not be loaded.`
+               );
+               continue;
+            }
+            if (provider === 'github') githubAccess = result.value.listing.access;
+            for (const repository of result.value.listing.repositories) {
+               listed.push({ ...repository, provider });
+            }
          }
-         if (provider === 'github') githubAccess = result.value.listing.access;
-         for (const repository of result.value.listing.repositories) {
-            listed.push({ ...repository, provider });
-         }
-      }
-      setRepositories(listed);
-      setAccess(githubAccess);
-      setError(failures.length > 0 ? failures.join('\n') : null);
-      setLoading(false);
-      setLoaded(true);
-   }, [providers]);
+         setRepositories(listed);
+         setAccess(githubAccess);
+         setError(failures.length > 0 ? failures.join('\n') : null);
+         setLoading(false);
+         setLoaded(true);
+      },
+      [providers, workspaceId]
+   );
 
    useEffect(() => {
-      if (open && repositories.length === 0 && !loading && !error) void load();
+      if (open && repositories.length === 0 && !loading && !error) void load(true);
       // Only the opening should trigger a load; a failed load is retried by hand.
       // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [open]);
