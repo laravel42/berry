@@ -327,8 +327,7 @@ export default function WorkspaceGeneral() {
                      description={t('deleteDescription')}
                      trailing={
                         <Button
-                           variant="soft-destructive"
-                           className="hover:bg-settings-danger-hover"
+                           variant="danger"
                            disabled={!workspaceId}
                            onClick={() => {
                               setTypedName('');
@@ -399,7 +398,7 @@ export default function WorkspaceGeneral() {
             pendingLabel={t('deleting')}
             cancelLabel={t('cancel')}
             confirmDisabled={!nameMatches}
-            destructive
+            danger
             onConfirm={confirmDelete}
          >
             <Input

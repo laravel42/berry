@@ -78,8 +78,10 @@ group bar - reads the matching `--status-*` token, so a column cannot disagree w
 mark beside it in either theme. In review and Blocked are warning, Done is success, In
 progress is info, and Backlog, Todo and Cancelled are neutral.
 
-Berry is never an error color. Destructive/error actions use the separate `status-danger`
-token. Status marks retain one bracket silhouette; the berry dot, label, and optional
+Berry is never an error color. Destructive/error states use the separate `status-danger`
+token. The one exception is Delete: every Delete button, and the confirm button of every
+Delete dialog, is the `danger` button variant (berry fill, white ink; `ConfirmAction`
+takes `danger`). Status marks retain one bracket silhouette; the berry dot, label, and optional
 non-color cue communicate the state.
 
 ### Typography

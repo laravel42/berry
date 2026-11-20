@@ -10,7 +10,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -139,6 +139,7 @@ export function CommentActions({
                <AlertDialogFooter>
                   <AlertDialogCancel disabled={busy}>{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
                      disabled={busy}
                      onClick={(event) => {
                         event.preventDefault();

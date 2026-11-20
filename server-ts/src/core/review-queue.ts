@@ -131,7 +131,7 @@ export class ReviewQueue {
                 run.agent_id, agent.name AS agent_name,
                 (snapshot.read_only IS DISTINCT FROM false
                    OR agent.role_contract->>'department' = 'quality-security') AS reports,
-                project.github_repo_full_name AS repository,
+                issue.github_repo_full_name AS repository,
                 delivered.payload AS delivered, verified.payload AS verified, commands.list AS commands
            FROM issues AS issue
            JOIN boards AS board ON board.id = issue.board_id
@@ -172,8 +172,6 @@ export class ReviewQueue {
            ) AS commands ON true
            LEFT JOIN agents AS agent ON agent.id = run.agent_id
            LEFT JOIN run_repository_snapshots AS snapshot ON snapshot.run_id = run.id
-           LEFT JOIN issue_project_links AS link ON link.issue_id = issue.id
-           LEFT JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE board.workspace_id = ${workspaceId}
             AND issue.deleted_at IS NULL
             AND issue.status::text = ANY(${statuses})
@@ -291,7 +289,7 @@ export class ReviewQueue {
 
    async pullRequestOf(runId: string): Promise<PullRequestTarget | null> {
       const [row] = await this.#sql`
-         SELECT board.workspace_id, project.github_repo_full_name AS repository,
+         SELECT board.workspace_id, issue.github_repo_full_name AS repository,
                 issue.id AS issue_id, issue.board_id, run.agent_id, agent.name AS agent_name,
                 COALESCE(run.pull_request_number, (
                    SELECT (e.payload->'pullRequest'->>'number')::int FROM run_events e
@@ -303,8 +301,6 @@ export class ReviewQueue {
            JOIN issues AS issue ON issue.id = run.issue_id
            JOIN boards AS board ON board.id = issue.board_id
            LEFT JOIN agents AS agent ON agent.id = run.agent_id
-           LEFT JOIN issue_project_links AS link ON link.issue_id = issue.id
-           LEFT JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE run.id = ${runId}`;
       if (!row || row.pull_request_number === null || !row.repository) return null;
       return {
@@ -338,10 +334,8 @@ export class ReviewQueue {
            FROM runs AS run
            JOIN issues AS issue ON issue.id = run.issue_id AND issue.deleted_at IS NULL
            JOIN boards AS board ON board.id = issue.board_id
-           JOIN issue_project_links AS link ON link.issue_id = issue.id
-           JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE board.workspace_id = ${workspaceId}
-            AND lower(project.github_repo_full_name) = lower(${repository})
+            AND lower(issue.github_repo_full_name) = lower(${repository})
             AND run.pull_request_number IS NOT NULL
             AND (${except}::bigint IS NULL OR run.pull_request_number <> ${except})
             AND issue.status::text NOT IN ('done', 'cancelled')
@@ -368,10 +362,8 @@ export class ReviewQueue {
            FROM runs AS run
            JOIN issues AS issue ON issue.id = run.issue_id AND issue.deleted_at IS NULL
            JOIN boards AS board ON board.id = issue.board_id
-           JOIN issue_project_links AS link ON link.issue_id = issue.id
-           JOIN projects AS project ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE board.workspace_id = ${workspaceId}
-            AND lower(project.github_repo_full_name) = lower(${repository})
+            AND lower(issue.github_repo_full_name) = lower(${repository})
             AND run.pull_request_number IS NOT NULL
             AND run.pull_request_number <> ${except}
             AND issue.status::text NOT IN ('done', 'cancelled')

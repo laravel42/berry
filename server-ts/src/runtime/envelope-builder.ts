@@ -579,14 +579,12 @@ export class EnvelopeBuilder {
          SELECT r.id, r.issue_id, r.board_id, r.agent_id,
                 i.title, i.description, r.instructions, r.request_id, r.traceparent,
                 b.workspace_id,
-                COALESCE(project.gitlab_project_path, project.github_repo_full_name, '') AS repository,
+                -- The task's own repository (migration 262), not its project's.
+                COALESCE(i.gitlab_project_path, i.github_repo_full_name, '') AS repository,
                 berry_issue_identifier(b.workspace_id, i.number) AS identifier
            FROM runs AS r
            JOIN issues AS i ON i.id = r.issue_id
            JOIN boards AS b ON b.id = r.board_id
-           LEFT JOIN issue_project_links AS link ON link.issue_id = i.id
-           LEFT JOIN projects AS project
-             ON project.id = link.project_id AND project.deleted_at IS NULL
           WHERE r.id = ${runId}`;
       if (!row) throw new Error(`run ${runId} is not on an issue`);
       return {

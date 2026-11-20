@@ -342,7 +342,7 @@ export function registerCoreAgentTools(): void {
                    i.assignee_type::text AS assignee_type,
                    COALESCE(a.name, u.name) AS assignee_name,
                    p.name AS project,
-                   COALESCE(p.gitlab_project_path, p.github_repo_full_name) AS repository
+                   COALESCE(i.gitlab_project_path, i.github_repo_full_name) AS repository
               FROM issues AS i JOIN boards AS b ON b.id = i.board_id
               LEFT JOIN agents AS a ON i.assignee_type = 'agent' AND a.id = i.assignee_id
               LEFT JOIN users AS u ON i.assignee_type = 'user' AND u.id = i.assignee_id

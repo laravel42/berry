@@ -41,11 +41,12 @@
       "reviewsWaiting": "{count, plural, one {# review waiting} other {# reviews waiting}}"
    },
    "chat": {
-      "open": "Open Agents",
-      "openUnread": "Open Agents, {count} unread",
-      "close": "Close Agents",
-      "onChatPage": "You are in Agents",
-      "shortcutHint": "Agents anywhere with {keys}"
+      "label": "Agent",
+      "open": "Open Agent",
+      "openUnread": "Open Agent, {count} unread",
+      "close": "Close Agent",
+      "onChatPage": "You are in Agent",
+      "shortcutHint": "Agent anywhere with {keys}"
    },
    "bell": {
       "notifications": "Notifications",

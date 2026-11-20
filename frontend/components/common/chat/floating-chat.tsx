@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { usePathname } from 'next/navigation';
-import { Maximize2, Minus, Minimize2, X } from 'lucide-react';
+import { Maximize2, MessageCirclePlus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { BerryApiError } from '@/lib/api';
 import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
 import {
    cancelSessionTask,
+   createSession,
    listMessages,
    listSessionTasks,
    listThreads,
@@ -26,17 +27,16 @@ import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { toast } from 'sonner';
 import { ChatComposer } from './chat-composer';
-import { chatRepositoryToSend } from './chat-repository-select';
+import { ChatHistoryMenu } from './chat-history-menu';
 import { ChatThread as ThreadView } from './chat-thread';
 import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 
-const SIZE_KEY = 'berry.floating-chat.size';
-const MIN_WIDTH = 320;
-const MIN_HEIGHT = 320;
+/** The window's size beside the page; it grows up and left from the corner. */
+const SIZE = { width: 380, height: 520 };
 
 /** The header's controls: small beside the title, a full tap target on a phone. */
 const headerControl =
-   'flex flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] max-sm:size-11 sm:p-1';
+   'flex flex-none items-center justify-center rounded-md text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)] data-[state=open]:bg-[var(--shell-line)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] max-sm:size-11 sm:p-1';
 
 /**
  * Chat without leaving the page.
@@ -60,7 +60,6 @@ export function FloatingChat() {
    const state = useShellStore((store) => store.chatWindow);
    const setState = useShellStore((store) => store.setChatWindow);
    const toggleChat = useShellStore((store) => store.toggleChat);
-   const [size, setSize] = useState({ width: 380, height: 520 });
    const [agents, setAgents] = useState<Agent[]>([]);
    const [agentsLoaded, setAgentsLoaded] = useState(false);
    const [active, setActive] = useState<ChatThread | null>(null);
@@ -92,7 +91,6 @@ export function FloatingChat() {
          thinking: chat('msgStageThinking'),
       },
    });
-   const resizing = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
    const wasOpened = useRef(false);
 
    // The chat page is the full version of this; two of them on one screen
@@ -101,21 +99,6 @@ export function FloatingChat() {
    // this window's full-size counterpart, so it never floats over itself.
    const floatingEnabled = useUiPrefsStore((store) => store.floatingChat);
    const hidden = pathname.includes('/chat') || !floatingEnabled;
-
-   useEffect(() => {
-      try {
-         const stored = localStorage.getItem(SIZE_KEY);
-         if (stored) {
-            const parsed = JSON.parse(stored) as { width?: number; height?: number };
-            setSize({
-               width: Math.max(MIN_WIDTH, Number(parsed.width) || 380),
-               height: Math.max(MIN_HEIGHT, Number(parsed.height) || 520),
-            });
-         }
-      } catch {
-         /* A size that cannot be read is simply the default size. */
-      }
-   }, []);
 
    // The shell's registry owns the combination, so it is rebindable in
    // settings and appears there with everything else. This claims the action.
@@ -157,6 +140,35 @@ export function FloatingChat() {
    );
 
    const orchestrator = agents.find((agent) => isOrchestrator(agent));
+
+   // "+": a fresh session with the agent on screen, Orchestrator when none.
+   // The old one stays in the history. A chat that is still empty already is
+   // a new chat: another would look identical and only pile up empty
+   // sessions, so the box is cleared and focused instead.
+   const [composerFocus, setComposerFocus] = useState(0);
+   const newChat = useCallback(async () => {
+      const agentId = active?.agentId ?? orchestrator?.id;
+      if (!agentId || opening !== null) return;
+      if (active && messages.length === 0 && tasks.length === 0 && !sending) {
+         setComposer('');
+         setComposerFocus((value) => value + 1);
+         return;
+      }
+      setOpening(agentId);
+      try {
+         const id = await createSession(agentId);
+         const thread = (await listThreads()).find((entry) => entry.id === id);
+         if (thread) {
+            setSent(null);
+            await openThread(thread);
+            setComposerFocus((value) => value + 1);
+         }
+      } catch (cause) {
+         toast.error(cause instanceof BerryApiError ? cause.message : t('newChatFailed'));
+      } finally {
+         setOpening(null);
+      }
+   }, [active, orchestrator?.id, opening, messages.length, tasks.length, sending, openThread, t]);
 
    // Agents button / shortcut: land on Orchestrator, not a roster.
    useEffect(() => {
@@ -236,8 +248,7 @@ export function FloatingChat() {
       setSending(true);
       setComposer('');
       try {
-         const prefs = useUiPrefsStore.getState();
-         const queued = await sendMessage(activeId, text, prefs.chatMode, chatRepositoryToSend());
+         const queued = await sendMessage(activeId, text);
          setSent({ conversationId: activeId, runId: queued.runId });
       } catch {
          /* The reply that never comes is the report. */
@@ -262,45 +273,18 @@ export function FloatingChat() {
       await refresh(activeId);
    };
 
-   const onResize = (event: React.PointerEvent<HTMLButtonElement>) => {
-      resizing.current = { x: event.clientX, y: event.clientY, ...size };
-      const move = (moveEvent: PointerEvent) => {
-         const from = resizing.current;
-         if (!from) return;
-         // The window grows up and to the left, because it is anchored to the
-         // bottom-right corner of the viewport.
-         setSize({
-            width: Math.max(MIN_WIDTH, from.width + (from.x - moveEvent.clientX)),
-            height: Math.max(MIN_HEIGHT, from.height + (from.y - moveEvent.clientY)),
-         });
-      };
-      const done = () => {
-         resizing.current = null;
-         window.removeEventListener('pointermove', move);
-         window.removeEventListener('pointerup', done);
-         try {
-            localStorage.setItem(SIZE_KEY, JSON.stringify(size));
-         } catch {
-            /* Not being able to remember the size is not a failure worth reporting. */
-         }
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', done);
-   };
-
    // Closed is nothing at all: the strip's chat button is the launcher, and a
    // page's bottom action bar gets its corner back.
    if (hidden) return null;
    if (state === 'closed') return null;
 
    const expanded = state === 'expanded';
-   const minimised = state === 'minimised';
 
-   // The remembered size, clamped so the window never rises over the tab
+   // The size, clamped so the window never rises over the tab
    // strip: `--shell-strip` is the strip's height, set by the shell.
    const sizeVars = {
-      '--chat-w': `min(${size.width}px, calc(100vw - 2rem))`,
-      '--chat-h': `min(${size.height}px, calc(100dvh - var(--shell-strip) - 5rem))`,
+      '--chat-w': `min(${SIZE.width}px, calc(100vw - 2rem))`,
+      '--chat-h': `min(${SIZE.height}px, calc(100dvh - var(--shell-strip) - 5rem))`,
    } as CSSProperties;
 
    return (
@@ -315,31 +299,47 @@ export function FloatingChat() {
             'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
             expanded
                ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[calc(4rem-15px)]'
-               : minimised
-                 ? 'sm:w-[var(--chat-w)]'
-                 : 'sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',
+               : 'sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',
          ].join(' ')}
          style={sizeVars}
       >
          <header className="flex flex-none items-center gap-2 border-b border-[var(--shell-line)] px-3 py-2">
-            {!expanded && !minimised ? (
-               <button
-                  type="button"
-                  onPointerDown={onResize}
-                  aria-label={t('expand')}
-                  className="hidden size-4 flex-none cursor-nwse-resize text-[var(--shell-text-dim)] sm:block"
-               >
-                  <Minimize2 className="size-3.5 rotate-90" aria-hidden />
-               </button>
-            ) : null}
+            <ChatHistoryMenu
+               activeId={activeId}
+               orchestratorId={orchestrator?.id}
+               onPick={(thread) => {
+                  setSent(null);
+                  void openThread(thread);
+               }}
+               onRenamed={(id, title) =>
+                  setActive((current) =>
+                     current && current.id === id ? { ...current, topic: title } : current
+                  )
+               }
+               onArchived={(id) => {
+                  if (id !== activeId) return;
+                  // The open chat was archived: land on the agent's latest chat, or a new one.
+                  setActive(null);
+                  setMessages([]);
+                  setTasks([]);
+                  setSent(null);
+                  if (orchestrator) void withAgent(orchestrator);
+               }}
+               className={headerControl}
+            />
             <div className="ml-auto flex items-center gap-2">
                <button
                   type="button"
-                  aria-label={minimised ? t('restore') : t('minimise')}
-                  onClick={() => setState(minimised ? 'open' : 'minimised')}
-                  className={headerControl}
+                  aria-label={t('newChat')}
+                  title={t('newChat')}
+                  onClick={() => void newChat()}
+                  // Not disabled while a chat opens: `newChat` ignores the
+                  // click then, and a disabled button flashes the forbid cursor.
+                  aria-busy={opening !== null}
+                  disabled={!(active?.agentId ?? orchestrator?.id)}
+                  className={`${headerControl} disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
                >
-                  <Minus className="size-3.5" />
+                  <MessageCirclePlus className="size-4" />
                </button>
                <button
                   type="button"
@@ -347,7 +347,7 @@ export function FloatingChat() {
                   onClick={() => setState(expanded ? 'open' : 'expanded')}
                   className={`hidden sm:flex ${headerControl}`}
                >
-                  <Maximize2 className="size-3.5" />
+                  <Maximize2 className="size-4" />
                </button>
                <button
                   type="button"
@@ -355,12 +355,12 @@ export function FloatingChat() {
                   onClick={() => setState('closed')}
                   className={headerControl}
                >
-                  <X className="size-3.5" />
+                  <X className="size-4" />
                </button>
             </div>
          </header>
 
-         {minimised ? null : active ? (
+         {active ? (
             <>
                <ThreadView
                   messages={messages}
@@ -390,6 +390,7 @@ export function FloatingChat() {
                   conversationId={active.id}
                   {...(activeAgent ? { agent: activeAgent } : {})}
                   answering={stage !== null}
+                  focusSignal={composerFocus}
                />
             </>
          ) : (

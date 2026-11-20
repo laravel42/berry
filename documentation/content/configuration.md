@@ -26,7 +26,7 @@ The parser in `server-ts/src/config/config.ts` and the composition in `server-ts
 | `BERRY_AGENT_RUNTIME_URL` | HTTP endpoint for the current agent image. |
 | `BERRY_RUNTIME_AUTH_TOKEN` | Shared HTTP runtime authentication token, at least 32 characters. |
 | `BERRY_RUNTIME_CALLBACK_URL` | Address the runtime uses to call Berry. |
-| `BERRY_RUN_CONCURRENCY` | Dispatcher concurrency; current default is 2. |
+| `BERRY_RUN_CONCURRENCY` | How many task runs the dispatcher executes at once; default 2. Chat replies and single model calls have two slots of their own on top. |
 | `BERRY_AGENT_DEFAULT_MODEL` | Last-resort label on a native envelope. Leave empty; runs use subscription models. |
 | `BERRY_AGENT_MAX_TOKENS` | Optional per-reply output ceiling. |
 | `BERRY_TASK_TOKEN_TTL_SECONDS` | Task token lifetime, capped at 28,800 seconds. |

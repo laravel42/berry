@@ -6,9 +6,6 @@ import { useTranslations } from 'next-intl';
 
 import { useComposerPalette } from '@/components/common/composer-palette';
 import type { Agent } from '@/lib/agents';
-import { useUiPrefsStore } from '@/store/ui-prefs-store';
-import { MODE_COPY, ChatModeSelect } from './chat-mode-select';
-import { ChatRepositorySelect } from './chat-repository-select';
 import { ChatTierModelSelect } from './chat-tier-model-select';
 
 interface ChatComposerProps {
@@ -21,12 +18,12 @@ interface ChatComposerProps {
    queueing: boolean;
    disabled: boolean;
    workspaceId: string | undefined;
-   /** A conversation is open. The mode and repository choices apply to that chat. */
+   /** A conversation is open. The mode choice applies to that chat. */
    chatOpen?: boolean;
    /** The open conversation, so its model can sit with the mode. */
    conversationId?: string;
    agent?: Agent;
-   /** A reply is being written. Mode, model and repository wait until it finishes. */
+   /** A reply is being written. Mode and model wait until it finishes. */
    answering?: boolean;
    /**
     * How the send button is dressed. On the chat page it is the page's
@@ -36,6 +33,8 @@ interface ChatComposerProps {
    sendVariant?: 'primary' | 'secondary';
    /** Open a LiveKit voice room with this conversation's agent. */
    onVoice?: (() => void) | null;
+   /** Each new value puts the cursor in the box, as "New chat" does. */
+   focusSignal?: number;
 }
 
 const SEND_VARIANT = {
@@ -51,8 +50,7 @@ const INPUT_MAX = 192;
  * The message box.
  *
  * Enter sends and Shift+Enter breaks the line. The mode under the text says
- * how the agent should take the message, and the repository beside it is the
- * codebase that message is about. `@` lists the workspace's people and
+ * how the agent should take the message. `@` lists the workspace's people and
  * agents so one can be tagged into the message. `/` lists every skill in the
  * workspace, and the commands. Choosing a skill writes its name into the
  * message; the run then carries that skill and the agent follows it.
@@ -71,11 +69,14 @@ export function ChatComposer({
    answering = false,
    sendVariant = 'primary',
    onVoice = null,
+   focusSignal = 0,
 }: ChatComposerProps) {
    const t = useTranslations('agentsChat.chat');
-   const mode = useUiPrefsStore((state) => state.chatMode);
-   const placeholder = t(MODE_COPY[mode].hint);
+   const placeholder = t('composerPlaceholder');
    const input = useRef<HTMLTextAreaElement>(null);
+   useEffect(() => {
+      if (focusSignal > 0) input.current?.focus();
+   }, [focusSignal]);
    const palette = useComposerPalette({
       textareaRef: input,
       value,
@@ -142,12 +143,11 @@ export function ChatComposer({
                   className="max-h-48 min-h-[4.5rem] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
                />
 
-               {/* Mode, model and repository sit under the text. While a reply
+               {/* Mode and model sit under the text. While a reply
                    is being written, Stop takes Send's place. A follow-up
                    typed during that reply queues, so both stay reachable. */}
                <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1">
-                     <ChatModeSelect disabled={!chatOpen || answering} />
                      {conversationId ? (
                         <ChatTierModelSelect
                            conversationId={conversationId}
@@ -156,10 +156,6 @@ export function ChatComposer({
                            compact
                         />
                      ) : null}
-                     <ChatRepositorySelect
-                        workspaceId={workspaceId}
-                        disabled={!chatOpen || answering}
-                     />
                   </div>
                   <div className="flex items-center gap-2">
                      {false && onVoice ? (

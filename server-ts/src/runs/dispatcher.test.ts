@@ -211,6 +211,38 @@ describe('run dispatcher', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is not
       assert.deepEqual(executed, [older.id, newer.id]);
    });
 
+   test('a chat reply is taken while task runs hold every task slot', async () => {
+      // A person is waiting on a chat reply; a task run can hold its slot for
+      // an hour. Interactive runs have their own slots, so the backlog of task
+      // runs never leaves a chat unanswered.
+      const held: Array<() => void> = [];
+      const first = await admit(runs, fixture, issueId);
+      const waiting = await admit(runs, fixture, await createIssue(sql, fixture));
+      const chat = await admit(runs, fixture, await createIssue(sql, fixture));
+      await sql`UPDATE runs SET chat_session_id = ${randomUUID()} WHERE id = ${chat.id}`;
+
+      const executed: string[] = [];
+      const dispatcher = build(
+         sql,
+         {
+            execute: (runId) =>
+               new Promise<unknown>((resolve) => {
+                  executed.push(runId);
+                  held.push(() => resolve({}));
+               }),
+         },
+         { concurrency: 1 }
+      );
+      try {
+         await tick(dispatcher);
+         assert.deepEqual(new Set(executed), new Set([first.id, chat.id]));
+         assert.equal((await runs.get(waiting.id)).status, 'queued');
+      } finally {
+         for (const release of held) release();
+         await dispatcher.stop();
+      }
+   });
+
    test('cancelling a run in flight stops the work behind it', async () => {
       // The ledger marks the run cancelled on its own; what is asserted here
       // is that the process still doing the work finds out.
@@ -543,6 +575,10 @@ async function seed(sql: Sql, fixture: Record<string, string>): Promise<void> {
       VALUES (${randomUUID()}, ${fixture.workspaceId}, ${fixture.boardId}, 'Forge', 'Be brief.')
       RETURNING id`;
    fixture.agentId = agent!.id as string;
+   // Admitting a run needs an AI runtime connected for the workspace.
+   await sql`
+      INSERT INTO ai_runtime_connections (id, workspace_id, user_id, runtime_key, auth_method, status)
+      VALUES (${randomUUID()}, ${fixture.workspaceId}, ${fixture.userId}, 'claude', 'workstation', 'connected')`;
 }
 
 async function cleanup(sql: Sql, fixture: Record<string, string>): Promise<void> {
@@ -552,6 +588,7 @@ async function cleanup(sql: Sql, fixture: Record<string, string>): Promise<void>
       DELETE FROM issues
        WHERE board_id IN (SELECT id FROM boards WHERE workspace_id = ${fixture.workspaceId})`;
    await deleteWorkspaceAgents(sql, [fixture.workspaceId]);
+   await sql`DELETE FROM ai_runtime_connections WHERE workspace_id = ${fixture.workspaceId}`;
    await sql`DELETE FROM boards WHERE workspace_id = ${fixture.workspaceId}`;
    await sql`DELETE FROM workspace_memberships WHERE workspace_id = ${fixture.workspaceId}`;
    await sql`DELETE FROM workspaces WHERE id = ${fixture.workspaceId}`;

@@ -13,6 +13,12 @@ import { PROJECT_MILESTONE_SKILLS } from './generate-milestones.ts';
  * the same project skills the milestone generator adapts keeps the craft
  * consistent: few-day tasks, one outcome each, in delivery order. Each task
  * is also routed to the best-fit workspace agent (same roster triage uses).
+ *
+ * One call per milestone, not one for the whole project. Asked for every
+ * milestone in a single answer, a light model planned the first few and
+ * stopped (six tasks for twelve milestones); one milestone per answer is a
+ * shape even a small model completes. Each call still sees every milestone,
+ * as context, so it does not plan work another milestone owns.
  */
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -27,9 +33,18 @@ const proposedTaskSchema = z.object({
    agentId: z.union([z.string(), z.null()]).optional().default(''),
 });
 
+// Loose on purpose: a model that overshoots is trimmed to MAX_PER_MILESTONE
+// by normalizeProposedTasks rather than losing the whole answer to a parse error.
 const answerSchema = z.object({
-   tasks: z.array(proposedTaskSchema).max(60),
+   tasks: z.array(proposedTaskSchema).max(20),
 });
+
+/**
+ * Milestone calls queued at once. The dispatcher runs at most its own
+ * concurrency (two by default) whatever this is; four keeps the next calls
+ * ready without flooding the queue other work waits in.
+ */
+const PARALLEL_MILESTONES = 4;
 
 export type MilestoneBrief = {
    id: string;
@@ -102,13 +117,15 @@ function system(today: string, skillBodies: string[], hasAgents: boolean): strin
       : `
 - agentId: always "" — this workspace has no assignable agents.`;
 
-   return `You turn a Berry project's milestones into concrete board tasks.
+   return `You turn one milestone of a Berry project into concrete board tasks.
+
+The user turn names the Target milestone and lists every milestone of the
+project. Plan tasks for the Target milestone only. The other milestones are
+context: their work is planned separately, so do not plan it here.
 
 Each task is work one person or agent could finish in a few days — not a
 phase name, not a layer of the system, and not a restatement of the
-milestone title. Every task belongs to exactly one of the milestones listed
-in the user turn (use that milestone's id). List tasks in delivery order
-within each milestone.
+milestone title. List tasks in delivery order.
 
 Today is ${today}.
 
@@ -116,7 +133,7 @@ Answer with JSON only:
 {
   "tasks": [
     {
-      "milestoneId": "<uuid from the list>",
+      "milestoneId": "<the Target milestone's id>",
       "title": "…",
       "description": "…",
       "priority": "medium",
@@ -125,15 +142,14 @@ Answer with JSON only:
   ]
 }
 
-- milestoneId: must be one of the ids supplied. Never invent an id.
+- milestoneId: the Target milestone's id, on every task. Never another id.
 - title: a few words as it will appear on the board (1–120 characters).
 - description: one or two sentences on done-when; use "" when nothing more
   than the title is needed.
 - priority: one of none, low, medium, high, urgent. Prefer medium unless the
   brief makes urgency clear.${assignment}
-- Size: two to six tasks per milestone. Never more than eight for one
-  milestone, and never more than sixty in total.
-- Do not invent work the brief and milestones do not support. If nothing
+- Size: two to six tasks. Never more than eight.
+- Do not invent work the brief and the milestone do not support. If nothing
   can be broken down, return { "tasks": [] }.
 - Do not wrap the answer in code fences.${skills}`;
 }
@@ -191,15 +207,17 @@ export class ProjectMilestoneTaskGenerator {
          .catch(() => [] as SkillWithFiles[]);
       const bodies = adapted.map(skillBody).filter((body) => body !== '');
 
-      const result = await this.#completion
-         .structured({
+      const systemPrompt = system(this.#today(), bodies, agents.length > 0);
+      const planMilestone = async (target: MilestoneBrief): Promise<ProposedTask[]> => {
+         const result = await this.#completion.structured({
             workspaceId: input.workspaceId,
             purpose: 'project_milestone_tasks',
             model: this.#defaultModel,
-            system: system(this.#today(), bodies, agents.length > 0),
+            system: systemPrompt,
             user: userTurn(
                input.projectName,
                description,
+               target,
                input.milestones,
                agents,
                input.startDate,
@@ -208,13 +226,45 @@ export class ProjectMilestoneTaskGenerator {
             schema: answerSchema,
             timeoutMs: this.#timeoutMs,
             ...(input.signal ? { signal: input.signal } : {}),
-         })
-         .catch((cause: unknown) => {
-            throw new EditorAssistUnavailable(describeGenerationFailure(cause));
          });
+         // Only the target's tasks count: one that names another milestone
+         // is that milestone's work, which its own call plans.
+         return normalizeProposedTasks(result.value.tasks, [target], agents);
+      };
 
-      return normalizeProposedTasks(result.value.tasks, input.milestones, agents);
+      const settled = await inBatches(input.milestones, PARALLEL_MILESTONES, planMilestone);
+      const failures = settled.filter(
+         (entry): entry is PromiseRejectedResult => entry.status === 'rejected'
+      );
+      // A milestone whose call failed gets no tasks and the rest are kept;
+      // only when every call failed is there nothing to show for it.
+      if (failures.length === settled.length) {
+         throw new EditorAssistUnavailable(describeGenerationFailure(failures[0]!.reason));
+      }
+      return settled.flatMap((entry) => (entry.status === 'fulfilled' ? entry.value : []));
    }
+}
+
+/** Runs `run` over `items`, at most `limit` at a time, results in item order. */
+async function inBatches<T, R>(
+   items: readonly T[],
+   limit: number,
+   run: (item: T) => Promise<R>
+): Promise<PromiseSettledResult<R>[]> {
+   const results: PromiseSettledResult<R>[] = new Array(items.length);
+   let next = 0;
+   const worker = async (): Promise<void> => {
+      while (next < items.length) {
+         const index = next++;
+         try {
+            results[index] = { status: 'fulfilled', value: await run(items[index]!) };
+         } catch (reason) {
+            results[index] = { status: 'rejected', reason };
+         }
+      }
+   };
+   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+   return results;
 }
 
 function describeGenerationFailure(cause: unknown): string {
@@ -233,6 +283,7 @@ function describeGenerationFailure(cause: unknown): string {
 function userTurn(
    projectName: string,
    description: string,
+   target: MilestoneBrief,
    milestones: readonly MilestoneBrief[],
    agents: readonly AssignableAgent[],
    startDate?: string | null,
@@ -240,16 +291,17 @@ function userTurn(
 ): string {
    const windowLines: string[] = [];
    const start = startDate?.trim() ?? '';
-   const target = targetDate?.trim() ?? '';
+   const projectTarget = targetDate?.trim() ?? '';
    if (start !== '') windowLines.push(`Project start date: ${start}`);
-   if (target !== '') windowLines.push(`Project target date: ${target}`);
+   if (projectTarget !== '') windowLines.push(`Project target date: ${projectTarget}`);
    const window = windowLines.length === 0 ? '' : `\n${windowLines.join('\n')}`;
 
+   const line = (entry: MilestoneBrief): string => {
+      const date = entry.targetDate?.trim() ? ` (target ${entry.targetDate.trim()})` : '';
+      return `${entry.id}: ${entry.title}${date}`;
+   };
    const milestoneBlock = milestones
-      .map((entry) => {
-         const date = entry.targetDate?.trim() ? ` (target ${entry.targetDate.trim()})` : '';
-         return `- ${entry.id}: ${entry.title}${date}`;
-      })
+      .map((entry) => `- ${line(entry)}${entry.id === target.id ? '  <- target' : ''}`)
       .join('\n');
 
    const agentsBlock =
@@ -267,7 +319,10 @@ function userTurn(
 
    return `Project name: ${projectName.trim() || '(untitled)'}${window}
 
-Milestones (use these ids only):
+Target milestone (plan tasks for this one only):
+${line(target)}
+
+All milestones, in order (context; the others are planned separately):
 ${milestoneBlock}
 
 Agents (use these ids only for agentId):

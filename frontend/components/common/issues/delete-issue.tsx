@@ -10,6 +10,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import type { Issue } from '@/data/issues';
 import { deleteBoardIssue } from '@/lib/issues';
 import { useIssuesStore } from '@/store/issues-store';
@@ -89,14 +90,15 @@ export function DeleteIssueDialog({ deletion }: { deletion: IssueDeletion }) {
                   Delete {deletion.target?.identifier ?? 'this task'}?
                </AlertDialogTitle>
                <AlertDialogDescription>
-                  It will be removed from the board. Its comments, run history and any files
-                  agents produced are kept, and the identifier is not reused.
+                  It will be removed from the board. Its comments, run history and any files agents
+                  produced are kept, and the identifier is not reused.
                </AlertDialogDescription>
             </AlertDialogHeader>
             {deletion.error ? <p className="text-destructive">{deletion.error}</p> : null}
             <AlertDialogFooter>
                <AlertDialogCancel disabled={deletion.deleting}>Cancel</AlertDialogCancel>
                <AlertDialogAction
+                  className={buttonVariants({ variant: 'danger' })}
                   disabled={deletion.deleting}
                   onClick={(event) => {
                      // Kept open until the request settles, so a failure is

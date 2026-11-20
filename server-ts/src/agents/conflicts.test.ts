@@ -4,6 +4,7 @@ import { after, before, describe, test } from 'node:test';
 import { closeDatabase, openDatabase, type Sql } from '../db/pool.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from '../runtime/test-fixture.ts';
 import { afterDelivery, afterMerge, refusedForConflict, type ConflictDeps } from './conflicts.ts';
+import { adoptProjectRepositoryForIssue } from '../core/issue-repository.ts';
 
 test('a refusal is a conflict only when GitHub says so', () => {
    assert.equal(refusedForConflict('merge conflict between base and head'), true);
@@ -38,6 +39,7 @@ describe('conflicts resolved before review', { skip: url ? false : 'BERRY_TEST_D
    async function delivered(number: number, status = 'in_review'): Promise<{ issueId: string; runId: string }> {
       const issueId = await createIssue(sql, f, `Task with #${number}`);
       await sql`INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by) VALUES (${f.workspaceId}, ${issueId}, ${projectId}, ${f.userId})`;
+      await adoptProjectRepositoryForIssue(sql, issueId, null);
       await sql`UPDATE issues SET status = ${status}::issue_status, assignee_type = 'agent', assignee_id = ${f.agentId} WHERE id = ${issueId}`;
       const runId = randomUUID();
       await sql`

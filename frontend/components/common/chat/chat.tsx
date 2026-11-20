@@ -41,10 +41,8 @@ import { useChatReplyStream } from '@/hooks/use-chat-reply-stream';
 import { useVoiceAgentsAvailable } from '@/hooks/use-voice-agents';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
-import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { ChatComposer } from './chat-composer';
 import { VoiceSessionModal } from './voice-session-modal';
-import { chatRepositoryToSend } from './chat-repository-select';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
 
@@ -477,8 +475,7 @@ export function Chat() {
       setError(null);
       setComposer('');
       try {
-         const prefs = useUiPrefsStore.getState();
-         const queued = await sendMessage(activeId, text, prefs.chatMode, chatRepositoryToSend());
+         const queued = await sendMessage(activeId, text);
          setSent({ conversationId: activeId, runId: queued.runId });
       } catch (cause) {
          if (cause instanceof BerryApiError && cause.status === 403) setForbidden(true);
@@ -647,7 +644,7 @@ export function Chat() {
                   description={t('deleteBody')}
                   confirmLabel={t('delete')}
                   pendingLabel={t('deleting')}
-                  destructive
+                  danger
                   onConfirm={confirmDelete}
                />
             ) : null}

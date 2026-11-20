@@ -10,7 +10,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -207,7 +207,7 @@ export function BatchToolbar({ visibleIds = [] }: { visibleIds?: string[] }) {
             <Button size="xs" variant="secondary" onClick={() => apply({ autoGate: true })}>
                {t('selection.autoGate')}
             </Button>
-            <Button size="xs" variant="ghost" onClick={() => setConfirmingDelete(true)}>
+            <Button size="xs" variant="danger" onClick={() => setConfirmingDelete(true)}>
                {t('selection.delete')}
             </Button>
             <Button size="xs" variant="ghost" className="ml-auto" onClick={clear}>
@@ -226,6 +226,7 @@ export function BatchToolbar({ visibleIds = [] }: { visibleIds?: string[] }) {
                <AlertDialogFooter>
                   <AlertDialogCancel>{t('selection.cancel')}</AlertDialogCancel>
                   <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
                      onClick={(event) => {
                         event.preventDefault();
                         remove();

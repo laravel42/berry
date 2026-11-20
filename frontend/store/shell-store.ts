@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 /** The floating chat window's state; `closed` renders nothing at all. */
-export type ChatWindowState = 'closed' | 'open' | 'minimised' | 'expanded';
+export type ChatWindowState = 'closed' | 'open' | 'expanded';
 
 /**
  * Shell chrome: whether the rail is open, and the floating chat window.

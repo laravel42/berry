@@ -21,6 +21,12 @@ export interface IssueOrigin {
    workflowStepRunId?: string | null;
 }
 
+/** A task's repository: the host and its `owner/name` (GitLab: path with namespace). */
+export interface IssueRepository {
+   provider: 'github' | 'gitlab';
+   fullName: string;
+}
+
 export interface Issue {
    id: string;
    identifier: string;
@@ -39,6 +45,8 @@ export interface Issue {
    /** Cycle the issue belongs to. Empty string = no cycle (backlog stock). */
    cycleId: string;
    project?: Project;
+   /** The repository runs on this task check out; starts from the project's. */
+   repository?: IssueRepository | null;
    subissues?: string[];
    rank: string;
    /** Board column order from API (`sortOrder`). */

@@ -21,6 +21,7 @@ import { IssueLinkedPullRequests } from './issue-linked-pull-requests';
 import { IssueParentSection } from './issue-parent-section';
 import { IssueCycleProperty } from './issue-cycle-property';
 import { IssueProjectProperty } from './issue-project-property';
+import { IssueRepositoryProperty } from './issue-repository-property';
 import { IssueQuickActions } from './issue-quick-actions';
 import { IssueDependenciesSection, IssueMilestoneSection } from './issue-relations';
 import { Section } from './panel-section';
@@ -88,7 +89,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   <ProjectDateSelector
                      layout="row"
                      label={t('startDate')}
-                     emptyLabel={t('setDate')}
+                     emptyLabel={t('setStartDate')}
                      date={startDate}
                      disabled={dueDate ? { after: dueDate } : undefined}
                      onChange={(date) => saveDate('startDate', date)}
@@ -96,15 +97,20 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   <ProjectDateSelector
                      layout="row"
                      label={t('dueDate')}
-                     emptyLabel={t('setDate')}
+                     emptyLabel={t('setDueDate')}
                      date={dueDate}
                      disabled={startDate ? { before: startDate } : undefined}
                      onChange={(date) => saveDate('dueDate', date)}
                   />
 
                   <IssueProjectProperty issue={issue} />
+                  <IssueRepositoryProperty issue={issue} />
                   <IssueCycleProperty issue={issue} />
-                  <AutoGateProperty issue={issue} />
+                  {/* AutoGate reviews an agent's delivery, so it only
+                      applies when an agent holds the task. */}
+                  {issue.assignee?.role === 'Application' ? (
+                     <AutoGateProperty issue={issue} />
+                  ) : null}
                </div>
             </Section>
 
@@ -113,7 +119,9 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
             <IssueParentSection issue={issue} />
             <IssueQuickActions issueRef={issue.identifier} />
-            <IssueMilestoneSection issue={issue} />
+            {/* Milestones belong to a project: without one there is nothing
+                to choose from. */}
+            {issue.project ? <IssueMilestoneSection issue={issue} /> : null}
             <IssueDependenciesSection issue={issue} />
             <IssueLinkedPullRequests issueRef={issue.identifier} />
 

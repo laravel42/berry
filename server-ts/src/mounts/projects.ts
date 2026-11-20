@@ -461,8 +461,22 @@ export function projectMounts(options: ProjectOptions): Mount[] {
    });
 
    route.delete('/:projectId', async (context) => {
-      const { workspaceId, projectId } = await scopeOf(context, projects, 'product.write');
-      await projects.archive(workspaceId, projectId).catch(rethrow);
+      const { workspaceId, projectId, userId } = await scopeOf(context, projects, 'product.write');
+      const { issues } = options;
+      // The project's tasks, their inbox rows and their reviews go with it, in
+      // the same transaction. The `issue.deleted` facts reach boards from the
+      // outbox.
+      await projects
+         .archive(
+            workspaceId,
+            projectId,
+            issues
+               ? async (tx, now) => {
+                    await issues.removeProjectWork(tx, { workspaceId, projectId, deletedBy: userId, now });
+                 }
+               : undefined
+         )
+         .catch(rethrow);
       return new Response(null, { status: 204 });
    });
 

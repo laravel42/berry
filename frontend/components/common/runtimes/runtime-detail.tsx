@@ -11,7 +11,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
    SettingsCard,
@@ -230,7 +230,7 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
                            trailing={
                               <Button
                                  size="sm"
-                                 variant="destructive"
+                                 variant="danger"
                                  onClick={() => {
                                     setAcknowledged(false);
                                     setConfirmingDelete(true);
@@ -278,6 +278,7 @@ export default function RuntimeDetail({ runtimeId }: { runtimeId: string }) {
                      <AlertDialogFooter>
                         <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                         <AlertDialogAction
+                           className={buttonVariants({ variant: 'danger' })}
                            disabled={!acknowledged || deleting}
                            onClick={(event) => {
                               event.preventDefault();

@@ -80,6 +80,7 @@ const issueSchema = z.object({
    assignee: actorRefSchema.nullish(),
    activeRunId: z.string().nullish(),
    project: z.object({ id: z.string(), name: z.string() }).nullish(),
+   repository: z.object({ provider: z.enum(['github', 'gitlab']), fullName: z.string() }).nullish(),
    cycleId: z.string().nullish(),
    createdBy: actorRefSchema.nullish(),
    createdAt: z.string(),
@@ -133,6 +134,8 @@ export type IssuePatchBody = {
    startDate?: string | null;
    /** An ISO date, or null to clear it. A calendar day (`YYYY-MM-DD`) is noon UTC. */
    dueDate?: string | null;
+   /** The task's own repository, or null to clear it. */
+   repository?: { provider: 'github' | 'gitlab'; fullName: string } | null;
 };
 
 /**
@@ -226,6 +229,7 @@ export function toUiIssue(apiIssue: ApiIssue): Issue | undefined {
       cycleId: apiIssue.cycleId ?? '',
       rank: rankFromSortOrder(apiIssue.sortOrder),
       sortOrder: apiIssue.sortOrder,
+      repository: apiIssue.repository ?? null,
    };
 
    // The API names the project; the UI type carries the whole record, so the
@@ -342,6 +346,8 @@ export async function createBoardIssue(input: {
    startDate?: string;
    /** ISO date. The create modal offers it; the board's quick add does not. */
    dueDate?: string;
+   /** The task's own repository; omitted, it takes its project's default. */
+   repository?: { provider: 'github' | 'gitlab'; fullName: string };
 }): Promise<Issue> {
    const body: Record<string, unknown> = {
       boardId: input.boardId,
@@ -360,6 +366,9 @@ export async function createBoardIssue(input: {
    }
    if (input.assignee) {
       body.assignee = input.assignee;
+   }
+   if (input.repository) {
+      body.repository = input.repository;
    }
    if (input.projectId) {
       body.projectId = input.projectId;

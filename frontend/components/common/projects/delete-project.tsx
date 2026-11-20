@@ -10,6 +10,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import type { Project } from '@/data/projects';
 import { deleteWorkspaceProject } from '@/lib/projects';
 import { useIssuesStore } from '@/store/issues-store';
@@ -39,12 +40,13 @@ export interface ProjectDeletion {
 export function useProjectDeletion(onDeleted?: () => void): ProjectDeletion {
    const removeFromStore = useProjectsStore((state) => state.deleteProject);
    const issues = useIssuesStore((state) => state.issues);
+   const deleteIssue = useIssuesStore((state) => state.deleteIssue);
    const [target, setTarget] = useState<Project | undefined>();
    const [deleting, setDeleting] = useState(false);
    const [error, setError] = useState<string | null>(null);
 
-   // Counted rather than guessed. Deleting a project does not delete its
-   // issues, and saying how many will be left unfiled is the difference
+   // Counted rather than guessed. Deleting a project deletes its tasks (and
+   // their inbox rows and reviews), and saying how many is the difference
    // between an informed confirmation and a blind one.
    const linkedIssues = useMemo(
       () => (target ? issues.filter((issue) => issue.project?.id === target.id).length : 0),
@@ -69,6 +71,11 @@ export function useProjectDeletion(onDeleted?: () => void): ProjectDeletion {
          await deleteWorkspaceProject(target.id);
          removeFromStore(target.id);
          toast.success(`${target.name} deleted`);
+         // The server deleted them in the same request; the board's
+         // `issue.deleted` facts would drop them too, a poll later.
+         for (const issue of issues) {
+            if (issue.project?.id === target.id) deleteIssue(issue.id);
+         }
          setTarget(undefined);
          onDeleted?.();
       } catch {
@@ -76,7 +83,7 @@ export function useProjectDeletion(onDeleted?: () => void): ProjectDeletion {
       } finally {
          setDeleting(false);
       }
-   }, [target, removeFromStore, onDeleted]);
+   }, [target, removeFromStore, deleteIssue, issues, onDeleted]);
 
    return { target, deleting, error, linkedIssues, request, dismiss, confirm };
 }
@@ -97,16 +104,17 @@ export function DeleteProjectDialog({ deletion }: { deletion: ProjectDeletion })
                </AlertDialogTitle>
                <AlertDialogDescription>
                   {deletion.linkedIssues > 0
-                     ? `${deletion.linkedIssues} ${
-                          deletion.linkedIssues === 1 ? 'task stays' : 'tasks stay'
-                       } on the board without a project. Nothing else is removed.`
-                     : 'It will be removed from the projects list. Nothing else is removed.'}
+                     ? `Its ${deletion.linkedIssues} ${
+                          deletion.linkedIssues === 1 ? 'task' : 'tasks'
+                       }, with their sub-tasks, inbox notifications and reviews, will be deleted too.`
+                     : 'It will be removed from the projects list.'}
                </AlertDialogDescription>
             </AlertDialogHeader>
             {deletion.error ? <p className="text-destructive">{deletion.error}</p> : null}
             <AlertDialogFooter>
                <AlertDialogCancel disabled={deletion.deleting}>Cancel</AlertDialogCancel>
                <AlertDialogAction
+                  className={buttonVariants({ variant: 'danger' })}
                   disabled={deletion.deleting}
                   onClick={(event) => {
                      // Kept open until the request settles, so a failure is

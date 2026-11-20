@@ -29,6 +29,7 @@ import { useEffect } from 'react';
 import { useBoardEventStream } from './use-board-event-stream';
 import { useOpenReviewsSync } from './use-open-reviews-sync';
 import { useWorkspaceEventStream } from './use-workspace-event-stream';
+import { warmRepositoryProbe } from '@/components/common/projects/repository-selector';
 
 /**
  * What this tab has already seeded. Survives a remount (React Strict Mode)
@@ -68,6 +69,12 @@ export function useHydrateWorkspaceData(): void {
    const hydrateGoals = useMilestonesStore((state) => state.hydrateGoals);
    const hydrateCycles = useCyclesStore((state) => state.hydrateCycles);
    const hydrateApprovals = useApprovalsStore((state) => state.hydrateApprovals);
+
+   // Repository pickers show only for hosts that work, which takes a listing
+   // to know; asked now, it is answered before anyone opens a picker.
+   useEffect(() => {
+      if (status === 'ready' && workspaceId) warmRepositoryProbe(workspaceId);
+   }, [status, workspaceId]);
 
    useEffect(() => {
       if (status !== 'ready' || !boardId) return;

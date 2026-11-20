@@ -19,7 +19,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuCheckboxItem,
@@ -421,7 +421,11 @@ export default function SkillDetailHeader({ skillId }: SkillDetailHeaderProps) {
                </AlertDialogHeader>
                <AlertDialogFooter>
                   <AlertDialogCancel disabled={busy}>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction disabled={busy} onClick={() => void remove()}>
+                  <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
+                     disabled={busy}
+                     onClick={() => void remove()}
+                  >
                      {t('row.delete')}
                   </AlertDialogAction>
                </AlertDialogFooter>

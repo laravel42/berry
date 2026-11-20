@@ -141,18 +141,23 @@
    /* Flat and theme-independent, like the shell: the board's cards are dark in
       both themes, and the column previously resolved 80% zinc over the page,
       which put mid-grey behind dark cards in light mode. Stated once here with
-      no `.dark` counterpart, so the two cannot drift. */
-   --board-column-body: #19191c;
+      no `.dark` counterpart, so the two cannot drift. A step above the page
+      (#19191c) so each column reads as a lane; the card tokens below are
+      mixed from it, so cards keep the same contrast against their column. */
+   --board-column-body: #232326;
+   /* A card at rest: clearly under the column, 40% of the way to the void, so the
+      lane and its cards never read as one surface; the brighter edge frames
+      it. The column goes first so an unsupported `color-mix` degrades to the
+      column itself. */
+   --board-card: color-mix(in oklab, var(--board-column-body) 60%, var(--brand-void));
    /* Edge of a card sitting in a board column: the column lifted a step, so it
       reads as a seam rather than a line of its own. White goes last on
       purpose -- where `color-mix` is unsupported the declaration degrades to
       its first colour, and an edge that matches the column disappears, where
       one that fell back to white would blaze. */
    --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
-   /* A hovered card lifts above the column rather than toward it: the card
-      rests darker than the column (`--brand-void`), and hovering to the
-      column's own colour made it vanish into it. Its edge brightens with it. */
-   --board-card-hover: color-mix(in oklab, var(--board-column-body) 92%, #ffffff);
+   /* A hovered card changes only its edge: the fill stays, the border
+      brightens. */
    --board-card-hover-line: color-mix(in oklab, var(--board-column-body) 84%, #ffffff);
    /* Board column and list group header tints. A status column takes a wash
       of its own semantic tone over the container, so the header agrees with

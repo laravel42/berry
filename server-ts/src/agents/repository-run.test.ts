@@ -16,6 +16,7 @@ import { GitHubError, type GitHubClient, type PullRequest, type Repository } fro
 import { CheckoutFailed } from './checkout.ts';
 import type { ExecResult, ExecutionSession } from '../execution/driver.ts';
 import { DEFAULT_PERMISSIONS, PermissionDenied, permissionsOf } from './permissions.ts';
+import { adoptProjectRepositoryForIssue } from '../core/issue-repository.ts';
 
 /**
  * The repository half of a run, against a real database and a fake everything
@@ -212,6 +213,7 @@ describe(
             await sql`
                INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by)
                VALUES (${fixture.workspaceId!}, ${issueId}, ${projectId}, ${fixture.userId!})`;
+            await adoptProjectRepositoryForIssue(sql, issueId, null);
          }
          const dispatch = {
             runId,

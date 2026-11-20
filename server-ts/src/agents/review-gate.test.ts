@@ -21,6 +21,7 @@ import { MAX_READ_ROUNDS, type ReviewFiles } from './review-files.ts';
 import type { RuntimeCompletion } from '../runtime/completion.ts';
 import { lastRejection } from './prompt.ts';
 import { catalogRole } from '../organization/catalog.ts';
+import { adoptProjectRepositoryForIssue } from '../core/issue-repository.ts';
 
 /**
  * The peer review gate.
@@ -327,6 +328,7 @@ describe('the gate, end to end', { skip: url ? false : 'BERRY_TEST_DATABASE_URL 
          INSERT INTO issues (id, board_id, number, title, status, priority, created_by, assignee_type, assignee_id, auto_gate)
          VALUES (${issueId}, ${boardId}, ${Number(counter!.issue_counter)}, ${title}, 'todo', 'medium', ${userId}, 'agent', ${agentId}, ${autoGate})`;
       await sql`INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by) VALUES (${workspaceId}, ${issueId}, ${projectId}, ${userId})`;
+      await adoptProjectRepositoryForIssue(sql, issueId, null);
       const runs = new RunRepository(sql);
       const run = await runs.admit({ issueId, boardId, workspaceId, agentId, requestedBy: userId, instructions: null });
       await deliverRun(run.id, options.files ?? ['src/a.ts']);

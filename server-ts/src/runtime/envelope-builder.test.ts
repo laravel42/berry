@@ -8,6 +8,7 @@ import { chatWorkspaceNote, dependencyHandoffs, dependencyNote, EnvelopeBuilder,
 import { runtimeSessionIdFor } from './session-id.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import { buildTranscript } from './transcript.ts';
+import { adoptProjectRepositoryForIssue } from '../core/issue-repository.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -219,6 +220,7 @@ describe('envelope builder', { skip: url ? false : 'BERRY_TEST_DATABASE_URL is n
          const f = fixture!;
          const issueId = await createIssue(sql, f, title);
          await sql`INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by) VALUES (${f.workspaceId}, ${issueId}, ${projectId}, ${f.userId})`;
+         await adoptProjectRepositoryForIssue(sql, issueId, null);
          const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'continue' });
          return loadTask(sql, runId);
       }

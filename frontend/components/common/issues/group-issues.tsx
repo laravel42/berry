@@ -284,7 +284,7 @@ const IssueGridList: FC<{
             virtual.ref.current = node;
          }}
          className={cn(
-            'relative flex min-h-0 flex-1 flex-col space-y-1.5 overflow-y-auto rounded-b-lg p-1.5 transition-shadow no-scrollbar',
+            'relative flex min-h-0 flex-1 flex-col space-y-1.5 mt-2.5 overflow-y-auto rounded-lg p-1.5 transition-shadow no-scrollbar',
             isOverColumn && issues.length > 0 && 'ring-2 ring-inset ring-primary/35'
          )}
          style={{ backgroundColor: BOARD_COLUMN_BODY_BG }}
