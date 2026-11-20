@@ -1,6 +1,6 @@
 'use client';
 
-import { ActiveFilters } from '@/components/data-table-filter/components/active-filters';
+import { LazyActiveFilters } from '@/components/common/filters/list-filters-lazy';
 import { useDataTableFilters } from '@/components/data-table-filter/hooks/use-data-table-filters';
 import { IssueFilterBarActions } from '@/components/common/issues/issue-filter-bar-actions';
 import { useFilterStore } from '@/store/filter-store';
@@ -45,7 +45,7 @@ function IssueFilterChips({ showActions }: { showActions: boolean }) {
    return (
       <div className="flex w-full items-start gap-2 border-b border-border/60 bg-container px-6 py-2">
          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <ActiveFilters
+            <LazyActiveFilters
                columns={columns}
                filters={filters}
                actions={actions}
