@@ -11,7 +11,18 @@ import { cn } from '@/lib/utils';
  * `domMax` carries (`domAnimation` has none), so this is the bigger set,
  * loaded on its own.
  */
-const loadFeatures = () => import('motion/react').then((module) => module.domMax);
+type Features = typeof import('motion/react').domMax;
+
+/**
+ * Kept once loaded. A fill is mounted afresh in the segment it moves to, and
+ * a new `LazyMotion` handed only the loader resolves it a tick after mount,
+ * past the moment the layout animation needed it: the fill jumped instead of
+ * travelling. Handing the loaded set straight over lets every later fill
+ * animate from its first frame.
+ */
+let loadedFeatures: Features | null = null;
+const loadFeatures = () =>
+   import('motion/react').then((module) => (loadedFeatures = module.domMax));
 
 /**
  * The selected fill of a segmented control, drawn once per group and slid
@@ -36,7 +47,7 @@ export function SegmentIndicator({
 }) {
    const reduce = useReducedMotion();
    return (
-      <LazyMotion features={loadFeatures} strict>
+      <LazyMotion features={loadedFeatures ?? loadFeatures} strict>
          <m.span
             aria-hidden
             layoutId={layoutId}
