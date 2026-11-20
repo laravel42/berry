@@ -48,6 +48,20 @@ function useRootFontSize() {
    return rem;
 }
 
+/**
+ * Rows kept beyond each edge of the viewport. A finger's fling outruns a
+ * wheel by far, and WebKit (every browser on an iPhone) paints rows added
+ * mid-fling late, so on a touch screen the window reaches much further and
+ * the rows a fling uncovers already exist.
+ */
+function useOverscan() {
+   const [overscan, setOverscan] = useState(10);
+   useEffect(() => {
+      if (window.matchMedia('(pointer: coarse)').matches) setOverscan(30);
+   }, []);
+   return overscan;
+}
+
 /** A row that is also where a dragged task lands, so it moves into this group. */
 function DropRow({
    onDropIssue,
@@ -121,6 +135,7 @@ export function VirtualIssueList({
    }, [groups, collapsed, onDropFor]);
 
    const rem = useRootFontSize();
+   const overscan = useOverscan();
    const sizeOf = (item: ListItem | undefined) => {
       if (item?.kind === 'header') {
          return HEADER_HEIGHT_REM * rem + (item.index > 0 ? HEADER_BAND_PX : 0);
@@ -133,7 +148,7 @@ export function VirtualIssueList({
       getScrollElement: () => scrollRef.current,
       estimateSize: (index) => sizeOf(items[index]),
       getItemKey: (index) => items[index]?.key ?? index,
-      overscan: 10,
+      overscan,
    });
 
    // Sizes are fixed, so a change of root font size or of the items only needs
@@ -150,7 +165,13 @@ export function VirtualIssueList({
       });
 
    return (
-      <div ref={scrollRef} className="h-full overflow-y-auto md:pb-[var(--shell-launcher-room)]">
+      // `overscroll-contain`: the list sits inside the shell's own scroller,
+      // and on an iPhone a fling that reached the end chained into it and
+      // bounced the list.
+      <div
+         ref={scrollRef}
+         className="h-full overflow-y-auto overscroll-contain md:pb-[var(--shell-launcher-room)]"
+      >
          {empty}
          <div
             className="relative w-full bg-container"
@@ -163,10 +184,10 @@ export function VirtualIssueList({
                   <div
                      key={virtualItem.key}
                      className="absolute top-0 left-0 w-full"
-                     style={{
-                        height: virtualItem.size,
-                        transform: `translateY(${virtualItem.start}px)`,
-                     }}
+                     // Placed with `top`, not a transform: WebKit gives each
+                     // transformed row its own layer, and creating and
+                     // dropping those mid-fling made rows blink out and back.
+                     style={{ height: virtualItem.size, top: virtualItem.start }}
                   >
                      {item.kind === 'header' ? (
                         // The 3px band between groups the divide utility drew.
