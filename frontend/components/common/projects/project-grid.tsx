@@ -203,7 +203,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                            {project.name}
                         </div>
                      </Link>
-                     <div className="relative z-[1] flex min-h-[1.25rem] flex-wrap items-center gap-2">
+                     <div className="relative z-[1] mt-5 flex min-h-[1.25rem] flex-wrap items-center gap-2">
                         {displayProperties.issues ? (
                            <span className="inline-flex items-center gap-1 text-muted-foreground">
                               <CapacityRing value={project.percentComplete} size={14} />
