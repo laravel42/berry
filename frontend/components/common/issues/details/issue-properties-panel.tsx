@@ -88,7 +88,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   <ProjectDateSelector
                      layout="row"
                      label={t('startDate')}
-                     emptyLabel={t('setDate')}
+                     emptyLabel={t('setStartDate')}
                      date={startDate}
                      disabled={dueDate ? { after: dueDate } : undefined}
                      onChange={(date) => saveDate('startDate', date)}
@@ -96,7 +96,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
                   <ProjectDateSelector
                      layout="row"
                      label={t('dueDate')}
-                     emptyLabel={t('setDate')}
+                     emptyLabel={t('setDueDate')}
                      date={dueDate}
                      disabled={startDate ? { before: startDate } : undefined}
                      onChange={(date) => saveDate('dueDate', date)}
