@@ -201,7 +201,11 @@ export function VirtualIssueList({
       const list = listRef.current;
       if (!el || !list || el.scrollTop <= 0) return;
       // Offsets are relative to the list wrapper, which may sit below `empty`.
-      const viewTop = el.scrollTop - list.offsetTop;
+      // `listTop` is the wrapper's top within the scroller's content (offsetTop
+      // is relative to the offset parent, which is not the scroller).
+      const listTop =
+         list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+      const viewTop = el.scrollTop - listTop;
       let top = 0;
       let key: string | null = null;
       let offset = 0;
@@ -218,7 +222,7 @@ export function VirtualIssueList({
       let newTop = 0;
       for (const item of items) {
          if (item.key === key) {
-            const target = newTop + list.offsetTop - offset;
+            const target = newTop + listTop - offset;
             if (Math.abs(target - el.scrollTop) > 1) el.scrollTop = target;
             return;
          }
