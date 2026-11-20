@@ -4,7 +4,9 @@ import { mkdtemp, mkdir, readdir, readFile, writeFile, rm } from 'node:fs/promis
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LocalSession } from './local-session.ts';
-import { isCoreDump, isInstalledPath, isLeftoverFile, snapshotRepository, toolchainPins } from './snapshot-repository.ts';
+import { candidateOverLimit, candidateTooLarge, isCoreDump, isInstalledPath, isLeftoverFile, snapshotRepository, toolchainPins } from './snapshot-repository.ts';
+import { CANDIDATE_MAX_BYTES, CANDIDATE_MAX_DELETED, CANDIDATE_MAX_WRITTEN, taskDeliverySchema } from '../../../runtime/lifecycle.ts';
+import { withHandoffFile } from '../../../runs/handoff.ts';
 import { sampleEnvelope } from '../../../runtime/envelope.test.ts';
 import { shellQuote } from '../../checkout.ts';
 
@@ -204,4 +206,64 @@ test('a checkout with no lockfile follows packageManager, and an engines range i
    assert.match(note, /engines\.node asks for >=20/);
    assert.doesNotMatch(note, /pins no version/);
    assert.match(note, /Run pnpm install when the task needs/);
+});
+
+test('deleting a vendored folder of thousands of files is delivered: deletions have their own limit', async (t) => {
+   const root = await mkdtemp(join(tmpdir(), 'berry-snapshot-test-'));
+   t.after(() => rm(root, { recursive: true, force: true }));
+   // A committed core, like October's modules/, well past the 2,000 written-file limit.
+   await mkdir(join(root, 'source', 'modules', 'backend'), { recursive: true });
+   for (let i = 0; i < 2500; i += 1) await writeFile(join(root, 'source', 'modules', 'backend', `f${i}.php`), `<?php // ${i}\n`);
+   await writeFile(join(root, 'source', 'composer.json'), '{"require":{}}\n');
+   const session = new LocalSession({ id: 'test', root });
+   const archivePath = join(root, 'archive.tar.gz');
+   assert.equal((await session.exec(`tar -czf ${shellQuote(archivePath)} source`)).exitCode, 0);
+   const archive = await readFile(archivePath);
+   const repository = snapshotRepository({ fetch: (async () => new Response(archive)) as typeof fetch });
+   const envelope = sampleEnvelope({ repo: {
+      fullName: 'berry/app', branch: 'agent/task', baseBranch: 'main', snapshotCommit: 'a'.repeat(40),
+      credential: { username: '', password: '' }, verifyCommands: [], issueReference: 'B-1', issueTitle: 'Test',
+   } });
+   const directory = await repository.prepare({ envelope, session, warm: false, emit: () => {} });
+   assert.ok(directory);
+   await rm(join(directory, 'modules'), { recursive: true });
+   await writeFile(join(directory, 'composer.json'), '{"require":{"october/all":"^4.4"}}\n');
+   const delivery = await repository.deliver({ envelope, session, directory, summary: 'done', emit: () => {} });
+   assert.ok(delivery?.candidate);
+   assert.equal(delivery.candidate.filter((file) => file.content === null).length, 2500);
+   assert.deepEqual(delivery.candidate.filter((file) => file.content !== null).map((file) => file.path), ['composer.json']);
+   // And the control plane accepts what the runtime handed back.
+   assert.equal(taskDeliverySchema.safeParse(delivery).success, true);
+});
+
+test('a change past a limit is refused with the limit and the folders that hold it', () => {
+   assert.equal(candidateOverLimit({ written: CANDIDATE_MAX_WRITTEN, deleted: CANDIDATE_MAX_DELETED, bytes: CANDIDATE_MAX_BYTES }), null);
+   assert.equal(candidateOverLimit({ written: CANDIDATE_MAX_WRITTEN + 1, deleted: 0, bytes: 10 }), 'written');
+   assert.equal(candidateOverLimit({ written: 0, deleted: CANDIDATE_MAX_DELETED + 1, bytes: 10 }), 'deleted');
+   assert.equal(candidateOverLimit({ written: 1, deleted: 0, bytes: CANDIDATE_MAX_BYTES + 1 }), 'bytes');
+
+   const changed = [
+      ...Array.from({ length: 30 }, (_, i) => `modules/backend/f${i}.php`),
+      ...Array.from({ length: 10 }, (_, i) => `plugins/rainlab/p${i}.php`),
+      'composer.json',
+   ];
+   const message = candidateTooLarge('written', changed);
+   assert.match(message, /it writes more than 2000 files/);
+   assert.match(message, /41 files changed, most under modules\/backend\/ \(30\), plugins\/rainlab\/ \(10\), \(root\) \(1\)/);
+   assert.match(candidateTooLarge('bytes', ['a.bin']), /more than 5 MiB/);
+});
+
+test('the event schema takes thousands of deletions and still bounds written files', () => {
+   const base = { committed: false, commit: null, branch: 'b', filesChanged: 0, insertions: 0, deletions: 0, files: [] };
+   const deletions = Array.from({ length: 3000 }, (_, i) => ({ path: `vendor/f${i}`, mode: '100644' as const, content: null }));
+   assert.equal(taskDeliverySchema.safeParse({ ...base, candidate: deletions }).success, true);
+   const writes = Array.from({ length: CANDIDATE_MAX_WRITTEN + 1 }, (_, i) => ({ path: `src/f${i}`, mode: '100644' as const, content: '' }));
+   assert.equal(taskDeliverySchema.safeParse({ ...base, candidate: writes }).success, false);
+});
+
+test('the handoff note is still added to a candidate that deletes thousands of files', () => {
+   const deletions = Array.from({ length: 2500 }, (_, i) => ({ path: `modules/f${i}`, mode: '100644' as const, content: null as string | null }));
+   const files = withHandoffFile(deletions, '.handoffs/B-1 - task\n\nDone.\n');
+   assert.equal(files.length, 2501);
+   assert.ok(files.some((file) => file.path.startsWith('.handoffs/')));
 });

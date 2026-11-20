@@ -2,7 +2,7 @@ import type { Sql } from '../db/pool.ts';
 import type { GitHubClient } from '../integrations/github.ts';
 import { repositoryParts } from '../agents/checkout.ts';
 import { MERGE_DIRECTORY, hasMergeMarker } from './envelope.ts';
-import { taskDeliverySchema, type TaskDelivery } from './lifecycle.ts';
+import { CANDIDATE_MAX_BYTES, taskDeliverySchema, type TaskDelivery } from './lifecycle.ts';
 
 /**
  * Publishes a run's candidate through the Git data API.
@@ -21,7 +21,7 @@ export async function publishTrustedDelivery(sql: Sql, runId: string, github: Ca
    const [snapshot] = await sql`SELECT s.*, r.status, r.issue_id FROM run_repository_snapshots AS s JOIN runs AS r ON r.id = s.run_id WHERE s.run_id = ${runId}`;
    if (!snapshot || snapshot.read_only || snapshot.status !== 'running') throw new Error('This run is not authorized for repository delivery');
    if (!parsed.candidate) throw new Error('Runtime must submit a candidate for trusted delivery; update the runtime image');
-   if (Buffer.byteLength(JSON.stringify(parsed.candidate)) > 7 * 1024 * 1024) throw new Error('Candidate exceeds the 7 MiB delivery limit');
+   if (Buffer.byteLength(JSON.stringify(parsed.candidate)) > CANDIDATE_MAX_BYTES) throw new Error('Candidate exceeds the 7 MiB delivery limit');
    const mergeParent = (snapshot.merge_parent as string | null | undefined) ?? null;
    // A conflict-resolution run's candidate is the whole difference from the
    // default branch, because the runtime laid the branch over it first. A

@@ -306,10 +306,18 @@ export class GitHubClient {
       }
       // An empty parent is not an object GitHub will accept as `base_tree`.
       // The new files are the whole tree.
-      const nextTree = await this.#json<{ sha: string }>('POST', `${root}/git/trees`, {
-         ...(parent.tree.sha === EMPTY_TREE_SHA ? {} : { base_tree: parent.tree.sha }),
-         tree,
-      });
+      // One request carries every entry, a deletion included (a null sha,
+      // no blob): removing a vendored folder is tens of thousands of them,
+      // which takes GitHub longer than a lookup, so the wait grows with it.
+      const nextTree = await this.#json<{ sha: string }>(
+         'POST',
+         `${root}/git/trees`,
+         {
+            ...(parent.tree.sha === EMPTY_TREE_SHA ? {} : { base_tree: parent.tree.sha }),
+            tree,
+         },
+         Math.max(this.#timeoutMs, Math.min(300_000, 30_000 + tree.length * 10))
+      );
       const commit = await this.#json<{ sha: string }>('POST', `${root}/git/commits`, {
          message: input.message, tree: nextTree.sha,
          parents: input.mergeParent ? [input.baseCommit, input.mergeParent] : [input.baseCommit],
@@ -785,12 +793,12 @@ export class GitHubClient {
       return first ? toPullRequest(first, false) : null;
    }
 
-   async #json<T>(method: string, path: string, body?: unknown): Promise<T> {
+   async #json<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<T> {
       let response: Response;
       try {
          response = await this.#fetch(`${this.#baseUrl}${path}`, {
             method,
-            signal: AbortSignal.timeout(this.#timeoutMs),
+            signal: AbortSignal.timeout(timeoutMs ?? this.#timeoutMs),
             headers: {
                // Bearer, not `token`: it is what GitHub Apps and fine-grained
                // tokens both accept.

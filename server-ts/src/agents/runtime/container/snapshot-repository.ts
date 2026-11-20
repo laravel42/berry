@@ -9,7 +9,7 @@ import type { RepositoryStep } from './handler.ts';
 import type { LocalSession } from './local-session.ts';
 import { applyMergeOverlay } from './merge-overlay.ts';
 import { checkCommands, LOCKFILES, packageChecks, type PackageChecks, type PackageManager } from './package-checks.ts';
-import type { TaskDelivery } from '../../../runtime/lifecycle.ts';
+import { CANDIDATE_MAX_BYTES, CANDIDATE_MAX_DELETED, CANDIDATE_MAX_WRITTEN, type TaskDelivery } from '../../../runtime/lifecycle.ts';
 
 /** Fresh, credential-free snapshots. The control plane publishes the returned candidate. */
 export function snapshotRepository(options: { fetch?: typeof fetch } = {}): RepositoryStep {
@@ -112,6 +112,17 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          if (diff.exitCode !== 0) throw new Error('Could not read the complete candidate');
          const stat = parseNumstat(diff.stdout);
          const files: NonNullable<TaskDelivery['candidate']> = [];
+         // Counted as the candidate grows, rather than serialising it again
+         // for every file: a deleted vendor folder is tens of thousands.
+         const size = { written: 0, deleted: 0, bytes: 2 };
+         const add = (file: NonNullable<TaskDelivery['candidate']>[number]) => {
+            files.push(file);
+            if (file.content === null) size.deleted += 1;
+            else size.written += 1;
+            size.bytes += Buffer.byteLength(JSON.stringify(file)) + 1;
+            const over = candidateOverLimit(size);
+            if (over) throw new Error(candidateTooLarge(over, stat.files));
+         };
          for (const path of stat.files) {
             const full = resolve(directory, path);
             const rel = relative(directory, full);
@@ -128,12 +139,11 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
                   if (real !== home && !real.startsWith(home + sep)) throw new Error('Candidate path escapes the repository');
                }
                const bytes = info.isSymbolicLink() ? Buffer.from(await readlink(full)) : await readFile(full);
-               files.push({ path, mode: info.isSymbolicLink() ? '120000' : (info.mode & 0o111) ? '100755' : '100644', content: bytes.toString('base64') });
+               add({ path, mode: info.isSymbolicLink() ? '120000' : (info.mode & 0o111) ? '100755' : '100644', content: bytes.toString('base64') });
             } catch (error) {
                if (!(error instanceof Error) || !('code' in error) || error.code !== 'ENOENT') throw error;
-               files.push({ path, mode: '100644', content: null });
+               add({ path, mode: '100644', content: null });
             }
-            if (files.length > 2000 || Buffer.byteLength(JSON.stringify(files)) > 7 * 1024 * 1024) throw new Error('Candidate exceeds the bounded delivery size; split the change');
          }
          baselines.delete(session);
          // Said only when the overlay was really applied: the control plane
@@ -145,6 +155,48 @@ export function snapshotRepository(options: { fetch?: typeof fetch } = {}): Repo
          return describeToolchain(session, directory, carried.has(session));
       },
    };
+}
+
+/** Which delivery limit a candidate of this size passes, or null when it is within them. */
+export function candidateOverLimit(size: {
+   written: number;
+   deleted: number;
+   bytes: number;
+}): 'written' | 'deleted' | 'bytes' | null {
+   if (size.written > CANDIDATE_MAX_WRITTEN) return 'written';
+   if (size.deleted > CANDIDATE_MAX_DELETED) return 'deleted';
+   if (size.bytes > CANDIDATE_MAX_BYTES) return 'bytes';
+   return null;
+}
+
+/**
+ * Why a change is too big to hand back, and where it is: the limit it
+ * passed and the folders holding most of the changed files, so the person
+ * reading it knows what to split off or leave to `composer`, `npm` and the like.
+ */
+export function candidateTooLarge(over: 'written' | 'deleted' | 'bytes', changed: string[]): string {
+   const limit =
+      over === 'written'
+         ? `it writes more than ${CANDIDATE_MAX_WRITTEN} files`
+         : over === 'deleted'
+           ? `it deletes more than ${CANDIDATE_MAX_DELETED} files`
+           : `its files come to more than ${Math.round((CANDIDATE_MAX_BYTES / 1024 / 1024) * 0.75)} MiB`;
+   const folders = new Map<string, number>();
+   for (const path of changed) {
+      const parts = path.split('/');
+      const folder = parts.length > 2 ? `${parts[0]}/${parts[1]}/` : parts.length === 2 ? `${parts[0]}/` : '(root)';
+      folders.set(folder, (folders.get(folder) ?? 0) + 1);
+   }
+   const top = [...folders.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 5)
+      .map(([folder, count]) => `${folder} (${count})`)
+      .join(', ');
+   return (
+      `The change is too large to deliver in one run: ${limit}. ` +
+      `${changed.length} files changed, most under ${top}. ` +
+      'Split the change, and leave generated or vendored folders to the tool that installs them.'
+   );
 }
 
 /** Lockfiles are compared whole; an app's package-lock.json is past the 1 MiB other reads stop at. */

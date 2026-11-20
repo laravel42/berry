@@ -110,7 +110,13 @@ test('publishCandidate starts a new branch at the base commit with one action pe
       { action: 'create', file_path: 'run.sh', content: Buffer.from('#!/bin/sh\n').toString('base64'), encoding: 'base64' },
       { action: 'chmod', file_path: 'run.sh', execute_filemode: true },
       { action: 'delete', file_path: 'old.txt' },
+      { action: 'delete', file_path: 'never.txt' },
    ]);
+   // A deletion is of a file the snapshot held: only written files are looked up.
+   assert.deepEqual(
+      calls.filter((call) => call.method === 'HEAD').map((call) => call.path).sort(),
+      [`${P}/repository/files/README.md`, `${P}/repository/files/run.sh`]
+   );
 });
 
 test('publishCandidate writes nothing when the branch moved during the run', async () => {
