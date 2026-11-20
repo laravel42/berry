@@ -1,6 +1,5 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 import {
@@ -23,20 +22,19 @@ import { useSessionStore } from '@/store/session-store';
  */
 export function ThemeSync() {
    const preferred = useSessionStore((state) => state.preferredTheme);
-   const router = useRouter();
 
    useEffect(() => {
       if (!preferred) return;
 
       const settle = () => {
          const next = themeForPreference(preferred, prefersDark());
-         // Already written: a refresh is in flight (Preferences starts its own),
-         // or the browser refuses the cookie. Refreshing again would loop.
+         // Already written (Preferences wrote it, or the browser refuses the
+         // cookie): nothing to do, and writing again could loop.
          if (readThemeCookie() === next) return;
          writeThemeCookie(next);
-         // Paint immediately, then let the server re-render agree with it.
+         // The server only reads the cookie to set the class on <html>, so
+         // painting the class here is the whole job. No server re-render needed.
          applyThemeClass(next);
-         router.refresh();
       };
 
       settle();
@@ -46,7 +44,7 @@ export function ThemeSync() {
       if (!query) return;
       query.addEventListener('change', settle);
       return () => query.removeEventListener('change', settle);
-   }, [preferred, router]);
+   }, [preferred]);
 
    return null;
 }

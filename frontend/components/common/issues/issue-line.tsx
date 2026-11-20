@@ -112,6 +112,7 @@ function IssueLineView({
                    above are lifted over it. */}
                <Link
                   href={issueHref(issue.identifier)}
+                  prefetch={false}
                   draggable={false}
                   onClick={(event) => {
                      if (isDragging) event.preventDefault();
