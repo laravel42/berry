@@ -996,11 +996,19 @@ export class EnvelopeBuilder {
 
    /** Spec 2.2: the envelope carries the project resources (same rows as `read_project_resources`). */
    async #projectResources(issueId: string, workspaceId: string): Promise<TaskEnvelope['task']['projectResources']> {
+      // The repository is the task's own (migration 262), the one the run
+      // checks out; the project's is only its default. Naming the project's
+      // here told an agent on a task with its own repository to work in
+      // another one than it had in front of it.
       const rows = await this.#deps.sql`
          SELECT p.name, p.description,
-                p.github_repo_full_name, p.gitlab_project_path
+                CASE WHEN i.github_repo_id IS NULL AND i.gitlab_project_id IS NULL
+                     THEN p.github_repo_full_name ELSE i.github_repo_full_name END AS github_repo_full_name,
+                CASE WHEN i.github_repo_id IS NULL AND i.gitlab_project_id IS NULL
+                     THEN p.gitlab_project_path ELSE i.gitlab_project_path END AS gitlab_project_path
            FROM issue_project_links AS link
            JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
+           JOIN issues AS i ON i.id = link.issue_id
           WHERE link.issue_id = ${issueId} AND p.workspace_id = ${workspaceId}`;
       return rows.map((row) => {
          const gitlab = row.gitlab_project_path as string | null;

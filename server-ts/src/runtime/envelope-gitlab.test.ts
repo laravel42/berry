@@ -10,6 +10,8 @@ import { EnvelopeBuilder, loadTask } from './envelope-builder.ts';
 import { configurePlatformModel } from './platform-model.ts';
 import { cleanupFixture, createIssue, seedFixture, type Fixture } from './test-fixture.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
+import { registerCoreAgentTools } from './agent-tools/core-tools.ts';
+import { getAgentTool } from './agent-tools/registry.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -101,5 +103,59 @@ describe('a task on a nested GitLab project', { skip: url ? false : 'BERRY_TEST_
       );
       assert.deepEqual(published, [{ owner: 'quattrolinee/ql', name: 'bozzo', branch: delivery!.branch }]);
       assert.equal(result.commit, 'd'.repeat(40));
+   });
+
+   test("a task's own repository is the one the agent is told about, not its project's", async () => {
+      const f = fixture!;
+      const OWN = 'quattrolinee/other/site';
+      const { client, asked } = gitlab();
+      const builder = new EnvelopeBuilder({
+         sql, publicUrl: 'https://berry.test', defaultModel: 'default-model', memory: nullRunMemory(), sealer: null,
+         github: (token) => new GitHubClient({ token }),
+         gitlab: async () => client,
+      });
+      const issueId = await createIssue(sql, f, 'Work in another project');
+      await sql`INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by) VALUES (${f.workspaceId}, ${issueId}, ${projectId}, ${f.userId})`;
+      // The task names its own repository; the project keeps quattrolinee/ql/bozzo.
+      await sql`UPDATE issues SET gitlab_project_id = 100, gitlab_project_path = ${OWN} WHERE id = ${issueId}`;
+      const { runId } = await enqueueTask(sql, { workspaceId: f.workspaceId, agentId: f.agentId, issueId, kind: 'agent', source: 'mention', prompt: 'go' });
+      const task = await loadTask(sql, runId);
+
+      const { envelope } = await builder.build({ task, dispatch: null, token: 'berry_task_x' });
+      assert.deepEqual(asked, ['repository quattrolinee/other | site'], 'the checkout is the task\'s repository');
+      assert.equal(envelope.repo?.fullName, OWN);
+      assert.match(envelope.task.prompt, /Repository: quattrolinee\/other\/site/);
+      assert.deepEqual(
+         envelope.task.projectResources.map((resource) => resource.url),
+         [`https://gitlab.com/${OWN}`],
+         'the project resource names the repository the run works in'
+      );
+
+      registerCoreAgentTools();
+      const read = getAgentTool('read_project_resources')!;
+      const answer = await read.run(
+         {
+            sql, storage: null,
+            issues: {} as never, projects: {} as never,
+            task: { tokenId: 't', runId, workspaceId: f.workspaceId, agentId: f.agentId, issueId, boardId: f.boardId, scopes: ['task:read'] },
+         },
+         {}
+      );
+      assert.equal(answer.ok, true);
+      const projects = (answer as { result: { projects: Array<{ repository: string }> } }).result.projects;
+      assert.deepEqual(projects.map((project) => project.repository), [OWN]);
+
+      // With no repository of its own, the task is told the project's.
+      await sql`UPDATE issues SET gitlab_project_id = NULL, gitlab_project_path = NULL WHERE id = ${issueId}`;
+      const fallback = await read.run(
+         {
+            sql, storage: null,
+            issues: {} as never, projects: {} as never,
+            task: { tokenId: 't', runId, workspaceId: f.workspaceId, agentId: f.agentId, issueId, boardId: f.boardId, scopes: ['task:read'] },
+         },
+         {}
+      );
+      const fell = (fallback as { result: { projects: Array<{ repository: string }> } }).result.projects;
+      assert.deepEqual(fell.map((project) => project.repository), [PATH]);
    });
 });

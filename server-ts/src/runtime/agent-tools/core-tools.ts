@@ -618,15 +618,21 @@ export function registerCoreAgentTools(): void {
    });
 
    registerAgentTool('read_project_resources', {
-      description: "Read the project this task belongs to: its name, description and repository.",
+      description:
+         'Read the project this task belongs to: its name and description, and the repository this task is worked in.',
       scope: 'task:read',
       inputSchema: z.object({}),
       handler: async (context) => {
+         // The task's own repository when it names one (migration 262), the
+         // project's default otherwise: the repository the run checked out.
          const rows = await context.sql`
             SELECT p.name, p.description, p.status,
-                   COALESCE(p.gitlab_project_path, p.github_repo_full_name) AS repository
+                   CASE WHEN i.github_repo_id IS NULL AND i.gitlab_project_id IS NULL
+                        THEN COALESCE(p.gitlab_project_path, p.github_repo_full_name)
+                        ELSE COALESCE(i.gitlab_project_path, i.github_repo_full_name) END AS repository
               FROM issue_project_links AS link
               JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
+              JOIN issues AS i ON i.id = link.issue_id
              WHERE link.issue_id = ${issueOf(context)} AND p.workspace_id = ${context.task.workspaceId}`;
          return { projects: rows.map((row) => ({ ...row })) };
       },
