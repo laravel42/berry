@@ -289,9 +289,17 @@ export class ProjectRepository {
     * Archives rather than deletes.
     *
     * Issues link to projects, and destroying the row would either cascade into
-    * work that still exists or leave a dangling reference.
+    * work that still exists or leave a dangling reference. `cascade` runs in
+    * the same transaction, after the project is locked and before it is
+    * marked deleted: deleting a project removes its tasks, their inbox rows
+    * and their reviews with it (`IssueRepository.removeProjectWork`), all or
+    * nothing.
     */
-   async archive(workspaceId: string, projectId: string): Promise<void> {
+   async archive(
+      workspaceId: string,
+      projectId: string,
+      cascade?: (tx: Sql, now: string) => Promise<void>
+   ): Promise<void> {
       const now = this.now();
       await this.sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
@@ -304,6 +312,7 @@ export class ProjectRepository {
                FOR UPDATE`;
          if (!row) throw new NotFound();
          const project = toProject(row);
+         if (cascade) await cascade(tx, now);
          await tx`
             UPDATE projects SET deleted_at = ${now}, updated_at = ${now}
              WHERE workspace_id = ${workspaceId} AND id = ${projectId} AND deleted_at IS NULL`;

@@ -655,6 +655,64 @@ export class IssueRepository {
    }
 
    /**
+    * Removes the work of a project being deleted, inside the caller's
+    * transaction.
+    *
+    * Every live task linked to the project is soft-deleted, the same as
+    * `remove`, and so is each sub-task beneath one unless it is filed under
+    * another live project. Each gets its own `issue.deleted` fact, so boards
+    * drop it. Reviews are read from live tasks, so they go with them. Inbox
+    * rows about the tasks are deleted outright, since they would otherwise
+    * stay listed with nothing to open. Pending approvals on them are expired,
+    * because the inbox recreates a row for any approval still pending.
+    */
+   async removeProjectWork(
+      tx: Queryable,
+      params: { workspaceId: string; projectId: string; deletedBy: string; now: string }
+   ): Promise<IssueMutationEvent[]> {
+      const { workspaceId, projectId, now } = params;
+      const removed = await tx`
+         WITH RECURSIVE doomed AS (
+            SELECT issue.id
+              FROM issue_project_links AS link
+              JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
+             WHERE link.workspace_id = ${workspaceId} AND link.project_id = ${projectId}
+            UNION
+            SELECT child.id
+              FROM issues AS child
+              JOIN doomed ON child.parent_id = doomed.id
+             WHERE child.deleted_at IS NULL
+               AND NOT EXISTS (
+                  SELECT 1 FROM issue_project_links AS other
+                    JOIN projects AS project ON project.id = other.project_id AND project.deleted_at IS NULL
+                   WHERE other.issue_id = child.id AND other.project_id <> ${projectId})
+         )
+         UPDATE issues SET deleted_at = ${now}, updated_at = ${now}
+          WHERE id IN (SELECT id FROM doomed) AND deleted_at IS NULL
+          RETURNING id`;
+      const issueIds = removed.map((row) => row.id as string);
+      if (issueIds.length === 0) return [];
+
+      await tx`DELETE FROM inbox_items WHERE issue_id = ANY(${issueIds}::uuid[])`;
+      await tx`
+         UPDATE approvals SET status = 'expired', resolved_at = ${now}, updated_at = ${now}
+          WHERE issue_id = ANY(${issueIds}::uuid[]) AND status = 'pending'`;
+
+      const events: IssueMutationEvent[] = [];
+      for (const issueId of issueIds) {
+         events.push(
+            ...(await this.recordEvents(tx, {
+               issueId,
+               kind: 'deleted',
+               actor: { type: 'user', id: params.deletedBy },
+               occurredAt: now,
+            }))
+         );
+      }
+      return events;
+   }
+
+   /**
     * Writes the outbox rows for one mutation and returns them to publish.
     *
     * Persisted inside the caller's transaction and broadcast after it commits:
