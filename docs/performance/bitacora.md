@@ -136,3 +136,11 @@ Plan B1–B5 (≈300 KB): filtros, vistas tabla/tablero, diálogos de crear, cli
 | — | Indicador de los segmentados vuelve a deslizarse (regresión de T3: features cargadas tras montar) | 3004516d | verde (posición muestreada en headless) |
 | B2 | Vistas tabla y tablero bajo demanda; `issue-dnd.ts` con lo compartido | 32967104 | verde (lint + tsc + build; lista 27 filas → tablero 98 tarjetas → lista, sin errores). La lista ya no pinta el fantasma de tarjeta al arrastrar filas: queda la imagen nativa |
 | B3 | Diálogos de crear tarea y goal al primer uso, precargados en idle | 21a28f30 | verde (lint + tsc + build; "New task" abre el diálogo en headless, sin errores) |
+| — | Lista en iPhone: filas en flujo con `content-visibility: auto` en pantallas táctiles (WebKit retiene el scroll durante el fling y la lista ventaneada quedaba en blanco); escritorio sigue ventaneado | 4eb9736f, 137b8018 | verde en emulación (contenido visible en cada posición); falta confirmar en un iPhone real |
+
+## Carga de tareas por partes
+
+| Id | Tarea | Commit | Estado |
+|----|-------|--------|--------|
+| L1 | Primera página de 50 (la misma URL que precarga el HTML), el resto de 100 en segundo plano; aviso "Loading more tasks…" mientras faltan | e7b57403 | verde (lint + tsc + build). Mezclaba cada página: ~20 re-renders, carga completa ~15 s |
+| L2 | Las páginas en segundo plano se mezclan en tandas de 500, en idle; la cola restante llega con la lista final | 304f78e6 | verde. Headless móvil: primeras filas ~1.8 s, 2000 tareas completas ~9.7 s (antes ~15 s), sin errores |
