@@ -21,6 +21,8 @@ import type { IdempotencyStore } from '../http/idempotency.ts';
 import type { Broadcaster } from '../realtime/hub.ts';
 import type { BoardRepository } from '../core/boards.ts';
 import type { MilestoneLinker } from '../core/milestone-linker.ts';
+import type { ResolvedTaskRepository, TaskRepositoryRef } from '../core/issue-repository.ts';
+import { GITLAB_PROJECT_PATH } from '../integrations/gitlab.ts';
 import {
    ApprovalRequired,
    InvalidTransition,
@@ -111,7 +113,16 @@ export interface IssueOptions {
     * a run finishes, and this task's run finished while the switch was off.
     */
    gate?: { reviewLatest(issueId: string): Promise<unknown> } | null | undefined;
+   /**
+    * Resolves a repository named on a task through its host, so the stored
+    * id/name pair always agrees. Absent: setting a task's repository is refused.
+    */
+   resolveRepository?:
+      | ((workspaceId: string, repository: TaskRepositoryRef) => Promise<ResolvedTaskRepository>)
+      | undefined;
 }
+
+const GITHUB_REPO_NAME = /^[A-Za-z0-9._-]{1,100}\/[A-Za-z0-9._-]{1,100}$/;
 
 export function issueMounts(options: IssueOptions): Mount[] {
    const route = new Hono<{ Variables: AuthVariables }>();
@@ -213,6 +224,7 @@ export function issueMounts(options: IssueOptions): Mount[] {
             dueDate: input.dueDate,
             assignee: input.assignee,
             project: input.project,
+            repository: await resolveTaskRepository(options, scope.workspaceId, input.repository),
             createdBy: user.id,
             autoGate: input.autoGate,
          })
@@ -262,6 +274,9 @@ export function issueMounts(options: IssueOptions): Mount[] {
       const scope = await issues.authorize(user.id, found.id, 'product.write').catch(rethrow(false));
 
       const { patch, goal, goalSet } = parsePatch(await readBody(context.req.raw));
+      if (patch.repositorySet && patch.repository) {
+         patch.repository = await resolveTaskRepository(options, scope.workspaceId, patch.repository);
+      }
       if (patch.assigneeSet && patch.assignee) {
          await assertAssignee(issues, scope.workspaceId, patch.assignee);
          if (options.agentAccess && patch.assignee.type === 'agent') {
@@ -498,6 +513,7 @@ export function serializeIssue(issue: Issue, relations: IssueRelations | undefin
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
       project: issue.project,
+      repository: issue.repository,
       cycleId: issue.cycleId,
       createdBy: issue.createdBy,
       createdAt: issue.createdAt,
@@ -597,6 +613,7 @@ export function touchesIssueRow(patch: IssuePatch): boolean {
       patch.dueDateSet ||
       patch.assigneeSet ||
       patch.projectSet ||
+      patch.repositorySet === true ||
       patch.cycleSet === true ||
       patch.autoGate !== undefined
    );
@@ -613,6 +630,8 @@ interface CreateInput {
    dueDate: string | null;
    assignee: AssigneeInput | null;
    project: string | null;
+   /** The task's own repository, unresolved; null takes the project's default. */
+   repository: TaskRepositoryRef | null;
    goal: string | null;
    goalSet: boolean;
    autoGate: boolean;
@@ -674,6 +693,19 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
    const goal = goalChange(body, fields);
 
    const autoGate = optionalFlag(body, 'autoGate', fields);
+   let repository: TaskRepositoryRef | null = null;
+   if ('repository' in body && body.repository !== null) {
+      repository = parseRepositoryRef(body.repository);
+      if (!repository) {
+         fields.push(
+            field(
+               '/repository',
+               'invalid_type',
+               'Repository must be null or { provider: "github" | "gitlab", fullName }.'
+            )
+         );
+      }
+   }
    assertValid(fields);
    return {
       boardId,
@@ -686,6 +718,7 @@ function parseCreate(body: Record<string, unknown>): CreateInput {
       dueDate,
       assignee,
       project: project.value,
+      repository,
       goal: goal.value,
       goalSet: goal.set,
       autoGate,
@@ -812,6 +845,26 @@ export function parsePatch(body: Record<string, unknown>): {
       provided += 1;
       patch.cycleSet = true;
       patch.cycleId = optionalUUID(body, 'cycleId', 'Cycle id must be a UUID.', fields).value;
+   }
+   if ('repository' in body) {
+      provided += 1;
+      patch.repositorySet = true;
+      // Null clears it. A name is only checked for shape here; the handler
+      // resolves it through its host, which fills in the stored id.
+      const value = body.repository;
+      if (value !== null) {
+         const named = parseRepositoryRef(value);
+         if (named) patch.repository = { ...named, id: '' };
+         else {
+            fields.push(
+               field(
+                  '/repository',
+                  'invalid_type',
+                  'Repository must be null or { provider: "github" | "gitlab", fullName }.'
+               )
+            );
+         }
+      }
    }
    if (provided === 0) {
       fields.push(field('/', 'too_small', 'At least one field must be provided.'));
@@ -1041,7 +1094,32 @@ const ISSUE_BODY_FIELDS = new Set([
    // Without this the allowlist refused every AutoGate change with a 422
    // before `parsePatch` saw it.
    'autoGate',
+   'repository',
 ]);
+
+/** A named repository resolved through its host; refused where none can resolve. */
+async function resolveTaskRepository(
+   options: IssueOptions,
+   workspaceId: string,
+   repository: TaskRepositoryRef | null
+): Promise<ResolvedTaskRepository | null> {
+   if (!repository) return null;
+   if (!options.resolveRepository) {
+      throw new ApiError(412, 'INTEGRATIONS_NOT_CONFIGURED', 'This deployment cannot resolve repositories.');
+   }
+   return options.resolveRepository(workspaceId, repository);
+}
+
+/** `{ provider, fullName }` in the shape its host addresses it, or null. */
+function parseRepositoryRef(value: unknown): TaskRepositoryRef | null {
+   if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+   const { provider, fullName, ...rest } = value as Record<string, unknown>;
+   if (Object.keys(rest).length > 0 || typeof fullName !== 'string') return null;
+   const name = fullName.trim();
+   if (provider === 'github' && GITHUB_REPO_NAME.test(name)) return { provider, fullName: name };
+   if (provider === 'gitlab' && GITLAB_PROJECT_PATH.test(name)) return { provider, fullName: name };
+   return null;
+}
 
 export async function readBody(request: Request): Promise<Record<string, unknown>> {
    const raw = await request.clone().text();

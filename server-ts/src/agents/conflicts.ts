@@ -62,7 +62,9 @@ export async function afterDelivery(deps: ConflictDeps, input: { runId: string }
          SELECT run.workspace_id, run.pull_request_number, snapshot.repository, snapshot.default_commit
            FROM runs AS run
            JOIN run_repository_snapshots AS snapshot ON snapshot.run_id = run.id
-          WHERE run.id = ${input.runId} AND run.pull_request_number IS NOT NULL`;
+          WHERE run.id = ${input.runId} AND run.pull_request_number IS NOT NULL
+            -- Bringing a branch up to date is GitHub's; a GitLab merge request shows it.
+            AND snapshot.provider = 'github'`;
       if (!row) return;
       const repository = row.repository as string;
       const task = (

@@ -67,6 +67,7 @@ const nextConfig: NextConfig = {
       // call for up to 90s, and the proxy turning that wait into a reset is
       // what the browser reports as a status 500 with no error body.
       proxyTimeout: 120_000,
+      agentUpgrade: 'security',
    },
    async rewrites() {
       return [

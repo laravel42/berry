@@ -15,6 +15,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import {
    EmptyState,
    EmptyStateMark,
@@ -205,6 +206,7 @@ export default function Autopilots({
                <AlertDialogFooter>
                   <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
                      onClick={() => {
                         const target = confirming;
                         setConfirming(null);

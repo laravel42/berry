@@ -8,7 +8,7 @@ import { loadProperties, type PropertyDefinition } from '@/lib/properties';
 import { queryIssues } from '@/lib/views';
 import type { GroupingKey } from '@/store/display-settings-store';
 import { useSessionStore } from '@/store/session-store';
-import { Box, CircleDashed, Layers, User } from 'lucide-react';
+import { Box, CircleDashed, FolderKanban, Layers, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { IssueGroupDescriptor } from './group-issues';
 import { propertyIdOfGrouping } from './use-issue-list-view';
@@ -259,7 +259,7 @@ export function buildIssueGroups({
             .sort((a, b) => b[1].length - a[1].length)
             .map(([key, group]) => {
                const project = group[0].project;
-               const Icon = project?.icon ?? Box;
+               const Icon = project?.icon ?? FolderKanban;
                return {
                   group: {
                      id: key,

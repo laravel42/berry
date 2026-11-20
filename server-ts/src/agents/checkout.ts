@@ -190,6 +190,20 @@ export function parseGitLabPath(pathWithNamespace: string): { path: string; name
 }
 
 /**
+ * A repository as the halves a client's calls take, validated for its host.
+ * GitHub is `owner/name`; a GitLab path may be nested, and splits at its
+ * last slash (`group/sub` and `project`), which the GitLab client joins again.
+ */
+export function repositoryParts(
+   provider: CheckoutProvider,
+   fullName: string
+): { owner: string; name: string } {
+   if (provider === 'github') return parseRepository(fullName);
+   const { path, name } = parseGitLabPath(fullName);
+   return { owner: path.slice(0, path.length - name.length - 1), name };
+}
+
+/**
  * A branch name for a run, in the shape the product uses:
  * `forge/ber-142-passkey-enrolment`.
  *

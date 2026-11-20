@@ -33,6 +33,8 @@ export interface ConfirmActionProps {
    cancelLabel?: ReactNode;
    /** Paints the confirm button as destructive. On for anything that deletes. */
    destructive?: boolean;
+   /** Paints the confirm button berry (`variant="danger"`). On for every Delete. */
+   danger?: boolean;
    /**
     * Extra body between the description and the buttons: a typed-name field,
     * the list of things affected, an acknowledgement box.
@@ -69,6 +71,7 @@ export function ConfirmAction({
    confirmLabel,
    cancelLabel,
    destructive = false,
+   danger = false,
    children,
    confirmDisabled = false,
    onConfirm,
@@ -105,7 +108,11 @@ export function ConfirmAction({
                </AlertDialogCancel>
                <AlertDialogAction
                   disabled={pending || confirmDisabled}
-                  className={cn(destructive && buttonVariants({ variant: 'destructive' }))}
+                  className={cn(
+                     danger
+                        ? buttonVariants({ variant: 'danger' })
+                        : destructive && buttonVariants({ variant: 'destructive' })
+                  )}
                   onClick={(event) => {
                      // Radix closes on click by default; the promise decides here.
                      event.preventDefault();

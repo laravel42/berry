@@ -1,6 +1,15 @@
 import { createHash } from 'node:crypto';
 import { toRFC3339, type Queryable, type Sql } from '../db/pool.ts';
 import { refreshMilestonesForIssue } from './milestone-status.ts';
+import {
+   adoptProjectRepositoryForIssue,
+   linkedProjectId,
+   projectRepositoryIds,
+   repositoryColumns,
+   repositoryFromRow,
+   type ResolvedTaskRepository,
+   type TaskRepositoryRef,
+} from './issue-repository.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
 import { allows, type Permission } from '../identity/roles.ts';
 import { structJSON } from '../http/canonical-json.ts';
@@ -22,6 +31,7 @@ const ISSUE_COLUMNS = `i.id, i.board_id, w.id AS workspace_id, b.slug AS board_s
    COALESCE(assignee_user.avatar_url, assignee_agent.avatar_url) AS assignee_avatar_url,
    i.active_run_id,
    project.id AS project_id, project.name AS project_name,
+   ${repositoryColumns('i')},
    i.created_by, creator.name AS creator_name, creator.avatar_url AS creator_avatar_url,
    i.created_at, i.updated_at,
    i.parent_id, i.stage, i.status_id, i.auto_gate, i.cycle_id,
@@ -85,6 +95,8 @@ export interface Issue {
    assignee: ActorRef | null;
    activeRunId: string | null;
    project: { id: string; name: string } | null;
+   /** The repository runs on this task check out (migration 262). */
+   repository: TaskRepositoryRef | null;
    createdBy: ActorRef | null;
    createdAt: string;
    updatedAt: string;
@@ -161,6 +173,9 @@ export interface IssuePatch {
    assignee?: AssigneeInput | null;
    projectSet: boolean;
    project?: string | null;
+   /** Set or clear the task's repository, resolved through its host; absent leaves it alone. */
+   repositorySet?: boolean;
+   repository?: ResolvedTaskRepository | null;
    /** Set or clear the cycle; absent leaves it alone. */
    cycleSet?: boolean;
    cycleId?: string | null;
@@ -416,6 +431,8 @@ export class IssueRepository {
       dueDate: string | null;
       assignee: AssigneeInput | null;
       project: string | null;
+      /** The task's own repository; absent or null takes the project's default. */
+      repository?: ResolvedTaskRepository | null;
       /**
        * A users.id, or nobody. An agent is not a user, so work it files carries
        * the person who asked for it and nothing when nobody did (an autopilot).
@@ -481,6 +498,21 @@ export class IssueRepository {
                   AND (SELECT count(*) FROM projects AS other
                         WHERE other.workspace_id = board.workspace_id AND other.deleted_at IS NULL) = 1
                ON CONFLICT (issue_id) DO NOTHING`;
+            await adoptProjectRepositoryForIssue(tx, id, null);
+         }
+
+         // A repository named for the task wins over the project's default,
+         // which linking may just have set.
+         if (params.repository) {
+            const repository = params.repository;
+            const github = repository.provider === 'github';
+            await tx`
+               UPDATE issues SET
+                  github_repo_id = ${github ? repository.id : null}::bigint,
+                  github_repo_full_name = ${github ? repository.fullName : null}::text,
+                  gitlab_project_id = ${github ? null : repository.id}::bigint,
+                  gitlab_project_path = ${github ? null : repository.fullName}::text
+                WHERE id = ${id}`.catch(classifyWrite);
          }
 
          // Read back after linking, so the returned issue carries its project
@@ -563,6 +595,12 @@ export class IssueRepository {
                assignee_type = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.type ?? null}::assignee_type ELSE assignee_type END,
                assignee_id = CASE WHEN ${patch.assigneeSet} THEN ${patch.assignee?.id ?? null}::uuid ELSE assignee_id END,
                cycle_id = CASE WHEN ${patch.cycleSet === true} THEN ${patch.cycleId ?? null}::uuid ELSE cycle_id END,
+               -- One host at a time: setting either clears the other, and each
+               -- id/name pair moves together (migration 262).
+               github_repo_id = CASE WHEN ${patch.repositorySet === true} THEN ${repoColumn(patch, 'github', 'id')}::bigint ELSE github_repo_id END,
+               github_repo_full_name = CASE WHEN ${patch.repositorySet === true} THEN ${repoColumn(patch, 'github', 'name')}::text ELSE github_repo_full_name END,
+               gitlab_project_id = CASE WHEN ${patch.repositorySet === true} THEN ${repoColumn(patch, 'gitlab', 'id')}::bigint ELSE gitlab_project_id END,
+               gitlab_project_path = CASE WHEN ${patch.repositorySet === true} THEN ${repoColumn(patch, 'gitlab', 'name')}::text ELSE gitlab_project_path END,
                review_rejections = review_rejections + ${rejectsReview ? 1 : 0},
                updated_at = ${now}
              WHERE id = ${params.issueId}`.catch(classifyWrite);
@@ -652,6 +690,64 @@ export class IssueRepository {
          });
          return { issue, events };
       });
+   }
+
+   /**
+    * Removes the work of a project being deleted, inside the caller's
+    * transaction.
+    *
+    * Every live task linked to the project is soft-deleted, the same as
+    * `remove`, and so is each sub-task beneath one unless it is filed under
+    * another live project. Each gets its own `issue.deleted` fact, so boards
+    * drop it. Reviews are read from live tasks, so they go with them. Inbox
+    * rows about the tasks are deleted outright, since they would otherwise
+    * stay listed with nothing to open. Pending approvals on them are expired,
+    * because the inbox recreates a row for any approval still pending.
+    */
+   async removeProjectWork(
+      tx: Queryable,
+      params: { workspaceId: string; projectId: string; deletedBy: string; now: string }
+   ): Promise<IssueMutationEvent[]> {
+      const { workspaceId, projectId, now } = params;
+      const removed = await tx`
+         WITH RECURSIVE doomed AS (
+            SELECT issue.id
+              FROM issue_project_links AS link
+              JOIN issues AS issue ON issue.id = link.issue_id AND issue.deleted_at IS NULL
+             WHERE link.workspace_id = ${workspaceId} AND link.project_id = ${projectId}
+            UNION
+            SELECT child.id
+              FROM issues AS child
+              JOIN doomed ON child.parent_id = doomed.id
+             WHERE child.deleted_at IS NULL
+               AND NOT EXISTS (
+                  SELECT 1 FROM issue_project_links AS other
+                    JOIN projects AS project ON project.id = other.project_id AND project.deleted_at IS NULL
+                   WHERE other.issue_id = child.id AND other.project_id <> ${projectId})
+         )
+         UPDATE issues SET deleted_at = ${now}, updated_at = ${now}
+          WHERE id IN (SELECT id FROM doomed) AND deleted_at IS NULL
+          RETURNING id`;
+      const issueIds = removed.map((row) => row.id as string);
+      if (issueIds.length === 0) return [];
+
+      await tx`DELETE FROM inbox_items WHERE issue_id = ANY(${issueIds}::uuid[])`;
+      await tx`
+         UPDATE approvals SET status = 'expired', resolved_at = ${now}, updated_at = ${now}
+          WHERE issue_id = ANY(${issueIds}::uuid[]) AND status = 'pending'`;
+
+      const events: IssueMutationEvent[] = [];
+      for (const issueId of issueIds) {
+         events.push(
+            ...(await this.recordEvents(tx, {
+               issueId,
+               kind: 'deleted',
+               actor: { type: 'user', id: params.deletedBy },
+               occurredAt: now,
+            }))
+         );
+      }
+      return events;
    }
 
    /**
@@ -921,6 +1017,7 @@ function toIssue(row: Record<string, unknown>): Issue {
       project: row.project_id
          ? { id: row.project_id as string, name: row.project_name as string }
          : null,
+      repository: repositoryFromRow(row),
       createdBy: row.created_by
          ? actorRef(
               'user',
@@ -975,10 +1072,12 @@ async function setIssueProject(
    projectId: string | null,
    linkedBy: string | null
 ): Promise<void> {
+   // Leaving a project keeps the task's repository: it is the task's now.
    if (projectId === null) {
       await tx`DELETE FROM issue_project_links WHERE issue_id = ${issueId}`;
       return;
    }
+   const previous = await projectRepositoryIds(tx, await linkedProjectId(tx, issueId));
    const [scope] = await tx`
       SELECT board.workspace_id
         FROM issues AS issue
@@ -999,6 +1098,14 @@ async function setIssueProject(
       VALUES (${scope.workspace_id as string}, ${issueId}, ${projectId}, ${linkedBy})
       ON CONFLICT (issue_id) DO UPDATE
          SET project_id = EXCLUDED.project_id, linked_by = EXCLUDED.linked_by`;
+   await adoptProjectRepositoryForIssue(tx, issueId, previous);
+}
+
+/** One stored column of a repository patch: the value for `host`, or null. */
+function repoColumn(patch: IssuePatch, host: 'github' | 'gitlab', part: 'id' | 'name'): string | null {
+   const repository = patch.repository;
+   if (!repository || repository.provider !== host) return null;
+   return part === 'id' ? repository.id : repository.fullName;
 }
 
 /**
@@ -1045,6 +1152,7 @@ function patchChanges(
    if (patch.dueDateSet) changed.push('dueDate');
    if (patch.assigneeSet) changed.push('assignee');
    if (patch.projectSet) changed.push('project');
+   if (patch.repositorySet) changed.push('repository');
    if (patch.cycleSet) changed.push('cycle');
    if (patch.autoGate !== undefined) changed.push('autoGate');
    return { changed, previousStatus };
@@ -1067,6 +1175,7 @@ function serializeIssueEvent(issue: Issue): Record<string, unknown> {
       assignee: issue.assignee,
       activeRunId: issue.activeRunId,
       project: issue.project,
+      repository: issue.repository,
       // Carried so realtime readers keep the switch right: a client that
       // parsed an event without it read every task as AutoGate off.
       autoGate: issue.autoGate,

@@ -1,6 +1,6 @@
 'use client';
 
-import { Box, Check } from 'lucide-react';
+import { Check, FolderKanban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -54,7 +54,7 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                aria-label={`${t('project')}: ${chosen ? chosen.name : t('allProjects')}`}
                className="max-w-56 border-muted-foreground/15"
             >
-               <Box className="size-4" />
+               <FolderKanban className="size-4" />
                <span className="truncate">{chosen ? chosen.name : t('allProjects')}</span>
             </Button>
          </PopoverTrigger>

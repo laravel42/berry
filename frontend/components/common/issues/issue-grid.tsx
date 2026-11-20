@@ -222,7 +222,7 @@ function IssueGridCard({
                         where one ends -- the shadow has nothing to fall against
                         and does its work in light mode. */
                      'border border-[var(--board-card-line)] shadow-sm',
-                     'hover:bg-[var(--board-card-hover)]',
+                     'hover:border-[var(--board-card-hover-line)]',
                      isOver && 'ring-1 ring-primary/40',
                      isOver && dropEdge === 'top' && 'mt-1',
                      isOver && dropEdge === 'bottom' && 'mb-1'

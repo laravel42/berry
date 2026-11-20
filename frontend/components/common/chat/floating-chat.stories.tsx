@@ -63,12 +63,6 @@ export const StartAConversation: Story = {
    },
 };
 
-export const Minimised: Story = {
-   beforeEach: () => {
-      useShellStore.setState({ chatWindow: 'minimised' });
-   },
-};
-
 export const Expanded: Story = {
    beforeEach: () => {
       useShellStore.setState({ chatWindow: 'expanded' });

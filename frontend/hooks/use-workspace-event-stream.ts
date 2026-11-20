@@ -41,6 +41,9 @@ type Family = 'milestones' | 'cycles' | 'approvals' | 'inbox' | 'projects';
 function familiesFor(event: EventEnvelope): Family[] {
    const type = event.type;
    if (type.startsWith('milestone.') || type.startsWith('goal.')) return ['milestones'];
+   // A deleted project takes its tasks, their inbox rows and their approvals.
+   if (type === 'project.archived')
+      return ['projects', 'inbox', 'approvals', 'milestones', 'cycles'];
    if (type.startsWith('project.')) return ['projects'];
    if (type.startsWith('cycle.')) return ['cycles'];
    if (type.startsWith('approval.')) return ['approvals', 'milestones', 'inbox'];

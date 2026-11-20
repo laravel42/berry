@@ -60,13 +60,19 @@ export async function pickupReadyAgentTasks(
          -- updated_at past it, and the task is eligible again.
          AND NOT EXISTS (
             SELECT 1 FROM (
-               SELECT r.status, r.completed_at FROM runs AS r
+               SELECT r.status, r.updated_at FROM runs AS r
                 WHERE r.issue_id = i.id
                 ORDER BY r.created_at DESC
                 LIMIT 1
             ) AS latest
              WHERE latest.status IN ('failed', 'cancelled')
-               AND latest.completed_at >= i.updated_at
+               -- updated_at, not completed_at: both tables' updated_at are set
+               -- by trigger to the ending transaction's now(), while the
+               -- ledger stamps completed_at from its own clock just before
+               -- that transaction began. Compared with completed_at, the task
+               -- always looked touched after its run ended, and was picked up
+               -- again on every tick.
+               AND latest.updated_at >= i.updated_at
          )
          ${scoped ? sql`AND b.workspace_id IN ${sql(ids)}` : sql``}
        ORDER BY i.updated_at ASC

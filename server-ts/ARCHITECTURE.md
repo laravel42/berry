@@ -173,7 +173,10 @@ them:
    (the planner's calls).
 2. **Dispatcher** (`src/runs/dispatcher.ts`) — claims a queued run with
    `SKIP LOCKED` under a renewed lease and sweeps expired leases. Runs only
-   when an executor exists; concurrency is `BERRY_RUN_CONCURRENCY`.
+   when an executor exists. Task runs are bounded by `BERRY_RUN_CONCURRENCY`;
+   interactive runs (single model calls and chat replies) have their own
+   `interactiveConcurrency` slots (default 2), claimed first, so a backlog of
+   task runs never leaves a chat unanswered.
 3. **Compute-host selection** (`src/index.ts`) — if `BERRY_AGENTCORE_RUNTIME_ARN` is
    set, the target is the managed AgentCore Runtime; otherwise, if
    `BERRY_AGENT_RUNTIME_URL` is set, the target is the same runtime image

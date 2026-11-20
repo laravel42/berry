@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
-import { Box, GripVertical, Layers, X } from 'lucide-react';
+import { FolderKanban, GripVertical, Layers, X } from 'lucide-react';
 
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { loadPins, reorderPins, unpinTarget, type Pin } from '@/lib/pins';
@@ -192,7 +192,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                                  <span className="size-1.5 rounded-full bg-[var(--shell-text-faint)]" />
                               ))
                            ) : pin.targetType === 'project' ? (
-                              <Box className="size-3.5" />
+                              <FolderKanban className="size-3.5" />
                            ) : (
                               <Layers className="size-3.5" />
                            )}

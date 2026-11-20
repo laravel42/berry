@@ -92,7 +92,9 @@ export async function publishRunArtifacts(
    if (snapshot?.read_only !== false) return null;
 
    const repository = await repositoryForIssue(deps.sql, run.issue_id);
-   if (!repository?.fullName) return null;
+   // Published through GitHub's API. On GitLab the saved files stay on the
+   // task, as they do for a read-only run.
+   if (!repository?.fullName || repository.provider !== 'github') return null;
 
    const rows = await deps.sql<
       Array<{ path: string; size_bytes: string; storage_key: string }>

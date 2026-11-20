@@ -11,7 +11,7 @@ import { useShellStore } from '@/store/shell-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 
 /**
- * Flat "Agents" launcher at the bottom-right of the body frame.
+ * Flat "Agent" launcher at the bottom-right of the body frame.
  *
  * Opens the floating chat window that `FloatingChat` draws. Always rendered:
  * Preferences → General can turn the floating *panel* off, and that preference
@@ -84,7 +84,7 @@ export function ShellChatButton() {
          )}
       >
          <SparkIcon className="size-3.5" />
-         {t('nav.agents')}
+         {t('chat.label')}
       </Button>
    );
 }

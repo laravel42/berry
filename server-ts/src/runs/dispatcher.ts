@@ -14,7 +14,9 @@ import { pickupReadyAgentTasks } from './pickup.ts';
  * Three jobs, all of them the run's lifecycle *outside* the executor:
  *
  *   - **Claim and execute.** Oldest first, bounded by `concurrency`, because
- *     each run holds a container and a model call.
+ *     each run holds a container and a model call. Interactive runs (single
+ *     model calls and chat replies) have their own `interactiveConcurrency`
+ *     slots, so a backlog of task runs never leaves a chat unanswered.
  *   - **Hold a lease, and watch for cancellation.** The lease is renewed on a
  *     timer, which is what makes an abandoned run detectable — see migration
  *     035. The same beat reads the run's status, so `POST /cancel` reaches an
@@ -72,8 +74,15 @@ export interface DispatcherOptions {
    sql: Sql;
    executor: Executor;
    logger: Logger;
-   /** How many runs this process will execute at once. */
+   /** How many task runs this process will execute at once. */
    concurrency?: number;
+   /**
+    * Slots kept for interactive runs: single model calls (`kind: 'completion'`)
+    * and chat replies. They do not count against `concurrency`, because a
+    * person is waiting on them and a task run can hold a slot for an hour.
+    * Defaults to 2.
+    */
+   interactiveConcurrency?: number;
    pollMs?: number;
    leaseMs?: number;
    heartbeatMs?: number;
@@ -102,6 +111,7 @@ export class Dispatcher {
    readonly #executor: Executor;
    readonly #logger: Logger;
    readonly #concurrency: number;
+   readonly #interactiveConcurrency: number;
    readonly #pollMs: number;
    readonly #leaseMs: number;
    readonly #heartbeatMs: number;
@@ -112,6 +122,8 @@ export class Dispatcher {
 
    /** Runs this process is executing, and the handle that stops each one. */
    readonly #inflight = new Map<string, AbortController>();
+   /** The in-flight runs holding an interactive slot rather than a task slot. */
+   readonly #interactive = new Set<string>();
    /** Settles when each in-flight run has let go, so `stop` can wait for it. */
    readonly #settled = new Map<string, Promise<void>>();
 
@@ -133,6 +145,7 @@ export class Dispatcher {
       this.#executor = options.executor;
       this.#logger = options.logger;
       this.#concurrency = Math.max(1, options.concurrency ?? 2);
+      this.#interactiveConcurrency = Math.max(1, options.interactiveConcurrency ?? 2);
       this.#pollMs = options.pollMs ?? POLL_MS;
       this.#leaseMs = options.leaseMs ?? LEASE_MS;
       this.#heartbeatMs = options.heartbeatMs ?? HEARTBEAT_MS;
@@ -258,9 +271,17 @@ export class Dispatcher {
    async tick(): Promise<void> {
       await this.sweep();
       await this.#pickup();
-      const free = this.#concurrency - this.#inflight.size;
+      // Interactive first: a chat reply or a single model call waits on its
+      // own slots, never behind the task backlog.
+      const freeInteractive = this.#interactiveConcurrency - this.#interactive.size;
+      if (freeInteractive > 0) {
+         for (const runId of await this.#claim(freeInteractive, 'interactive')) {
+            this.#start(runId, 'execute', true);
+         }
+      }
+      const free = this.#concurrency - (this.#inflight.size - this.#interactive.size);
       if (free > 0) {
-         for (const runId of await this.#claim(free)) this.#start(runId);
+         for (const runId of await this.#claim(free, 'task')) this.#start(runId);
       }
    }
 
@@ -290,7 +311,7 @@ export class Dispatcher {
     * A lease is written before the ledger's claim, so a process that dies in
     * between leaves a run that is reclaimable rather than one that is stuck.
     */
-   async #claim(limit: number): Promise<string[]> {
+   async #claim(limit: number, lane: 'interactive' | 'task'): Promise<string[]> {
       // Priority first, then age. A runtime with a concurrency limit gets at
       // most `limit - busy` new claims per statement: `slot` numbers each
       // runtime's candidates in claim order, so one tick can never hand a
@@ -360,6 +381,7 @@ export class Dispatcher {
                      AND NOT EXISTS (SELECT 1 FROM ai_runtime_connections companion_connection WHERE companion_connection.id = r.ai_runtime_connection_id AND companion_connection.metadata ? 'companionId')
                      AND (r.dispatch_lease_until IS NULL OR r.dispatch_lease_until < now())
                      AND (rt.id IS NULL OR rt.status <> 'disabled')
+                     AND (r.kind = 'completion' OR r.chat_session_id IS NOT NULL) = ${lane === 'interactive'}
                      ${this.#scope('r')}
                      ${this.#aiRuntimes('r')}
                      -- One task per chat session at a time (spec 2.2a): a
@@ -409,7 +431,7 @@ export class Dispatcher {
     */
    async sweep(): Promise<void> {
       const rows = await this.#sql`
-         SELECT id FROM runs
+         SELECT id, (kind = 'completion' OR chat_session_id IS NOT NULL) AS interactive FROM runs
           WHERE status IN ('queued', 'running')
             AND dispatch_state <> 'pending'
             AND NOT EXISTS (SELECT 1 FROM ai_runtime_connections c WHERE c.id = runs.ai_runtime_connection_id AND c.metadata ? 'companionId')
@@ -422,7 +444,7 @@ export class Dispatcher {
          // Never a run this process is executing: its lease is being renewed.
          if (this.#inflight.has(runId)) continue;
          if (this.#executor.resume && (await this.#takeOver(runId))) {
-            this.#start(runId, 'resume');
+            this.#start(runId, 'resume', row.interactive === true);
             continue;
          }
          await this.#giveUp(runId, false);
@@ -462,9 +484,10 @@ export class Dispatcher {
       return rows.length > 0;
    }
 
-   #start(runId: string, mode: 'execute' | 'resume' = 'execute'): void {
+   #start(runId: string, mode: 'execute' | 'resume' = 'execute', interactive = false): void {
       const controller = new AbortController();
       this.#inflight.set(runId, controller);
+      if (interactive) this.#interactive.add(runId);
 
       const heartbeat = setInterval(() => {
          void this.beat(runId);
@@ -504,6 +527,7 @@ export class Dispatcher {
                    WHERE id = ${runId} AND status IN ('queued', 'running') AND dispatch_state <> 'pending'`.catch(() => undefined);
             }
             this.#inflight.delete(runId);
+            this.#interactive.delete(runId);
             this.#settled.delete(runId);
             // A freed slot is worth a poll now rather than at the next beat.
             this.#wake?.();

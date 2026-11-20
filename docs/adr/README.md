@@ -54,6 +54,8 @@ of ADR-0008, ADR-0012 and ADR-0013. For the fuller current mechanism, see
 | [0017](0017-kilo-gateway-model-tiers.md) | Model calls go through the Kilo gateway, in leaderboard-ranked tiers | Accepted — provider switch, tiers and tier interface implemented | 2026-09-25 |
 | [0018](0018-core-roles-and-specialists.md) | Five core roles by default; the rest are specialists a workspace adds | Accepted — current roster is seven core roles plus the Orchestrator (see Current state) | 2026-09-26 |
 | [0019](0019-subscription-ai-runtimes.md) | Keep compute hosts, AI runtimes, providers and user-owned billing separate | Accepted | 2026-10-08 |
+| [0020](0020-loops.md) | Loops are autopilots that answer events, under a safety policy | Accepted | 2026-11-08 |
+| [0021](0021-task-repositories.md) | A task names its repository; the project's is the default | Implemented | 2026-11-20 |
 
 ### Withdrawn records
 

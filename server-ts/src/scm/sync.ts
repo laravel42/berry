@@ -141,16 +141,7 @@ export class ScmSync {
       const [row] = await this.#sql`
          SELECT github_repo_full_name FROM projects
           WHERE id = ${projectId} AND deleted_at IS NULL`;
-      const full = (row?.github_repo_full_name as string | null) ?? null;
-      if (!full) return null;
-      const slash = full.indexOf('/');
-      if (slash === -1) {
-         // Not addressable. A GitHub repository is always `owner/name`, and a
-         // bare value is a row from before that was true — reporting it as a
-         // repository would build a URL that resolves to nothing.
-         return null;
-      }
-      return { owner: full.slice(0, slash), name: full.slice(slash + 1) };
+      return repositoryRef((row?.github_repo_full_name as string | null) ?? null);
    }
 
    async #issueContext(issueId: string): Promise<{
@@ -165,7 +156,7 @@ export class ScmSync {
       const [row] = await this.#sql`
          SELECT issue.id, issue.title, issue.description, issue.status::text AS status,
                 board.workspace_id,
-                link.project_id,
+                issue.github_repo_full_name,
                 goal.milestone_id,
                 coalesce(
                    (SELECT array_agg(label.name ORDER BY label.name)
@@ -176,13 +167,11 @@ export class ScmSync {
                 ) AS labels
            FROM issues AS issue
            JOIN boards AS board ON board.id = issue.board_id
-           LEFT JOIN issue_project_links AS link ON link.issue_id = issue.id
            LEFT JOIN milestone_issues AS goal ON goal.issue_id = issue.id
           WHERE issue.id = ${issueId} AND issue.deleted_at IS NULL`;
-      if (!row?.project_id) return null;
-
-      const repo = await this.repositoryFor(row.project_id as string);
-      if (!repo) return null;
+      // The task's own GitHub repository (migration 262); none, no mirror.
+      const repo = repositoryRef((row?.github_repo_full_name as string | null) ?? null);
+      if (!row || !repo) return null;
 
       return {
          workspaceId: row.workspace_id as string,
@@ -216,4 +205,16 @@ function milestoneState(status: string): 'open' | 'closed' {
    return status === 'completed' || status === 'archived' || status === 'cancelled'
       ? 'closed'
       : 'open';
+}
+
+/**
+ * `owner/name` as the host addresses it, or null. A GitHub repository is
+ * always `owner/name`; a bare value is a row from before that was true, and
+ * reporting it as a repository would build a URL that resolves to nothing.
+ */
+function repositoryRef(full: string | null): RepositoryRef | null {
+   if (!full) return null;
+   const slash = full.indexOf('/');
+   if (slash === -1) return null;
+   return { owner: full.slice(0, slash), name: full.slice(slash + 1) };
 }

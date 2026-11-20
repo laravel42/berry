@@ -11,7 +11,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { selectTriggerClass } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -320,7 +320,10 @@ export default function QuickActionsSettings() {
                </AlertDialogHeader>
                <AlertDialogFooter>
                   <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => deleting && remove(deleting)}>
+                  <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
+                     onClick={() => deleting && remove(deleting)}
+                  >
                      {t('delete')}
                   </AlertDialogAction>
                </AlertDialogFooter>

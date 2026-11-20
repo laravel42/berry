@@ -90,8 +90,10 @@ the asset's ink is warmer, and the lockup can be exactly the brand without repai
 word of body copy. `public/isotipo.svg`, `isotipo_light.svg`, `logotipo.svg` and
 `logotipo_light.svg` are the source files, and all four reduce to these two tokens.
 
-Berry is never an error color. Destructive/error actions use the separate `status-danger`
-token. Status marks retain one bracket silhouette; the berry dot, label, and optional
+Berry is never an error color. Destructive/error states use the separate `status-danger`
+token. The one exception is Delete: every Delete button, and the confirm button of every
+Delete dialog, is the `danger` button variant (berry fill, white ink; `ConfirmAction`
+takes `danger`). Status marks retain one bracket silhouette; the berry dot, label, and optional
 non-color cue communicate the state.
 
 ### Typography

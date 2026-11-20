@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import { ActiveRunExists } from './repository.ts';
+import { heldFailure } from './held.ts';
 import { taskExecutionAllowed } from './execution-policy.ts';
 import {
    AiRuntimeSelectionError,
@@ -77,7 +78,7 @@ export interface EnqueueTaskInput {
 
 export class EnqueueRejected extends Error {
    override readonly name = 'EnqueueRejected';
-   readonly code: 'TASK_TARGET_REQUIRED' | 'AGENT_NOT_IN_WORKSPACE';
+   readonly code: 'TASK_TARGET_REQUIRED' | 'AGENT_NOT_IN_WORKSPACE' | 'TASK_HELD';
    constructor(code: EnqueueRejected['code'], message: string) {
       super(message);
       this.code = code;
@@ -129,6 +130,16 @@ export async function enqueueTask(sql: Sql, input: EnqueueTaskInput): Promise<{ 
                 WHERE issue_id = ${issueId} AND kind = 'agent' AND status IN ('queued', 'running')
                 LIMIT 1`;
             if (active) throw new ActiveRunExists(active.id as string);
+            // Whoever asks (an assignment, a handoff, a mention), a task held
+            // by a failure that repeats on every run waits for a person.
+            const held = await heldFailure(tx, issueId);
+            if (held) {
+               throw new EnqueueRejected(
+                  'TASK_HELD',
+                  `This task is blocked: its last run failed before it started (${held.message}). ` +
+                     'Fix that, then move it back to To do.'
+               );
+            }
          }
       }
       // Chat guard (workstream D). A session's tasks are serialized rather

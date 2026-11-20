@@ -7,6 +7,7 @@ import { RunTerminal } from '../agents/runtime/terminal.ts';
 export { RunTerminal };
 import type { TaskResult, ToolDetail } from '../runtime/lifecycle.ts';
 import { notifyRunTerminal } from './terminal-hooks.ts';
+import { holdsTask } from './held.ts';
 
 /**
  * The run ledger.
@@ -205,17 +206,12 @@ export class RunLedger {
             SELECT r.id, r.issue_id, r.board_id, r.agent_id,
                    i.title, i.description, r.instructions, r.request_id, r.traceparent,
                    b.workspace_id,
-                   COALESCE(project.gitlab_project_path, project.github_repo_full_name, '') AS repository,
+                   -- The task's own repository (migration 262), not its project's.
+                   COALESCE(i.gitlab_project_path, i.github_repo_full_name, '') AS repository,
                    berry_issue_identifier(b.workspace_id, i.number) AS identifier
               FROM runs AS r
               JOIN issues AS i ON i.id = r.issue_id
               JOIN boards AS b ON b.id = r.board_id
-              -- Left joins throughout: an issue in no project, or a project
-              -- naming no repository, still dispatches — it just carries no
-              -- code context.
-              LEFT JOIN issue_project_links AS link ON link.issue_id = i.id
-              LEFT JOIN projects AS project
-                ON project.id = link.project_id AND project.deleted_at IS NULL
              WHERE r.id = ${runId}`;
          if (!row) throw new RunNotFound();
 
@@ -640,15 +636,34 @@ export class RunLedger {
                    updated_at = ${now}
              WHERE id = ${params.runId}`;
          // A task this run had moved to in_progress goes back to todo: nobody
-         // is working it now, and the board must not say otherwise.
+         // is working it now, and the board must not say otherwise. One that
+         // failed before its agent started, for a reason running it again will
+         // not change, is blocked instead (`holdsTask`), or the next pickup or
+         // assignment runs it into the same failure.
+         const hold = run.kind === 'agent' && holdsTask(params.failure);
          const released = await tx`
             UPDATE issues
                SET active_run_id = NULL,
-                   status = CASE WHEN status = 'in_progress' THEN 'todo'::issue_status ELSE status END,
+                   status = CASE
+                      WHEN ${hold} AND status IN ('todo', 'in_progress') THEN 'blocked'::issue_status
+                      WHEN status = 'in_progress' THEN 'todo'::issue_status
+                      ELSE status END,
                    updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
-         if (released.length > 0) {
+         // A run queued through `enqueueTask` never held `active_run_id`, so
+         // the update above does not reach its task. Held all the same, as
+         // long as no other run holds the task now.
+         const heldOnly =
+            hold && released.length === 0 && run.issueId
+               ? await tx`
+                    UPDATE issues
+                       SET status = 'blocked'::issue_status, updated_at = ${now}
+                     WHERE id = ${run.issueId} AND deleted_at IS NULL
+                       AND active_run_id IS NULL AND status IN ('todo', 'in_progress')
+                     RETURNING id`
+               : [];
+         if (released.length > 0 || heldOnly.length > 0) {
             await this.appendIssueUpdated(tx, run, now);
             if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
          }

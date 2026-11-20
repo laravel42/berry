@@ -80,6 +80,11 @@ export async function chatRepositoryAllowed(
             AND github_repo_full_name = ${fullName}
             AND deleted_at IS NULL
          UNION ALL
+         SELECT 1 FROM issues AS i JOIN boards AS b ON b.id = i.board_id
+          WHERE b.workspace_id = ${workspaceId}
+            AND i.github_repo_full_name = ${fullName}
+            AND i.deleted_at IS NULL
+         UNION ALL
          SELECT 1 FROM workspace_repositories
           WHERE workspace_id = ${workspaceId}
             AND regexp_replace(regexp_replace(lower(url), '\\.git$', ''), '/+$', '')

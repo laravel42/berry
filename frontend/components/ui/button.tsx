@@ -22,6 +22,9 @@ const buttonVariants = cva(
                'bg-linear-to-b from-pri-a to-pri-b border border-pri-a text-primary-foreground shadow-xs hover:brightness-110',
             'destructive':
                'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40',
+            /** Delete: berry fill, white ink. Every Delete button and Delete confirm uses it. */
+            'danger':
+               'bg-berry text-white shadow-xs hover:bg-berry-hover focus-visible:ring-berry/40',
             'outline':
                'border border-input bg-card shadow-xs hover:bg-secondary hover:text-accent-foreground',
             'secondary': 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',

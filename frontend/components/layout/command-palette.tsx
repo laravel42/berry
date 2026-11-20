@@ -37,7 +37,7 @@ import {
 import { useSessionStore } from '@/store/session-store';
 import {
    Bot,
-   Box,
+   FolderKanban,
    CalendarPlus,
    Check,
    ChevronsDownUp,
@@ -164,7 +164,7 @@ const PAGES: PalettePage[] = [
       id: 'projects',
       label: 'Projects',
       keywords: ['initiatives', 'workstreams'],
-      icon: Box,
+      icon: FolderKanban,
       href: '/projects',
       shortcutId: 'goto.projects',
       primary: true,
@@ -395,7 +395,7 @@ export function CommandPalette() {
          case 'issue':
             return <CircleDot className="text-muted-foreground" />;
          case 'project':
-            return <Box className="text-muted-foreground" />;
+            return <FolderKanban className="text-muted-foreground" />;
          case 'agent':
             return <Bot className="text-muted-foreground" />;
          case 'chat':
@@ -778,7 +778,7 @@ export function CommandPalette() {
                                  close();
                               }}
                            >
-                              <Box className="text-muted-foreground" />
+                              <FolderKanban className="text-muted-foreground" />
                               {t('newProject')}
                            </CommandItem>
                         ) : null}
@@ -894,7 +894,7 @@ export function CommandPalette() {
                                  setQuery('');
                               }}
                            >
-                              <Box className="text-muted-foreground" />
+                              <FolderKanban className="text-muted-foreground" />
                               Move to project…
                            </CommandItem>
                            <CommandItem
@@ -1104,7 +1104,7 @@ export function CommandPalette() {
                               close();
                            }}
                         >
-                           <Box className="text-muted-foreground" />
+                           <FolderKanban className="text-muted-foreground" />
                            No project
                         </CommandItem>
                         {allProjects

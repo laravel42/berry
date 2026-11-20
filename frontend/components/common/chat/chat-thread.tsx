@@ -176,7 +176,7 @@ export function ChatThread({
             {messages.length === 0 && !streamingText ? (
                <div className="flex flex-col items-center gap-4 text-center">
                   <h2 data-figure="md" className="text-[var(--shell-text)]">
-                     {agentName ? t('emptyTitle', { name: agentName }) : t('emptyNoAgentTitle')}
+                     {agentName ? t('emptyTitle') : t('emptyNoAgentTitle')}
                   </h2>
                   <p className="max-w-prose leading-relaxed text-[var(--shell-text-dim)]">
                      {agentName ? t('emptyBody') : t('emptyNoAgentBody')}

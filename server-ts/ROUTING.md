@@ -99,6 +99,13 @@ None of these writes a half-link, so a project never ends up in a broken
 state. Clearing the link (`githubRepo: null`) needs no resolver and always
 succeeds.
 
+A task names its own repository too ([ADR-0021](../docs/adr/0021-task-repositories.md)):
+`repository: { provider, fullName }` on `POST` and `PATCH /api/v1/issues` is
+resolved the same way (`resolveRepository` for GitHub,
+`resolveGitLabRepository` for GitLab, wired in `src/index.ts`) and answers the
+same codes. The project's repository is the default a task starts from;
+`src/core/issue-repository.ts` holds the rule for when a task follows it.
+
 ## Sign-in
 
 GitHub is the only way in, through Better Auth at `/api/auth/*`, using a

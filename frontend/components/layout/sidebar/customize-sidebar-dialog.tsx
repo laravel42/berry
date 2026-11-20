@@ -18,7 +18,7 @@ import {
 } from '@/store/sidebar-prefs-store';
 import {
    Bot,
-   Box,
+   FolderKanban,
    Blocks,
    Atom,
    RotateCw,
@@ -41,7 +41,7 @@ interface ItemConfig {
 }
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
-   { key: 'projects', label: 'Projects', icon: Box },
+   { key: 'projects', label: 'Projects', icon: FolderKanban },
    { key: 'cycles', label: 'Cycles', icon: RotateCw },
    { key: 'my-issues', label: 'Tasks', icon: Folders },
    { key: 'loops', label: 'Loops', icon: Atom },

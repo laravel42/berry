@@ -73,7 +73,7 @@ export const SaveRefused: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Project' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('option', { name: /^None/ }));
+      await userEvent.click(await body.findByRole('option', { name: /^No project/ }));
       // The link is put back once the server says no.
       await waitFor(() =>
          expect(useIssuesStore.getState().getIssueById(persistHealth.id)?.project?.id).toBe(

@@ -262,14 +262,15 @@
    --chart-4: var(--brand-amber);
    --chart-5: var(--brand-slate);
    --radius: 10px;
-   /* The board follows the theme: a light column with white cards here, the
-      original dark column and void cards in `.dark`. Cards and drag
-      previews read `--board-card*`, never the brand ramp directly. */
+   /* The board follows the theme: a light column with white cards here, and a
+      lifted dark column with framed cards in `.dark`. Cards and drag previews
+      read `--board-card*`, never the brand ramp directly. */
    --board-column-body: #f4f4f5;
    --board-card: #ffffff;
    --board-card-hover: #fafafa;
    --board-card-foreground: var(--foreground);
    --board-card-line: #e4e4e7;
+   --board-card-hover-line: #d4d4d8;
    /* Board column and list group header tints. A status column takes a wash
       of its own semantic tone over the container, so the header agrees with
       the glyph beside it: In review and Blocked wear warning, Done wears
@@ -344,8 +345,12 @@
    --segment-track: #222226;
    --segment-selected: #303035;
    --segment-hover: var(--brand-hairline);
-   --board-column-body: #19191c;
-   --board-card: var(--brand-void);
+   --board-column-body: #232326;
+   /* A card at rest: clearly under the column, 40% of the way to the void, so the
+      lane and its cards never read as one surface; the brighter edge frames
+      it. The column goes first so an unsupported `color-mix` degrades to the
+      column itself. */
+   --board-card: color-mix(in oklab, var(--board-column-body) 60%, var(--brand-void));
    --board-card-hover: var(--brand-base);
    --board-card-foreground: var(--brand-chalk);
    /* Edge of a card sitting in a board column: the column lifted a step, so it
@@ -354,6 +359,9 @@
       its first colour, and an edge that matches the column disappears, where
       one that fell back to white would blaze. */
    --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
+   /* A hovered card changes only its edge: the fill stays, the border
+      brightens. */
+   --board-card-hover-line: color-mix(in oklab, var(--board-column-body) 84%, #ffffff);
 
    --background: #0a0a0b;
    --foreground: #f6f6f7;

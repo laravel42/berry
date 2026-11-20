@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { Project } from '@/data/projects';
-import { Box, CheckIcon, FolderIcon } from 'lucide-react';
+import { CheckIcon, FolderIcon, FolderKanban } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 
 interface ProjectSelectorProps {
@@ -69,10 +69,10 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
                            const Icon = selectedProject.icon;
                            return <Icon className="size-4" />;
                         }
-                        return <Box className="size-4" />;
+                        return <FolderKanban className="size-4" />;
                      })()
                   ) : (
-                     <Box className="size-4" />
+                     <FolderKanban className="size-4" />
                   )}
                   <span>{value ? projects.find((p) => p.id === value)?.name : 'No project'}</span>
                </Button>

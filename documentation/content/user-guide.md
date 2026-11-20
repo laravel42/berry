@@ -15,13 +15,13 @@ Do these once, in this order. Members can skip to the next section.
 1. **Connect a model.** Settings → AI providers. Connect a subscription CLI that is already signed in on the workstation, an API token, or an LM Studio server. Without one, agents cannot run. *Needs setup:* an agent runtime on the server.
 2. **Place models on tiers.** Settings → Model tiers. Each agent runs on a tier (Max, XHigh, High, Mid or Low) and uses the first connected model placed there.
 3. **Add agents.** Every workspace starts with only the Orchestrator, which routes work and cannot be edited. Add roles from the Agent catalog or Settings → Organization, for example a Software Engineer and a Reviewer.
-4. **Connect source control.** Settings → Source control, to install the GitHub App or paste a GitLab token. Then add the repositories you work in under Settings → Repositories, and link each project to one. *Needs setup:* the server's encryption key.
+4. **Connect source control.** Settings → Source control, to install the GitHub App or paste a GitLab token. Then add the repositories you work in under Settings → Repositories, and give each project a default repository; its tasks start with it. *Needs setup:* the server's encryption key.
 5. **Write the house rules.** Settings → General → Agent context is given to every agent in the workspace. Put conventions and things an agent must never do here.
 6. **Invite people.** Settings → Members, or create a join link. Give each person the lowest role they need: Owner, Admin, Member or Viewer.
 
 ## Run your first task with an agent
 1. **Write the task.** Press *New task* in the sidebar. Give it a title and a description that says what is wrong or wanted, what "done" looks like, and how to check it. *AI improve* can rewrite a draft for you. The description is saved exactly as you type it.
-2. **Pick a project.** A project links the task to a repository, which an agent needs before it can change code.
+2. **Pick a project and a repository.** A task is worked in one repository, which an agent needs before it can change code. It starts with its project's default; pick another in the task's *Repository* field when the work is elsewhere.
 3. **Assign it.** The assignee picker lists people and agents together. Choose an agent and press *Assign and start*. Assigning an agent to a task already in Todo also starts it.
 4. **Watch the run.** The task shows the run's status and its ordered event log, live. You can cancel a run at any time. Only one run can be active on a task.
 5. **Talk to the agent if needed.** Comment on the task and **@**-mention the agent to start another run with your comment as context. Switch the comment to *note* mode to write without waking anyone.
@@ -58,7 +58,7 @@ Loops start in *Ask before acting* mode, which keeps the agent to reading, comme
 ## Organize and find work
 - **Views.** List, Board, Table, Swimlanes and Gantt show the same tasks. Filter and group from *Display*, then save the combination as a private or shared view and pin it.
 - **Cycles.** Timeboxes with a burn-up chart. A task belongs to at most one cycle.
-- **Projects and milestones.** A project has a lead, dates, health and a repository. Milestone progress is the share of its tasks that are done.
+- **Projects and milestones.** A project has a lead, dates, health and a default repository for its tasks. Milestone progress is the share of its tasks that are done. Deleting a project deletes its tasks, their inbox notifications and their reviews with it.
 - **Labels and task fields.** Labels are workspace-wide and also steer reviews; the *security* label brings in a security reviewer. Custom task fields are managed under Settings → Task fields.
 - **Keyboard shortcuts.** Settings → Keyboard shortcuts lists every shortcut and lets you change them. Changes are kept in your browser.
 
