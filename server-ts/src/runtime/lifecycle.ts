@@ -116,13 +116,33 @@ export const taskMessageSchema = z.discriminatedUnion('kind', [
    }),
 ]);
 
+/**
+ * What one run may hand back. The whole candidate travels in a single
+ * lifecycle event, so its encoded size is the real bound. Written files are
+ * counted as well, since each becomes a blob or an action on the host. A
+ * deletion carries no content and no blob, so it has its own, far higher
+ * ceiling: removing a vendored folder is thousands of deletions and a few
+ * hundred kilobytes.
+ */
+export const CANDIDATE_MAX_WRITTEN = 2000;
+export const CANDIDATE_MAX_DELETED = 50_000;
+export const CANDIDATE_MAX_BYTES = 7 * 1024 * 1024;
+
 export const taskDeliverySchema = z.object({
    /** Untrusted candidate bytes; the control plane alone authorizes and publishes them. */
    candidate: z.array(z.object({
       path: z.string().min(1).max(4096).refine((path) => !path.startsWith('/') && !path.includes('\\') && !path.includes('\0') && path.split('/').every((part) => part !== '' && part !== '.' && part !== '..' && part.toLowerCase() !== '.git')),
       mode: z.enum(['100644', '100755', '120000']),
       content: z.string().max(8 * 1024 * 1024).nullable(),
-   })).max(2000).optional(),
+   }))
+      .max(CANDIDATE_MAX_WRITTEN + CANDIDATE_MAX_DELETED)
+      .refine((files) => files.filter((file) => file.content !== null).length <= CANDIDATE_MAX_WRITTEN, {
+         message: `A candidate writes at most ${CANDIDATE_MAX_WRITTEN} files`,
+      })
+      .refine((files) => files.filter((file) => file.content === null).length <= CANDIDATE_MAX_DELETED, {
+         message: `A candidate deletes at most ${CANDIDATE_MAX_DELETED} files`,
+      })
+      .optional(),
    /**
     * True when the runtime laid the task branch over the default branch head
     * before the agent worked (a conflict-resolution run). The candidate is

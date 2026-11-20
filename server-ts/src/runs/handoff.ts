@@ -7,6 +7,8 @@
  * The run posts one comment, its report; this file is the note beside it.
  */
 
+import { CANDIDATE_MAX_WRITTEN } from '../runtime/lifecycle.ts';
+
 const SLUG_MAX = 80;
 
 /** A title turned into a filename piece: lower case, hyphens, no punctuation. */
@@ -92,13 +94,15 @@ export function handoffCandidate(document: string): { path: string; mode: '10064
  * of any other file under `.handoffs/` is left out, so that directory stays.
  * A candidate that is already at the delivery limit stays as it is.
  */
-export function withHandoffFile<T extends { path: string }>(
+export function withHandoffFile<T extends { path: string; content?: string | null }>(
    files: T[],
    document: string
 ): Array<T | NonNullable<ReturnType<typeof handoffCandidate>>> {
    const candidate = handoffCandidate(document);
    const rest = files.filter((file) => file.path !== 'HANDOFF.md' && file.path !== candidate?.path && !isHandoffDeletion(file));
-   if (candidate === null || rest.length >= 2000) return rest.length === files.length ? files : rest;
+   // The handoff is one more written file; deletions have their own limit.
+   const written = rest.filter((file) => file.content !== null).length;
+   if (candidate === null || written >= CANDIDATE_MAX_WRITTEN) return rest.length === files.length ? files : rest;
    return [...rest, candidate];
 }
 

@@ -281,11 +281,18 @@ export class GitLabClient {
          throw new GitLabError(`GitLab cannot receive symbolic links through its API: ${links.join(', ')}`, 422);
       }
       const root = `/projects/${project(input.owner, input.name)}`;
-      const present = await this.#presentAt(root, input.baseCommit, input.files.map((file) => file.path));
+      // A deletion is of a file the run's snapshot held, which is the base
+      // commit, so only written files are looked up: a removed vendor
+      // folder would otherwise be one request per file.
+      const present = await this.#presentAt(
+         root,
+         input.baseCommit,
+         input.files.filter((file) => file.content !== null).map((file) => file.path)
+      );
       const actions: Array<Record<string, unknown>> = [];
       for (const file of input.files) {
          if (file.content === null) {
-            if (present.has(file.path)) actions.push({ action: 'delete', file_path: file.path });
+            actions.push({ action: 'delete', file_path: file.path });
             continue;
          }
          actions.push({
@@ -301,17 +308,23 @@ export class GitLabClient {
       if (head !== input.expectedHead) {
          throw new GitLabError('The branch changed during this run; integrate the collaborator changes before retrying', 409);
       }
-      // Nothing to write (only deletions of files that were never there):
-      // the branch is already what the run asked for.
+      // Nothing to write: the branch is already what the run asked for.
       if (actions.length === 0) return { commit: head ?? input.baseCommit, files: [] };
-      const created = await this.#json<{ id?: unknown }>('POST', `${root}/repository/commits`, {
-         branch: input.branch,
-         ...(head === null ? { start_sha: input.baseCommit } : {}),
-         commit_message: input.message,
-         author_name: 'Berry',
-         author_email: 'agent@berry.invalid',
-         actions,
-      });
+      // One request writes the whole commit; thousands of actions take GitLab
+      // longer than a lookup, so the wait grows with them.
+      const created = await this.#json<{ id?: unknown }>(
+         'POST',
+         `${root}/repository/commits`,
+         {
+            branch: input.branch,
+            ...(head === null ? { start_sha: input.baseCommit } : {}),
+            commit_message: input.message,
+            author_name: 'Berry',
+            author_email: 'agent@berry.invalid',
+            actions,
+         },
+         Math.max(this.#timeoutMs, Math.min(300_000, 30_000 + actions.length * 20))
+      );
       if (typeof created.id !== 'string') throw new GitLabError('GitLab created a commit but returned no id', 502);
       // What differs from the default branch, as the provider sees it, the
       // way GitHub's path measures it: never the runtime's own summary.
@@ -382,12 +395,12 @@ export class GitLabClient {
       return present;
    }
 
-   async #json<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
+   async #json<T>(method: string, path: string, body?: Record<string, unknown>, timeoutMs?: number): Promise<T> {
       let response: Response;
       try {
          response = await this.#fetch(`${this.#baseUrl}${path}`, {
             method,
-            signal: AbortSignal.timeout(this.#timeoutMs),
+            signal: AbortSignal.timeout(timeoutMs ?? this.#timeoutMs),
             headers: {
                accept: 'application/json',
                'private-token': this.#token,
