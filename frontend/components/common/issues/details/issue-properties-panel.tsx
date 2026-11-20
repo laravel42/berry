@@ -104,7 +104,11 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
                   <IssueProjectProperty issue={issue} />
                   <IssueCycleProperty issue={issue} />
-                  <AutoGateProperty issue={issue} />
+                  {/* AutoGate reviews an agent's delivery, so it only
+                      applies when an agent holds the task. */}
+                  {issue.assignee?.role === 'Application' ? (
+                     <AutoGateProperty issue={issue} />
+                  ) : null}
                </div>
             </Section>
 
@@ -113,7 +117,9 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
             <IssueParentSection issue={issue} />
             <IssueQuickActions issueRef={issue.identifier} />
-            <IssueMilestoneSection issue={issue} />
+            {/* Milestones belong to a project: without one there is nothing
+                to choose from. */}
+            {issue.project ? <IssueMilestoneSection issue={issue} /> : null}
             <IssueDependenciesSection issue={issue} />
             <IssueLinkedPullRequests issueRef={issue.identifier} />
 
