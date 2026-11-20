@@ -33,6 +33,8 @@ interface ChatComposerProps {
    sendVariant?: 'primary' | 'secondary';
    /** Open a LiveKit voice room with this conversation's agent. */
    onVoice?: (() => void) | null;
+   /** Each new value puts the cursor in the box, as "New chat" does. */
+   focusSignal?: number;
 }
 
 const SEND_VARIANT = {
@@ -67,10 +69,14 @@ export function ChatComposer({
    answering = false,
    sendVariant = 'primary',
    onVoice = null,
+   focusSignal = 0,
 }: ChatComposerProps) {
    const t = useTranslations('agentsChat.chat');
    const placeholder = t('composerPlaceholder');
    const input = useRef<HTMLTextAreaElement>(null);
+   useEffect(() => {
+      if (focusSignal > 0) input.current?.focus();
+   }, [focusSignal]);
    const palette = useComposerPalette({
       textareaRef: input,
       value,
