@@ -1,3 +1,4 @@
+import { adoptProjectRepositoryForTasks, projectRepositoryIds } from './issue-repository.ts';
 import { randomUUID } from 'node:crypto';
 import { toRFC3339, type Sql } from '../db/pool.ts';
 import { Conflict, Forbidden, NotFound } from '../identity/errors.ts';
@@ -250,8 +251,11 @@ export class ProjectRepository {
 
    async update(workspaceId: string, projectId: string, patch: ProjectPatch): Promise<Project> {
       const now = this.now();
+      const repositoryChanges = patch.githubRepoSet || patch.gitlabRepoSet;
       return this.sql.begin(async (transaction) => {
          const tx = transaction as unknown as Sql;
+         // The default the project's tasks may still hold, read before it moves.
+         const previous = repositoryChanges ? await projectRepositoryIds(tx, projectId) : null;
          const rows = await tx`
             UPDATE projects AS project
                SET name = CASE WHEN ${patch.name !== undefined} THEN ${patch.name ?? null}::text ELSE project.name END,
@@ -280,6 +284,9 @@ export class ProjectRepository {
              RETURNING ${tx.unsafe(PROJECT_COLUMNS)}`.catch(classifyWrite);
          if (rows.length === 0) throw new NotFound();
          const project = toProject(rows[0]!);
+         // Tasks with no repository, or still on the old default, follow the
+         // project to its new one; a repository picked for a task stays.
+         if (previous) await adoptProjectRepositoryForTasks(tx, projectId, previous);
          await this.writeEvent(tx, 'project.updated', project, patchChanges(patch), null, now);
          return project;
       }) as Promise<Project>;

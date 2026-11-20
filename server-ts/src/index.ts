@@ -53,7 +53,7 @@ import { RunArtifactRepository } from './core/run-artifacts.ts';
 import { milestoneMounts } from './mounts/milestones.ts';
 import { cycleMounts } from './mounts/cycles.ts';
 import { attachmentMounts } from './mounts/attachments.ts';
-import { projectMounts, resolveRepository } from './mounts/projects.ts';
+import { projectMounts, resolveGitLabRepository, resolveRepository } from './mounts/projects.ts';
 import { boardRunRoutes, issueRunRoutes, runMounts } from './mounts/runs.ts';
 import { integrationMounts } from './mounts/integrations.ts';
 import { createScm } from './scm/provider-factory.ts';
@@ -1054,6 +1054,15 @@ registry.registerAll(
       nested: issueCommentRoutes(commentOptions),
       relations: issueRelationRoutes({ issues, dependencies, reviews, gate: reviewGate }),
       gate: reviewGate,
+      // A task's own repository (migration 262), resolved like a project's.
+      resolveRepository: async (workspaceId, repository) => {
+         if (repository.provider === 'gitlab') {
+            const resolved = await resolveGitLabRepository({ gitlabToken }, workspaceId, repository.fullName);
+            return { provider: 'gitlab', id: resolved.gitlabProjectId, fullName: resolved.gitlabProjectPath };
+         }
+         const resolved = await resolveRepository({ githubToken }, workspaceId, repository.fullName, null);
+         return { provider: 'github', id: resolved.githubRepoId, fullName: resolved.githubRepoFullName };
+      },
       runs: issueRunRoutes(runOptions),
       // A task handed to an agent starts on its own. Only where runs can
       // execute: without an executor a queued run would sit forever.

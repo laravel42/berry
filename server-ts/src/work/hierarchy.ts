@@ -1,3 +1,4 @@
+import { adoptProjectRepositoryForIssue } from '../core/issue-repository.ts';
 import type { Queryable } from '../db/pool.ts';
 import { NotFound } from '../identity/errors.ts';
 import type { StageGate } from '../runs/auto-dispatch.ts';
@@ -82,6 +83,28 @@ export async function inheritProject(q: Queryable, issueId: string): Promise<voi
        ORDER BY lineage.depth
        LIMIT 1
       ON CONFLICT (issue_id) DO NOTHING`;
+   await inheritRepository(q, issueId);
+}
+
+/**
+ * A task with no repository takes its parent's, else its project's default
+ * (migration 262). Work filed under a task is almost always in the same code
+ * as the task, which may not be the project's default. A repository the task
+ * already has is left alone.
+ */
+async function inheritRepository(q: Queryable, issueId: string): Promise<void> {
+   await q`
+      UPDATE issues AS child
+         SET github_repo_id = parent.github_repo_id,
+             github_repo_full_name = parent.github_repo_full_name,
+             gitlab_project_id = parent.gitlab_project_id,
+             gitlab_project_path = parent.gitlab_project_path
+        FROM issues AS parent
+       WHERE child.id = ${issueId}
+         AND parent.id = child.parent_id
+         AND child.github_repo_id IS NULL AND child.gitlab_project_id IS NULL
+         AND (parent.github_repo_id IS NOT NULL OR parent.gitlab_project_id IS NOT NULL)`;
+   await adoptProjectRepositoryForIssue(q, issueId, null);
 }
 
 /**
