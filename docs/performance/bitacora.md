@@ -145,3 +145,8 @@ Plan B1–B5 (≈300 KB): filtros, vistas tabla/tablero, diálogos de crear, cli
 | L1 | Primera página de 50 (la misma URL que precarga el HTML), el resto de 100 en segundo plano; aviso "Loading more tasks…" mientras faltan | e7b57403 | verde (lint + tsc + build). Mezclaba cada página: ~20 re-renders, carga completa ~15 s |
 | L2 | Las páginas en segundo plano se mezclan en tandas de 500, en idle; la cola restante llega con la lista final | 304f78e6 | verde. Headless móvil: primeras filas ~1.8 s, 2000 tareas completas ~9.7 s (antes ~15 s), sin errores |
 | B4 | Cliente de Better Auth bajo demanda: `lib/auth.ts` lo carga con `import()`; `lib/auth-client.ts` sin `'use client'` (con la directiva, el `import()` desde un módulo del layout de servidor contaba como referencia de cliente del layout y su chunk entraba en todas las páginas) | 712f2c9b, bb56615e | verde (lint + tsc + build). Tasks: 28 archivos de entrada, ninguno con better-auth; Settings → Security lo sigue cargando. Headless: sign-in por el formulario 200, Tasks carga sin el chunk, "Log out" lo carga al pulsar y vuelve a /sign-in |
+
+### Tras B4 y L1–L2 (2026-11-20)
+
+Móvil local (:3001, sesión real): b3 62, tunnel5 60, l2 61, b4b 61 (TBT 1.2–1.3 s en todos): ni la lista en flujo ni la carga por partes ni B4 mueven el resultado en local.
+A través del túnel: Tasks móvil **74–75** (LCP 3.0–3.2 s, TBT ~790 ms, CLS 0.008), desktop **99** (TBT 20 ms). Una corrida aislada dio 45 (TBT 30 s, CLS 0.24) justo después de reiniciar el servidor; no se repitió en cuatro corridas más.
