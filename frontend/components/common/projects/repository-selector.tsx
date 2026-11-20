@@ -99,21 +99,83 @@ async function probedListing(
    return (await cached.result.catch(() => null))?.[provider] ?? null;
 }
 
+type ScmHealth = { github: boolean; gitlab: boolean; ready: boolean };
+
+/** Where the last probe's answer is kept on this machine, per workspace. */
+const healthKey = (workspaceId: string) => `berry.scm-health.${workspaceId}`;
+
+/**
+ * The last answer this machine got, so a picker shows on load like its
+ * siblings instead of after a listing of every repository. The probe still
+ * runs and corrects it. Storage may be unavailable; then there is no answer
+ * yet and the picker waits for the probe as before.
+ */
+function rememberedHealth(workspaceId: string): ScmHealth | null {
+   if (!workspaceId) return null;
+   try {
+      const stored = JSON.parse(localStorage.getItem(healthKey(workspaceId)) ?? 'null') as {
+         github?: unknown;
+         gitlab?: unknown;
+      } | null;
+      if (!stored) return null;
+      return { github: stored.github === true, gitlab: stored.gitlab === true, ready: true };
+   } catch {
+      return null;
+   }
+}
+
+function rememberHealth(workspaceId: string, health: ScmHealth): void {
+   try {
+      localStorage.setItem(
+         healthKey(workspaceId),
+         JSON.stringify({ github: health.github, gitlab: health.gitlab })
+      );
+   } catch {
+      /* Not remembering only costs the next load a wait. */
+   }
+}
+
+/**
+ * Starts the probe as the workspace loads, so a picker opened later finds the
+ * answer ready (and remembered) rather than starting the wait itself.
+ */
+export function warmRepositoryProbe(workspaceId: string): void {
+   if (!workspaceId) return;
+   void probeScm(workspaceId)
+      .then((probe) =>
+         rememberHealth(workspaceId, {
+            github: probe.github !== null,
+            gitlab: probe.gitlab !== null,
+            ready: true,
+         })
+      )
+      .catch(() => undefined);
+}
+
 /** Which SCM hosts can actually list repositories for this workspace. */
-function useConnectedScm(): { github: boolean; gitlab: boolean; ready: boolean } {
+function useConnectedScm(): ScmHealth {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
-   const [state, setState] = useState({ github: false, gitlab: false, ready: false });
+   const [state, setState] = useState<ScmHealth>(
+      () => rememberedHealth(workspaceId) ?? { github: false, gitlab: false, ready: false }
+   );
 
    useEffect(() => {
       if (!workspaceId) {
          setState({ github: false, gitlab: false, ready: true });
          return;
       }
+      const remembered = rememberedHealth(workspaceId);
+      if (remembered) setState(remembered);
       let cancelled = false;
       void probeScm(workspaceId)
          .then((probe) => {
-            if (cancelled) return;
-            setState({ github: probe.github !== null, gitlab: probe.gitlab !== null, ready: true });
+            const health = {
+               github: probe.github !== null,
+               gitlab: probe.gitlab !== null,
+               ready: true,
+            };
+            rememberHealth(workspaceId, health);
+            if (!cancelled) setState(health);
          })
          .catch(() => {
             if (!cancelled) setState({ github: false, gitlab: false, ready: true });
@@ -232,6 +294,9 @@ function RepositoryPickerView({
    providers: ScmProvider[];
 }) {
    const [open, setOpen] = useState(false);
+   // A plain row (the project and task properties) greys an empty value; a
+   // filled chip keeps its label in the button's own colour, like its siblings.
+   const quiet = variant === 'ghost';
    const [repositories, setRepositories] = useState<ListedRepository[]>([]);
    const [access, setAccess] = useState<GitHubAccess | null>(null);
    const [loading, setLoading] = useState(false);
@@ -363,7 +428,7 @@ function RepositoryPickerView({
                   ) : (
                      <ScmMark
                         provider={value ? activeProvider : idleMark}
-                        className="size-3 shrink-0 text-muted-foreground"
+                        className={cn('size-3 shrink-0', quiet && 'text-muted-foreground')}
                      />
                   )
                ) : (
@@ -378,7 +443,7 @@ function RepositoryPickerView({
                      )}
                   </PickerRowIcon>
                )}
-               <span className={value ? 'truncate' : 'truncate text-muted-foreground'}>
+               <span className={cn('truncate', !value && quiet && 'text-muted-foreground')}>
                   {value ?? placeholder}
                </span>
             </Button>
