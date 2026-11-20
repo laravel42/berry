@@ -3,7 +3,7 @@
 import type { Issue } from '@/data/issues';
 import { cn } from '@/lib/utils';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDrop } from 'react-dnd';
 import { ListGroupHeader, type IssueGroupDescriptor } from './group-issues';
 import { IssueDragType } from './issue-dnd';
@@ -185,6 +185,48 @@ export function VirtualIssueList({
       virtualizer.measure();
    }, [virtualizer, items, rem]);
 
+   // WebKit has no scroll anchoring, and batches of tasks land above the
+   // viewport while the list loads, which shifted the content under the
+   // finger. On a touch screen, find the first row still in view in the
+   // previous list and put it back at the same offset in the new one.
+   // scrollTop is untouched by the DOM update, so it still holds the position
+   // from before the change.
+   const listRef = useRef<HTMLDivElement>(null);
+   const prevItemsRef = useRef<ListItem[] | null>(null);
+   useLayoutEffect(() => {
+      const prev = prevItemsRef.current;
+      prevItemsRef.current = items;
+      if (!coarse || !prev || prev === items) return;
+      const el = scrollRef.current;
+      const list = listRef.current;
+      if (!el || !list || el.scrollTop <= 0) return;
+      // Offsets are relative to the list wrapper, which may sit below `empty`.
+      const viewTop = el.scrollTop - list.offsetTop;
+      let top = 0;
+      let key: string | null = null;
+      let offset = 0;
+      for (const item of prev) {
+         const bottom = top + sizeOf(item);
+         if (bottom > viewTop) {
+            key = item.key;
+            offset = top - viewTop;
+            break;
+         }
+         top = bottom;
+      }
+      if (key === null) return;
+      let newTop = 0;
+      for (const item of items) {
+         if (item.key === key) {
+            const target = newTop + list.offsetTop - offset;
+            if (Math.abs(target - el.scrollTop) > 1) el.scrollTop = target;
+            return;
+         }
+         newTop += sizeOf(item);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- sizeOf only reads rem
+   }, [items, coarse, rem]);
+
    const toggle = (groupId: string) =>
       setCollapsed((current) => {
          const next = new Set(current);
@@ -216,13 +258,16 @@ export function VirtualIssueList({
       <div
          ref={scrollRef}
          className="h-full overflow-y-auto overscroll-contain md:pb-[var(--shell-launcher-room)]"
+         // Chrome on Android anchors natively; the effect above does it by hand.
+         style={coarse ? { overflowAnchor: 'none' } : undefined}
       >
          {empty}
          {coarse ? (
-            <div className="w-full bg-container">
+            <div ref={listRef} className="w-full bg-container">
                {items.slice(0, flowCount).map((item) => (
                   <div
                      key={item.key}
+                     data-key={item.key}
                      // Plain row in normal flow at its exact size.
                      // content-visibility: auto was tried and dropped: WebKit
                      // left rows blank mid-scroll.
