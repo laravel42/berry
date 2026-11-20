@@ -127,3 +127,11 @@ No hay medición desktop del baseline para comparar. El margen que queda está e
 | sonner | 34 | `toast()` en stores y componentes |
 
 Plan B1–B5 (≈300 KB): filtros, vistas tabla/tablero, diálogos de crear, cliente de auth, mensajes precompilados. `zod/mini` queda fuera por tamaño.
+
+## Recorte del JS inicial
+
+| Id | Tarea | Commit | Estado |
+|----|-------|--------|--------|
+| B1 | Barra y menú de filtros bajo demanda (`list-filters-lazy`, `list-filters-ui`) | b7971302 | verde (lint + tsc + build). Saca motion, slider y data-table-filter de Tasks, Inbox y Projects |
+| — | Indicador de los segmentados vuelve a deslizarse (regresión de T3: features cargadas tras montar) | 3004516d | verde (posición muestreada en headless) |
+| B2 | Vistas tabla y tablero bajo demanda; `issue-dnd.ts` con lo compartido | 32967104 | verde (lint + tsc + build; lista 27 filas → tablero 98 tarjetas → lista, sin errores). La lista ya no pinta el fantasma de tarjeta al arrastrar filas: queda la imagen nativa |
