@@ -58,6 +58,8 @@ export interface ConversationContext {
 }
 
 const SESSION_TITLE_SOURCES = { agent: 'agent', user: 'user' } as const;
+/** What an untitled session is called until a title is generated or chosen. */
+export const NEW_CHAT_TOPIC = 'New chat';
 
 export class ConversationRepository {
    readonly #sql: Sql;
@@ -82,7 +84,8 @@ export class ConversationRepository {
    ): Promise<ConversationSummary[]> {
       const archived = options.archived ?? false;
       const rows = await this.#sql`
-         SELECT conversation.id, conversation.kind, conversation.topic, conversation.updated_at,
+         SELECT conversation.id, conversation.kind, conversation.topic, conversation.title_source,
+                conversation.updated_at,
                 conversation.active_run_id,
                 agent.id AS agent_id, agent.name AS agent_name,
                 me.pinned_at IS NOT NULL AS pinned,
@@ -122,7 +125,12 @@ export class ConversationRepository {
       return rows.map((row) => ({
          id: row.id as string,
          kind: row.kind as string,
-         topic: (row.topic as string | null) ?? (row.agent_name as string | null) ?? 'Conversation',
+         // A session nobody titled yet (no generated or chosen title) reads as
+         // a new chat, not as its agent's name, which every such row shared.
+         topic:
+            row.title_source === SESSION_TITLE_SOURCES.agent
+               ? NEW_CHAT_TOPIC
+               : ((row.topic as string | null) ?? (row.agent_name as string | null) ?? 'Conversation'),
          agentId: (row.agent_id as string | null) ?? null,
          agentName: (row.agent_name as string | null) ?? null,
          messageCount: Number(row.message_count),
@@ -241,7 +249,7 @@ export class ConversationRepository {
          const id = this.#newId();
          await tx`
             INSERT INTO conversations (id, workspace_id, kind, topic, status, created_by)
-            VALUES (${id}, ${input.workspaceId}, 'direct', ${input.agentName}, 'open', ${input.userId})`;
+            VALUES (${id}, ${input.workspaceId}, 'direct', ${NEW_CHAT_TOPIC}, 'open', ${input.userId})`;
          await tx`
             INSERT INTO conversation_participants (conversation_id, participant_type, participant_id, role)
             VALUES (${id}, 'user', ${input.userId}, 'owner'),
@@ -266,7 +274,7 @@ export class ConversationRepository {
          if (!agent) throw new NotFound();
          await tx`
             INSERT INTO conversations (id, workspace_id, kind, topic, status, created_by, title_source)
-            VALUES (${id}, ${input.workspaceId}, 'direct', ${input.title ?? (agent.name as string)}, 'open',
+            VALUES (${id}, ${input.workspaceId}, 'direct', ${input.title ?? NEW_CHAT_TOPIC}, 'open',
                     ${input.userId}, ${input.title ? SESSION_TITLE_SOURCES.user : SESSION_TITLE_SOURCES.agent})`;
          await tx`
             INSERT INTO conversation_participants (conversation_id, participant_type, participant_id, role)
