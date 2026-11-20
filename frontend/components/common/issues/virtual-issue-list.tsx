@@ -53,7 +53,8 @@ function useRootFontSize() {
  * browser on an iPhone) holds back scroll events during a fling, so a
  * windowed list only learned where it was once the fling ended and showed
  * blank space until then. Touch screens get every row in normal flow instead
- * (see `FlowRows`), and the browser skips painting the ones off screen.
+ * (see `FlowRows`), mounted progressively. content-visibility was tried and
+ * dropped because WebKit left rows blank mid-scroll.
  */
 function useCoarsePointer() {
    const [coarse, setCoarse] = useState(false);
@@ -222,13 +223,10 @@ export function VirtualIssueList({
                {items.slice(0, flowCount).map((item) => (
                   <div
                      key={item.key}
-                     // Painted only near the viewport, by the browser itself;
-                     // the size it holds meanwhile is the row's exact size.
-                     style={{
-                        contentVisibility: 'auto',
-                        containIntrinsicSize: `auto ${sizeOf(item)}px`,
-                        height: sizeOf(item),
-                     }}
+                     // Plain row in normal flow at its exact size.
+                     // content-visibility: auto was tried and dropped: WebKit
+                     // left rows blank mid-scroll.
+                     style={{ height: sizeOf(item) }}
                   >
                      {renderItem(item)}
                   </div>
