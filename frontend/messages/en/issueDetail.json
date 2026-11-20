@@ -248,6 +248,7 @@
       "showMore": "Show {count} more",
       "showLess": "Show less",
       "repeated": "×{count}",
+      "repeatedComment": "Posted {count} times with the same words; only the latest is shown.",
       "reply": "Reply",
       "replies": "{count, plural, =1 {1 reply} other {# replies}}",
       "hideThread": "Collapse the thread",

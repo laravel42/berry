@@ -462,6 +462,9 @@ export function issueTrackingRoutes(options: IssueTrackingOptions): Hono<{ Varia
          if (error instanceof EnqueueRejected && error.code === 'AGENT_NOT_IN_WORKSPACE') {
             throw new ApiError(409, 'CONFLICT', "This quick action's agent is no longer in this workspace.");
          }
+         if (error instanceof EnqueueRejected && error.code === 'TASK_HELD') {
+            throw new ApiError(409, 'CONFLICT', error.message);
+         }
          return rethrowWork('Quick action')(error);
       });
       return json({ runId }, 202);

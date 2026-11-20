@@ -310,6 +310,7 @@ function CommentArtifacts({
 
 function CommentCard({
    comment,
+   repeated,
    issueRef,
    replies,
    attachments,
@@ -322,6 +323,8 @@ function CommentCard({
    onOpenArtifact,
 }: {
    comment: ApiComment;
+   /** How many identical comments this one stands for, itself included. */
+   repeated: number;
    issueRef: string;
    replies: ApiComment[];
    attachments: ApiAttachment[];
@@ -378,6 +381,14 @@ function CommentCard({
             <ActorAvatar user={actor} size="sm" />
             <ActorName user={actor} />
             <span className="text-muted-foreground">{timeAgo(comment.createdAt, 'recently')}</span>
+            {repeated > 1 ? (
+               <span
+                  className="rounded bg-accent px-1.5 text-muted-foreground"
+                  title={t('repeatedComment', { count: repeated })}
+               >
+                  {t('repeated', { count: repeated })}
+               </span>
+            ) : null}
             {comment.resolvedAt ? (
                <span className="rounded bg-accent px-1.5 text-muted-foreground">
                   {t('resolved')}
@@ -452,6 +463,7 @@ function CommentCard({
                   <CommentCard
                      key={reply.id}
                      comment={reply}
+                     repeated={1}
                      issueRef={issueRef}
                      replies={[]}
                      attachments={attachments}
@@ -689,7 +701,7 @@ export function ActivityFeedList({
       return map;
    }, [comments]);
 
-   const roots = useMemo(() => {
+   const { roots, repeats } = useMemo(() => {
       const top = comments
          .filter((comment) => !comment.parentId)
          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -697,8 +709,38 @@ export function ActivityFeedList({
       // a handoff note. The report is the comment; the note stays on the task
       // as a file.
       const hasReport = top.some((comment) => comment.runId && !handoffNote(comment.body));
-      return hasReport ? top.filter((comment) => !handoffNote(comment.body)) : top;
-   }, [comments]);
+      const listed = hasReport ? top.filter((comment) => !handoffNote(comment.body)) : top;
+
+      // The same words from the same author show once, as the newest, with a
+      // count: a task whose runs kept failing the same way posted the same
+      // failure tens of times. A comment someone replied to, attached a file
+      // to or resolved is part of a conversation and stays where it is.
+      const keyOf = (comment: ApiComment) =>
+         `${comment.author.type}:${comment.author.id}\n${comment.body.trim()}`;
+      const foldable = (comment: ApiComment) =>
+         !comment.resolvedAt &&
+         !repliesByParent.has(comment.id) &&
+         !attachments.some((file) => file.commentId === comment.id);
+      const newest = new Map<string, ApiComment>();
+      const counts = new Map<string, number>();
+      for (const comment of listed) {
+         if (!foldable(comment)) continue;
+         const key = keyOf(comment);
+         newest.set(key, comment);
+         counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      const repeated = new Map<string, number>();
+      for (const [key, comment] of newest) {
+         const count = counts.get(key) ?? 1;
+         if (count > 1) repeated.set(comment.id, count);
+      }
+      return {
+         roots: listed.filter(
+            (comment) => !foldable(comment) || newest.get(keyOf(comment)) === comment
+         ),
+         repeats: repeated,
+      };
+   }, [comments, repliesByParent, attachments]);
 
    const timeline = useMemo(() => {
       type Row =
@@ -783,6 +825,7 @@ export function ActivityFeedList({
                   <CommentCard
                      key={row.comment.id}
                      comment={row.comment}
+                     repeated={repeats.get(row.comment.id) ?? 1}
                      issueRef={issueRef}
                      replies={repliesByParent.get(row.comment.id) ?? []}
                      attachments={attachments}

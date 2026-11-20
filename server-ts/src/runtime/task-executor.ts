@@ -26,6 +26,7 @@ import {
 } from './transport.ts';
 import type { WorkstationKiro } from './workstation-kiro.ts';
 import { scheduleReview } from '../runs/followups.ts';
+import { HELD_NOTE, holdsTask } from '../runs/held.ts';
 import { parseRepository } from '../agents/checkout.ts';
 import { publishTrustedDelivery } from './trusted-delivery.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
@@ -742,7 +743,7 @@ export class RuntimeTaskExecutor implements Executor {
          // summarizes and starts a fresh run, and that is not a comment.
          await postRunResult(this.#o.sql, {
             issueId: task.issueId, agentId: task.agentId, runId: task.runId,
-            text: `This run failed (${failure.code}). ${failure.message}${retry ? retryNote(retry) : ''}`,
+            text: `This run failed (${failure.code}). ${failure.message}${retry ? retryNote(retry) : ''}${holdsTask(failure) ? HELD_NOTE : ''}`,
             cut: false,
             occurredAt: new Date().toISOString(),
          }).catch(() => null);

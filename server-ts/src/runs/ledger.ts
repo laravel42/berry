@@ -7,6 +7,7 @@ import { RunTerminal } from '../agents/runtime/terminal.ts';
 export { RunTerminal };
 import type { TaskResult, ToolDetail } from '../runtime/lifecycle.ts';
 import { notifyRunTerminal } from './terminal-hooks.ts';
+import { holdsTask } from './held.ts';
 
 /**
  * The run ledger.
@@ -635,15 +636,34 @@ export class RunLedger {
                    updated_at = ${now}
              WHERE id = ${params.runId}`;
          // A task this run had moved to in_progress goes back to todo: nobody
-         // is working it now, and the board must not say otherwise.
+         // is working it now, and the board must not say otherwise. One that
+         // failed before its agent started, for a reason running it again will
+         // not change, is blocked instead (`holdsTask`), or the next pickup or
+         // assignment runs it into the same failure.
+         const hold = run.kind === 'agent' && holdsTask(params.failure);
          const released = await tx`
             UPDATE issues
                SET active_run_id = NULL,
-                   status = CASE WHEN status = 'in_progress' THEN 'todo'::issue_status ELSE status END,
+                   status = CASE
+                      WHEN ${hold} AND status IN ('todo', 'in_progress') THEN 'blocked'::issue_status
+                      WHEN status = 'in_progress' THEN 'todo'::issue_status
+                      ELSE status END,
                    updated_at = ${now}
              WHERE id = ${run.issueId} AND active_run_id = ${run.id}
              RETURNING id`;
-         if (released.length > 0) {
+         // A run queued through `enqueueTask` never held `active_run_id`, so
+         // the update above does not reach its task. Held all the same, as
+         // long as no other run holds the task now.
+         const heldOnly =
+            hold && released.length === 0 && run.issueId
+               ? await tx`
+                    UPDATE issues
+                       SET status = 'blocked'::issue_status, updated_at = ${now}
+                     WHERE id = ${run.issueId} AND deleted_at IS NULL
+                       AND active_run_id IS NULL AND status IN ('todo', 'in_progress')
+                     RETURNING id`
+               : [];
+         if (released.length > 0 || heldOnly.length > 0) {
             await this.appendIssueUpdated(tx, run, now);
             if (run.issueId) await refreshMilestonesForIssue(tx, run.issueId, now);
          }
