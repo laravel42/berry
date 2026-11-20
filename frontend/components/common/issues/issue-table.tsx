@@ -741,51 +741,58 @@ export function IssueTable({
          </div>
 
          {/* Rows */}
-         <div ref={virtual.ref} className="min-h-0 flex-1 overflow-auto">
+         <div
+            ref={virtual.ref}
+            className="min-h-0 flex-1 overflow-auto overscroll-contain"
+            style={{ overflowAnchor: 'none', transform: 'translateZ(0)' }}
+         >
             {loading ? (
                <div className="px-4 py-3 text-muted-foreground">{t('table.loadingGroup')}</div>
             ) : null}
-            <div style={{ height: virtual.totalHeight, position: 'relative' }}>
-               <div style={{ transform: `translateY(${virtual.offset}px)` }}>
-                  {entries.slice(virtual.start, virtual.end).map((entry) =>
-                     entry.kind === 'header' ? (
-                        <div
-                           key={`header-${entry.id}`}
-                           className="flex items-center gap-2 border-b bg-accent/30 px-4 font-medium"
-                           style={{ height: ROW_HEIGHT }}
-                        >
-                           {entry.icon}
-                           <span className="truncate">{entry.name}</span>
-                           <span className="text-muted-foreground">{entry.count}</span>
-                           {loading ? (
-                              <span className="text-muted-foreground">
-                                 {t('table.loadingGroup')}
-                              </span>
-                           ) : null}
-                        </div>
-                     ) : (
-                        <div
-                           key={entry.row.issue.id}
-                           className="group grid items-center border-b px-4"
-                           style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}
-                        >
-                           <SelectionCheckbox issueId={entry.row.issue.id} order={orderIds} />
-                           <TitleCell
-                              issue={entry.row.issue}
-                              depth={entry.row.depth}
-                              expandable={entry.row.expandable}
-                              expanded={entry.row.expanded}
-                              onToggle={toggleCollapsed}
-                           />
-                           {visible.map((column) => (
-                              <span key={column} className="min-w-0 truncate">
-                                 {cell(entry.row.issue, column)}
-                              </span>
-                           ))}
-                        </div>
-                     )
-                  )}
-               </div>
+            <div>
+               {virtual.offset > 0 ? <div aria-hidden style={{ height: virtual.offset }} /> : null}
+               {entries.slice(virtual.start, virtual.end).map((entry) =>
+                  entry.kind === 'header' ? (
+                     <div
+                        key={`header-${entry.id}`}
+                        className="flex items-center gap-2 border-b bg-accent/30 px-4 font-medium"
+                        style={{ height: ROW_HEIGHT }}
+                     >
+                        {entry.icon}
+                        <span className="truncate">{entry.name}</span>
+                        <span className="text-muted-foreground">{entry.count}</span>
+                        {loading ? (
+                           <span className="text-muted-foreground">{t('table.loadingGroup')}</span>
+                        ) : null}
+                     </div>
+                  ) : (
+                     <div
+                        key={entry.row.issue.id}
+                        className="group grid items-center border-b px-4"
+                        style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}
+                     >
+                        <SelectionCheckbox issueId={entry.row.issue.id} order={orderIds} />
+                        <TitleCell
+                           issue={entry.row.issue}
+                           depth={entry.row.depth}
+                           expandable={entry.row.expandable}
+                           expanded={entry.row.expanded}
+                           onToggle={toggleCollapsed}
+                        />
+                        {visible.map((column) => (
+                           <span key={column} className="min-w-0 truncate">
+                              {cell(entry.row.issue, column)}
+                           </span>
+                        ))}
+                     </div>
+                  )
+               )}
+               {virtual.totalHeight > virtual.end * ROW_HEIGHT ? (
+                  <div
+                     aria-hidden
+                     style={{ height: Math.max(0, virtual.totalHeight - virtual.end * ROW_HEIGHT) }}
+                  />
+               ) : null}
             </div>
             <QuickAddRow />
          </div>

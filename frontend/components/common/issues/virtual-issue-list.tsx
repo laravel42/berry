@@ -2,8 +2,15 @@
 
 import type { Issue } from '@/data/issues';
 import { cn } from '@/lib/utils';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+   useCallback,
+   useEffect,
+   useLayoutEffect,
+   useMemo,
+   useRef,
+   useState,
+   type ReactNode,
+} from 'react';
 import { useDrop } from 'react-dnd';
 import { ListGroupHeader, type IssueGroupDescriptor } from './group-issues';
 import { IssueDragType } from './issue-dnd';
@@ -24,6 +31,11 @@ type ListItem =
         onDropIssue?: (issue: Issue) => void;
      };
 
+interface WindowRange {
+   start: number;
+   end: number;
+}
+
 // Exact sizes, in rem so they follow the root font size like the classes that
 // draw them: an issue line is `min-h-10` (its border sits inside the box), a
 // group header is `h-(--field-h)` (2rem), and every header after the first
@@ -32,6 +44,17 @@ const ROW_HEIGHT_REM = 2.5;
 const HEADER_HEIGHT_REM = 2;
 const HEADER_BAND_PX = 3;
 const DEFAULT_REM_PX = 16;
+
+// Desktop keeps the mounted DOM lean (~50 rows). Touch keeps ~5 phone screens
+// mounted in normal flow around the viewport (~110 rows max) with hysteresis
+// so everyday scrolling triggers zero re-renders and fast flings stay ahead of
+// WebKit's async compositor without ever mounting thousands of rows.
+const DESKTOP_OVERSCAN = 15;
+const DESKTOP_MARGIN = 5;
+const TOUCH_OVERSCAN = 45;
+const TOUCH_MARGIN = 15;
+const INITIAL_VIEWPORT_HEIGHT = 900;
+const FLING_SETTLE_MS = 150;
 
 /** The root font size in px, read once and again when the viewport resizes. */
 function useRootFontSize() {
@@ -48,44 +71,132 @@ function useRootFontSize() {
    return rem;
 }
 
-/**
- * True on a touch screen. There the list is not windowed: WebKit (every
- * browser on an iPhone) holds back scroll events during a fling, so a
- * windowed list only learned where it was once the fling ended and showed
- * blank space until then. Touch screens get every row in normal flow instead
- * (see `FlowRows`), mounted progressively. content-visibility was tried and
- * dropped because WebKit left rows blank mid-scroll.
- */
+/** True on touch-primary devices (phones/tablets). */
 function useCoarsePointer() {
    const [coarse, setCoarse] = useState(false);
    useEffect(() => {
-      setCoarse(window.matchMedia('(pointer: coarse)').matches);
+      const query = window.matchMedia('(pointer: coarse)');
+      const update = () => setCoarse(query.matches);
+      update();
+      query.addEventListener('change', update);
+      return () => query.removeEventListener('change', update);
    }, []);
    return coarse;
 }
 
-/** Rows mounted on the first render on a touch screen, then this many more per idle slice. */
-const FLOW_FIRST_ROWS = 80;
-const FLOW_ROWS_PER_SLICE = 250;
+function itemSize(item: ListItem, rem: number): number {
+   if (item.kind === 'header') {
+      return HEADER_HEIGHT_REM * rem + (item.index > 0 ? HEADER_BAND_PX : 0);
+   }
+   return ROW_HEIGHT_REM * rem;
+}
+
+/** Prefix-sum offsets: `offsets[i]` is item `i`'s top, `offsets[n]` is total height. */
+function buildOffsets(items: ListItem[], rem: number): Float64Array {
+   const offsets = new Float64Array(items.length + 1);
+   let top = 0;
+   for (let i = 0; i < items.length; i += 1) {
+      offsets[i] = top;
+      const item = items[i];
+      if (item) top += itemSize(item, rem);
+   }
+   offsets[items.length] = top;
+   return offsets;
+}
+
+/** Index of the item whose box spans `y` (`offsets[i] <= y < offsets[i + 1]`). */
+function indexAtOffset(offsets: Float64Array, y: number): number {
+   const count = offsets.length - 1;
+   if (count <= 0 || y <= 0) return 0;
+   const total = offsets[count] ?? 0;
+   if (y >= total) return count - 1;
+   let lo = 0;
+   let hi = count - 1;
+   while (lo < hi) {
+      const mid = (lo + hi + 1) >>> 1;
+      if ((offsets[mid] ?? 0) <= y) lo = mid;
+      else hi = mid - 1;
+   }
+   return lo;
+}
+
+function computeWindow(
+   offsets: Float64Array,
+   viewTop: number,
+   viewportHeight: number,
+   overscan: number,
+   margin: number,
+   current: WindowRange | null
+): WindowRange {
+   const count = offsets.length - 1;
+   if (count <= 0) return { start: 0, end: 0 };
+   const clampedTop = Math.max(0, viewTop);
+   const visibleStart = indexAtOffset(offsets, clampedTop);
+   const visibleEnd = Math.min(
+      count,
+      indexAtOffset(offsets, clampedTop + Math.max(1, viewportHeight)) + 1
+   );
+
+   // Keep the existing slice while the visible range stays safely inside it so
+   // scrolling does not re-render on every frame.
+   if (current && current.end <= count) {
+      const topSafe = current.start === 0 || visibleStart >= current.start + margin;
+      const bottomSafe = current.end === count || visibleEnd <= current.end - margin;
+      if (topSafe && bottomSafe && current.start <= visibleStart && current.end >= visibleEnd) {
+         return current;
+      }
+   }
+
+   return {
+      start: Math.max(0, visibleStart - overscan),
+      end: Math.min(count, visibleEnd + overscan),
+   };
+}
+
+function measureListTop(scroller: HTMLElement, list: HTMLElement): number {
+   const top =
+      list.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+   return top > 0 ? top : 0;
+}
 
 /**
- * How many of `total` rows to mount: a first screenful at once, the rest in
- * slices while the browser is idle, so the first paint costs what the
- * windowed list did and scrolling never waits on script.
+ * Picks the item to keep pinned when rows arrive above the viewport.
+ * Prefers an actual task row whose midpoint is in view so a group header near
+ * the top edge cannot pull a different block of tasks onto screen when a batch
+ * appends rows above that header.
  */
-function useProgressiveCount(total: number, active: boolean) {
-   const [count, setCount] = useState(FLOW_FIRST_ROWS);
-   useEffect(() => {
-      if (!active || count >= total) return;
-      const next = () => setCount((current) => current + FLOW_ROWS_PER_SLICE);
-      if ('requestIdleCallback' in window) {
-         const id = window.requestIdleCallback(next, { timeout: 500 });
-         return () => window.cancelIdleCallback(id);
+function findAnchor(
+   items: ListItem[],
+   offsets: Float64Array,
+   viewTop: number,
+   viewportHeight: number
+): { key: string; offset: number } | null {
+   const count = items.length;
+   if (count === 0) return null;
+   const firstIndex = indexAtOffset(offsets, Math.max(0, viewTop));
+   const viewBottom = viewTop + Math.max(1, viewportHeight);
+
+   for (let i = firstIndex; i < count; i += 1) {
+      const top = offsets[i] ?? 0;
+      if (top >= viewBottom) break;
+      const bottom = offsets[i + 1] ?? top;
+      const item = items[i];
+      if (item && item.kind === 'row' && (top + bottom) / 2 >= viewTop) {
+         return { key: item.key, offset: top - viewTop };
       }
-      const id = setTimeout(next, 50);
-      return () => clearTimeout(id);
-   }, [active, count, total]);
-   return Math.min(count, total);
+   }
+
+   for (let i = firstIndex; i < count; i += 1) {
+      const top = offsets[i] ?? 0;
+      if (top >= viewBottom) break;
+      const bottom = offsets[i + 1] ?? top;
+      const item = items[i];
+      if (item && bottom > viewTop) {
+         return { key: item.key, offset: top - viewTop };
+      }
+   }
+
+   return null;
 }
 
 /** A row that is also where a dragged task lands, so it moves into this group. */
@@ -118,10 +229,10 @@ function DropRow({
 }
 
 /**
- * The list layout: group headers and rows as one flat list, windowed so the
- * DOM holds only what is on screen (plus an overscan) however many tasks
- * there are. It owns the scroll container; `empty` and `footer` render inside
- * it, around the windowed items.
+ * The list layout: group headers and rows as one flat normal-flow windowed
+ * list, sandwiched between exact top and bottom spacers so the DOM stays
+ * bounded on both desktop and mobile without `position: absolute`, per-row
+ * transforms, or unmounted tail voids.
  */
 export function VirtualIssueList({
    groups,
@@ -135,6 +246,7 @@ export function VirtualIssueList({
    footer?: ReactNode;
 }) {
    const scrollRef = useRef<HTMLDivElement>(null);
+   const listRef = useRef<HTMLDivElement>(null);
    const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 
    const items = useMemo<ListItem[]>(() => {
@@ -162,98 +274,258 @@ export function VirtualIssueList({
 
    const rem = useRootFontSize();
    const coarse = useCoarsePointer();
-   const flowCount = useProgressiveCount(items.length, coarse);
-   const sizeOf = (item: ListItem | undefined) => {
-      if (item?.kind === 'header') {
-         return HEADER_HEIGHT_REM * rem + (item.index > 0 ? HEADER_BAND_PX : 0);
-      }
-      return ROW_HEIGHT_REM * rem;
-   };
+   const overscan = coarse ? TOUCH_OVERSCAN : DESKTOP_OVERSCAN;
+   const margin = coarse ? TOUCH_MARGIN : DESKTOP_MARGIN;
 
-   const virtualizer = useVirtualizer({
-      // Windowed with a mouse or trackpad only; a touch screen renders in flow.
-      count: coarse ? 0 : items.length,
-      getScrollElement: () => scrollRef.current,
-      estimateSize: (index) => sizeOf(items[index]),
-      getItemKey: (index) => items[index]?.key ?? index,
-      overscan: 10,
-   });
+   // While a touch drag or momentum fling is moving, freeze incoming appends
+   // (such as background loading batches) until the gesture settles so WebKit
+   // never gets a mid-fling DOM shift or scrollTop write. Filtering or
+   // collapsing shrinks the list and always applies immediately.
+   const [frozenItems, setFrozenItems] = useState<ListItem[] | null>(null);
+   const activeItems = frozenItems && items.length >= frozenItems.length ? frozenItems : items;
 
-   // Sizes are fixed, so a change of root font size or of the items only needs
-   // the cached offsets recomputed, not a measurement.
-   useEffect(() => {
-      virtualizer.measure();
-   }, [virtualizer, items, rem]);
+   const offsets = useMemo(() => buildOffsets(activeItems, rem), [activeItems, rem]);
+   const totalHeight = offsets[activeItems.length] ?? 0;
 
-   // WebKit has no scroll anchoring, and batches of tasks land above the
-   // viewport while the list loads, which shifted the content under the
-   // finger. On a touch screen, find the first row fully in view in the
-   // previous list and put it back at the same offset in the new one.
-   // scrollTop is untouched by the DOM update, so it still holds the position
-   // from before the change.
-   const listRef = useRef<HTMLDivElement>(null);
-   const prevItemsRef = useRef<ListItem[] | null>(null);
+   const [range, setRange] = useState<WindowRange>(() =>
+      computeWindow(offsets, 0, INITIAL_VIEWPORT_HEIGHT, overscan, margin, null)
+   );
+
+   const latestItemsRef = useRef<ListItem[]>(items);
+   const frozenItemsRef = useRef<ListItem[] | null>(frozenItems);
+   const offsetsRef = useRef<Float64Array>(offsets);
+   const overscanRef = useRef<number>(overscan);
+   const marginRef = useRef<number>(margin);
+   const rangeRef = useRef<WindowRange>(range);
+   const prevSnapshotRef = useRef<{
+      items: ListItem[];
+      offsets: Float64Array;
+      overscan: number;
+   } | null>(null);
+   const lastProgrammaticScrollTopRef = useRef<number | null>(null);
+
    useLayoutEffect(() => {
-      const prev = prevItemsRef.current;
-      prevItemsRef.current = items;
-      if (!coarse || !prev || prev === items) return;
+      latestItemsRef.current = items;
+      if (frozenItems && items.length < frozenItems.length) {
+         frozenItemsRef.current = null;
+         setFrozenItems(null);
+      } else {
+         frozenItemsRef.current = frozenItems;
+      }
+   }, [items, frozenItems]);
+
+   const syncRange = useCallback((forceRecenter = false) => {
       const el = scrollRef.current;
       const list = listRef.current;
-      if (!el || !list || el.scrollTop <= 0) return;
-      // Offsets are relative to the list wrapper, which may sit below `empty`.
-      // `listTop` is the wrapper's top within the scroller's content (offsetTop
-      // is relative to the offset parent, which is not the scroller).
-      const listTop =
-         list.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
-      const viewTop = el.scrollTop - listTop;
-      let top = 0;
-      let key: string | null = null;
-      let offset = 0;
-      for (const item of prev) {
-         const bottom = top + sizeOf(item);
-         if (top >= viewTop) {
-            key = item.key;
-            offset = top - viewTop;
-            break;
-         }
-         top = bottom;
+      if (!el || !list) return;
+      const listTop = measureListTop(el, list);
+      const viewTop = Math.max(0, el.scrollTop - listTop);
+      const viewportHeight = el.clientHeight || INITIAL_VIEWPORT_HEIGHT;
+      const next = computeWindow(
+         offsetsRef.current,
+         viewTop,
+         viewportHeight,
+         overscanRef.current,
+         marginRef.current,
+         forceRecenter ? null : rangeRef.current
+      );
+      if (next.start !== rangeRef.current.start || next.end !== rangeRef.current.end) {
+         rangeRef.current = next;
+         setRange(next);
       }
-      if (key === null) return;
-      let newTop = 0;
-      for (const item of items) {
-         if (item.key === key) {
-            const target = newTop + listTop - offset;
-            if (Math.abs(target - el.scrollTop) > 1) el.scrollTop = target;
+   }, []);
+
+   // Anchor the scroll position when the item list changes and reconcile the
+   // mounted window in the same layout pass (before paint), so background
+   // batches never jump the viewport into unmounted spacer space.
+   useLayoutEffect(() => {
+      const prev = prevSnapshotRef.current;
+      prevSnapshotRef.current = { items: activeItems, offsets, overscan };
+      offsetsRef.current = offsets;
+      overscanRef.current = overscan;
+      marginRef.current = margin;
+
+      const el = scrollRef.current;
+      const list = listRef.current;
+      if (!el || !list) return;
+
+      let scrollTop = el.scrollTop;
+      const listTop = measureListTop(el, list);
+      const viewportHeight = el.clientHeight || INITIAL_VIEWPORT_HEIGHT;
+
+      if (prev && prev.items !== activeItems && scrollTop > 0 && activeItems.length > 0) {
+         const prevViewTop = Math.max(0, scrollTop - listTop);
+         const anchor = findAnchor(prev.items, prev.offsets, prevViewTop, viewportHeight);
+         if (anchor) {
+            const newIndex = activeItems.findIndex((entry) => entry.key === anchor.key);
+            if (newIndex !== -1) {
+               const newTop = offsets[newIndex] ?? 0;
+               const target = Math.max(0, newTop + listTop - anchor.offset);
+               if (Math.abs(target - scrollTop) > 1) {
+                  el.scrollTop = target;
+                  scrollTop = el.scrollTop;
+                  lastProgrammaticScrollTopRef.current = scrollTop;
+               }
+            }
+         }
+      }
+
+      const overscanChanged = prev !== null && prev.overscan !== overscan;
+      const viewTop = Math.max(0, scrollTop - listTop);
+      const next = computeWindow(
+         offsets,
+         viewTop,
+         viewportHeight,
+         overscan,
+         margin,
+         overscanChanged ? null : rangeRef.current
+      );
+      if (next.start !== rangeRef.current.start || next.end !== rangeRef.current.end) {
+         rangeRef.current = next;
+         setRange(next);
+      }
+   }, [activeItems, offsets, overscan, margin]);
+
+   // Track scroll, resize, and touch momentum gestures on the scroll container.
+   useEffect(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+
+      let touchDown = false;
+      let touchMoved = false;
+      let flingTimer: number | null = null;
+
+      const clearFlingTimer = () => {
+         if (flingTimer !== null) {
+            window.clearTimeout(flingTimer);
+            flingTimer = null;
+         }
+      };
+
+      const releaseFrozen = () => {
+         clearFlingTimer();
+         if (frozenItemsRef.current !== null) {
+            frozenItemsRef.current = null;
+            setFrozenItems(null);
+         }
+      };
+
+      const scheduleFlingEnd = () => {
+         clearFlingTimer();
+         flingTimer = window.setTimeout(() => {
+            flingTimer = null;
+            syncRange();
+            releaseFrozen();
+         }, FLING_SETTLE_MS);
+      };
+
+      const onScroll = () => {
+         syncRange();
+
+         const programmatic = lastProgrammaticScrollTopRef.current;
+         if (programmatic !== null && Math.abs(el.scrollTop - programmatic) <= 1) {
+            lastProgrammaticScrollTopRef.current = null;
             return;
          }
-         newTop += sizeOf(item);
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- sizeOf only reads rem
-   }, [items, coarse, rem]);
+         lastProgrammaticScrollTopRef.current = null;
 
-   const toggle = (groupId: string) =>
+         if (touchDown) {
+            touchMoved = true;
+            if (frozenItemsRef.current === null && latestItemsRef.current.length > 0) {
+               frozenItemsRef.current = latestItemsRef.current;
+               setFrozenItems(latestItemsRef.current);
+            }
+         } else if (flingTimer !== null) {
+            scheduleFlingEnd();
+         }
+      };
+
+      const onScrollEnd = () => {
+         syncRange();
+         if (!touchDown) releaseFrozen();
+      };
+
+      const onTouchStart = () => {
+         touchDown = true;
+         touchMoved = false;
+         // A finger touching down stops any prior momentum fling; flush any
+         // deferred items at zero velocity before the next tap or drag begins.
+         releaseFrozen();
+      };
+
+      const onTouchEnd = () => {
+         const wasMoving = touchMoved;
+         touchDown = false;
+         touchMoved = false;
+         if (wasMoving) {
+            scheduleFlingEnd();
+         } else {
+            releaseFrozen();
+         }
+      };
+
+      const passive = { passive: true } as const;
+      const passiveCapture = { passive: true, capture: true } as const;
+      el.addEventListener('scroll', onScroll, passive);
+      el.addEventListener('scrollend', onScrollEnd, passive);
+      el.addEventListener('touchstart', onTouchStart, passiveCapture);
+      el.addEventListener('touchend', onTouchEnd, passiveCapture);
+      el.addEventListener('touchcancel', onTouchEnd, passiveCapture);
+
+      const resizeObserver = new ResizeObserver(() => syncRange());
+      resizeObserver.observe(el);
+
+      return () => {
+         clearFlingTimer();
+         el.removeEventListener('scroll', onScroll);
+         el.removeEventListener('scrollend', onScrollEnd);
+         el.removeEventListener('touchstart', onTouchStart, passiveCapture);
+         el.removeEventListener('touchend', onTouchEnd, passiveCapture);
+         el.removeEventListener('touchcancel', onTouchEnd, passiveCapture);
+         resizeObserver.disconnect();
+      };
+   }, [syncRange]);
+
+   const toggle = (groupId: string) => {
+      frozenItemsRef.current = null;
+      setFrozenItems(null);
       setCollapsed((current) => {
          const next = new Set(current);
          if (!next.delete(groupId)) next.add(groupId);
          return next;
       });
+   };
 
-   const renderItem = (item: ListItem) =>
-      item.kind === 'header' ? (
+   const sliceStart = Math.min(range.start, activeItems.length);
+   const sliceEnd = Math.min(Math.max(sliceStart, range.end), activeItems.length);
+   const topSpacerHeight = offsets[sliceStart] ?? 0;
+   const bottomSpacerHeight = Math.max(0, totalHeight - (offsets[sliceEnd] ?? 0));
+
+   const renderItem = (item: ListItem) => {
+      if (item.kind === 'header') {
          // The 3px band between groups the divide utility drew.
-         <div className={cn(item.index > 0 && 'border-t-[3px] border-background')}>
-            <ListGroupHeader
-               group={item.entry.group}
-               count={item.entry.issues.length}
-               collapsed={item.collapsed}
-               onToggle={() => toggle(item.entry.group.id)}
-            />
-         </div>
-      ) : (
+         return (
+            <div className={cn(item.index > 0 && 'border-t-[3px] border-background')}>
+               <ListGroupHeader
+                  group={item.entry.group}
+                  count={item.entry.issues.length}
+                  collapsed={item.collapsed}
+                  onToggle={() => toggle(item.entry.group.id)}
+               />
+            </div>
+         );
+      }
+      // HTML5 drag-and-drop does not fire on touch screens; skipping DropRow
+      // and `useDrag` keeps every mounted mobile row much lighter.
+      if (coarse) {
+         return <IssueLine issue={item.issue} order={item.order} draggable={false} />;
+      }
+      return (
          <DropRow onDropIssue={item.onDropIssue}>
             <IssueLine issue={item.issue} order={item.order} draggable />
          </DropRow>
       );
+   };
 
    return (
       // `overscroll-contain`: the list sits inside the shell's own scroller,
@@ -262,54 +534,32 @@ export function VirtualIssueList({
       <div
          ref={scrollRef}
          className="h-full overflow-y-auto overscroll-contain md:pb-[var(--shell-launcher-room)]"
-         // Chrome on Android anchors natively; the effect above does it by hand.
-         style={coarse ? { overflowAnchor: 'none' } : undefined}
+         style={{
+            // Anchoring is handled explicitly in `useLayoutEffect` so native
+            // scroll anchoring does not fight top-spacer height updates.
+            overflowAnchor: 'none',
+            // Promote the viewport-sized scroller to its own compositing layer
+            // so WebKit's rounded `overflow-hidden` shell frame does not drop
+            // painted tiles during fast touch flings or scrollTop adjustments.
+            transform: 'translateZ(0)',
+         }}
       >
          {empty}
-         {coarse ? (
-            <div ref={listRef} className="w-full bg-container">
-               {items.slice(0, flowCount).map((item) => (
-                  <div
-                     key={item.key}
-                     data-key={item.key}
-                     // Plain row in normal flow at its exact size.
-                     // content-visibility: auto was tried and dropped: WebKit
-                     // left rows blank mid-scroll.
-                     style={{ height: sizeOf(item) }}
-                  >
+         <div ref={listRef} className="w-full bg-container">
+            {topSpacerHeight > 0 ? <div aria-hidden style={{ height: topSpacerHeight }} /> : null}
+            {activeItems.slice(sliceStart, sliceEnd).map((item, offsetIndex) => {
+               const index = sliceStart + offsetIndex;
+               const height = (offsets[index + 1] ?? 0) - (offsets[index] ?? 0);
+               return (
+                  <div key={item.key} data-key={item.key} style={{ height }}>
                      {renderItem(item)}
                   </div>
-               ))}
-               {flowCount < items.length ? (
-                  // Room for the rows still to mount, so the scrollbar is right from the start.
-                  <div
-                     aria-hidden
-                     style={{
-                        height: items.slice(flowCount).reduce((sum, item) => sum + sizeOf(item), 0),
-                     }}
-                  />
-               ) : null}
-            </div>
-         ) : (
-            <div
-               className="relative w-full bg-container"
-               style={{ height: virtualizer.getTotalSize() }}
-            >
-               {virtualizer.getVirtualItems().map((virtualItem) => {
-                  const item = items[virtualItem.index];
-                  if (!item) return null;
-                  return (
-                     <div
-                        key={virtualItem.key}
-                        className="absolute left-0 w-full"
-                        style={{ height: virtualItem.size, top: virtualItem.start }}
-                     >
-                        {renderItem(item)}
-                     </div>
-                  );
-               })}
-            </div>
-         )}
+               );
+            })}
+            {bottomSpacerHeight > 0 ? (
+               <div aria-hidden style={{ height: bottomSpacerHeight }} />
+            ) : null}
+         </div>
          {footer}
       </div>
    );
