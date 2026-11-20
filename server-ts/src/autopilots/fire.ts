@@ -454,8 +454,11 @@ async function reasonToSkip(
    if (row.discovery_role) {
       const [state] = await tx`
          SELECT w.discovery_enabled,
-                EXISTS (SELECT 1 FROM projects p WHERE p.workspace_id = w.id AND p.deleted_at IS NULL
-                         AND p.github_repo_full_name IS NOT NULL) AS has_repository,
+                (EXISTS (SELECT 1 FROM projects p WHERE p.workspace_id = w.id AND p.deleted_at IS NULL
+                          AND p.github_repo_full_name IS NOT NULL)
+                 OR EXISTS (SELECT 1 FROM issues i JOIN boards b ON b.id = i.board_id
+                             WHERE b.workspace_id = w.id AND i.deleted_at IS NULL
+                               AND i.github_repo_full_name IS NOT NULL)) AS has_repository,
                 EXISTS (SELECT 1 FROM issues i JOIN boards b ON b.id = i.board_id
                          WHERE b.workspace_id = w.id AND i.deleted_at IS NULL
                            AND i.title NOT LIKE 'Discovery: %') AS has_tasks

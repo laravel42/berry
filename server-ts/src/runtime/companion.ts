@@ -33,12 +33,10 @@ export class Companion {
          const [busy] = await tx`SELECT id FROM runs WHERE ai_runtime_user_id = ${userId}
             AND runtime_resume->'companion'->>'id' = ${id} AND dispatch_lease_until > now()`;
          if (busy) return null;
-         const [run] = await tx`SELECT r.id, COALESCE(project.gitlab_project_path, project.github_repo_full_name, r.origin->>'repository') AS repository FROM runs r
+         const [run] = await tx`SELECT r.id, COALESCE(i.gitlab_project_path, i.github_repo_full_name, r.origin->>'repository') AS repository FROM runs r
             JOIN ai_runtime_connections c ON c.id = r.ai_runtime_connection_id AND c.workspace_id = r.workspace_id AND c.runtime_key = r.ai_runtime_key
             JOIN workspace_memberships m ON m.workspace_id = r.workspace_id AND m.user_id = ${userId}
             LEFT JOIN issues i ON i.id = r.issue_id
-            LEFT JOIN issue_project_links link ON link.issue_id = i.id
-            LEFT JOIN projects project ON project.id = link.project_id AND project.deleted_at IS NULL
             WHERE r.ai_runtime_user_id = ${userId} AND c.user_id = ${userId} AND c.status = 'connected'
               AND c.metadata->>'companionId' = ${id} AND r.status = 'queued' AND r.dispatch_state = 'pending'
               AND r.dispatch_lease_until IS NULL

@@ -15,6 +15,7 @@ import { catalogRole } from './catalog.ts';
 import { provisionFullOrganization } from '../test-support/organization.ts';
 import { fingerprintProposal, type ProposalInput } from './proposals.ts';
 import { registerOrganizationTools, type OrganizationToolDeps } from './tools.ts';
+import { adoptProjectRepositoryForIssue } from '../core/issue-repository.ts';
 
 const url = process.env.BERRY_TEST_DATABASE_URL;
 
@@ -351,6 +352,7 @@ describe('delegation and escalation tools', { skip: url ? false : 'BERRY_TEST_DA
          await sql`
             INSERT INTO issue_project_links (workspace_id, issue_id, project_id, linked_by)
             VALUES (${fixture.workspaceId}, ${issueId}, ${project!.id as string}, ${fixture.userId})`;
+         await adoptProjectRepositoryForIssue(sql, issueId, null);
          const merged: Array<{ number: number; expectedHeadSha: string }> = [];
          toolDeps.gate = new ReviewGate({
             sql,
