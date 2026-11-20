@@ -64,8 +64,8 @@ export function hasMergeMarker(text: string): boolean {
 }
 
 export const repoPlanSchema = z.object({
-   /** `owner/name` on GitHub. */
-   fullName: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
+   /** `owner/name` on GitHub; a GitLab project path, which may be nested (`group/sub/project`). */
+   fullName: z.string().regex(/^[^/\s]+(\/[^/\s]+)+$/),
    branch: z.string().min(1),
    baseBranch: z.string().min(1),
    readOnly: z.boolean().optional(),

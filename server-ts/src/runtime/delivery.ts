@@ -1,6 +1,6 @@
 import type { Sql } from '../db/pool.ts';
 import { GitHubError, type GitHubClient } from '../integrations/github.ts';
-import { parseRepository } from '../agents/checkout.ts';
+import { repositoryParts } from '../agents/checkout.ts';
 import { deliveredHead } from '../agents/delivered-head.ts';
 import { pullRequestBody } from '../agents/repository-run.ts';
 import type { VerificationReport } from '../agents/verification.ts';
@@ -14,10 +14,19 @@ import type { TaskDelivery, TaskMessage } from './lifecycle.ts';
  * Called before the run is marked succeeded, while the ledger still accepts
  * events for it.
  */
+/**
+ * What delivery needs from a host. Bringing the branch up to date is
+ * GitHub's: GitLab's merge request shows whether it can merge, and a person
+ * rebases it there.
+ */
+export type DeliveryHost = Pick<GitHubClient, 'openPullRequest'> &
+   Partial<Pick<GitHubClient, 'updatePullRequestBranch' | 'pullRequestState' | 'commitParents'>>;
+
 export async function recordDelivery(deps: {
    sql: Sql;
    ledger: RunLedger;
-   github: GitHubClient | null;
+   /** GitHub's client, or GitLab's, which opens a merge request for the same call. */
+   github: DeliveryHost | null;
    runId: string;
    plan: DeliveryPlan;
    delivery: TaskDelivery;
@@ -49,7 +58,7 @@ export async function recordDelivery(deps: {
               durationMs: deps.verified.durationMs,
            }
          : { results: [], passed: true, complete: true, durationMs: 0 };
-      const { owner, name } = parseRepository(plan.fullName);
+      const { owner, name } = repositoryParts(plan.provider ?? 'github', plan.fullName);
       try {
          const opened = await deps.github.openPullRequest({
             owner,
@@ -65,16 +74,19 @@ export async function recordDelivery(deps: {
          // then already contains it. A conflict is left untouched for the
          // follow-up that sends the author back to reconcile it, and a GitHub
          // error here must not fail a delivery that already landed.
-         const update = await deps.github.updatePullRequestBranch(owner, name, opened.number).catch(() => null);
+         const github = deps.github;
+         const update = github.updatePullRequestBranch
+            ? await github.updatePullRequestBranch(owner, name, opened.number).catch(() => null)
+            : null;
          // GitHub's merge lands asynchronously. When it is already the head,
          // record that commit so the review and the merge both name it. When
          // it has not landed yet, the review adopts the same merge once the
          // head is that commit.
-         if (update?.updated && headCommit) {
+         if (update?.updated && headCommit && github.pullRequestState && github.commitParents) {
             try {
-               const state = await deps.github.pullRequestState(owner, name, opened.number);
+               const state = await github.pullRequestState(owner, name, opened.number);
                if (state.headSha && state.headSha !== headCommit) {
-                  const parents = await deps.github.commitParents(owner, name, state.headSha);
+                  const parents = await github.commitParents(owner, name, state.headSha);
                   const adopted = deliveredHead(headCommit, state.headSha, parents, state.baseSha);
                   if (adopted) headCommit = adopted;
                }

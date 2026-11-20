@@ -4,11 +4,12 @@ import type { Sql } from '../db/pool.ts';
 import type { RunMemory } from '../agentcore/memory.ts';
 import { recallPrompt } from '../agentcore/memory.ts';
 import type { GitHubClient } from '../integrations/github.ts';
+import type { GitLabClient } from '../integrations/gitlab.ts';
 import type { Sealer } from '../integrations/sealing.ts';
-import { branchName, parseRepository } from '../agents/checkout.ts';
+import { branchName, parseRepository, repositoryParts } from '../agents/checkout.ts';
 import { permissionsOf } from '../agents/permissions.ts';
 import { buildMessage, lastRejection } from '../agents/prompt.ts';
-import { repositoryForIssue } from '../agents/repository-context.ts';
+import { repositoryForIssue, type RepositoryContext } from '../agents/repository-context.ts';
 import { loadIssue } from '../agents/repository-run.ts';
 import { toolsForAgentRow } from '../organization/enforcement.ts';
 import { ceilPermissions, ceilTools, ceilTurns, loopPolicyForRun } from '../autopilots/policy.ts';
@@ -192,6 +193,8 @@ export interface AgentConfig {
 
 /** What the server needs after the runtime pushed, to open the pull request. */
 export interface DeliveryPlan {
+   /** Absent on a plan stored before GitLab runs: GitHub. */
+   provider?: 'github' | 'gitlab';
    fullName: string;
    defaultBranch: string;
    branch: string;
@@ -220,6 +223,8 @@ export interface EnvelopeDeps {
    /** `owner` is the account holding the repository: a workspace with several accounts mints the right token by it. */
    gitCredential?: ((workspaceId: string, owner?: string | null) => Promise<{ username: string; password: string; canPush?: boolean }>) | undefined;
    github: (token: string) => GitHubClient;
+   /** The workspace's GitLab connection, for a task whose repository is on GitLab. Absent: none is configured. */
+   gitlab?: ((workspaceId: string) => Promise<GitLabClient>) | undefined;
    /**
     * The agent's skills, MCP servers and env (workstream D).
     * Absent: the agent carries none of them.
@@ -991,11 +996,19 @@ export class EnvelopeBuilder {
 
    /** Spec 2.2: the envelope carries the project resources (same rows as `read_project_resources`). */
    async #projectResources(issueId: string, workspaceId: string): Promise<TaskEnvelope['task']['projectResources']> {
+      // The repository is the task's own (migration 262), the one the run
+      // checks out; the project's is only its default. Naming the project's
+      // here told an agent on a task with its own repository to work in
+      // another one than it had in front of it.
       const rows = await this.#deps.sql`
          SELECT p.name, p.description,
-                p.github_repo_full_name, p.gitlab_project_path
+                CASE WHEN i.github_repo_id IS NULL AND i.gitlab_project_id IS NULL
+                     THEN p.github_repo_full_name ELSE i.github_repo_full_name END AS github_repo_full_name,
+                CASE WHEN i.github_repo_id IS NULL AND i.gitlab_project_id IS NULL
+                     THEN p.gitlab_project_path ELSE i.gitlab_project_path END AS gitlab_project_path
            FROM issue_project_links AS link
            JOIN projects AS p ON p.id = link.project_id AND p.deleted_at IS NULL
+           JOIN issues AS i ON i.id = link.issue_id
           WHERE link.issue_id = ${issueId} AND p.workspace_id = ${workspaceId}`;
       return rows.map((row) => {
          const gitlab = row.gitlab_project_path as string | null;
@@ -1055,9 +1068,10 @@ export class EnvelopeBuilder {
       dispatch: Dispatch,
       agent: AgentConfig
    ): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null; empty?: true; checkout?: Checkout }> {
-      if (!this.#deps.gitCredential) return { repo: null, delivery: null };
       const repository = await repositoryForIssue(this.#deps.sql, dispatch.issueId);
       if (!repository) return { repo: null, delivery: null };
+      if (repository.provider === 'gitlab') return this.#gitlabRepository(task, dispatch, agent, repository);
+      if (!this.#deps.gitCredential) return { repo: null, delivery: null };
       const permissions = permissionsOf(agent.permissions, agent.name);
       // Before a credential is opened: an agent that may not read the
       // repository never causes a token to be minted on its behalf.
@@ -1138,6 +1152,74 @@ export class EnvelopeBuilder {
             issueTitle: issue.title,
          },
          delivery: readOnly ? null : {
+            provider: 'github',
+            fullName: repository.fullName,
+            defaultBranch: remote.defaultBranch,
+            branch,
+            reference: issue.reference,
+            title: issue.title,
+            mergeRequiresApproval: !permissions.has('merge_without_approval'),
+            mayOpenPullRequest: permissions.has('open_pull_requests'),
+         },
+      };
+   }
+
+   /**
+    * The same plan for a GitLab project, through the workspace's GitLab
+    * connection. The runtime is handed the same snapshot and returns the same
+    * candidate; only the host differs. A branch that conflicts with the
+    * default branch is worked as it stands: conflict-resolution runs read
+    * GitHub's merge machinery, and GitLab's merge request shows the conflict.
+    */
+   async #gitlabRepository(
+      task: TaskRow,
+      dispatch: Dispatch,
+      agent: AgentConfig,
+      repository: RepositoryContext
+   ): Promise<{ repo: RepoPlan | null; delivery: DeliveryPlan | null; empty?: true; checkout?: Checkout }> {
+      const permissions = permissionsOf(agent.permissions, agent.name);
+      permissions.require('read_repository');
+      if (!this.#deps.gitlab) throw new Error('no GitLab connection is configured for this deployment');
+      const readOnly = !permissions.has('create_branches');
+      const { owner, name } = repositoryParts('gitlab', repository.fullName);
+      const client = await this.#deps.gitlab(task.workspaceId);
+      const remote = await client.repository(owner, name);
+      if (!readOnly && !remote.canPush) {
+         throw new Error(`the GitLab connection cannot push to ${repository.fullName}`);
+      }
+      const issue = await loadIssue(this.#deps.sql, dispatch.issueId);
+      const branch = branchName(agent.name, issue.reference, issue.title);
+      const existingHead = await client.branchHead(owner, name, remote.defaultBranch);
+      if (!existingHead && readOnly) return { repo: null, delivery: null, empty: true };
+      const defaultCommit =
+         existingHead ?? (await client.seedEmptyBranch({ owner, name, branch: remote.defaultBranch }));
+      const expectedHead = readOnly ? null : await client.branchHead(owner, name, branch);
+      await this.#deps.sql`INSERT INTO run_repository_snapshots (run_id, repository, provider, branch, base_commit, default_commit, expected_head, read_only, merge_parent, merge_base)
+         VALUES (${task.runId}, ${repository.fullName}, 'gitlab', ${branch}, ${expectedHead ?? defaultCommit}, ${defaultCommit}, ${expectedHead}, ${readOnly},
+                 ${null}, ${null})
+         ON CONFLICT (run_id) DO NOTHING`;
+      // The row is the truth: an envelope built twice for one run keeps the first snapshot.
+      const [snapshot] = await this.#deps.sql`SELECT base_commit, expected_head FROM run_repository_snapshots WHERE run_id = ${task.runId}`;
+      if (!snapshot) throw new Error('Repository snapshot was not persisted');
+      const checkout: Checkout = snapshot.expected_head
+         ? { from: 'task_branch', branch, baseBranch: remote.defaultBranch }
+         : { from: 'default', baseBranch: remote.defaultBranch };
+      return {
+         checkout,
+         repo: {
+            readOnly,
+            snapshotCommit: snapshot.base_commit as string,
+            fullName: repository.fullName,
+            branch,
+            baseBranch: remote.defaultBranch,
+            // Kept empty for wire compatibility. Repository tokens never enter the runtime.
+            credential: { username: '', password: '' },
+            verifyCommands: repository.verifyCommands,
+            issueReference: issue.reference,
+            issueTitle: issue.title,
+         },
+         delivery: readOnly ? null : {
+            provider: 'gitlab',
             fullName: repository.fullName,
             defaultBranch: remote.defaultBranch,
             branch,

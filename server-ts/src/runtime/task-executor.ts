@@ -5,13 +5,14 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from '../db/pool.ts';
 import { nullRunMemory, type RunMemory } from '../agentcore/memory.ts';
 import { gitWriteInvisible, type GitHubClient } from '../integrations/github.ts';
+import type { GitLabClient } from '../integrations/gitlab.ts';
 import { isDetached, type Executor } from '../runs/dispatcher.ts';
 import { RunLedger, type Dispatch, type Failure, type Usage } from '../runs/ledger.ts';
 import { handoffDocument, isHandoffDocument, withHandoffFile } from '../runs/handoff.ts';
 import { postRunResult } from '../runs/result-comment.ts';
 import { mintTaskToken, revokeTaskTokens } from './agent-tools/tokens.ts';
 import { AI_RUNTIME_ADAPTER_PROTOCOL_VERSION, type RuntimeControlResponse } from './envelope.ts';
-import { recordDelivery } from './delivery.ts';
+import { recordDelivery, type DeliveryHost } from './delivery.ts';
 import { LIMIT_CODE, continuedMessage, continueAfterLimit, retryAfterFault, retryNote, type ContinuationOutcome, type RetryOutcome } from '../runs/continuation.ts';
 import { AiRuntimeEnvelopeError, loadTask, type DeliveryPlan, type EnvelopeBuilder, type TaskRow } from './envelope-builder.ts';
 import { agentLogEvent, exchangeLog, type ExchangeLog } from './exchange-log.ts';
@@ -28,7 +29,7 @@ import type { WorkstationKiro } from './workstation-kiro.ts';
 import { scheduleReview } from '../runs/followups.ts';
 import { HELD_NOTE, holdsTask } from '../runs/held.ts';
 import { parseRepository } from '../agents/checkout.ts';
-import { publishTrustedDelivery } from './trusted-delivery.ts';
+import { publishTrustedDelivery, type CandidatePublisher } from './trusted-delivery.ts';
 import { runtimeSessionIdFor } from './session-id.ts';
 import { hostFor, singleHost, type RuntimeHosts } from './runtimes.ts';
 import { isApiTokenRuntime } from './ai-runtime-catalog.ts';
@@ -79,6 +80,8 @@ export interface RuntimeTaskExecutorOptions {
    memory?: RunMemory;
    gitCredential?: ((workspaceId: string, owner?: string | null) => Promise<{ username: string; password: string }>) | undefined;
    github?: (token: string) => GitHubClient;
+   /** The workspace's GitLab connection, for a run that delivers to a GitLab project. */
+   gitlab?: ((workspaceId: string) => Promise<GitLabClient>) | undefined;
    reviewGate?: { review(runId: string): Promise<unknown> };
    onGateError?: (error: unknown) => void;
    onUsageError?: (error: unknown) => void;
@@ -564,8 +567,7 @@ export class RuntimeTaskExecutor implements Executor {
       const summary = result.text === '' ? null : result.text;
       if (plan && result.delivery) {
          try {
-            const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId, parseRepository(plan.fullName).owner) : null;
-            const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
+            const github = await this.#host(task, plan);
             if (result.delivery.candidate) {
                if (!github) throw new Error('Trusted repository delivery is not configured');
                // Hold the (possibly handoff-rewritten) delivery in a non-null
@@ -644,6 +646,22 @@ export class RuntimeTaskExecutor implements Executor {
       return { runId: task.runId, status: 'succeeded', summary, usage, result };
    }
 
+   /**
+    * The client a run's delivery goes through: GitHub's, with a token minted
+    * for the account that holds the repository, or the workspace's GitLab
+    * connection. Null when the host is not configured here.
+    */
+   async #host(
+      task: TaskRow,
+      plan: NonNullable<Awaited<ReturnType<EnvelopeBuilder['build']>>['delivery']>
+   ): Promise<(CandidatePublisher & DeliveryHost) | null> {
+      if (plan.provider === 'gitlab') return this.#o.gitlab ? await this.#o.gitlab(task.workspaceId) : null;
+      const credential = this.#o.gitCredential
+         ? await this.#o.gitCredential(task.workspaceId, parseRepository(plan.fullName).owner)
+         : null;
+      return credential && this.#o.github ? this.#o.github(credential.password) : null;
+   }
+
    /** The handoff file for this run, or null when the task cannot be named. */
    async #handoffText(
       task: TaskRow,
@@ -691,8 +709,7 @@ export class RuntimeTaskExecutor implements Executor {
       failure: Failure
    ): Promise<Failure> {
       try {
-         const credential = this.#o.gitCredential ? await this.#o.gitCredential(task.workspaceId, parseRepository(plan.fullName).owner) : null;
-         const github = credential && this.#o.github ? this.#o.github(credential.password) : null;
+         const github = await this.#host(task, plan);
          if (!github) throw new Error('repository delivery is not configured');
          const published = await publishTrustedDelivery(this.#o.sql, task.runId, github, candidate);
          if (!published.committed || !published.commit) {

@@ -1314,7 +1314,10 @@ export class ReviewGate {
               }
             : null,
          verified: verified ?? null,
-         repository: repository?.fullName ?? null,
+         // The gate reads diffs and merges through GitHub. A GitLab task is
+         // reviewed on what the run reported and saved; its merge request
+         // is a person's to read and merge.
+         repository: repository?.provider === 'github' ? repository.fullName : null,
          workspaceId: row.workspace_id as string,
          boardId: row.board_id as string,
          autoGate: Boolean(row.auto_gate),
