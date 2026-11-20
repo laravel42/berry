@@ -12,7 +12,9 @@ import { FC, ReactNode, useRef } from 'react';
 import { useDrop } from 'react-dnd';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { IssueDragType, IssueGrid } from './issue-grid';
+import dynamic from 'next/dynamic';
+import { IssueDragType } from './issue-dnd';
+import type { IssueGrid as IssueGridComponent } from './issue-grid';
 import { IssueLine } from './issue-line';
 import { useIssueListView } from './use-issue-list-view';
 
@@ -202,6 +204,12 @@ export function ListGroupHeader({
 }
 
 /** The rows of a list group, and the drop target that moves a task into it. */
+/** Board cards load with the board, not with the list that shares this file. */
+const IssueGrid = dynamic(() => import('./issue-grid').then((module) => module.IssueGrid), {
+   ssr: false,
+   loading: () => null,
+}) as typeof IssueGridComponent;
+
 const IssueLineList: FC<{
    issues: Issue[];
    onDropIssue?: (issue: Issue) => void;

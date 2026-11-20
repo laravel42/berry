@@ -7,7 +7,7 @@ import { useIssuesStore } from '@/store/issues-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { useIssueHref } from './use-issue-href';
-import { createContext, memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
@@ -18,25 +18,16 @@ import { AssigneeUser } from './assignee-user';
 import { LabelBadge } from './label-badge';
 import { IssuePriorityPicker } from './issue-pickers';
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
-import { IssueContextMenu, type BoardMoveColumn, type IssueMoveTo } from './issue-context-menu';
+import { IssueContextMenu, type IssueMoveTo } from './issue-context-menu';
 
 import { cn } from '@/lib/utils';
 import { isSameValue } from '@/lib/same-value';
 
-export const IssueDragType = 'ISSUE';
+import { BoardMoveContext, IssueDragType, type BoardMove } from './issue-dnd';
 
-/**
- * What a card needs to offer Move to: the board's columns and the write a drop
- * onto one of them performs. Only a board provides it, and only for a grouping
- * where a column is a single value a card can be given.
- */
-export interface BoardMove {
-   columns: BoardMoveColumn[];
-   replacesStatus: boolean;
-   move: (columnId: string, issue: Issue) => void;
-}
-
-export const BoardMoveContext = createContext<BoardMove | null>(null);
+// Re-exported so the callers that import them from here keep working.
+export { BoardMoveContext, IssueDragType };
+export type { BoardMove };
 
 type IssueGridProps = {
    issue: Issue;

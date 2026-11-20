@@ -7,7 +7,6 @@ import {
    applyIssueFilters,
    usePropertyFilterMatches,
 } from '@/components/common/issues/issue-filter-columns';
-import { IssueTable } from '@/components/common/issues/issue-table';
 import {
    IssueListError,
    IssueListSkeleton,
@@ -22,9 +21,16 @@ import { useFilterStore } from '@/store/filter-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
+import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { scopeMyIssues, useMyIssuesScope, useMyIssuesTab } from './use-my-issues';
+
+// The table loads only when it is the chosen view.
+const IssueTable = dynamic(
+   () => import('@/components/common/issues/issue-table').then((module) => module.IssueTable),
+   { ssr: false, loading: () => null }
+);
 
 const DISCOVERY_DISMISSED_KEY = 'berry:discovery-notice-dismissed';
 

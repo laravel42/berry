@@ -9,7 +9,7 @@ import { useDrag } from 'react-dnd';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AutoGateMark } from './auto-gate-mark';
 import { AssigneeUser } from './assignee-user';
-import { IssueDragType } from './issue-grid';
+import { IssueDragType } from './issue-dnd';
 import { LabelBadge } from './label-badge';
 import { SelectionCheckbox } from './selection-checkbox';
 import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';

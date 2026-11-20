@@ -22,7 +22,9 @@ import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { GroupIssues } from './group-issues';
 import { VirtualIssueList } from './virtual-issue-list';
-import { BoardMoveContext, CustomDragLayer, type BoardMove } from './issue-grid';
+import dynamic from 'next/dynamic';
+import { BoardMoveContext, type BoardMove } from './issue-dnd';
+import type { CustomDragLayer as CustomDragLayerComponent } from './issue-grid';
 import { EmptyQueue, NoMatches } from './issue-list-empty';
 import {
    groupsForDisplay,
@@ -31,6 +33,12 @@ import {
    usePropertyGrouping,
 } from './issue-grouping';
 import { applySubIssueVisibility, sortIssues, useIssueListView } from './use-issue-list-view';
+
+/** The board's drag ghost loads with the board; the list does not draw one. */
+const CustomDragLayer = dynamic(
+   () => import('./issue-grid').then((module) => module.CustomDragLayer),
+   { ssr: false, loading: () => null }
+) as typeof CustomDragLayerComponent;
 
 interface GroupedIssuesViewProps {
    /** Issues to display (after the filter bar has been applied). */
@@ -391,7 +399,6 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
 
    return (
       <DndProvider backend={HTML5Backend}>
-         <CustomDragLayer />
          <VirtualIssueList
             groups={listGroups}
             onDropFor={dropFor}

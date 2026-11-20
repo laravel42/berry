@@ -6,7 +6,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDrop } from 'react-dnd';
 import { ListGroupHeader, type IssueGroupDescriptor } from './group-issues';
-import { IssueDragType } from './issue-grid';
+import { IssueDragType } from './issue-dnd';
 import { IssueLine } from './issue-line';
 
 export interface VirtualListGroup {
