@@ -2,9 +2,9 @@
 | Concept | Purpose |
 | --- | --- |
 | Workspace | Membership, settings, and shared work for a team. |
-| Project | Related work, a lead, dates, status, and an optional repository. |
+| Project | Related work, a lead, dates, status, and an optional default repository for its tasks. |
 | Goal | An outcome or milestone with linked tasks, progress, plans, and approvals. |
-| Task | An individual unit of work with a description, status, priority, and assignee. API and database names use “issue.” |
+| Task | An individual unit of work with a description, status, priority, assignee, and the repository it is worked in. API and database names use “issue.” |
 | Board | The status columns and shared location for tasks. |
 | Plan | A proposal that is validated before it is compiled into Goals and tasks. |
 | Run | One execution attempt, with lifecycle events, output, usage, and a terminal status. |

@@ -222,6 +222,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
 | `dueDate` | `Timestamp` or null | yes | Due instant |
 | `assignee` | `ActorRef` or null | yes | Current assignee |
 | `activeRunId` | `Uuid` or null | yes | Active Berry run; null when no run is active |
+| `repository` | `{ "provider": "github" \| "gitlab", "fullName": string }` or null | yes | The repository runs on this task check out. Starts from the project's default ([ADR-0021](../adr/0021-task-repositories.md)) |
 | `createdBy` | `ActorRef` or null | yes | Null only when the creator was removed |
 | `createdAt` | `Timestamp` | yes | Immutable |
 | `updatedAt` | `Timestamp` | yes | Last mutation time |
@@ -246,6 +247,7 @@ Domain-specific codes used by this contract are `INVALID_CURSOR`, `CURSOR_EXPIRE
     "avatarUrl": null
   },
   "activeRunId": "2020836b-a055-4980-b165-50664cf402c3",
+  "repository": { "provider": "github", "fullName": "acme/web" },
   "createdBy": {
     "type": "user",
     "id": "782a0204-2868-437e-9be8-5b17ce7f13f7",
@@ -508,6 +510,9 @@ Request:
 | `startDate` | `Timestamp` or null | no | null |
 | `dueDate` | `Timestamp` or null | no | null |
 | `assignee` | `{ "type": "user \| agent", "id": "Uuid" }` or null | no | null |
+| `repository` | `{ "provider": "github \| gitlab", "fullName": string }` or null | no | the project's default |
+
+A named `repository` is resolved through its host before it is stored and wins over the project's default; it answers the same `412`, `409`, `422` and `502` codes as a project's repository link. Omitted, the task takes its project's repository.
 
 Assignment through this general-purpose resource endpoint records assignment but does not implicitly dispatch a run. The product's atomic assign-and-dispatch action uses `POST /issues/{issueId}/runs` with `agentId`, so the user-facing assignment motion still starts work in one operation.
 
@@ -524,7 +529,7 @@ Assignment through this general-purpose resource endpoint records assignment but
 
 #### `PATCH /api/v1/issues/{issueId}`
 
-Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `startDate`, `dueDate`, `assignee`, and `autoGate` (boolean). A `startDate` later than the issue's `dueDate` returns `422 VALIDATION_FAILED` on `/startDate`. Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
+Accepts any non-empty subset of `title`, `description`, `status`, `priority`, `sortOrder`, `startDate`, `dueDate`, `assignee`, `repository` (null clears it; a name is resolved through its host), and `autoGate` (boolean). A `startDate` later than the issue's `dueDate` returns `422 VALIDATION_FAILED` on `/startDate`. Turning `autoGate` on for an issue in `inReview` starts its review immediately. Setting `assignee` to null unassigns the issue. A person may set any status. Agent-initiated transitions still follow the configured workflow; invalid ones return `409 INVALID_STATE_TRANSITION` with `details.from` and `details.to`.
 
 - `200`: updated `Issue`
 - `404`: issue or assignee `NOT_FOUND`
@@ -1024,7 +1029,7 @@ Run sequences start at 0 and MUST be contiguous in the persisted stream. Deliver
 | `comment.created` | `{ "comment": Comment }` | `runId` is the authoring run when applicable |
 | `milestone.created`, `milestone.updated`, `milestone.started`, `milestone.completed`, `milestone.cancelled`, `milestone.archived` | `{ "milestone": Milestone, "changedFields": string[], "actor"? }` | Workspace stream; `milestone.archived` is a topic no consumer dispatches or projects on. Historical `goal.*` topics with a `goal` payload key still replay. |
 | `cycle.created`, `cycle.updated`, `cycle.archived` | `{ "cycle": Cycle, "changedFields": string[], "actor"? }` | Workspace stream. Activating a cycle completes the previously active one in the same transaction without an event of its own; consumers refetch the list. |
-| `project.created`, `project.updated`, `project.archived` | `{ "project": { "id", "workspaceId", "name", "status", … }, "changedFields": string[], "actor"? }` | Workspace stream. A project has no board, so these never appear on a board replay. `project.archived` is the soft-delete. |
+| `project.created`, `project.updated`, `project.archived` | `{ "project": { "id", "workspaceId", "name", "status", … }, "changedFields": string[], "actor"? }` | Workspace stream. A project has no board, so these never appear on a board replay. `project.archived` is the soft-delete; the same transaction soft-deletes the project's tasks (each with its own `issue.deleted`), deletes their inbox rows and expires their pending approvals. |
 | `approval.requested`, `approval.approved`, `approval.rejected`, `approval.expired` | `{ "approval": Approval, "issueId"?, "actor"? }` | On the board stream too when the approval gates an issue |
 | `integration.webhook.received` | `{ "provider", "event", "deliveryId", "payload" }` | Written once per verified provider delivery by `POST /api/v1/hooks/{provider}`; consumed by the trigger dispatcher, subscribable as a `berry_event` |
 | `plan.approved`, `plan.compiled`, `plan.compile_failed` | `{ "plan": { "id", "workspaceId", "milestoneId", "status", "compileStatus", "validationStatus" }, ... }` | `plan.compiled` carries `compiled` (the id map); `plan.compile_failed` carries `stage` and `message`. `plan.patched` arrives with conversational editing |
