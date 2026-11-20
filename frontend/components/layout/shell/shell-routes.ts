@@ -90,7 +90,8 @@ const WORK: ShellRouteDef[] = [
       href: '/projects',
       match: ['/project/'],
       prefsKey: 'projects',
-      icon: '<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5" />',
+      // Lucide FolderKanban, the project mark used across the app.
+      icon: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /><path d="M8 10v4" /><path d="M12 10v2" /><path d="M16 10v6" />',
    },
    {
       id: 'cycles',

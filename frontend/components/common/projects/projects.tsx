@@ -14,7 +14,7 @@ import { useProjectsStore } from '@/store/projects-store';
 import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects-display-store';
 import { useSessionStore } from '@/store/session-store';
-import { Box, ChartNoAxesGantt, LayoutGrid, List } from 'lucide-react';
+import { ChartNoAxesGantt, FolderKanban, LayoutGrid, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
@@ -197,7 +197,7 @@ export default function Projects() {
          {
             id: 'all',
             name: 'All projects',
-            icon: <Box className="size-4 text-muted-foreground" />,
+            icon: <FolderKanban className="size-4 text-muted-foreground" />,
             match: () => true,
          },
       ];
@@ -242,14 +242,14 @@ export default function Projects() {
          .map((lead) => ({
             id: lead.id,
             name: lead.name,
-            icon: <Box className="size-4 text-muted-foreground" />,
+            icon: <FolderKanban className="size-4 text-muted-foreground" />,
             match: (project: Project) => project.lead?.id === lead.id,
          }));
       if (unassigned) {
          byLead.push({
             id: 'no-lead',
             name: 'No lead',
-            icon: <Box className="size-4 text-muted-foreground" />,
+            icon: <FolderKanban className="size-4 text-muted-foreground" />,
             match: (project: Project) => project.lead == null,
          });
       }
