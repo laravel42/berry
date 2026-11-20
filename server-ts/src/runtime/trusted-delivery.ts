@@ -1,6 +1,6 @@
 import type { Sql } from '../db/pool.ts';
 import type { GitHubClient } from '../integrations/github.ts';
-import { parseRepository } from '../agents/checkout.ts';
+import { repositoryParts } from '../agents/checkout.ts';
 import { MERGE_DIRECTORY, hasMergeMarker } from './envelope.ts';
 import { taskDeliverySchema, type TaskDelivery } from './lifecycle.ts';
 
@@ -13,7 +13,10 @@ import { taskDeliverySchema, type TaskDelivery } from './lifecycle.ts';
  * Actions runs it later, and the token's `workflow` scope is what authorizes
  * the write.
  */
-export async function publishTrustedDelivery(sql: Sql, runId: string, github: GitHubClient, candidate: TaskDelivery): Promise<TaskDelivery> {
+/** What publication needs from a host: GitHub's client, or GitLab's, which answers the same call. */
+export type CandidatePublisher = Pick<GitHubClient, 'publishCandidate'>;
+
+export async function publishTrustedDelivery(sql: Sql, runId: string, github: CandidatePublisher, candidate: TaskDelivery): Promise<TaskDelivery> {
    const parsed = taskDeliverySchema.parse(candidate);
    const [snapshot] = await sql`SELECT s.*, r.status, r.issue_id FROM run_repository_snapshots AS s JOIN runs AS r ON r.id = s.run_id WHERE s.run_id = ${runId}`;
    if (!snapshot || snapshot.read_only || snapshot.status !== 'running') throw new Error('This run is not authorized for repository delivery');
@@ -50,7 +53,7 @@ export async function publishTrustedDelivery(sql: Sql, runId: string, github: Gi
       if (unresolved.length > 0) throw new Error(`Conflict markers remain in: ${unresolved.join(', ')}. Reconcile both sides and remove the markers`);
    }
    if (parsed.candidate.length === 0) return { committed: false, commit: null, branch: snapshot.branch as string, files: [], filesChanged: 0, insertions: 0, deletions: 0 };
-   const { owner, name } = parseRepository(snapshot.repository as string);
+   const { owner, name } = repositoryParts(snapshot.provider === 'gitlab' ? 'gitlab' : 'github', snapshot.repository as string);
    const result = await github.publishCandidate({
       owner, name, branch: snapshot.branch as string, baseCommit: snapshot.base_commit as string,
       defaultCommit: snapshot.default_commit as string, expectedHead: snapshot.expected_head as string | null,

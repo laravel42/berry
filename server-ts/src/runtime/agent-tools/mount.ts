@@ -12,7 +12,8 @@ import type { FetchLimits } from './fetch-url.ts';
 import { getAgentTool, listAgentTools, type RepositoryLinker } from './registry.ts';
 import { resolveTaskToken, type TaskClaims } from './tokens.ts';
 import type { GitHubClient } from '../../integrations/github.ts';
-import { parseRepository } from '../../agents/checkout.ts';
+import { parseRepository, repositoryParts } from '../../agents/checkout.ts';
+import type { GitLabClient } from '../../integrations/gitlab.ts';
 import { mergeArchive, planMerge } from '../merge-plan.ts';
 
 /**
@@ -28,6 +29,8 @@ export function agentToolMounts(options: {
    issues: Pick<IssueRepository, 'create' | 'update'>;
    projects: Pick<ProjectRepository, 'create'>;
    github?: (workspaceId: string, owner?: string | null) => Promise<GitHubClient>;
+   /** The workspace's GitLab connection, for a run whose snapshot is on GitLab. */
+   gitlab?: (workspaceId: string) => Promise<Pick<GitLabClient, 'archive'>>;
    /** `link_project_repository`'s resolver and writer; absent without a GitHub integration. */
    repositories?: RepositoryLinker | null;
    /** Test seam: `fetch_url`'s bounds. */
@@ -59,16 +62,22 @@ export function agentToolMounts(options: {
 
    route.get('/repository-snapshot', async (context) => {
       const task = context.get('task');
-      if (!task.scopes.includes('task:read') || !options.github) throw ApiError.notFound('Repository snapshot');
+      if (!task.scopes.includes('task:read')) throw ApiError.notFound('Repository snapshot');
       // A conflict-resolution run starts from the default branch head it is
       // merging into; the branch's side arrives as the overlay below.
-      const [snapshot] = await options.sql`SELECT s.repository, COALESCE(s.merge_parent, s.base_commit) AS commit FROM run_repository_snapshots AS s
+      const [snapshot] = await options.sql`SELECT s.repository, s.provider, COALESCE(s.merge_parent, s.base_commit) AS commit FROM run_repository_snapshots AS s
          JOIN runs AS r ON r.id = s.run_id JOIN agents AS a ON a.id = r.agent_id
          WHERE s.run_id = ${task.runId} AND r.workspace_id = ${task.workspaceId}
            AND a.archived_at IS NULL AND 'read_repository' = ANY(a.permissions)`;
       if (!snapshot) throw ApiError.notFound('Repository snapshot');
-      const { owner, name } = parseRepository(snapshot.repository as string);
-      const response = await (await options.github(task.workspaceId, owner)).archive(owner, name, snapshot.commit as string);
+      const provider = snapshot.provider === 'gitlab' ? 'gitlab' : 'github';
+      const { owner, name } = repositoryParts(provider, snapshot.repository as string);
+      const client =
+         provider === 'gitlab'
+            ? options.gitlab ? await options.gitlab(task.workspaceId) : null
+            : options.github ? await options.github(task.workspaceId, owner) : null;
+      if (!client) throw ApiError.notFound('Repository snapshot');
+      const response = await client.archive(owner, name, snapshot.commit as string);
       // Never relay upstream headers, redirect URLs, or credentials to the runtime.
       return new Response(response.body, { headers: { 'content-type': 'application/gzip', 'cache-control': 'no-store' } });
    });

@@ -23,7 +23,8 @@ export interface PreviewSourceDeps {
 
 export async function pullRequestSource(deps: PreviewSourceDeps, issue: { id: string; workspaceId: string }): Promise<PreviewSource | null> {
    const repository = await repositoryForIssue(deps.sql, issue.id);
-   if (!repository) return null;
+   // Previews build from GitHub's archive; a GitLab task has none yet.
+   if (!repository || repository.provider !== 'github') return null;
    const [run] = await deps.sql`
       SELECT branch, head_commit FROM runs
        WHERE issue_id = ${issue.id} AND head_commit IS NOT NULL

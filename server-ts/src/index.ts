@@ -160,6 +160,7 @@ import { ReviewGate } from './agents/review-gate.ts';
 import { afterDelivery, type ConflictDeps } from './agents/conflicts.ts';
 import { ReviewQueue } from './core/review-queue.ts';
 import { reviewMounts } from './mounts/reviews.ts';
+import { GitLabClient } from './integrations/gitlab.ts';
 import { GitHubClient } from './integrations/github.ts';
 import { AgentRepository } from './agents/repository.ts';
 import type { ModelSource } from './agents/catalog.ts';
@@ -472,6 +473,10 @@ const githubToken =
       : null;
 const gitlabToken = connections
    ? (workspaceId: string) => connections.token(workspaceId, 'gitlab')
+   : null;
+/** A task on a GitLab project is checked out and delivered through the workspace's GitLab connection. */
+const gitlabClient = gitlabToken
+   ? async (workspaceId: string) => new GitLabClient({ token: await gitlabToken(workspaceId) })
    : null;
 const scm = await createScm({ sql, config, logger, githubToken });
 const scmWorkspaces = scm.workspaces;
@@ -853,6 +858,7 @@ const executor = new RuntimeTaskExecutor({
            sealer: config.integrationKey ? sealerFromKey(config.integrationKey) : null,
            ...(scm.provisioning ? { gitCredential: scm.gitCredential } : {}),
            github: (token) => new GitHubClient({ token }),
+           ...(gitlabClient ? { gitlab: gitlabClient } : {}),
            extensions: { skills: skillRepository, mcp: mcpRepository, profile: agentProfiles, gateway: gatewayRoute },
            // Plugin tools need the sealing key: without it no plugin is installed.
            ...(pluginRepository
@@ -876,6 +882,7 @@ const executor = new RuntimeTaskExecutor({
         memory: runMemory ?? nullRunMemory(),
         ...(scm.provisioning ? { gitCredential: scm.gitCredential } : {}),
         github: (token) => new GitHubClient({ token }),
+        ...(gitlabClient ? { gitlab: gitlabClient } : {}),
         ...(reviewGate ? { reviewGate } : {}),
         onGateError: (error) =>
            logger.error('peer review failed', {
@@ -1268,6 +1275,7 @@ registerMilestoneTool({ sql, milestones, boards, scm: scmSync });
 // Berry's tools for a running task, behind its task token (not a session).
 registry.registerAll(agentToolMounts({ sql, storage, issues, projects,
    ...(scm.provisioning ? { github: async (workspaceId: string, owner?: string | null) => new GitHubClient({ token: (await scm.gitCredential(workspaceId, owner)).password }) } : {}),
+   ...(gitlabClient ? { gitlab: gitlabClient } : {}),
    // `link_project_repository`: the same resolution a person's repository
    // picker goes through, so an agent can link exactly what a person could.
    repositories: connections
