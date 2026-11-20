@@ -80,6 +80,11 @@ import { NuqsAdapter } from 'nuqs/adapters/next/app';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale } from 'next-intl/server';
 import { cookies } from 'next/headers';
+import { preload } from 'react-dom';
+
+import { apiUrl } from '@/lib/api';
+import { BOOTSTRAP_PATH } from '@/lib/auth';
+import { BOARDS_FIRST_PAGE_PATH } from '@/lib/boards';
 
 import { THEME_COOKIE, resolveTheme } from '@/lib/theme/theme';
 
@@ -98,6 +103,13 @@ export default async function RootLayout({
    // draw the app's structure while the session loads; the session itself is
    // still resolved by the client.
    const hasSession = jar.has('berry.session_token');
+   if (hasSession) {
+      // The first two requests every signed-in page makes, started from the HTML
+      // instead of after the bundle runs. apiFetch sends credentials: 'include',
+      // which is crossOrigin 'use-credentials' here; the URLs are the ones it asks for.
+      preload(apiUrl(BOOTSTRAP_PATH), { as: 'fetch', crossOrigin: 'use-credentials' });
+      preload(apiUrl(BOARDS_FIRST_PAGE_PATH), { as: 'fetch', crossOrigin: 'use-credentials' });
+   }
    return (
       <html
          lang={locale}

@@ -113,8 +113,11 @@ export async function devLogin(email: string): Promise<LoginUser> {
    return parsed.data.user;
 }
 
+/** Shared with the root layout, which preloads this exact URL. */
+export const BOOTSTRAP_PATH = '/api/v1/me/bootstrap';
+
 export async function fetchBootstrap(): Promise<BootstrapPayload> {
-   const json: unknown = await apiFetch('/api/v1/me/bootstrap');
+   const json: unknown = await apiFetch(BOOTSTRAP_PATH);
    const parsed = bootstrapSchema.safeParse(json);
    if (!parsed.success) {
       throw new Error('Bootstrap response was not recognized');
