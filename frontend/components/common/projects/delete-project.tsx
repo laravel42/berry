@@ -10,6 +10,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { buttonVariants } from '@/components/ui/button';
 import type { Project } from '@/data/projects';
 import { deleteWorkspaceProject } from '@/lib/projects';
 import { useIssuesStore } from '@/store/issues-store';
@@ -113,6 +114,7 @@ export function DeleteProjectDialog({ deletion }: { deletion: ProjectDeletion })
             <AlertDialogFooter>
                <AlertDialogCancel disabled={deletion.deleting}>Cancel</AlertDialogCancel>
                <AlertDialogAction
+                  className={buttonVariants({ variant: 'danger' })}
                   disabled={deletion.deleting}
                   onClick={(event) => {
                      // Kept open until the request settles, so a failure is

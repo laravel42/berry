@@ -11,7 +11,7 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -311,6 +311,7 @@ export default function Views() {
                <AlertDialogFooter>
                   <AlertDialogCancel>{t('selection.cancel')}</AlertDialogCancel>
                   <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
                      onClick={(event) => {
                         event.preventDefault();
                         if (deleting) remove(deleting);

@@ -41,7 +41,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -596,6 +596,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
                <AlertDialogFooter>
                   <AlertDialogCancel>{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction
+                     className={buttonVariants({ variant: 'danger' })}
                      onClick={() =>
                         void archiveAutopilot(autopilot.id)
                            .then(() => {

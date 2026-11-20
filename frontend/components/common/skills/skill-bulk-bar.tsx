@@ -152,7 +152,7 @@ export default function SkillBulkBar({
                         }
                      />
 
-                     <Button size="sm" variant="destructive" onClick={() => setConfirming(true)}>
+                     <Button size="sm" variant="danger" onClick={() => setConfirming(true)}>
                         {t('bulk.delete')}
                      </Button>
                   </>
@@ -176,6 +176,7 @@ export default function SkillBulkBar({
             description={t('bulk.confirmDeleteBody')}
             cancelLabel={t('cancel')}
             confirmLabel={t('bulk.delete')}
+            danger
             // `remove` starts the walk and returns: the dialog closes at once,
             // and the bar shows the walk's progress.
             onConfirm={remove}

@@ -647,7 +647,7 @@ export function Chat() {
                   description={t('deleteBody')}
                   confirmLabel={t('delete')}
                   pendingLabel={t('deleting')}
-                  destructive
+                  danger
                   onConfirm={confirmDelete}
                />
             ) : null}

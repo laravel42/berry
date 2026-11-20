@@ -998,7 +998,7 @@ export function IssueArtifacts({
                <AlertDialogFooter>
                   <AlertDialogCancel>{t('menu.cancel')}</AlertDialogCancel>
                   <AlertDialogAction
-                     className={buttonVariants({ variant: 'destructive' })}
+                     className={buttonVariants({ variant: 'danger' })}
                      onClick={removeTarget}
                   >
                      {t('menu.delete')}
