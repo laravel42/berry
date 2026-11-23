@@ -73,21 +73,27 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    }, [draft]);
 
    const description = project?.description ?? '';
+   const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
+
+   useEffect(() => {
+      setDescriptionDraft(null);
+   }, [projectId, description]);
+
+   const liveDescription = (descriptionDraft ?? description).trim();
 
    const copyDescription = useCallback(() => {
-      const text = description.trim();
-      if (!text) {
+      if (!liveDescription) {
          toast.message('Nothing to copy');
          return;
       }
-      void navigator.clipboard.writeText(text).then(
+      void navigator.clipboard.writeText(liveDescription).then(
          () => {
             setCopiedDescription(true);
             window.setTimeout(() => setCopiedDescription(false), 1200);
          },
          () => toast.error('Could not copy description')
       );
-   }, [description]);
+   }, [liveDescription]);
 
    if (!project) {
       return <ProjectOverviewSkeleton />;
@@ -111,7 +117,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   <CollapsibleDescription>
                      <TiptapAiEditor
                         value={description}
-                        onChange={() => undefined}
+                        onChange={(markdown) => setDescriptionDraft(markdown)}
                         onBlur={(markdown) => {
                            if (markdown.trim() === description.trim()) return;
                            updateProjectDescription(project.id, markdown);
@@ -130,7 +136,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                         className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
                         aria-label="Copy description"
                         title="Copy description"
-                        disabled={!description.trim()}
+                        disabled={!liveDescription}
                         onClick={copyDescription}
                      >
                         {copiedDescription ? (

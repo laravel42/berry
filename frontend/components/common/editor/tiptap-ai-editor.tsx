@@ -95,6 +95,8 @@ export function TiptapAiEditor({
    const focusedRef = useRef(false);
    const blockMenuOpen = useRef(false);
    const setLinkRef = useRef<() => void>(() => {});
+   const onChangeRef = useRef(onChange);
+   onChangeRef.current = onChange;
    const onBlurRef = useRef(onBlur);
    onBlurRef.current = onBlur;
 
@@ -126,7 +128,7 @@ export function TiptapAiEditor({
          // nothing) and when a plugin such as TrailingNode appends a fix-up to
          // a focus or selection transaction.
          if (!transaction.docChanged) return;
-         onChange(readMarkdown(current));
+         onChangeRef.current(readMarkdown(current));
       },
       onSelectionUpdate: () => {
          setFormatRevision((current) => current + 1);

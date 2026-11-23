@@ -60,7 +60,19 @@ export function IssueDescription({
    const [viewerAt, setViewerAt] = useState<number | null>(null);
    const [copied, setCopied] = useState(false);
    const [editing, setEditing] = useState(false);
+   const [draft, setDraft] = useState<string | null>(null);
    const surface = useRef<HTMLDivElement>(null);
+
+   // Reset local edit state when navigating to another task in the drawer.
+   useEffect(() => {
+      setEditing(false);
+      setDraft(null);
+   }, [issueId]);
+
+   // Clear live draft once the persisted description catches up.
+   useEffect(() => {
+      setDraft(null);
+   }, [description]);
 
    // The editor arrives a moment after the click that asked for it; once its
    // text field exists, put the caret there so the click was not wasted.
@@ -82,21 +94,38 @@ export function IssueDescription({
       return () => cancelAnimationFrame(frame);
    }, [editing]);
 
-   // What a person reads: the text without the plugin links the editor hides.
-   const readable = stripPluginMentions(description).trim();
+   // What a person reads: the live draft while editing, or the saved text
+   // without the plugin links the editor hides.
+   const savedReadable = stripPluginMentions(description).trim();
+   const readable = stripPluginMentions(draft ?? description).trim();
 
    const copyDescription = () => {
       if (!readable) {
          toast.message(t('nothingToCopy'));
          return;
       }
-      void navigator.clipboard.writeText(readable).then(
-         () => {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1200);
-         },
-         () => toast.error(t('copyFailed'))
-      );
+      const markCopied = () => {
+         setCopied(true);
+         window.setTimeout(() => setCopied(false), 1200);
+      };
+      const copyFallback = () => {
+         const area = document.createElement('textarea');
+         area.value = readable;
+         area.setAttribute('readonly', '');
+         area.style.position = 'fixed';
+         area.style.opacity = '0';
+         document.body.appendChild(area);
+         area.select();
+         const ok = document.execCommand('copy');
+         document.body.removeChild(area);
+         if (ok) markCopied();
+         else toast.error(t('copyFailed'));
+      };
+      if (navigator.clipboard?.writeText) {
+         void navigator.clipboard.writeText(readable).then(markCopied, copyFallback);
+         return;
+      }
+      copyFallback();
    };
    const urls = useRef<string[]>([]);
 
@@ -209,7 +238,7 @@ export function IssueDescription({
                   {editing ? (
                      <TiptapAiEditor
                         value={stripPluginMentions(description)}
-                        onChange={() => undefined}
+                        onChange={(markdown) => setDraft(markdown)}
                         onBlur={(markdown) => {
                            const next = keepPluginMentions(markdown, description);
                            if (next.trim() === description.trim()) return;
@@ -234,7 +263,7 @@ export function IssueDescription({
                         className="tiptap-ai-editor formatting-editor min-h-24 cursor-text"
                      >
                         <div className="ProseMirror min-h-0 !font-thin [&_*]:!font-thin [&_strong]:!font-bold [&_b]:!font-bold [&_strong_*]:!font-bold [&_b_*]:!font-bold [&>:last-child]:!mb-0">
-                           {readable ? (
+                           {savedReadable ? (
                               <ChatMarkdown body={stripPluginMentions(description)} tone="page" />
                            ) : (
                               <p className="text-muted-foreground">
