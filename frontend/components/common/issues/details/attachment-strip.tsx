@@ -55,7 +55,8 @@ function ImageThumb({ file, localUrl }: { file: ApiAttachment; localUrl?: string
 /**
  * Compact strip of attachment preview tiles for comments and composers:
  * - Images render a 64x64 mini thumbnail.
- * - Other files render a file-icon card with name and size.
+ * - Other files render a file-icon tile with the size badge overlaid on the
+ *   icon and the filename underneath.
  * - Optional top-right `X` button removes pending uploads before sending.
  * - Clicking any tile opens the full in-place AttachmentPreview modal
  *   (zoomable image viewer, scrollable text reader, PDF/HTML preview).
@@ -85,7 +86,7 @@ export function AttachmentStrip({
 
    return (
       <>
-         <ul className={cn('flex flex-wrap gap-2.5 pt-1.5', className)}>
+         <ul className={cn('flex flex-wrap items-start gap-2.5 pt-1.5', className)}>
             {files.map((file, index) => {
                const kind = previewKind(file);
                const isImage = kind === 'image';
@@ -110,22 +111,36 @@ export function AttachmentStrip({
                            onClick={() => setPreviewIndex(index)}
                            aria-label={previewLabel}
                            title={file.fileName}
-                           className="flex h-16 min-w-[140px] max-w-[208px] cursor-pointer items-center gap-2.5 overflow-hidden rounded-lg border border-border/70 bg-background/85 px-2.5 py-2 text-left outline-none transition-colors hover:border-foreground/30 hover:bg-accent/60 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                           className="group flex w-[72px] cursor-pointer flex-col items-center gap-1 text-center outline-none"
                         >
-                           <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/70 text-muted-foreground">
+                           <span className="relative flex h-16 w-full items-center justify-center overflow-hidden rounded-lg border border-border/70 bg-muted/40 text-muted-foreground transition-colors group-hover:border-foreground/30 group-hover:bg-accent/60 group-focus-visible:ring-[3px] group-focus-visible:ring-ring/50">
                               {isTextLike ? (
-                                 <FileText className="size-[18px]" aria-hidden />
+                                 <FileText
+                                    className="-translate-y-0.5 size-9 text-muted-foreground/75"
+                                    strokeWidth={1.4}
+                                    aria-hidden
+                                 />
                               ) : (
-                                 <FileIcon className="size-[18px]" aria-hidden />
+                                 <FileIcon
+                                    className="-translate-y-0.5 size-9 text-muted-foreground/75"
+                                    strokeWidth={1.4}
+                                    aria-hidden
+                                 />
                               )}
-                           </span>
-                           <span className="min-w-0 flex-1">
-                              <span className="block truncate font-medium text-foreground">
-                                 {file.fileName}
-                              </span>
-                              <span className="block truncate text-muted-foreground tabular-nums">
+                              <span
+                                 data-attachment-size=""
+                                 className="pointer-events-none absolute bottom-1.5 max-w-[calc(100%-8px)] truncate rounded border border-border/80 bg-background/95 px-1.5 py-px font-medium text-foreground shadow-2xs tabular-nums"
+                                 style={{ fontSize: '10px', lineHeight: 1.25 }}
+                              >
                                  {formatFileSize(file.sizeBytes)}
                               </span>
+                           </span>
+                           <span
+                              data-attachment-name=""
+                              className="block w-full truncate font-medium text-foreground"
+                              style={{ fontSize: '11px', lineHeight: 1.25 }}
+                           >
+                              {file.fileName}
                            </span>
                         </button>
                      )}
