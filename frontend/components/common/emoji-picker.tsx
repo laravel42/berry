@@ -157,6 +157,9 @@ export function EmojiPickerPopover({
    quick,
    isActive,
    returnFocusTo,
+   keepOpen = false,
+   onOpenChange,
+   onAfterClose,
    align = 'start',
    side,
 }: {
@@ -166,6 +169,11 @@ export function EmojiPickerPopover({
    quick?: readonly string[];
    isActive?: (emoji: string) => boolean;
    returnFocusTo?: RefObject<HTMLElement | null>;
+   /** Keep the popover open after choosing an emoji so several can be inserted in a row. */
+   keepOpen?: boolean;
+   onOpenChange?: (open: boolean) => void;
+   /** Runs inside `onCloseAutoFocus` after focus returns to `returnFocusTo`. */
+   onAfterClose?: () => void;
    align?: 'start' | 'center' | 'end';
    side?: 'top' | 'bottom';
 }) {
@@ -175,7 +183,7 @@ export function EmojiPickerPopover({
 
    const choose = (emoji: string, from: 'quick' | 'catalogue') => {
       onSelect(emoji, from);
-      setOpen(false);
+      if (!keepOpen) setOpen(false);
    };
 
    return (
@@ -184,6 +192,7 @@ export function EmojiPickerPopover({
          onOpenChange={(next) => {
             setOpen(next);
             if (!next) setCatalogue(!quick);
+            onOpenChange?.(next);
          }}
       >
          <PopoverTrigger asChild>{children}</PopoverTrigger>
@@ -196,6 +205,7 @@ export function EmojiPickerPopover({
                if (!returnFocusTo?.current) return;
                event.preventDefault();
                returnFocusTo.current.focus();
+               onAfterClose?.();
             }}
          >
             {catalogue ? (
@@ -259,19 +269,69 @@ export function EmojiInsertButton({
    side?: 'top' | 'bottom';
 }) {
    const t = useTranslations('common.emoji');
+   // Track the latest text and insertion caret in refs so rapid multi-emoji
+   // picks append in order while the popover stays open, without stealing focus
+   // (or raising the mobile keyboard) on every tap.
+   const valueRef = useRef(value);
+   useEffect(() => {
+      valueRef.current = value;
+   }, [value]);
+   const caretRef = useRef<{ start: number; end: number } | null>(null);
+
+   const handleOpenChange = (next: boolean) => {
+      if (next) {
+         const box = textareaRef.current;
+         const len = valueRef.current.length;
+         caretRef.current = {
+            start: box?.selectionStart ?? len,
+            end: box?.selectionEnd ?? len,
+         };
+      }
+   };
 
    const insert = (emoji: string) => {
       const box = textareaRef.current;
-      const start = box?.selectionStart ?? value.length;
-      const end = box?.selectionEnd ?? value.length;
-      onChange(value.slice(0, start) + emoji + value.slice(end));
+      const current = valueRef.current;
+      const live =
+         box && document.activeElement === box
+            ? {
+                 start: box.selectionStart ?? current.length,
+                 end: box.selectionEnd ?? current.length,
+              }
+            : caretRef.current;
+      const rawStart = live?.start ?? box?.selectionStart ?? current.length;
+      const rawEnd = live?.end ?? box?.selectionEnd ?? current.length;
+      const start = Math.max(0, Math.min(rawStart, current.length));
+      const end = Math.max(start, Math.min(rawEnd, current.length));
+      const next = current.slice(0, start) + emoji + current.slice(end);
       const caret = start + emoji.length;
-      // After the new value renders, so the caret lands after the emoji.
-      requestAnimationFrame(() => box?.setSelectionRange(caret, caret));
+      valueRef.current = next;
+      caretRef.current = { start: caret, end: caret };
+      onChange(next);
+      if (box && document.activeElement === box) {
+         requestAnimationFrame(() => box.setSelectionRange(caret, caret));
+      }
+   };
+
+   const restoreCaret = () => {
+      const box = textareaRef.current;
+      const caret = caretRef.current;
+      caretRef.current = null;
+      if (box && caret) {
+         box.setSelectionRange(caret.start, caret.end);
+      }
    };
 
    return (
-      <EmojiPickerPopover onSelect={insert} returnFocusTo={textareaRef} align={align} side={side}>
+      <EmojiPickerPopover
+         onSelect={insert}
+         returnFocusTo={textareaRef}
+         keepOpen
+         onOpenChange={handleOpenChange}
+         onAfterClose={restoreCaret}
+         align={align}
+         side={side}
+      >
          {compact ? (
             <button
                type="button"
