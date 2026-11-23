@@ -60,7 +60,7 @@ export function IssueStepControls({
    };
 
    const buttonClass = comfortable
-      ? 'size-9 text-muted-foreground hover:bg-card hover:text-foreground'
+      ? 'size-9 text-muted-foreground hover:text-foreground'
       : 'size-6';
    const iconClass = comfortable ? 'size-[18px]' : 'size-4';
 

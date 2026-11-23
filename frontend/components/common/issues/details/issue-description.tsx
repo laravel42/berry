@@ -251,7 +251,7 @@ export function IssueDescription({
             data-description-actions
             className={cn(
                mobileLeadingActions || mobileTrailingActions
-                  ? 'mt-3 flex min-h-12 items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-1.5 md:-mt-0.5 md:min-h-0 md:justify-end md:rounded-none md:border-0 md:bg-transparent md:p-0'
+                  ? 'mt-2 flex min-h-11 items-center justify-between gap-2 border-b border-border/60 pb-2 md:-mt-0.5 md:min-h-0 md:justify-end md:border-b-0 md:pb-0'
                   : '-mt-0.5 flex justify-end'
             )}
          >
@@ -261,7 +261,8 @@ export function IssueDescription({
             <div
                className={cn(
                   'flex items-center',
-                  (mobileLeadingActions || mobileTrailingActions) && 'gap-1 md:gap-0'
+                  (mobileLeadingActions || mobileTrailingActions) &&
+                     '-mr-1.5 gap-1 md:mr-0 md:gap-0'
                )}
             >
                <Button
@@ -269,8 +270,10 @@ export function IssueDescription({
                   variant="ghost"
                   size="icon"
                   className={cn(
-                     'text-muted-foreground hover:bg-card hover:text-foreground',
-                     mobileLeadingActions || mobileTrailingActions ? 'size-9 md:size-6' : 'size-6'
+                     'text-muted-foreground hover:text-foreground',
+                     mobileLeadingActions || mobileTrailingActions
+                        ? 'size-9 md:size-6 md:hover:bg-card'
+                        : 'size-6 hover:bg-card'
                   )}
                   aria-label={t('copy')}
                   title={t('copy')}

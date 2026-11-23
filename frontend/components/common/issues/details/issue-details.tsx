@@ -294,7 +294,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                                  <IssueHeaderMenu
                                     issue={issue}
                                     onDeleted={afterDelete}
-                                    triggerClassName="size-9 text-muted-foreground hover:bg-card hover:text-foreground"
+                                    triggerClassName="size-9 text-muted-foreground hover:text-foreground"
                                     iconClassName="size-[18px]"
                                     lazySubscription
                                  />
