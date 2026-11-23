@@ -49,6 +49,7 @@ import {
    useWorkspaceProperties,
 } from './issue-grouping';
 import { SelectionCheckbox } from './selection-checkbox';
+import { IssueListMoreLoader } from './list-states';
 import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';
 import { sortIssues, useIssueListView } from './use-issue-list-view';
 
@@ -462,13 +463,16 @@ export function IssueTable({
    statuses,
    totalIssues,
    loading = false,
+   loadingMore = false,
 }: {
    issues: Issue[];
    statuses: Status[];
    totalIssues?: Issue[];
    loading?: boolean;
+   loadingMore?: boolean;
 }) {
    const t = useTranslations('issueLists');
+   const tTasks = useTranslations('tasks');
    const view = useIssueListView();
    const properties = useWorkspaceProperties();
    const propertyGrouping = usePropertyGrouping(view.grouping);
@@ -694,7 +698,7 @@ export function IssueTable({
       }
    };
 
-   if (!loading && issues.length === 0) {
+   if (!loading && !loadingMore && issues.length === 0) {
       const scoped = totalIssues ?? issues;
       return <IssueListEmpty filtered={filters.length > 0 || scoped.length > issues.length} />;
    }
@@ -750,7 +754,15 @@ export function IssueTable({
                <div className="px-4 py-3 text-muted-foreground">{t('table.loadingGroup')}</div>
             ) : null}
             <div>
-               {virtual.offset > 0 ? <div aria-hidden style={{ height: virtual.offset }} /> : null}
+               {virtual.offset > 0 ? (
+                  <div
+                     aria-hidden
+                     style={{
+                        height: virtual.offset,
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT}px)`,
+                     }}
+                  />
+               ) : null}
                {entries.slice(virtual.start, virtual.end).map((entry) =>
                   entry.kind === 'header' ? (
                      <div
@@ -768,7 +780,7 @@ export function IssueTable({
                   ) : (
                      <div
                         key={entry.row.issue.id}
-                        className="group grid items-center border-b px-4"
+                        className="group grid animate-[berry-row-in_140ms_ease-out] items-center border-b px-4"
                         style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}
                      >
                         <SelectionCheckbox issueId={entry.row.issue.id} order={orderIds} />
@@ -790,10 +802,16 @@ export function IssueTable({
                {virtual.totalHeight > virtual.end * ROW_HEIGHT ? (
                   <div
                      aria-hidden
-                     style={{ height: Math.max(0, virtual.totalHeight - virtual.end * ROW_HEIGHT) }}
+                     style={{
+                        height: Math.max(0, virtual.totalHeight - virtual.end * ROW_HEIGHT),
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT}px)`,
+                     }}
                   />
                ) : null}
             </div>
+            {loadingMore ? (
+               <IssueListMoreLoader mode="table" label={tTasks('loadingMore')} />
+            ) : null}
             <QuickAddRow />
          </div>
 

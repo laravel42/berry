@@ -1,8 +1,10 @@
 'use client';
 
+import { BerryMark } from '@/components/brand/berry-mark';
 import { EmptyState, EmptyStateActions, EmptyStateText } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import type { ViewType } from '@/store/view-store';
 import { AlertTriangle } from 'lucide-react';
@@ -84,6 +86,61 @@ export function IssueListSkeleton({ mode }: { mode: ViewType }) {
          {[0, 1, 2, 3, 4, 5, 6].map((row) => (
             <Row key={row} />
          ))}
+      </div>
+   );
+}
+
+const TAIL_SKELETON_ROWS = [
+   { width: 'w-2/5 max-w-64', opacity: 'opacity-90' },
+   { width: 'w-3/5 max-w-80', opacity: 'opacity-55' },
+   { width: 'w-1/2 max-w-72', opacity: 'opacity-25' },
+] as const;
+
+/**
+ * Tail loader shown while background task pages are still arriving: fading
+ * row silhouettes that match the layout above, closed by Berry's pulsing mark.
+ */
+export function IssueListMoreLoader({ mode = 'list', label }: { mode?: ViewType; label: string }) {
+   if (mode === 'grid') {
+      return (
+         <div
+            role="status"
+            aria-live="polite"
+            className="flex h-10 items-center justify-center gap-2 text-muted-foreground"
+         >
+            <BerryMark size="sm" tone="brand" pulse />
+            <span>{label}</span>
+         </div>
+      );
+   }
+
+   return (
+      <div
+         role="status"
+         aria-live="polite"
+         className="w-full bg-container animate-[berry-row-in_140ms_ease-out]"
+      >
+         <div aria-hidden>
+            {TAIL_SKELETON_ROWS.map((row, index) => (
+               <div
+                  key={index}
+                  className={cn(
+                     'flex items-center gap-3 border-b border-border/45',
+                     mode === 'table' ? 'h-[38px] px-4' : 'h-10 px-4 sm:px-6',
+                     row.opacity
+                  )}
+               >
+                  <Skeleton className="size-3.5 shrink-0 rounded-full" />
+                  <Skeleton className="hidden h-3 w-14 shrink-0 sm:block" />
+                  <Skeleton className={cn('h-3', row.width)} />
+                  <Skeleton className="ml-auto size-5 shrink-0 rounded-full" />
+               </div>
+            ))}
+         </div>
+         <div className="flex h-12 items-center justify-center gap-2 text-muted-foreground">
+            <BerryMark size="sm" tone="brand" pulse />
+            <span>{label}</span>
+         </div>
       </div>
    );
 }

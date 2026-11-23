@@ -21,7 +21,6 @@ import { useFilterStore } from '@/store/filter-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
-import { Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
@@ -108,7 +107,6 @@ export default function MyIssues() {
    const { filters } = useFilterStore();
    const issues = useIssuesStore((state) => state.issues);
    const load = useIssueListLoad();
-   const tTasks = useTranslations('tasks');
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';
 
@@ -141,20 +139,13 @@ export default function MyIssues() {
       return <IssueListError message={load.loadError ?? ''} onRetry={load.retry} />;
    }
 
+   const loadingMore = load.loadState === 'loading' && issues.length > 0;
+
    return (
       <div className="w-full h-full flex flex-col overflow-hidden">
          <IssueFilterBar showActions={false} />
          <BatchToolbar visibleIds={displayedIssues.map((issue) => issue.id)} />
          <DiscoveryNotice issues={issues} />
-         {load.loadState === 'loading' && issues.length > 0 && (
-            <div
-               role="status"
-               className="flex h-6 shrink-0 items-center gap-2 px-6 text-muted-foreground"
-            >
-               <Loader2 className="size-3 animate-spin" aria-hidden />
-               {tTasks('loadingMore')}
-            </div>
-         )}
          <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {view.mode === 'table' ? (
@@ -162,6 +153,7 @@ export default function MyIssues() {
                      issues={displayedIssues}
                      statuses={displayOrderedStatus}
                      totalIssues={scopedIssues}
+                     loadingMore={loadingMore}
                   />
                ) : (
                   <GroupedIssuesView
@@ -169,6 +161,7 @@ export default function MyIssues() {
                      totalIssues={scopedIssues}
                      statuses={displayOrderedStatus}
                      isViewTypeGrid={view.mode === 'grid'}
+                     loadingMore={loadingMore}
                   />
                )}
             </div>

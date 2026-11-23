@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import { GroupedIssuesView } from './grouped-issues-view';
 import { IssueTable } from './issue-table';
 import { InsightsPanel } from './insights-panel-lazy';
+import { useIssueListLoad } from './list-states';
 import { SearchIssues } from './search-issues';
 
 interface AllIssuesProps {
@@ -31,7 +32,9 @@ export default function AllIssues({ categories }: AllIssuesProps) {
    const { mode: viewType } = useIssueListView();
    const { filters } = useFilterStore();
    const issues = useIssuesStore((state) => state.issues);
+   const load = useIssueListLoad();
    const { openPanel } = useRightPanelStore();
+   const loadingMore = load.loadState === 'loading' && issues.length > 0;
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';
    const isViewTypeGrid = viewType === 'grid';
@@ -75,6 +78,7 @@ export default function AllIssues({ categories }: AllIssuesProps) {
                      issues={displayedIssues}
                      statuses={statuses}
                      totalIssues={scopedIssues}
+                     loadingMore={loadingMore}
                   />
                ) : (
                   <GroupedIssuesView
@@ -82,6 +86,7 @@ export default function AllIssues({ categories }: AllIssuesProps) {
                      totalIssues={scopedIssues}
                      statuses={statuses}
                      isViewTypeGrid={isViewTypeGrid}
+                     loadingMore={loadingMore}
                   />
                )}
             </div>

@@ -26,6 +26,7 @@ import dynamic from 'next/dynamic';
 import { BoardMoveContext, type BoardMove } from './issue-dnd';
 import type { CustomDragLayer as CustomDragLayerComponent } from './issue-grid';
 import { EmptyQueue, NoMatches } from './issue-list-empty';
+import { IssueListMoreLoader } from './list-states';
 import {
    groupsForDisplay,
    IssueGroupEntry,
@@ -48,6 +49,8 @@ interface GroupedIssuesViewProps {
    /** Statuses to render when grouping by status (empty groups are skipped unless enabled). */
    statuses: Status[];
    isViewTypeGrid: boolean;
+   /** True while background task pages are still arriving after the first paint. */
+   loadingMore?: boolean;
 }
 
 /** Footer shown when active filters hide tasks — "n tasks hidden by filters". */
@@ -156,8 +159,10 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    totalIssues,
    statuses,
    isViewTypeGrid,
+   loadingMore = false,
 }) => {
    const t = useTranslations('issueLists');
+   const tTasks = useTranslations('tasks');
    const view = useIssueListView();
    const {
       hiddenBoardColumns,
@@ -378,14 +383,18 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                               onRestoreAll={restoreAllBoardColumns}
                            />
                         )}
-                        {onBoard.length === 0 &&
+                        {!loadingMore &&
+                           onBoard.length === 0 &&
                            manuallyHidden.length + emptied.length === 0 &&
                            (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
                      </div>
                   </div>
-                  {showFooter && (
+                  {(showFooter || loadingMore) && (
                      <div className="shrink-0 border-t bg-container">
-                        <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+                        {loadingMore ? (
+                           <IssueListMoreLoader mode="grid" label={tTasks('loadingMore')} />
+                        ) : null}
+                        {showFooter ? <HiddenByFiltersFooter hiddenCount={hiddenCount} /> : null}
                      </div>
                   )}
                </div>
@@ -396,6 +405,15 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
 
    /* -------------------------------- List ------------------------------- */
    const listGroups = groupsForDisplay(groups, showEmptyGroups);
+   const listFooter =
+      loadingMore || (showFooter && listGroups.length > 0) ? (
+         <>
+            {loadingMore ? <IssueListMoreLoader mode="list" label={tTasks('loadingMore')} /> : null}
+            {showFooter && listGroups.length > 0 ? (
+               <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+            ) : null}
+         </>
+      ) : null;
 
    return (
       <DndProvider backend={HTML5Backend}>
@@ -403,13 +421,15 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
             groups={listGroups}
             onDropFor={dropFor}
             empty={
-               listGroups.length === 0 ? hasActiveFilters ? <NoMatches /> : <EmptyQueue /> : null
-            }
-            footer={
-               showFooter && listGroups.length > 0 ? (
-                  <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+               !loadingMore && listGroups.length === 0 ? (
+                  hasActiveFilters ? (
+                     <NoMatches />
+                  ) : (
+                     <EmptyQueue />
+                  )
                ) : null
             }
+            footer={listFooter}
          />
       </DndProvider>
    );

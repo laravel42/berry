@@ -3,6 +3,7 @@
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
 import { InsightsPanel } from '@/components/common/issues/insights-panel-lazy';
 import { IssueTable } from '@/components/common/issues/issue-table';
+import { useIssueListLoad } from '@/components/common/issues/list-states';
 import { applyIssueFilters } from '@/components/common/issues/issue-filter-columns';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { EmptyStateLoading } from '@/components/common/empty-state';
@@ -41,6 +42,8 @@ function IssueViewBody({ view }: { view: View }) {
    const { openPanel } = useRightPanelStore();
    const listView = useIssueListView();
    const allIssues = useIssuesStore((state) => state.issues);
+   const load = useIssueListLoad();
+   const loadingMore = load.loadState === 'loading' && allIssues.length > 0;
 
    const issues = useMemo(() => {
       const declarative = filterIssuesForView(view, allIssues);
@@ -61,13 +64,19 @@ function IssueViewBody({ view }: { view: View }) {
          <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {mode === 'table' ? (
-                  <IssueTable issues={issues} statuses={allStatus} totalIssues={issues} />
+                  <IssueTable
+                     issues={issues}
+                     statuses={allStatus}
+                     totalIssues={issues}
+                     loadingMore={loadingMore}
+                  />
                ) : (
                   <GroupedIssuesView
                      issues={issues}
                      totalIssues={issues}
                      statuses={allStatus}
                      isViewTypeGrid={mode === 'grid'}
+                     loadingMore={loadingMore}
                   />
                )}
             </div>

@@ -500,6 +500,14 @@ export function VirtualIssueList({
    const sliceEnd = Math.min(Math.max(sliceStart, range.end), activeItems.length);
    const topSpacerHeight = offsets[sliceStart] ?? 0;
    const bottomSpacerHeight = Math.max(0, totalHeight - (offsets[sliceEnd] ?? 0));
+   const rowPx = ROW_HEIGHT_REM * rem;
+   // Subtle 40px row hairlines on the virtual spacers so even an extreme mobile
+   // fling that momentarily reaches the buffer edge reads as upcoming rows
+   // instead of an abrupt empty block.
+   const spacerStyle = (height: number) => ({
+      height,
+      backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${Math.max(1, rowPx - 1)}px, color-mix(in oklab, var(--border) 38%, transparent) ${Math.max(1, rowPx - 1)}px, color-mix(in oklab, var(--border) 38%, transparent) ${rowPx}px)`,
+   });
 
    const renderItem = (item: ListItem) => {
       if (item.kind === 'header') {
@@ -546,18 +554,25 @@ export function VirtualIssueList({
       >
          {empty}
          <div ref={listRef} className="w-full bg-container">
-            {topSpacerHeight > 0 ? <div aria-hidden style={{ height: topSpacerHeight }} /> : null}
+            {topSpacerHeight > 0 ? <div aria-hidden style={spacerStyle(topSpacerHeight)} /> : null}
             {activeItems.slice(sliceStart, sliceEnd).map((item, offsetIndex) => {
                const index = sliceStart + offsetIndex;
                const height = (offsets[index + 1] ?? 0) - (offsets[index] ?? 0);
                return (
-                  <div key={item.key} data-key={item.key} style={{ height }}>
+                  <div
+                     key={item.key}
+                     data-key={item.key}
+                     className={
+                        item.kind === 'row' ? 'animate-[berry-row-in_140ms_ease-out]' : undefined
+                     }
+                     style={{ height }}
+                  >
                      {renderItem(item)}
                   </div>
                );
             })}
             {bottomSpacerHeight > 0 ? (
-               <div aria-hidden style={{ height: bottomSpacerHeight }} />
+               <div aria-hidden style={spacerStyle(bottomSpacerHeight)} />
             ) : null}
          </div>
          {footer}

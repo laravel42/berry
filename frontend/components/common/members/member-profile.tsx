@@ -4,6 +4,7 @@ import { applyIssueFilters } from '@/components/common/issues/issue-filter-colum
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
 import { InsightsPanel } from '@/components/common/issues/insights-panel-lazy';
 import { IssueFilterBar } from '@/components/common/issues/issue-filter-bar';
+import { useIssueListLoad } from '@/components/common/issues/list-states';
 import { SearchIssues } from '@/components/common/issues/search-issues';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -94,6 +95,8 @@ function useClientTimes(member: User) {
  */
 export default function MemberProfile({ member }: { member: User }) {
    const issues = useIssuesStore((state) => state.issues);
+   const load = useIssueListLoad();
+   const loadingMore = load.loadState === 'loading' && issues.length > 0;
    const workspaceLabels = useLabelsStore((state) => state.labels);
    const workspaceProjects = useProjectsStore((state) => state.projects);
    const [activeTab] = useQueryState('tab', parseAsString.withDefault('assigned'));
@@ -203,6 +206,7 @@ export default function MemberProfile({ member }: { member: User }) {
                   totalIssues={scopedIssues}
                   statuses={displayOrderedStatus}
                   isViewTypeGrid={isViewTypeGrid}
+                  loadingMore={loadingMore}
                />
             </div>
 

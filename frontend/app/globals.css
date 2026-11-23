@@ -1263,6 +1263,19 @@ input[type='search'] {
    }
 }
 
+/* Soft fade-in for newly mounted list/table rows (opacity only, no transform,
+   so WebKit never allocates a GPU layer per row). Starts at 0.35 rather than 0
+   so rows caught mid-fling never read as blank. */
+@keyframes berry-row-in {
+   from {
+      opacity: 0.35;
+   }
+
+   to {
+      opacity: 1;
+   }
+}
+
 @media (prefers-reduced-motion: reduce) {
    *,
    *::before,
