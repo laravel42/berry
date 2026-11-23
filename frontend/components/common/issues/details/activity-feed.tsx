@@ -6,6 +6,7 @@ import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
 import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
+import { AttachmentStrip } from '@/components/common/issues/details/attachment-strip';
 import { AttachedFileList } from '@/components/common/issues/details/file-list';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,10 +23,13 @@ import { describeActivity, loadIssueActivity } from '@/lib/activity';
 import { BerryApiError } from '@/lib/api';
 import {
    assignAttachmentToComment,
+   deleteAttachment,
    isHandoffPath,
    loadIssueArtifacts,
    loadIssueAttachments,
+   onCommentFilesRemoved,
    onIssueAttachment,
+   previewKind,
    publishCommentFilesRemoved,
    uploadIssueAttachment,
    type ApiAttachment,
@@ -268,20 +272,8 @@ function EventGroup({ items }: { items: EventItem[] }) {
 }
 
 function CommentFiles({ files }: { files: ApiAttachment[] }) {
-   const { orgId } = useParams<{ orgId: string }>();
-   const org = orgId ?? WORKSPACE_SLUG;
    if (files.length === 0) return null;
-   return (
-      <AttachedFileList
-         entries={files.map((file) => ({
-            id: file.id,
-            name: file.fileName,
-            path: file.fileName,
-            sizeBytes: file.sizeBytes,
-            href: `/${org}/attachments/${file.id}/preview`,
-         }))}
-      />
-   );
+   return <AttachmentStrip files={files} />;
 }
 
 /** A handoff note Berry used to post beside the run's report. */
@@ -722,13 +714,29 @@ export function ActivityFeedList({
    }, [issueRef]);
 
    useEffect(() => {
-      return onIssueAttachment((ref, attachment) => {
+      const stopAdded = onIssueAttachment((ref, attachment) => {
          if (ref !== issueRef) return;
          setAttachments((current) => [
             attachment,
             ...current.filter((entry) => entry.id !== attachment.id),
          ]);
       });
+      const stopRemoved = onCommentFilesRemoved((commentIds, attachmentIds) => {
+         if (commentIds.length === 0 && attachmentIds.length === 0) return;
+         const droppedComments = new Set(commentIds);
+         const droppedFiles = new Set(attachmentIds);
+         setAttachments((current) =>
+            current.filter(
+               (entry) =>
+                  !droppedFiles.has(entry.id) &&
+                  (!entry.commentId || !droppedComments.has(entry.commentId))
+            )
+         );
+      });
+      return () => {
+         stopAdded();
+         stopRemoved();
+      };
    }, [issueRef]);
 
    const repliesByParent = useMemo(() => {
@@ -981,6 +989,16 @@ export function ActivityCommentComposer({
    const [sending, setSending] = useState(false);
    const [uploading, setUploading] = useState(0);
    const [attached, setAttached] = useState<ApiAttachment[]>([]);
+   const [localThumbs, setLocalThumbs] = useState<Map<string, string>>(() => new Map());
+   const localThumbsRef = useRef<Map<string, string>>(localThumbs);
+   useEffect(() => {
+      localThumbsRef.current = localThumbs;
+   }, [localThumbs]);
+   useEffect(() => {
+      return () => {
+         for (const url of localThumbsRef.current.values()) URL.revokeObjectURL(url);
+      };
+   }, []);
    const [focused, setFocused] = useState(false);
    const filePicker = useRef<HTMLInputElement>(null);
    const slashExtras = useMemo(
@@ -1106,6 +1124,16 @@ export function ActivityCommentComposer({
       for (const file of list) {
          try {
             const saved = await uploadIssueAttachment(issueRef, file);
+            if (previewKind(saved) === 'image') {
+               const thumbUrl = URL.createObjectURL(file);
+               setLocalThumbs((current) => {
+                  const next = new Map(current);
+                  const prior = next.get(saved.id);
+                  if (prior) URL.revokeObjectURL(prior);
+                  next.set(saved.id, thumbUrl);
+                  return next;
+               });
+            }
             setAttached((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
          } catch (cause) {
             toast.error(cause instanceof BerryApiError ? cause.message : t('uploadFailed'));
@@ -1114,6 +1142,19 @@ export function ActivityCommentComposer({
       }
       if (filePicker.current) filePicker.current.value = '';
    };
+
+   const removeAttached = useCallback((file: ApiAttachment) => {
+      setAttached((current) => current.filter((entry) => entry.id !== file.id));
+      setLocalThumbs((current) => {
+         const url = current.get(file.id);
+         if (!url) return current;
+         URL.revokeObjectURL(url);
+         const next = new Map(current);
+         next.delete(file.id);
+         return next;
+      });
+      void deleteAttachment(file.id).catch(() => undefined);
+   }, []);
 
    const send = () => {
       const text = serializedDraft.trim();
@@ -1143,7 +1184,19 @@ export function ActivityCommentComposer({
                   )
                )
             );
-            setAttached(pending.filter((_, index) => !linked[index]));
+            const remaining = pending.filter((_, index) => !linked[index]);
+            const remainingIds = new Set(remaining.map((file) => file.id));
+            setLocalThumbs((current) => {
+               const next = new Map(current);
+               for (const [id, url] of current) {
+                  if (!remainingIds.has(id)) {
+                     URL.revokeObjectURL(url);
+                     next.delete(id);
+                  }
+               }
+               return next;
+            });
+            setAttached(remaining);
             onPosted(comment);
             if (isReply) setReplyDraft('');
             else clearStoredDraft(issueRef);
@@ -1195,6 +1248,14 @@ export function ActivityCommentComposer({
                focused ? 'border-primary' : 'border-border'
             )}
          >
+            {attached.length > 0 ? (
+               <AttachmentStrip
+                  files={attached}
+                  localThumbs={localThumbs}
+                  onRemove={removeAttached}
+                  className="pb-1"
+               />
+            ) : null}
             <div className="flex items-end gap-2.5">
                <div className="flex h-(--field-h) shrink-0 items-center gap-2">
                   <button
@@ -1299,19 +1360,6 @@ export function ActivityCommentComposer({
                   <SendHorizonal className="size-4" strokeWidth={2.4} aria-hidden />
                </Button>
             </div>
-
-            {attached.length > 0 ? (
-               <ul className="flex flex-wrap gap-1.5">
-                  {attached.map((file) => (
-                     <li
-                        key={file.id}
-                        className="max-w-full truncate rounded-full border border-border/60 px-2 py-0.5 text-muted-foreground"
-                     >
-                        {file.fileName}
-                     </li>
-                  ))}
-               </ul>
-            ) : null}
          </div>
 
          {/* The note and the agents a comment will wake sit under the box,

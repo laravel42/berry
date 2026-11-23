@@ -75,13 +75,20 @@ export const PREVIEW_SIZE_LIMIT = 25 * 1024 * 1024;
 
 export type PreviewKind = 'image' | 'pdf' | 'text' | 'html' | 'unsupported';
 
+const PREVIEW_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif']);
+
 /** What kind of preview, if any, this file can have. */
 export function previewKind(attachment: ApiAttachment): PreviewKind {
-   const type = attachment.contentType.toLowerCase();
+   const type = attachment.contentType.toLowerCase().split(';')[0]?.trim() ?? '';
    if (type.startsWith('image/')) return type.includes('svg') ? 'unsupported' : 'image';
    if (type === 'application/pdf') return 'pdf';
    if (type === 'text/html' || type === 'application/xhtml+xml') return 'html';
    if (type.startsWith('text/') || type === 'application/json') return 'text';
+   const ext = extensionOf(attachment.fileName);
+   if (PREVIEW_IMAGE_EXTENSIONS.has(ext)) return 'image';
+   if (ext === 'pdf') return 'pdf';
+   if (ext === 'html' || ext === 'htm') return 'html';
+   if (ext === 'md' || ext === 'markdown' || CODE_EXTENSIONS.has(ext)) return 'text';
    return 'unsupported';
 }
 
@@ -171,6 +178,14 @@ export async function assignAttachmentToComment(
 
 function publishIssueAttachment(issueRef: string, attachment: ApiAttachment): void {
    for (const listener of attachmentListeners) listener(issueRef, attachment);
+}
+
+/** Delete an uploaded attachment and notify open views so it leaves immediately. */
+export async function deleteAttachment(attachmentId: string): Promise<void> {
+   await apiFetch<void>(`/api/v1/attachments/${encodeURIComponent(attachmentId)}`, {
+      method: 'DELETE',
+   });
+   publishCommentFilesRemoved([], [attachmentId]);
 }
 
 /** Is this something the image viewer can show? */
