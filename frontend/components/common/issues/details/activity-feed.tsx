@@ -39,15 +39,18 @@ import {
    previewCommentTriggers,
    setCommentResolved,
    splitMentions,
+   splitMentionsWithDirectory,
    type ApiComment,
+   type MentionDirectoryEntry,
    type TriggerPlan,
 } from '@/lib/comments';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { type AutoReview, type RunRecord } from '@/lib/runs';
 import { subscribeShellEvent } from '@/lib/shell-events';
 import { cn } from '@/lib/utils';
-import { useComposerPalette } from '@/components/common/composer-palette';
+import { useComposerPalette, type PickedMention } from '@/components/common/composer-palette';
 import { useAgentsStore } from '@/store/agents-store';
+import { useMembersStore } from '@/store/members-store';
 import { useSessionStore } from '@/store/session-store';
 import { useCommentDraftStore } from '@/store/comment-draft-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
@@ -107,11 +110,13 @@ type EventItem = Extract<ActivityItem, { kind: 'event' }>;
 const ISSUE_KEY = /\b([A-Z][A-Z0-9]{1,5}-\d+)\b/g;
 
 /**
- * Tokens the decorator must leave alone: fenced and inline code, links the
- * writer already made, and bare URLs. A task key inside a URL is part of the
- * URL, and a mention inside a code span is an example, not a mention.
+ * Tokens the decorator must leave alone: fenced and inline code, real Markdown
+ * links (`https://`, `mailto:`, `/`, `#`), and bare URLs. Notice mention tokens
+ * (`@[Name](agent|user:<uuid>)`) intentionally do NOT match the link branch so
+ * `splitMentionsWithDirectory` turns them into mention links.
  */
-const PROTECTED = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<)]+)/g;
+const PROTECTED =
+   /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\((?:https?:\/\/|mailto:|\/|#)[^)\n]+\)|https?:\/\/[^\s<)]+)/g;
 
 /**
  * The body with its mentions and task keys turned into Markdown links, so the
@@ -119,16 +124,26 @@ const PROTECTED = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/
  * links `http(s)://`; until the origin is known (first paint) they are plain
  * names, which is still readable — never the raw `@[name](agent:id)` token.
  */
-function decorateBody(body: string, origin: string, org: string): string {
+function decorateBody(
+   body: string,
+   origin: string,
+   org: string,
+   directory: ReadonlyArray<MentionDirectoryEntry>
+): string {
    const linkTo = (label: string, path: string) =>
       origin ? `[${label}](${origin}/${org}${path})` : label;
    const transform = (text: string) =>
-      splitMentions(text)
-         .map((part) =>
-            'text' in part
-               ? part.text.replace(ISSUE_KEY, (key) => linkTo(key, `/issue/${key}`))
-               : linkTo(`@${part.mention.name}`, `/agents/${part.mention.id}`)
-         )
+      splitMentionsWithDirectory(text, directory)
+         .map((part) => {
+            if ('text' in part) {
+               return part.text.replace(ISSUE_KEY, (key) => linkTo(key, `/issue/${key}`));
+            }
+            const href =
+               part.mention.kind === 'agent'
+                  ? `/chat?agent=${encodeURIComponent(part.mention.id)}`
+                  : `/profiles/${encodeURIComponent(part.mention.id)}`;
+            return linkTo(`@${part.mention.name}`, href);
+         })
          .join('');
    return body
       .split(PROTECTED)
@@ -158,15 +173,27 @@ function CommentBody({
 }) {
    const { orgId } = useParams<{ orgId: string }>();
    const org = orgId ?? WORKSPACE_SLUG;
+   const members = useMembersStore((state) => state.members);
+   const agents = useAgentsStore((state) => state.agents);
+   const directory = useMemo<MentionDirectoryEntry[]>(
+      () => [
+         ...members.map((member) => ({ kind: 'user' as const, id: member.id, name: member.name })),
+         ...agents.map((agent) => ({ kind: 'agent' as const, id: agent.id, name: agent.name })),
+      ],
+      [members, agents]
+   );
    const [origin, setOrigin] = useState('');
    useEffect(() => setOrigin(window.location.origin), []);
-   const decorated = useMemo(() => decorateBody(body, origin, org), [body, origin, org]);
+   const decorated = useMemo(
+      () => decorateBody(body, origin, org, directory),
+      [body, origin, org, directory]
+   );
    return (
       <AgentMarkdown
          body={decorated}
          compact
          clamp={clamp}
-         className={thin ? 'font-thin [&_*]:font-thin' : undefined}
+         className={cn(thin && 'font-thin [&_*]:font-thin', className)}
       />
    );
 }
@@ -894,9 +921,20 @@ function withoutMentions(body: string, agentIds: Set<string>): string {
       .map((part) =>
          'text' in part
             ? part.text
-            : agentIds.has(part.mention.id)
+            : part.mention.kind === 'agent' && agentIds.has(part.mention.id)
               ? `@${part.mention.name}`
-              : `@[${part.mention.name}](${part.mention.kind}:${part.mention.id})`
+              : mentionToken(part.mention.kind, part.mention.id, part.mention.name)
+      )
+      .join('');
+}
+
+/** Converts clean `@Name` mentions in the draft to explicit server mention tokens. */
+function serializeMentions(body: string, directory: ReadonlyArray<MentionDirectoryEntry>): string {
+   return splitMentionsWithDirectory(body, directory)
+      .map((part) =>
+         'text' in part
+            ? part.text
+            : mentionToken(part.mention.kind, part.mention.id, part.mention.name)
       )
       .join('');
 }
@@ -932,7 +970,11 @@ export function ActivityCommentComposer({
    useReportUnsavedEdits(`reply:${parentId ?? ''}`, isReply && replyDraft.trim() !== '');
 
    const textareaRef = useRef<HTMLTextAreaElement>(null);
+   const backdropRef = useRef<HTMLDivElement>(null);
    const workspaceId = useSessionStore((state) => state.workspace?.id);
+   const storeMembers = useMembersStore((state) => state.members);
+   const storeAgents = useAgentsStore((state) => state.agents);
+   const [pickedMentions, setPickedMentions] = useState<PickedMention[]>([]);
    const [plan, setPlan] = useState<TriggerPlan | null>(null);
    const [skipped, setSkipped] = useState<string[]>([]);
    const [note, setNote] = useState(false);
@@ -952,24 +994,88 @@ export function ActivityCommentComposer({
       ],
       [t]
    );
+   const handlePickMention = useCallback((mention: PickedMention) => {
+      setPickedMentions((current) => [
+         mention,
+         ...current.filter((entry) => !(entry.kind === mention.kind && entry.id === mention.id)),
+      ]);
+   }, []);
    const palette = useComposerPalette({
       textareaRef,
       value: draft,
       onChange: setDraft,
       workspaceId,
-      agentMention: (agent) => mentionToken('agent', agent.id, agent.name),
+      onPickMention: handlePickMention,
       slashExtras,
    });
 
+   // Highlighting matches every known person or agent in the workspace (plus
+   // anything picked from the palette), while server serialization only turns
+   // explicitly picked agents into trigger tokens so bare "@name" never starts
+   // an unintended run.
+   const highlightDirectory = useMemo<MentionDirectoryEntry[]>(
+      () => [
+         ...pickedMentions,
+         ...palette.people.map((person) => ({
+            kind: 'user' as const,
+            id: person.id,
+            name: person.name,
+         })),
+         ...storeMembers.map((member) => ({
+            kind: 'user' as const,
+            id: member.id,
+            name: member.name,
+         })),
+         ...palette.agents.map((agent) => ({
+            kind: 'agent' as const,
+            id: agent.id,
+            name: agent.name,
+         })),
+         ...storeAgents.map((agent) => ({
+            kind: 'agent' as const,
+            id: agent.id,
+            name: agent.name,
+         })),
+      ],
+      [pickedMentions, palette.people, storeMembers, palette.agents, storeAgents]
+   );
+
+   const wireDirectory = useMemo<MentionDirectoryEntry[]>(
+      () => [
+         ...pickedMentions,
+         ...palette.people.map((person) => ({
+            kind: 'user' as const,
+            id: person.id,
+            name: person.name,
+         })),
+         ...storeMembers.map((member) => ({
+            kind: 'user' as const,
+            id: member.id,
+            name: member.name,
+         })),
+      ],
+      [pickedMentions, palette.people, storeMembers]
+   );
+
+   const highlightParts = useMemo(
+      () => (draft ? splitMentionsWithDirectory(draft, highlightDirectory) : []),
+      [draft, highlightDirectory]
+   );
+
+   const serializedDraft = useMemo(
+      () => (draft ? serializeMentions(draft, wireDirectory) : ''),
+      [draft, wireDirectory]
+   );
+
    // Debounced: the preview is advice, and a request per keystroke is not.
    useEffect(() => {
-      if (note || !issueRef || !draft.trim()) {
+      if (note || !issueRef || !serializedDraft.trim()) {
          setPlan(null);
          return;
       }
       let cancelled = false;
       const timer = setTimeout(() => {
-         previewCommentTriggers(issueRef, draft).then(
+         previewCommentTriggers(issueRef, serializedDraft).then(
             (next) => {
                if (!cancelled) setPlan(next);
             },
@@ -982,7 +1088,7 @@ export function ActivityCommentComposer({
          cancelled = true;
          clearTimeout(timer);
       };
-   }, [issueRef, draft, note]);
+   }, [issueRef, serializedDraft, note]);
 
    // Grow with the message, up to the same max the className allows.
    useEffect(() => {
@@ -990,6 +1096,7 @@ export function ActivityCommentComposer({
       if (!element) return;
       element.style.height = '0px';
       element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+      if (backdropRef.current) backdropRef.current.scrollTop = element.scrollTop;
    }, [draft]);
 
    const upload = async (files: FileList | null) => {
@@ -1009,13 +1116,13 @@ export function ActivityCommentComposer({
    };
 
    const send = () => {
-      const text = draft.trim();
+      const text = serializedDraft.trim();
       if (!text || sending) return;
       if (uploading > 0) {
          toast.error(t('uploadsPending'));
          return;
       }
-      // A note starts nothing, so every mention in it is demoted; otherwise
+      // A note starts nothing, so every agent mention in it is demoted; otherwise
       // only the agents the writer clicked off are.
       const removed = note
          ? new Set((plan?.targets ?? []).map((target) => target.agentId))
@@ -1040,6 +1147,7 @@ export function ActivityCommentComposer({
             onPosted(comment);
             if (isReply) setReplyDraft('');
             else clearStoredDraft(issueRef);
+            setPickedMentions([]);
             setSkipped([]);
             setNote(false);
             const planned = plan?.targets.length ?? 0;
@@ -1087,27 +1195,28 @@ export function ActivityCommentComposer({
                focused ? 'border-primary' : 'border-border'
             )}
          >
-            <div className="flex items-end gap-2">
-               <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="flex-none"
-                  aria-label={t('attach')}
-                  onClick={() => filePicker.current?.click()}
-               >
-                  {uploading > 0 ? (
-                     <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                     <Paperclip className="size-4" />
-                  )}
-               </Button>
-               <EmojiInsertButton
-                  textareaRef={textareaRef}
-                  value={draft}
-                  onChange={setDraft}
-                  side="top"
-               />
+            <div className="flex items-end gap-2.5">
+               <div className="flex h-(--field-h) shrink-0 items-center gap-2">
+                  <button
+                     type="button"
+                     className="inline-flex size-6 flex-none cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                     aria-label={t('attach')}
+                     onClick={() => filePicker.current?.click()}
+                  >
+                     {uploading > 0 ? (
+                        <Loader2 className="size-[18px] animate-spin" />
+                     ) : (
+                        <Paperclip className="size-[18px]" />
+                     )}
+                  </button>
+                  <EmojiInsertButton
+                     textareaRef={textareaRef}
+                     value={draft}
+                     onChange={setDraft}
+                     side="top"
+                     compact
+                  />
+               </div>
                <input
                   ref={filePicker}
                   type="file"
@@ -1118,6 +1227,24 @@ export function ActivityCommentComposer({
                />
                <div className="relative min-w-0 flex-1">
                   {palette.list}
+                  {draft ? (
+                     <div
+                        ref={backdropRef}
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 max-h-40 min-h-(--field-h) overflow-hidden whitespace-pre-wrap break-words py-[calc((var(--field-h)-1.25rem)/2)] leading-5 text-foreground no-scrollbar"
+                     >
+                        {highlightParts.map((part, index) =>
+                           'text' in part ? (
+                              <span key={index}>{part.text}</span>
+                           ) : (
+                              <span key={index} className="text-berry">
+                                 {part.raw}
+                              </span>
+                           )
+                        )}
+                        {draft.endsWith('\n') ? '\u200b' : null}
+                     </div>
+                  ) : null}
                   <textarea
                      ref={textareaRef}
                      value={draft}
@@ -1127,6 +1254,11 @@ export function ActivityCommentComposer({
                      onChange={(event) => {
                         setDraft(event.target.value);
                         palette.sync(event.target.value, event.target.selectionStart ?? 0);
+                     }}
+                     onScroll={(event) => {
+                        if (backdropRef.current) {
+                           backdropRef.current.scrollTop = event.currentTarget.scrollTop;
+                        }
                      }}
                      onKeyUp={(event) => {
                         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -1149,7 +1281,7 @@ export function ActivityCommentComposer({
                      onBlur={() => setFocused(false)}
                      onPointerDown={(event) => event.stopPropagation()}
                      placeholder={t('placeholder')}
-                     className="max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-[calc((var(--field-h)-1.25rem)/2)] leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                     className="relative block max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-[calc((var(--field-h)-1.25rem)/2)] leading-5 outline-none placeholder:text-muted-foreground [--input-color:transparent] [--caret-color:var(--foreground)] no-scrollbar"
                   />
                </div>
                <Button
@@ -1239,5 +1371,7 @@ export function ActivityCommentComposer({
 
 /** Every agent id named in the text. */
 function collectMentionIds(body: string): string[] {
-   return splitMentions(body).flatMap((part) => ('text' in part ? [] : [part.mention.id]));
+   return splitMentions(body).flatMap((part) =>
+      'mention' in part && part.mention.kind === 'agent' ? [part.mention.id] : []
+   );
 }

@@ -5,7 +5,12 @@ import type { Cycle } from '@/lib/cycles';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+
+/** Minimum readable card width so small screens show ~3 cycles with full labels and scroll smoothly. */
+const MIN_BLOCK_PX = 120;
+const MIN_TRACK_PX = 480;
+const MIN_BLOCK_PCT_FLOOR = 5;
 
 const BLOCK_LOOK: Record<Cycle['status'], { block: string; fill: string; sub: string }> = {
    active: {
@@ -37,6 +42,27 @@ export function CycleTimeline({
    const locale = useLocale();
    const today = todayIso();
    const axis = useMemo(() => timeline(cycles, today, locale), [cycles, today, locale]);
+   const scrollerRef = useRef<HTMLDivElement>(null);
+
+   const trackMinWidth = useMemo(() => {
+      if (!axis || axis.blocks.length === 0) return MIN_TRACK_PX;
+      const narrowestPct = Math.max(
+         MIN_BLOCK_PCT_FLOOR,
+         Math.min(...axis.blocks.map((block) => block.width))
+      );
+      return Math.max(MIN_TRACK_PX, Math.ceil((MIN_BLOCK_PX / narrowestPct) * 100));
+   }, [axis]);
+
+   // When the timeline overflows on narrow screens, centre "Today" in view so
+   // the active cycle is immediately readable without hunting from the left edge.
+   useEffect(() => {
+      const el = scrollerRef.current;
+      if (!el || !axis || axis.today === null) return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      const todayX = (axis.today / 100) * el.scrollWidth;
+      el.scrollLeft = Math.max(0, Math.round(todayX - el.clientWidth / 2));
+   }, [axis, trackMinWidth]);
+
    if (!axis) return null;
 
    return (
@@ -50,8 +76,11 @@ export function CycleTimeline({
                {formatDay(axis.startsOn, locale)} → {formatDay(axis.endsOn, locale)}
             </span>
          </div>
-         <div className="overflow-x-auto border-t max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]">
-            <div className="flex min-w-[480px] flex-col gap-2 px-4 pt-[18px] pb-3.5">
+         <div ref={scrollerRef} className="overflow-x-auto overscroll-x-contain border-t">
+            <div
+               className="flex flex-col gap-2 px-4 pt-[18px] pb-3.5"
+               style={{ minWidth: `${trackMinWidth}px` }}
+            >
                <div className="relative h-[60px]">
                   {axis.blocks.map(({ cycle, left, width }) => {
                      const look = BLOCK_LOOK[cycle.status];

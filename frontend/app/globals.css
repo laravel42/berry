@@ -161,6 +161,17 @@
    --shell-text-dim: #76747b;
    --shell-text-faint: #55545a;
    --shell-accent: var(--berry);
+   /* Raised 3D pill behind the selected mobile bottom tab (dark ramp default). */
+   --shell-tab-pill-bg: linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--shell-accent) 22%, #2c2c33) 0%,
+      color-mix(in oklab, var(--shell-accent) 12%, #18181d) 100%
+   );
+   --shell-tab-pill-border: color-mix(in oklab, var(--shell-accent) 38%, rgba(255, 255, 255, 0.16));
+   --shell-tab-pill-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.45),
+      0 2px 4px rgba(0, 0, 0, 0.5),
+      0 6px 14px -3px color-mix(in oklab, var(--shell-accent) 42%, rgba(0, 0, 0, 0.48));
    /* Fields, the filter track and segmented controls. Light here, dark in
       `.dark`; the rail sets its own in `[data-shell-chrome]`. */
    --segment-track: #ececef;
@@ -1159,6 +1170,20 @@
    --shell-nav-icon-b: #18181b;
    --shell-nav-icon-line: #18181b;
    --shell-nav-icon-ink: #ffffff;
+   /* Raised 3D pill on the light mobile tab bar: brighter than --shell-rail
+      with a crisp top highlight ridge, bottom 3D bevel lip and grounded shadow
+      so it reads as lifted above the rail rather than recessed into it. */
+   --shell-tab-pill-bg: linear-gradient(
+      180deg,
+      #ffffff 0%,
+      color-mix(in oklab, var(--shell-accent) 7%, #ffffff) 100%
+   );
+   --shell-tab-pill-border: color-mix(in oklab, var(--shell-accent) 26%, #d4d4d8);
+   --shell-tab-pill-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 1),
+      inset 0 -2px 0 color-mix(in oklab, var(--shell-accent) 20%, rgba(0, 0, 0, 0.08)),
+      0 1px 2px rgba(0, 0, 0, 0.12),
+      0 4px 10px -2px color-mix(in oklab, var(--shell-accent) 30%, rgba(0, 0, 0, 0.14));
 }
 
 html {
@@ -1195,7 +1220,7 @@ input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='
 textarea,
 select {
    color: var(--input-color, var(--foreground));
-   caret-color: var(--input-color, var(--foreground));
+   caret-color: var(--caret-color, var(--input-color, var(--foreground)));
    -webkit-text-fill-color: var(--input-color, var(--foreground));
 }
 

@@ -551,11 +551,13 @@ export function CommandPalette() {
             {result.identifier ? (
                <span className="text-muted-foreground shrink-0">{result.identifier}</span>
             ) : null}
-            <span className="truncate">
+            <span className="min-w-0 flex-1 truncate">
                <Highlighted text={result.title} query={trimmed} />
             </span>
             {result.subtitle ? (
-               <span className="ml-auto truncate text-muted-foreground">{result.subtitle}</span>
+               <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+                  {result.subtitle}
+               </span>
             ) : null}
          </CommandItem>
       );
@@ -650,11 +652,11 @@ export function CommandPalette() {
                                  if (event.metaKey || event.ctrlKey) modifierDown.current = true;
                               }}
                            >
-                              <CircleDot className="text-muted-foreground" />
+                              <CircleDot className="text-muted-foreground shrink-0" />
                               <span className="text-muted-foreground shrink-0">
                                  {recent.identifier}
                               </span>
-                              <span className="truncate">{recent.title}</span>
+                              <span className="min-w-0 flex-1 truncate">{recent.title}</span>
                            </CommandItem>
                         ))}
                      </CommandGroup>

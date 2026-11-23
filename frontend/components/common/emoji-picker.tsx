@@ -240,6 +240,8 @@ export function EmojiInsertButton({
    value,
    onChange,
    className,
+   iconClassName,
+   compact = false,
    disabled = false,
    align,
    side,
@@ -248,6 +250,9 @@ export function EmojiInsertButton({
    value: string;
    onChange: (value: string) => void;
    className?: string;
+   iconClassName?: string;
+   /** Tight flush button with no extra horizontal padding (used in single-line composers). */
+   compact?: boolean;
    /** Off while the box itself is. */
    disabled?: boolean;
    align?: 'start' | 'center' | 'end';
@@ -267,17 +272,32 @@ export function EmojiInsertButton({
 
    return (
       <EmojiPickerPopover onSelect={insert} returnFocusTo={textareaRef} align={align} side={side}>
-         <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={cn('flex-none', className)}
-            aria-label={t('insert')}
-            title={t('insert')}
-            disabled={disabled}
-         >
-            <Smile className="size-4" aria-hidden />
-         </Button>
+         {compact ? (
+            <button
+               type="button"
+               className={cn(
+                  'inline-flex size-6 flex-none cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-45',
+                  className
+               )}
+               aria-label={t('insert')}
+               title={t('insert')}
+               disabled={disabled}
+            >
+               <Smile className={cn('size-[18px]', iconClassName)} aria-hidden />
+            </button>
+         ) : (
+            <Button
+               type="button"
+               variant="ghost"
+               size="icon-sm"
+               className={cn('flex-none', className)}
+               aria-label={t('insert')}
+               title={t('insert')}
+               disabled={disabled}
+            >
+               <Smile className={cn('size-4', iconClassName)} aria-hidden />
+            </Button>
+         )}
       </EmojiPickerPopover>
    );
 }

@@ -112,11 +112,11 @@ export const ShellTabBar = forwardRef<
                style={{ transform: `translateX(${shown * 100}%)` }}
             >
                <div
-                  className="absolute inset-x-1.5 inset-y-1 -translate-y-[3px] rounded-xl"
+                  className="absolute inset-x-1.5 inset-y-1 -translate-y-[3px] rounded-xl border"
                   style={{
-                     background: 'color-mix(in oklab, var(--shell-accent) 12%, var(--shell-rail))',
-                     boxShadow:
-                        '0 6px 14px -6px color-mix(in oklab, var(--shell-accent) 55%, transparent)',
+                     background: 'var(--shell-tab-pill-bg)',
+                     borderColor: 'var(--shell-tab-pill-border)',
+                     boxShadow: 'var(--shell-tab-pill-shadow)',
                   }}
                />
             </div>
