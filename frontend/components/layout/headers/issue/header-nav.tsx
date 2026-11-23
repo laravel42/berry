@@ -1,27 +1,19 @@
 'use client';
 
 import { IssueHeaderMenu } from '@/components/common/issues/details/issue-header-menu';
-import {
-   AlertDialog,
-   AlertDialogAction,
-   AlertDialogCancel,
-   AlertDialogContent,
-   AlertDialogDescription,
-   AlertDialogFooter,
-   AlertDialogHeader,
-   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { IssueStepControls } from '@/components/common/issues/details/issue-nav-controls';
+import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { Button } from '@/components/ui/button';
 import type { Issue } from '@/data/issues';
 import { getBoardIssue } from '@/lib/issues';
+import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
-import { hasUnsavedEdits, useUnsavedEditsStore } from '@/store/unsaved-edits-store';
-import { ChevronDown, ChevronUp, CornerLeftUp } from 'lucide-react';
+import { CornerLeftUp } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * The task header.
@@ -37,27 +29,14 @@ export default function HeaderNav() {
    const t = useTranslations('issueDetail.header');
    const { orgId, issueId } = useParams<{ orgId: string; issueId: string }>();
    const router = useRouter();
+   const inDrawer = useInDetailDrawer();
+   const closeDrawer = useDetailDrawerClose();
    const issues = useIssuesStore((state) => state.issues);
    const consoleFor = useRunConsoleStore((state) => state.openIssueId);
 
-   const index = issues.findIndex(
+   const issue = issues.find(
       (candidate) => candidate.identifier === issueId || candidate.id === issueId
    );
-   const issue = index >= 0 ? issues[index] : undefined;
-
-   const previousIssue = index > 0 ? issues[index - 1] : undefined;
-   const nextIssue = index >= 0 && index < issues.length - 1 ? issues[index + 1] : undefined;
-
-   // Previous / next swap the task in place: replacing the history entry means
-   // Back leaves the task view instead of stepping through every task passed.
-   // Edits that would be lost ask first.
-   const [pendingHref, setPendingHref] = useState<string | null>(null);
-   const clearUnsaved = useUnsavedEditsStore((state) => state.clear);
-   const step = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
-      if (!hasUnsavedEdits()) return;
-      event.preventDefault();
-      setPendingHref(href);
-   };
 
    const [parent, setParent] = useState<Issue | null>(null);
    useEffect(() => {
@@ -77,8 +56,21 @@ export default function HeaderNav() {
    // The open console puts its own bar in this slot.
    if (issue && consoleFor === issue.id) return null;
 
+   const onDeleted = () => {
+      if (closeDrawer) {
+         closeDrawer();
+         return;
+      }
+      router.push(`/${orgId}/tasks`);
+   };
+
    return (
-      <div className="flex h-[52px] w-full items-center justify-between gap-4 border-b px-5 py-1.5">
+      <div
+         className={cn(
+            'flex h-[52px] w-full items-center justify-between gap-4 border-b py-1.5',
+            inDrawer ? 'pr-4 pl-1.5 lg:px-5' : 'px-4 md:px-5'
+         )}
+      >
          <div className="flex min-w-0 items-center gap-2">
             {issue ? (
                <>
@@ -136,83 +128,13 @@ export default function HeaderNav() {
             ) : null}
          </div>
 
-         <div className="flex shrink-0 items-center gap-1">
-            {index >= 0 && (
-               <span className="mr-1 text-muted-foreground">
-                  {index + 1} / {issues.length}
-               </span>
-            )}
-            <Button
-               variant="ghost"
-               size="icon"
-               className="size-6"
-               disabled={!previousIssue}
-               asChild={!!previousIssue}
-            >
-               {previousIssue ? (
-                  <Link
-                     href={`/${orgId}/issue/${previousIssue.identifier}`}
-                     replace
-                     onClick={(event) => step(event, `/${orgId}/issue/${previousIssue.identifier}`)}
-                     aria-label={t('previousTask')}
-                  >
-                     <ChevronUp className="size-4" />
-                  </Link>
-               ) : (
-                  <ChevronUp className="size-4" />
-               )}
-            </Button>
-            <Button
-               variant="ghost"
-               size="icon"
-               className="size-6"
-               disabled={!nextIssue}
-               asChild={!!nextIssue}
-            >
-               {nextIssue ? (
-                  <Link
-                     href={`/${orgId}/issue/${nextIssue.identifier}`}
-                     replace
-                     onClick={(event) => step(event, `/${orgId}/issue/${nextIssue.identifier}`)}
-                     aria-label={t('nextTask')}
-                  >
-                     <ChevronDown className="size-4" />
-                  </Link>
-               ) : (
-                  <ChevronDown className="size-4" />
-               )}
-            </Button>
-            {issue ? (
-               <IssueHeaderMenu issue={issue} onDeleted={() => router.push(`/${orgId}/tasks`)} />
-            ) : null}
+         {/* On mobile (< md), stepper and overflow menu move into the wider
+             inline bar alongside the description copy button in IssueDetails,
+             freeing the top header for the breadcrumb. */}
+         <div data-header-issue-controls className="hidden shrink-0 items-center gap-1 md:flex">
+            <IssueStepControls issueRef={issueId} orgId={orgId} />
+            {issue ? <IssueHeaderMenu issue={issue} onDeleted={onDeleted} /> : null}
          </div>
-
-         <AlertDialog
-            open={pendingHref !== null}
-            onOpenChange={(open) => (open ? null : setPendingHref(null))}
-         >
-            <AlertDialogContent>
-               <AlertDialogHeader>
-                  <AlertDialogTitle>{t('unsavedTitle')}</AlertDialogTitle>
-                  <AlertDialogDescription>{t('unsavedBody')}</AlertDialogDescription>
-               </AlertDialogHeader>
-               {/* Staying is the safe choice, so it carries the emphasis and sits last. */}
-               <AlertDialogFooter>
-                  <AlertDialogAction
-                     variant="outline"
-                     onClick={() => {
-                        const href = pendingHref;
-                        setPendingHref(null);
-                        clearUnsaved();
-                        if (href) router.replace(href);
-                     }}
-                  >
-                     {t('unsavedLeave')}
-                  </AlertDialogAction>
-                  <AlertDialogCancel variant="default">{t('unsavedStay')}</AlertDialogCancel>
-               </AlertDialogFooter>
-            </AlertDialogContent>
-         </AlertDialog>
       </div>
    );
 }

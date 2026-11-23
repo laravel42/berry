@@ -14,6 +14,7 @@ import { forgetIssue, rememberIssue } from '@/lib/recent-issues';
 import { cn } from '@/lib/utils';
 import { useIssueViewStore } from '@/store/issue-view-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useRunConsoleStore } from '@/store/run-console-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { useTranslations } from 'next-intl';
 import { SlidersHorizontal } from 'lucide-react';
@@ -23,6 +24,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCommentComposer, ActivityFeedList, useIssueActivity } from './activity-feed';
 import { FindInIssue } from './find-in-issue';
 import { IssueDescription } from './issue-description';
+import { IssueHeaderMenu } from './issue-header-menu';
+import { IssueStepControls } from './issue-nav-controls';
 import { IssuePropertiesPanel } from './issue-properties-panel';
 import { IssueTitle } from './issue-title';
 import { RunConsole } from './run-console';
@@ -51,6 +54,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    const issueId = issueRef ?? params?.issueId ?? '';
    const issues = useIssuesStore((state) => state.issues);
    const addIssue = useIssuesStore((state) => state.addIssue);
+   const consoleFor = useRunConsoleStore((state) => state.openIssueId);
    const inDrawer = useInDetailDrawer();
    const closeDrawer = useDetailDrawerClose();
    const router = useRouter();
@@ -276,6 +280,26 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                            issueId={issue.id}
                            issueRef={issue.identifier}
                            description={issue.description}
+                           mobileLeadingActions={
+                              !issueRef && consoleFor !== issue.id ? (
+                                 <IssueStepControls
+                                    issueRef={issue.identifier}
+                                    orgId={org}
+                                    comfortable
+                                 />
+                              ) : undefined
+                           }
+                           mobileTrailingActions={
+                              !issueRef && consoleFor !== issue.id ? (
+                                 <IssueHeaderMenu
+                                    issue={issue}
+                                    onDeleted={afterDelete}
+                                    triggerClassName="size-9 text-muted-foreground hover:bg-card hover:text-foreground"
+                                    iconClassName="size-[18px]"
+                                    lazySubscription
+                                 />
+                              ) : undefined
+                           }
                         />
                      </div>
 

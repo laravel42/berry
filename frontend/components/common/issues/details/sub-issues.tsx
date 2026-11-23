@@ -329,6 +329,8 @@ export function SubIssues({ issue }: { issue: Issue }) {
          .finally(() => setAdding(false));
    };
 
+   const canAdd = Boolean(title.trim()) && !adding;
+
    const replaceChild = (next: Issue) =>
       setChildren((current) => current.map((child) => (child.id === next.id ? next : child)));
 
@@ -409,8 +411,9 @@ export function SubIssues({ issue }: { issue: Issue }) {
                   />
                   <Button
                      size="sm"
-                     variant="secondary"
-                     disabled={!title.trim() || adding}
+                     variant={canAdd ? 'default' : 'secondary'}
+                     className={cn(!canAdd && 'border border-transparent')}
+                     disabled={!canAdd}
                      onClick={add}
                   >
                      <Plus className="mr-1 size-3.5" aria-hidden />

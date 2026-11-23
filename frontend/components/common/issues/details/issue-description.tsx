@@ -18,7 +18,7 @@ import { ChatMarkdown } from '@/components/common/chat/chat-markdown';
 import { Button } from '@/components/ui/button';
 import { Check, Copy, ImageIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { ImageViewer, type ViewerImage } from './image-viewer';
 
@@ -41,10 +41,16 @@ export function IssueDescription({
    issueId,
    issueRef,
    description,
+   mobileLeadingActions,
+   mobileTrailingActions,
 }: {
    issueId: string;
    issueRef: string;
    description: string;
+   /** Optional mobile-only (< md) controls placed left of the copy button. */
+   mobileLeadingActions?: ReactNode;
+   /** Optional mobile-only (< md) controls placed right of the copy button. */
+   mobileTrailingActions?: ReactNode;
 }) {
    const t = useTranslations('issueDetail.description');
    const updateIssueDescription = useIssuesStore((state) => state.updateIssueDescription);
@@ -241,23 +247,60 @@ export function IssueDescription({
                </div>
             </CollapsibleDescription>
          </div>
-         <div className="-mt-0.5 flex justify-end">
-            <Button
-               type="button"
-               variant="ghost"
-               size="icon"
-               className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
-               aria-label={t('copy')}
-               title={t('copy')}
-               disabled={!readable}
-               onClick={copyDescription}
-            >
-               {copied ? (
-                  <Check className="size-3.5" aria-hidden />
-               ) : (
-                  <Copy className="size-3.5" aria-hidden />
+         <div
+            data-description-actions
+            className={cn(
+               mobileLeadingActions || mobileTrailingActions
+                  ? 'mt-3 flex min-h-12 items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/25 px-3 py-1.5 md:-mt-0.5 md:min-h-0 md:justify-end md:rounded-none md:border-0 md:bg-transparent md:p-0'
+                  : '-mt-0.5 flex justify-end'
+            )}
+         >
+            {mobileLeadingActions ? (
+               <div className="flex items-center gap-1 md:hidden">{mobileLeadingActions}</div>
+            ) : null}
+            <div
+               className={cn(
+                  'flex items-center',
+                  (mobileLeadingActions || mobileTrailingActions) && 'gap-1 md:gap-0'
                )}
-            </Button>
+            >
+               <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                     'text-muted-foreground hover:bg-card hover:text-foreground',
+                     mobileLeadingActions || mobileTrailingActions ? 'size-9 md:size-6' : 'size-6'
+                  )}
+                  aria-label={t('copy')}
+                  title={t('copy')}
+                  disabled={!readable}
+                  onClick={copyDescription}
+               >
+                  {copied ? (
+                     <Check
+                        className={cn(
+                           mobileLeadingActions || mobileTrailingActions
+                              ? 'size-[18px] md:size-3.5'
+                              : 'size-3.5'
+                        )}
+                        aria-hidden
+                     />
+                  ) : (
+                     <Copy
+                        className={cn(
+                           mobileLeadingActions || mobileTrailingActions
+                              ? 'size-[18px] md:size-3.5'
+                              : 'size-3.5'
+                        )}
+                        aria-hidden
+                     />
+                  )}
+               </Button>
+               {mobileTrailingActions ? (
+                  <div className="flex items-center md:hidden">{mobileTrailingActions}</div>
+               ) : null}
+            </div>
          </div>
 
          {images.length > 0 ? (
