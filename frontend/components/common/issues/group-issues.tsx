@@ -16,7 +16,9 @@ import dynamic from 'next/dynamic';
 import { IssueDragType } from './issue-dnd';
 import type { IssueGrid as IssueGridComponent } from './issue-grid';
 import { IssueLine } from './issue-line';
+import { IssueListMoreLoader } from './list-states';
 import { useIssueListView } from './use-issue-list-view';
+import { useTranslations } from 'next-intl';
 
 /**
  * Generic descriptor of an issue group. Groups are usually statuses but the
@@ -48,11 +50,14 @@ interface GroupIssuesProps {
     * view that knows what the grouping means.
     */
    onDropIssue?: (issue: Issue) => void;
+   /** True while background task pages are still arriving after the first paint. */
+   loadingMore?: boolean;
 }
 
 /** Beyond this many cards a column renders only the ones in view. */
 const VIRTUALIZE_ABOVE = 40;
-const ESTIMATED_CARD_HEIGHT = 104;
+/** Rendered card height (~166px) plus the 6px vertical gap between cards. */
+const ESTIMATED_CARD_HEIGHT = 172;
 
 /**
  * The list group bar takes the lighter wash of the same semantic tone the
@@ -240,7 +245,13 @@ const IssueLineList: FC<{
    );
 };
 
-export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesProps) {
+export function GroupIssues({
+   group,
+   issues,
+   count,
+   onDropIssue,
+   loadingMore = false,
+}: GroupIssuesProps) {
    // The URL's `layout` wins over the stored preference, as it does for the
    // view around this group; a shared `?layout=grid` link shows the board.
    const { mode } = useIssueListView();
@@ -266,6 +277,7 @@ export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesPr
                status={group.status}
                columnId={group.id}
                onDropIssue={onDropIssue}
+               loadingMore={loadingMore}
             />
          </BoardColumn>
       );
@@ -286,7 +298,9 @@ const IssueGridList: FC<{
    status?: Status;
    columnId: string;
    onDropIssue?: (issue: Issue) => void;
-}> = ({ issues, status, columnId, onDropIssue }) => {
+   loadingMore?: boolean;
+}> = ({ issues, status, columnId, onDropIssue, loadingMore = false }) => {
+   const tTasks = useTranslations('tasks');
    const ref = useRef<HTMLDivElement>(null);
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const columnIssueIds = issues.map((issue) => issue.id);
@@ -315,6 +329,10 @@ const IssueGridList: FC<{
    drop(ref);
 
    const visible = windowed ? issues.slice(virtual.start, virtual.end) : issues;
+   const bottomSpacerHeight = Math.max(
+      0,
+      virtual.totalHeight - virtual.end * ESTIMATED_CARD_HEIGHT
+   );
 
    return (
       <BoardColumnBody
@@ -326,7 +344,12 @@ const IssueGridList: FC<{
          isOverEmpty={isOverEmpty}
          isEmpty={issues.length === 0}
       >
-         {windowed ? <div style={{ height: virtual.offset }} aria-hidden /> : null}
+         {/* `shrink-0` is essential inside the flex-col BoardColumnBody; without
+             it flexbox shrinks spacers to 0px and breaks scrolling past the
+             initial window. */}
+         {windowed && virtual.offset > 0 ? (
+            <div className="shrink-0" style={{ height: virtual.offset }} aria-hidden />
+         ) : null}
          {visible.map((issue, index) => (
             <IssueGrid
                key={issue.id}
@@ -338,14 +361,10 @@ const IssueGridList: FC<{
                onDropIssue={onDropIssue}
             />
          ))}
-         {windowed ? (
-            <div
-               style={{
-                  height: Math.max(0, virtual.totalHeight - virtual.end * ESTIMATED_CARD_HEIGHT),
-               }}
-               aria-hidden
-            />
+         {windowed && bottomSpacerHeight > 0 ? (
+            <div className="shrink-0" style={{ height: bottomSpacerHeight }} aria-hidden />
          ) : null}
+         {loadingMore ? <IssueListMoreLoader mode="grid" label={tTasks('loadingMore')} /> : null}
       </BoardColumnBody>
    );
 };

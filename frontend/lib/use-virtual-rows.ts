@@ -18,24 +18,40 @@ export function useVirtualRows(count: number, rowHeight: number, overscan = 8) {
       const effectiveOverscan = window.matchMedia('(pointer: coarse)').matches
          ? Math.max(overscan, TOUCH_MIN_OVERSCAN)
          : overscan;
-      const update = () => {
-         const start = Math.max(0, Math.floor(element.scrollTop / rowHeight) - effectiveOverscan);
-         const end = Math.min(
+      const margin = Math.max(3, Math.floor(effectiveOverscan / 3));
+      const update = (force = false) => {
+         const visibleStart = Math.max(0, Math.floor(element.scrollTop / rowHeight));
+         const visibleEnd = Math.min(
             count,
-            Math.ceil((element.scrollTop + element.clientHeight) / rowHeight) + effectiveOverscan
+            Math.ceil((element.scrollTop + element.clientHeight) / rowHeight)
          );
-         setRange((previous) =>
-            previous.start === start && previous.end === end ? previous : { start, end }
-         );
+         setRange((previous) => {
+            if (!force && previous.end <= count) {
+               const topSafe = previous.start === 0 || visibleStart >= previous.start + margin;
+               const bottomSafe = previous.end === count || visibleEnd <= previous.end - margin;
+               if (
+                  topSafe &&
+                  bottomSafe &&
+                  previous.start <= visibleStart &&
+                  previous.end >= visibleEnd
+               ) {
+                  return previous;
+               }
+            }
+            const start = Math.max(0, visibleStart - effectiveOverscan);
+            const end = Math.min(count, visibleEnd + effectiveOverscan);
+            return previous.start === start && previous.end === end ? previous : { start, end };
+         });
       };
-      update();
-      element.addEventListener('scroll', update, { passive: true });
-      element.addEventListener('scrollend', update, { passive: true });
-      const observer = new ResizeObserver(update);
+      const onScroll = () => update(false);
+      update(true);
+      element.addEventListener('scroll', onScroll, { passive: true });
+      element.addEventListener('scrollend', onScroll, { passive: true });
+      const observer = new ResizeObserver(onScroll);
       observer.observe(element);
       return () => {
-         element.removeEventListener('scroll', update);
-         element.removeEventListener('scrollend', update);
+         element.removeEventListener('scroll', onScroll);
+         element.removeEventListener('scrollend', onScroll);
          observer.disconnect();
       };
    }, [count, rowHeight, overscan]);

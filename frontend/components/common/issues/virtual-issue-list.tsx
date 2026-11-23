@@ -239,11 +239,17 @@ export function VirtualIssueList({
    onDropFor,
    empty,
    footer,
+   loadingMore = false,
+   tailLoader,
 }: {
    groups: VirtualListGroup[];
    onDropFor: (groupId: string) => (issue: Issue) => void;
    empty?: ReactNode;
    footer?: ReactNode;
+   /** True while background task pages are still arriving from the server. */
+   loadingMore?: boolean;
+   /** Rendered below the list while `loadingMore` or while buffered touch items wait to flush. */
+   tailLoader?: ReactNode;
 }) {
    const scrollRef = useRef<HTMLDivElement>(null);
    const listRef = useRef<HTMLDivElement>(null);
@@ -301,6 +307,7 @@ export function VirtualIssueList({
       items: ListItem[];
       offsets: Float64Array;
       overscan: number;
+      loadingMore: boolean;
    } | null>(null);
    const lastProgrammaticScrollTopRef = useRef<number | null>(null);
 
@@ -340,7 +347,7 @@ export function VirtualIssueList({
    // batches never jump the viewport into unmounted spacer space.
    useLayoutEffect(() => {
       const prev = prevSnapshotRef.current;
-      prevSnapshotRef.current = { items: activeItems, offsets, overscan };
+      prevSnapshotRef.current = { items: activeItems, offsets, overscan, loadingMore };
       offsetsRef.current = offsets;
       overscanRef.current = overscan;
       marginRef.current = margin;
@@ -352,19 +359,43 @@ export function VirtualIssueList({
       let scrollTop = el.scrollTop;
       const listTop = measureListTop(el, list);
       const viewportHeight = el.clientHeight || INITIAL_VIEWPORT_HEIGHT;
+      let stayedAtTail = false;
 
       if (prev && prev.items !== activeItems && scrollTop > 0 && activeItems.length > 0) {
          const prevViewTop = Math.max(0, scrollTop - listTop);
-         const anchor = findAnchor(prev.items, prev.offsets, prevViewTop, viewportHeight);
-         if (anchor) {
-            const newIndex = activeItems.findIndex((entry) => entry.key === anchor.key);
-            if (newIndex !== -1) {
-               const newTop = offsets[newIndex] ?? 0;
-               const target = Math.max(0, newTop + listTop - anchor.offset);
-               if (Math.abs(target - scrollTop) > 1) {
-                  el.scrollTop = target;
-                  scrollTop = el.scrollTop;
-                  lastProgrammaticScrollTopRef.current = scrollTop;
+         const prevTotalHeight = prev.offsets[prev.items.length] ?? 0;
+         const prevViewBottom = prevViewTop + viewportHeight;
+         const tailGracePx = Math.max(
+            ROW_HEIGHT_REM * rem * 4,
+            Math.min(280, viewportHeight * 0.4)
+         );
+         const addedCount = activeItems.length - prev.items.length;
+         // When a person already scrolled down to the tail of a loading list
+         // (looking at the end / loader waiting for more tasks), keep scrollTop
+         // where it is so newly loaded items continue below them instead of
+         // chasing a late-group row (e.g. Done/Cancelled) to the bottom of the
+         // newly expanded list and skipping everything loaded above it.
+         const isBulkAppend = loadingMore || prev.loadingMore || addedCount >= 20;
+         const wasAtTail =
+            addedCount > 0 &&
+            isBulkAppend &&
+            prevTotalHeight > 0 &&
+            prevViewBottom >= prevTotalHeight - tailGracePx;
+
+         if (wasAtTail) {
+            stayedAtTail = true;
+         } else {
+            const anchor = findAnchor(prev.items, prev.offsets, prevViewTop, viewportHeight);
+            if (anchor) {
+               const newIndex = activeItems.findIndex((entry) => entry.key === anchor.key);
+               if (newIndex !== -1) {
+                  const newTop = offsets[newIndex] ?? 0;
+                  const target = Math.max(0, newTop + listTop - anchor.offset);
+                  if (Math.abs(target - scrollTop) > 1) {
+                     el.scrollTop = target;
+                     scrollTop = el.scrollTop;
+                     lastProgrammaticScrollTopRef.current = scrollTop;
+                  }
                }
             }
          }
@@ -378,13 +409,13 @@ export function VirtualIssueList({
          viewportHeight,
          overscan,
          margin,
-         overscanChanged ? null : rangeRef.current
+         overscanChanged || stayedAtTail ? null : rangeRef.current
       );
       if (next.start !== rangeRef.current.start || next.end !== rangeRef.current.end) {
          rangeRef.current = next;
          setRange(next);
       }
-   }, [activeItems, offsets, overscan, margin]);
+   }, [activeItems, offsets, overscan, margin, rem, loadingMore]);
 
    // Track scroll, resize, and touch momentum gestures on the scroll container.
    useEffect(() => {
@@ -535,6 +566,9 @@ export function VirtualIssueList({
       );
    };
 
+   const hasPendingItems = frozenItems !== null && items.length > frozenItems.length;
+   const showTailLoader = (loadingMore || hasPendingItems) && tailLoader !== undefined;
+
    return (
       // `overscroll-contain`: the list sits inside the shell's own scroller,
       // and on an iPhone a fling that reached the end chained into it and
@@ -575,6 +609,7 @@ export function VirtualIssueList({
                <div aria-hidden style={spacerStyle(bottomSpacerHeight)} />
             ) : null}
          </div>
+         {showTailLoader ? tailLoader : null}
          {footer}
       </div>
    );

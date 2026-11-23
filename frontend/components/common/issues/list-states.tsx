@@ -96,9 +96,12 @@ const TAIL_SKELETON_ROWS = [
    { width: 'w-1/2 max-w-72', opacity: 'opacity-25' },
 ] as const;
 
+const TAIL_SKELETON_CARDS = ['opacity-80', 'opacity-35'] as const;
+
 /**
  * Tail loader shown while background task pages are still arriving: fading
- * row silhouettes that match the layout above, closed by Berry's pulsing mark.
+ * row or card silhouettes that match the layout above, closed by Berry's
+ * pulsing mark.
  */
 export function IssueListMoreLoader({ mode = 'list', label }: { mode?: ViewType; label: string }) {
    if (mode === 'grid') {
@@ -106,10 +109,33 @@ export function IssueListMoreLoader({ mode = 'list', label }: { mode?: ViewType;
          <div
             role="status"
             aria-live="polite"
-            className="flex h-10 items-center justify-center gap-2 text-muted-foreground"
+            className="flex shrink-0 flex-col gap-1.5 animate-[berry-row-in_140ms_ease-out]"
          >
-            <BerryMark size="sm" tone="brand" pulse />
-            <span>{label}</span>
+            <div aria-hidden className="flex flex-col gap-1.5">
+               {TAIL_SKELETON_CARDS.map((opacity, index) => (
+                  <div
+                     key={index}
+                     className={cn(
+                        'flex flex-col gap-2 rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2.5',
+                        opacity
+                     )}
+                  >
+                     <div className="flex items-center justify-between gap-2">
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-3 w-10" />
+                     </div>
+                     <Skeleton className="h-3 w-full" />
+                     <Skeleton className="h-3 w-2/3" />
+                     <div className="flex justify-end pt-1">
+                        <Skeleton className="size-5 rounded-full" />
+                     </div>
+                  </div>
+               ))}
+            </div>
+            <div className="flex h-10 items-center justify-center gap-2 text-muted-foreground">
+               <BerryMark size="sm" tone="brand" pulse />
+               <span>{label}</span>
+            </div>
          </div>
       );
    }

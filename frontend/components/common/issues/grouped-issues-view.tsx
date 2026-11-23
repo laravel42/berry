@@ -373,6 +373,7 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                               issues={entry.issues}
                               count={entry.issues.length}
                               onDropIssue={dropFor(entry.group.id)}
+                              loadingMore={loadingMore}
                            />
                         ))}
                         {manuallyHidden.length + emptied.length > 0 && (
@@ -389,12 +390,9 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
                            (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
                      </div>
                   </div>
-                  {(showFooter || loadingMore) && (
+                  {showFooter && (
                      <div className="shrink-0 border-t bg-container">
-                        {loadingMore ? (
-                           <IssueListMoreLoader mode="grid" label={tTasks('loadingMore')} />
-                        ) : null}
-                        {showFooter ? <HiddenByFiltersFooter hiddenCount={hiddenCount} /> : null}
+                        <HiddenByFiltersFooter hiddenCount={hiddenCount} />
                      </div>
                   )}
                </div>
@@ -406,13 +404,8 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    /* -------------------------------- List ------------------------------- */
    const listGroups = groupsForDisplay(groups, showEmptyGroups);
    const listFooter =
-      loadingMore || (showFooter && listGroups.length > 0) ? (
-         <>
-            {loadingMore ? <IssueListMoreLoader mode="list" label={tTasks('loadingMore')} /> : null}
-            {showFooter && listGroups.length > 0 ? (
-               <HiddenByFiltersFooter hiddenCount={hiddenCount} />
-            ) : null}
-         </>
+      showFooter && listGroups.length > 0 ? (
+         <HiddenByFiltersFooter hiddenCount={hiddenCount} />
       ) : null;
 
    return (
@@ -420,6 +413,8 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
          <VirtualIssueList
             groups={listGroups}
             onDropFor={dropFor}
+            loadingMore={loadingMore}
+            tailLoader={<IssueListMoreLoader mode="list" label={tTasks('loadingMore')} />}
             empty={
                !loadingMore && listGroups.length === 0 ? (
                   hasActiveFilters ? (

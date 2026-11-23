@@ -201,7 +201,7 @@ function IssueGridCard({
    }, [isOver]);
 
    return (
-      <div ref={cardRef} className="relative">
+      <div ref={cardRef} className="relative shrink-0 animate-[berry-row-in_140ms_ease-out]">
          {isOver && dropEdge === 'top' ? (
             <div className="pointer-events-none absolute inset-x-1 top-0 z-20 h-0.5 -translate-y-1/2 rounded-full bg-primary" />
          ) : null}
