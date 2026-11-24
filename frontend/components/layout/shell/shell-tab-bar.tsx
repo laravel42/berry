@@ -1,6 +1,6 @@
 'use client';
 
-import { forwardRef, useState } from 'react';
+import { forwardRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -22,20 +22,14 @@ const iconOf = (id: ShellRoute) => shellRoute(id)?.icon ?? '';
 
 const tab = [
    'relative flex min-h-11 min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1',
-   'transition-colors hover:text-[var(--shell-text)]',
+   'transition-colors',
    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]',
    'disabled:cursor-not-allowed disabled:opacity-40',
 ].join(' ');
-const tone = (on: boolean) => (on ? 'text-[var(--shell-text)]' : 'text-[var(--shell-text-muted)]');
-// The selected tab's content rises 3px with the pill. Berry on the pill is
-// about 4.1:1 (light) and 3.3:1 (dark), under the 4.5:1 text needs, so only
-// the icon takes Berry; the label keeps the shell text colour.
-const rise = (on: boolean) =>
-   cn(
-      'transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
-      on && '-translate-y-[3px]'
-   );
-const glyph = (on: boolean) => cn('flex', on && 'text-[var(--shell-accent)]');
+const tone = (on: boolean) =>
+   on
+      ? 'text-[var(--shell-accent)]'
+      : 'text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]';
 // No gap and leading-none: the label sits directly under the icon. Its size
 // comes from [data-tab-bar] in globals.css (components may not set text-*).
 const inner = 'flex flex-col items-center leading-none';
@@ -50,8 +44,8 @@ const inner = 'flex flex-col items-center leading-none';
  * window the way the launcher did; More opens the rail as an overlay and
  * takes focus back when it closes (the ref is the shell's).
  *
- * The selected tab is raised: its content lifts 3px on a rounded, Berry-tinted
- * pill that glides from tab to tab and fades out when no tab is selected.
+ * The selected tab is marked in Berry red on its icon and label without a
+ * button container behind it.
  */
 export const ShellTabBar = forwardRef<
    HTMLButtonElement,
@@ -79,7 +73,7 @@ export const ShellTabBar = forwardRef<
         ? t('chat.openUnread', { count: chatUnread })
         : t('chat.open');
    const onInbox = pathname.startsWith(`/${orgId}/inbox`);
-   // One tab is raised: More, then Agents, then the route; -1 is none.
+   // One tab is active: More, then Agents, then the route; -1 is none.
    const selected = menuOpen
       ? 4
       : chatOpen
@@ -91,9 +85,6 @@ export const ShellTabBar = forwardRef<
             : active === 'projects'
               ? 2
               : -1;
-   // With nothing selected the pill fades where it was instead of sliding home.
-   const [shown, setShown] = useState(Math.max(selected, 0));
-   if (selected >= 0 && selected !== shown) setShown(selected);
 
    return (
       <nav
@@ -102,36 +93,14 @@ export const ShellTabBar = forwardRef<
          aria-label={t('tabs.label')}
          className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] items-stretch border-t border-[var(--shell-line)] bg-[var(--shell-rail)] pb-[env(safe-area-inset-bottom)] md:hidden"
       >
-         <div
-            aria-hidden="true"
-            data-tab-pill
-            className={cn(
-               'pointer-events-none absolute inset-x-0 top-0 h-[var(--shell-tabbar-h)] transition-opacity duration-150',
-               selected < 0 && 'opacity-0'
-            )}
-         >
-            <div
-               className="h-full w-1/5 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none"
-               style={{ transform: `translateX(${shown * 100}%)` }}
-            >
-               <div
-                  className="absolute inset-x-0.5 inset-y-1 -translate-y-[3px] rounded-xl border"
-                  style={{
-                     background: 'var(--shell-tab-pill-bg)',
-                     borderColor: 'var(--shell-tab-pill-border)',
-                     boxShadow: 'var(--shell-tab-pill-shadow)',
-                  }}
-               />
-            </div>
-         </div>
          <Link
             prefetch={false}
             href={`/${orgId}/inbox`}
             aria-current={onInbox ? 'page' : undefined}
             className={cn(tab, tone(selected === 0))}
          >
-            <span className={cn(inner, rise(selected === 0))}>
-               <span className={glyph(selected === 0)}>
+            <span className={inner}>
+               <span className="flex">
                   <ShellIcon path={INBOX_ICON} size={20} />
                </span>
                {t('nav.inbox')}
@@ -140,10 +109,7 @@ export const ShellTabBar = forwardRef<
                <span
                   data-figure
                   data-tab-badge
-                  className={cn(
-                     'absolute top-2 left-1/2 ml-2 text-[var(--shell-accent)]',
-                     rise(selected === 0)
-                  )}
+                  className="absolute top-2 left-1/2 ml-2 text-[var(--shell-accent)]"
                >
                   <span aria-hidden="true">{badgeText(inboxUnread)}</span>
                   <span className="sr-only">
@@ -158,8 +124,8 @@ export const ShellTabBar = forwardRef<
             aria-current={active === 'issues' ? 'page' : undefined}
             className={cn(tab, tone(selected === 1))}
          >
-            <span className={cn(inner, rise(selected === 1))}>
-               <span className={glyph(selected === 1)}>
+            <span className={inner}>
+               <span className="flex">
                   <ShellIcon path={iconOf('issues')} size={20} />
                </span>
                {t('nav.tasks')}
@@ -171,8 +137,8 @@ export const ShellTabBar = forwardRef<
             aria-current={active === 'projects' ? 'page' : undefined}
             className={cn(tab, tone(selected === 2))}
          >
-            <span className={cn(inner, rise(selected === 2))}>
-               <span className={glyph(selected === 2)}>
+            <span className={inner}>
+               <span className="flex">
                   <ShellIcon path={iconOf('projects')} size={20} />
                </span>
                {t('nav.projects')}
@@ -189,8 +155,8 @@ export const ShellTabBar = forwardRef<
             aria-expanded={chatOpen}
             className={cn(tab, tone(selected === 3))}
          >
-            <span className={cn(inner, rise(selected === 3))}>
-               <span className={cn('relative', glyph(selected === 3))}>
+            <span className={inner}>
+               <span className="relative flex">
                   <SparkIcon className="size-5" />
                   {chatUnread > 0 && !chatOpen ? (
                      <span
@@ -210,8 +176,8 @@ export const ShellTabBar = forwardRef<
             aria-controls="shell-rail"
             className={cn(tab, tone(selected === 4))}
          >
-            <span className={cn(inner, rise(selected === 4))}>
-               <span className={glyph(selected === 4)}>
+            <span className={inner}>
+               <span className="flex">
                   <Menu size={20} strokeWidth={1.6} aria-hidden="true" />
                </span>
                {t('tabs.more')}
