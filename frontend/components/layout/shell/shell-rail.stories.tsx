@@ -145,10 +145,18 @@ export const WithBadges: Story = {
 
 export const WorkspaceMenu: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
+      await expect(canvas.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+         'href',
+         '/elian/settings'
+      );
+      await expect(canvas.getByRole('button', { name: 'Log out' })).toBeVisible();
       await userEvent.click(canvas.getByRole('button', { name: 'Workspace menu' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByRole('menuitem', { name: 'Switch workspace' })).toBeVisible();
-      await expect(body.getByRole('menuitem', { name: /Log out/ })).toBeVisible();
+      await expect(await body.findByRole('menuitem', { name: /Elian/ })).toHaveAttribute(
+         'data-active',
+         'true'
+      );
+      await expect(body.getByRole('menuitem', { name: 'Create workspace' })).toBeVisible();
    },
 };
 

@@ -4,7 +4,9 @@ import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Layers, MessageSquare, Play, Search, Settings, X } from 'lucide-react';
+import { Layers, LogOut, MessageSquare, Play, Search, Settings, X } from 'lucide-react';
+import { useSignOut } from '@/components/auth/use-sign-out';
+import { WORKSPACE_SLUG } from '@/lib/config';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -76,11 +78,16 @@ export function ShellRail({
    ref,
 }: ShellRailProps) {
    const t = useTranslations('shell');
+   const tWorkspaces = useTranslations('navigation.workspaces');
    const { visibility, order, manageOpen, workOpen, setManageOpen, setWorkOpen } =
       useSidebarPrefsStore();
-   const role = useSessionStore((state) => state.workspace?.role);
+   const activeWorkspace = useSessionStore((state) => state.workspace);
+   const role = activeWorkspace?.role;
+   const slug = activeWorkspace?.slug || orgId || WORKSPACE_SLUG;
+   const { signOut, pending: signingOut } = useSignOut();
    const isMobile = useIsShellOverlay();
    const pathname = usePathname();
+   const onSettings = pathname === `/${slug}/settings` || pathname.startsWith(`/${slug}/settings/`);
    const openPalette = useCommandPaletteStore((state) => state.open);
    // A run that has not reached a terminal status is still going, which is what
    // the dot beside runtimes reports.
@@ -155,7 +162,7 @@ export function ShellRail({
          // is seen leaving rather than vanishing.
          inert={isMobile && !overlayOpen}
          className={[
-            'flex flex-col overflow-y-auto bg-[var(--shell-rail)]',
+            'flex h-full min-h-0 flex-col overflow-hidden bg-[var(--shell-rail)]',
             'fixed inset-y-0 left-0 z-50 max-w-[85vw] border-r border-[var(--shell-line)]',
             'w-[312px] md:w-[232px]',
             'duration-200 ease-out motion-reduce:transition-none',
@@ -167,15 +174,14 @@ export function ShellRail({
          ].join(' ')}
       >
          {settingsMode ? (
-            <ShellRailSettings orgId={orgId} trailing={closeButton} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+               <ShellRailSettings orgId={orgId} trailing={closeButton} />
+            </div>
          ) : (
             <>
-               {/* The brand opens the workspace menu, as it does throughout the app.
-             The prototype wired this row to collapse the rail, but a
-             chevrons-up-down glyph reads as a switcher everywhere else in the
-             product, and settings and log out have no other home. The rail
-             folds via the sidebar shortcut; the expand control restores it. */}
-               <div className="flex items-center gap-1 px-3 pt-2">
+               {/* The brand opens the workspace switcher directly. The rail
+                   folds via the sidebar shortcut; the expand control restores it. */}
+               <div className="flex shrink-0 items-center gap-1 px-3 pt-2">
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
                         <button
@@ -209,146 +215,191 @@ export function ShellRail({
                   {closeButton}
                </div>
 
-               {/* Search on a phone, where there is no ⌘K to press. The menu
-             goes away first, so the palette opens over the page rather than
-             over the menu. A column at `md` has the shortcut and no row. */}
-               <div className="px-3 md:hidden">
-                  <button
-                     type="button"
-                     onClick={() => {
-                        onDismiss();
-                        openPalette();
-                     }}
-                     className={`${shellNavRow(false)} w-full cursor-pointer text-left`}
-                  >
-                     <ShellNavIcon on={false}>
-                        <Search size={13} strokeWidth={2} />
-                     </ShellNavIcon>
-                     {t('rail.search')}
-                  </button>
-               </div>
+               <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                  {/* Search on a phone, where there is no ⌘K to press. The menu
+                      goes away first, so the palette opens over the page rather than
+                      over the menu. A column at `md` has the shortcut and no row. */}
+                  <div className="px-3 md:hidden">
+                     <button
+                        type="button"
+                        onClick={() => {
+                           onDismiss();
+                           openPalette();
+                        }}
+                        className={`${shellNavRow(false)} w-full cursor-pointer text-left`}
+                     >
+                        <ShellNavIcon on={false}>
+                           <Search size={13} strokeWidth={2} />
+                        </ShellNavIcon>
+                        {t('rail.search')}
+                     </button>
+                  </div>
 
-               <ShellPersonal orgId={orgId} />
+                  <ShellPersonal orgId={orgId} />
 
-               {SHELL_SECTIONS.map((section) => {
-                  const shown = partition(section.routes, section.prefsSection);
-                  const heading = section.headingKey ? t(`sections.${section.headingKey}`) : null;
-                  const list = (
-                     <ul className="flex flex-col gap-0 px-3 md:gap-1">
-                        {shown.map((route) => {
-                           const on = Boolean(route.href) && route.id === active;
-                           const className = shellNavRow(on);
-                           const inner = (
-                              <>
-                                 <ShellNavIcon on={on}>
-                                    <ShellIcon path={route.icon} size={13} />
-                                 </ShellNavIcon>
-                                 {t(`nav.${route.labelKey}`)}
-                                 {route.live === 'runs' && runsLive ? (
-                                    <span
-                                       aria-label={t('rail.runsInProgress')}
-                                       title={t('rail.runsInProgress')}
-                                       className="ml-auto size-[5px] rounded-full bg-[var(--brand-azure)] [animation:berrypulse_2s_ease-in-out_infinite] motion-reduce:animate-none"
-                                    />
-                                 ) : null}
-                              </>
-                           );
+                  {SHELL_SECTIONS.map((section) => {
+                     const shown = partition(section.routes, section.prefsSection);
+                     const heading = section.headingKey
+                        ? t(`sections.${section.headingKey}`)
+                        : null;
+                     const list = (
+                        <ul className="flex flex-col gap-0 px-3 md:gap-1">
+                           {shown.map((route) => {
+                              const on = Boolean(route.href) && route.id === active;
+                              const className = shellNavRow(on);
+                              const inner = (
+                                 <>
+                                    <ShellNavIcon on={on}>
+                                       <ShellIcon path={route.icon} size={13} />
+                                    </ShellNavIcon>
+                                    {t(`nav.${route.labelKey}`)}
+                                    {route.live === 'runs' && runsLive ? (
+                                       <span
+                                          aria-label={t('rail.runsInProgress')}
+                                          title={t('rail.runsInProgress')}
+                                          className="ml-auto size-[5px] rounded-full bg-[var(--brand-azure)] [animation:berrypulse_2s_ease-in-out_infinite] motion-reduce:animate-none"
+                                       />
+                                    ) : null}
+                                 </>
+                              );
+                              return (
+                                 <li key={route.id}>
+                                    {route.href ? (
+                                       <Link
+                                          prefetch={false}
+                                          data-shell-nav
+                                          href={`/${orgId}${route.href}`}
+                                          aria-current={on ? 'page' : undefined}
+                                          className={className}
+                                       >
+                                          {inner}
+                                       </Link>
+                                    ) : (
+                                       <span data-shell-nav className={className}>
+                                          {inner}
+                                       </span>
+                                    )}
+                                 </li>
+                              );
+                           })}
+                        </ul>
+                     );
+
+                     if (heading === null) {
+                        return <div key="primary">{list}</div>;
+                     }
+
+                     // Manage starts open for owners and admins, and for anyone
+                     // whose current page lives inside it, until they choose.
+                     // Work starts open. A choice, once made, is kept. Before
+                     // mount the stored choice is unknown, so the default shows.
+                     const activeInside = shown.some((route) => route.id === active);
+                     const manageExpanded = mounted
+                        ? (manageOpen ?? (manageOpenByDefault(role) || activeInside))
+                        : manageOpenByDefault(role) || activeInside;
+                     const workExpanded = mounted ? (workOpen ?? true) : true;
+                     const expanded =
+                        section.headingKey === 'manage' ? manageExpanded : workExpanded;
+                     return (
+                        <ShellSectionFold
+                           key={section.heading}
+                           heading={heading}
+                           open={expanded}
+                           onOpenChange={
+                              section.headingKey === 'manage' ? setManageOpen : setWorkOpen
+                           }
+                        >
+                           {list}
+                        </ShellSectionFold>
+                     );
+                  })}
+
+                  {/* Pages a phone has no other way to reach: the column has ⌘K
+                      and the Agents pill. Below `md` only. */}
+                  <div className="md:hidden">
+                     <div className="px-3 pt-2">
+                        <div
+                           data-heading="label"
+                           className="flex min-h-11 w-full items-center gap-1 px-3 py-[7px] text-left text-[var(--shell-text-dim)]"
+                        >
+                           {t('sections.more')}
+                        </div>
+                     </div>
+                     <ul className="flex flex-col gap-0 px-3">
+                        {(
+                           [
+                              { path: '/chat', label: 'chat', Icon: MessageSquare },
+                              { path: '/views', label: 'views', Icon: Layers },
+                              { path: '/runs', label: 'runs', Icon: Play },
+                           ] as const
+                        ).map(({ path, label, Icon }) => {
+                           const href = `/${orgId}${path}`;
+                           const on = pathname === href || pathname.startsWith(`${href}/`);
                            return (
-                              <li key={route.id}>
-                                 {route.href ? (
-                                    <Link
-                                       prefetch={false}
-                                       data-shell-nav
-                                       href={`/${orgId}${route.href}`}
-                                       aria-current={on ? 'page' : undefined}
-                                       className={className}
-                                    >
-                                       {inner}
-                                    </Link>
-                                 ) : (
-                                    <span data-shell-nav className={className}>
-                                       {inner}
-                                    </span>
-                                 )}
+                              <li key={path}>
+                                 <Link
+                                    prefetch={false}
+                                    data-shell-nav
+                                    href={href}
+                                    aria-current={on ? 'page' : undefined}
+                                    className={shellNavRow(on)}
+                                 >
+                                    <ShellNavIcon on={on}>
+                                       <Icon size={13} strokeWidth={2} />
+                                    </ShellNavIcon>
+                                    {t(`nav.${label}`)}
+                                 </Link>
                               </li>
                            );
                         })}
                      </ul>
-                  );
-
-                  if (heading === null) {
-                     return <div key="primary">{list}</div>;
-                  }
-
-                  // Manage starts open for owners and admins, and for anyone
-                  // whose current page lives inside it, until they choose.
-                  // Work starts open. A choice, once made, is kept. Before
-                  // mount the stored choice is unknown, so the default shows.
-                  const activeInside = shown.some((route) => route.id === active);
-                  const manageExpanded = mounted
-                     ? (manageOpen ?? (manageOpenByDefault(role) || activeInside))
-                     : manageOpenByDefault(role) || activeInside;
-                  const workExpanded = mounted ? (workOpen ?? true) : true;
-                  const expanded = section.headingKey === 'manage' ? manageExpanded : workExpanded;
-                  return (
-                     <ShellSectionFold
-                        key={section.heading}
-                        heading={heading}
-                        open={expanded}
-                        onOpenChange={section.headingKey === 'manage' ? setManageOpen : setWorkOpen}
-                     >
-                        {list}
-                     </ShellSectionFold>
-                  );
-               })}
-
-               {/* Pages a phone has no other way to reach: the column has ⌘K,
-             the Agents pill and the workspace menu. Below `md` only. */}
-               <div className="md:hidden">
-                  <div className="px-3 pt-2">
-                     <div
-                        data-heading="label"
-                        className="flex min-h-11 w-full items-center gap-1 px-3 py-[7px] text-left text-[var(--shell-text-dim)]"
-                     >
-                        {t('sections.more')}
-                     </div>
                   </div>
-                  <ul className="flex flex-col gap-0 px-3">
-                     {(
-                        [
-                           { path: '/chat', label: 'chat', Icon: MessageSquare },
-                           { path: '/views', label: 'views', Icon: Layers },
-                           { path: '/runs', label: 'runs', Icon: Play },
-                           { path: '/settings', label: 'settings', Icon: Settings },
-                        ] as const
-                     ).map(({ path, label, Icon }) => {
-                        const href = `/${orgId}${path}`;
-                        const on = pathname === href || pathname.startsWith(`${href}/`);
-                        return (
-                           <li key={path}>
-                              <Link
-                                 prefetch={false}
-                                 data-shell-nav
-                                 href={href}
-                                 aria-current={on ? 'page' : undefined}
-                                 className={shellNavRow(on)}
-                              >
-                                 <ShellNavIcon on={on}>
-                                    <Icon size={13} strokeWidth={2} />
-                                 </ShellNavIcon>
-                                 {t(`nav.${label}`)}
-                              </Link>
-                           </li>
-                        );
-                     })}
-                  </ul>
+
+                  {/* Pins are shortcuts into the work, so they belong to the main
+                      rail only; the settings rail lists settings pages and nothing else. */}
+                  <ShellPins orgId={orgId} />
                </div>
             </>
          )}
 
-         {/* Pins are shortcuts into the work, so they belong to the main
-             rail only; the settings rail lists settings pages and nothing else. */}
-         {settingsMode ? null : <ShellPins orgId={orgId} />}
+         {/* Settings and Log out stay anchored at the bottom of the rail so they
+             sit flush at the bottom even on very tall screens. */}
+         <div
+            data-shell-rail-footer
+            className="mt-auto shrink-0 border-t border-[var(--shell-line)] px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-3"
+         >
+            <ul className="flex flex-col gap-0 md:gap-1">
+               {!settingsMode ? (
+                  <li>
+                     <Link
+                        prefetch={false}
+                        data-shell-nav
+                        href={`/${slug}/settings`}
+                        aria-current={onSettings ? 'page' : undefined}
+                        className={shellNavRow(onSettings)}
+                     >
+                        <ShellNavIcon on={onSettings}>
+                           <Settings size={13} strokeWidth={2} />
+                        </ShellNavIcon>
+                        {t('nav.settings')}
+                     </Link>
+                  </li>
+               ) : null}
+               <li>
+                  <button
+                     type="button"
+                     disabled={signingOut}
+                     onClick={() => void signOut()}
+                     className={`${shellNavRow(false)} w-full cursor-pointer text-left disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                     <ShellNavIcon on={false}>
+                        <LogOut size={13} strokeWidth={2} />
+                     </ShellNavIcon>
+                     {tWorkspaces('logOut')}
+                  </button>
+               </li>
+            </ul>
+         </div>
       </nav>
    );
 }

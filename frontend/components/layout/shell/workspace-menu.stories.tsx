@@ -45,9 +45,11 @@ export const SwitchWorkspace: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Workspace menu' }));
       const body = within(canvasElement.ownerDocument.body);
-      await userEvent.click(await body.findByRole('menuitem', { name: 'Switch workspace' }));
       await expect(await body.findByLabelText('Circle Labs has unread items')).toBeVisible();
-      await expect(body.getByRole('menuitem', { name: /Elian/ })).toHaveAttribute('data-disabled');
+      await expect(body.getByRole('menuitem', { name: /Elian/ })).toHaveAttribute(
+         'data-active',
+         'true'
+      );
    },
 };
 
@@ -87,9 +89,7 @@ export const Open: Story = {
    play: async ({ canvas, canvasElement, userEvent }) => {
       await userEvent.click(canvas.getByRole('button', { name: 'Workspace menu' }));
       const body = within(canvasElement.ownerDocument.body);
-      await expect(await body.findByRole('menuitem', { name: /settings/ })).toHaveAttribute(
-         'href',
-         '/elian/settings'
-      );
+      await expect(await body.findByRole('menuitem', { name: /Elian/ })).toBeVisible();
+      await expect(body.getByRole('menuitem', { name: 'Create workspace' })).toBeVisible();
    },
 };
