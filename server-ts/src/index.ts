@@ -68,6 +68,8 @@ import { GitLabSettingsRepository } from './scm/gitlab-settings.ts';
 import { PullRequestStore } from './scm/pull-requests.ts';
 import { approvalMounts } from './mounts/approvals.ts';
 import { inboxMounts } from './mounts/inbox.ts';
+import { knowledgeMounts } from './mounts/knowledge.ts';
+import { KnowledgeRepository } from './knowledge/repository.ts';
 import { workspaceReadMounts } from './mounts/workspace-reads.ts';
 import { issueTrackingRoutes } from './mounts/issue-tracking.ts';
 import { commentTrackingRoutes } from './mounts/comment-tracking.ts';
@@ -1399,6 +1401,7 @@ registry.registerAll(
    })
 );
 registry.registerAll(inboxMounts({ sessions, inbox: new InboxRepository(sql), boards, sql }));
+registry.registerAll(knowledgeMounts({ sessions, boards, knowledge: new KnowledgeRepository(sql), storage }));
 registry.registerAll(
    workspaceReadMounts({
       sessions,
