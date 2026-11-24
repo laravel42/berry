@@ -95,7 +95,7 @@ export function PageStatement({
          )}
       >
          {label || children ? (
-            <div className="flex h-10 items-center justify-between gap-4">
+            <div className="flex min-h-[52px] items-center justify-between gap-4 py-2 sm:h-[52px] sm:py-0">
                {label ? (
                   heading === 'h1' ? (
                      <h1 className="min-w-0 truncate">{label}</h1>
