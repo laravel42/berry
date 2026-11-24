@@ -222,6 +222,7 @@ export function ShellRail({
                   <div className="px-3 md:hidden">
                      <button
                         type="button"
+                        data-shell-nav
                         onClick={() => {
                            onDismiss();
                            openPalette();
@@ -388,6 +389,7 @@ export function ShellRail({
                <li>
                   <button
                      type="button"
+                     data-shell-nav
                      disabled={signingOut}
                      onClick={() => void signOut()}
                      className={`${shellNavRow(false)} w-full cursor-pointer text-left disabled:cursor-not-allowed disabled:opacity-50`}

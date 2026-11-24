@@ -1003,25 +1003,18 @@
       --text-4xl--line-height: 2.5rem;
    }
 
-   /* Rail nav items are how you get around the app, so they sit a step above
-      the text-xs default rather than reading as captions beside their icons.
-      Marked with `data-shell-nav` in shell-rail.tsx and shell-rail-settings.tsx
-      -- the rail is hand-built markup with no shared nav primitive to hang this
-      off, and a structural selector would break the first time a list is
-      rewrapped. Note this is the sidebar in the app: `[data-slot='sidebar']`
-      above belongs to the shadcn sidebar, which the shell does not render, so
-      its overrides do not reach here.
-
-      14px, a step above the 13px body: `--text-sm` now matches the body size
-      exactly, so it no longer sets the rail apart. Line spacing stays at the
-      1.2 the body uses.
-
-      The items size to their content (`py-1.5`, no fixed height), so the type
-      just makes the rail taller. Section headings stay at the default -- they
-      label the groups, they are not destinations. */
+   /* Rail nav items sit at `--text-base` (1.125rem) in the mobile overlay
+      drawer and step down to 1rem on the desktop column (`md` / 48rem+), where
+      1.125rem reads oversized in the 232px rail. */
    [data-shell-nav] {
       font-size: var(--text-base);
       line-height: 1.2;
+   }
+
+   @media (min-width: 48rem) {
+      [data-shell-nav] {
+         font-size: 1rem;
+      }
    }
 
    /* Tab titles match the rail's items. The strip and the rail are one piece
