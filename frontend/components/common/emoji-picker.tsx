@@ -88,18 +88,62 @@ const SHADOW_SCROLL_FIX_CSS = `
 `;
 
 /**
- * Parse a browser-computed CSS color (`rgb(...)`, `rgba(...)`, or `color(srgb ...)`)
- * into an `r, g, b` triplet without `<canvas>.getImageData()` — canvas readback
- * is blanked to pure white `(255, 255, 255)` by anti-fingerprinting protections,
- * which otherwise turns the entire dark-mode picker white-on-white.
+ * Fallback triplets matching `app/globals.css` (`:root` and `.dark`) so even
+ * if a stylesheet has not finished settling, the picker never renders with
+ * mismatched background and text contrast.
  */
-function parseRgbTriplet(computed: string): string | null {
-   const rgb = computed.match(/^rgba?\(\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)/i);
+const THEME_FALLBACK_TRIPLETS = {
+   dark: {
+      '--rgb-background': '18, 18, 20',
+      '--rgb-color': '246, 246, 247',
+      '--rgb-accent': '201, 50, 92',
+      '--rgb-input': '10, 10, 11',
+   },
+   light: {
+      '--rgb-background': '255, 255, 255',
+      '--rgb-color': '1, 1, 1',
+      '--rgb-accent': '201, 50, 92',
+      '--rgb-input': '250, 250, 250',
+   },
+} as const;
+
+type TripletTokenName = keyof typeof TRIPLET_TOKENS;
+
+/** Parse `#rgb`, `#rrggbb`, or `#rrggbbaa` into an `r, g, b` triplet. */
+function parseHexTriplet(raw: string): string | null {
+   const hex = raw.trim().replace(/^#/, '');
+   if (/^[0-9a-f]{3}$/i.test(hex)) {
+      const r = Number.parseInt(hex.charAt(0) + hex.charAt(0), 16);
+      const g = Number.parseInt(hex.charAt(1) + hex.charAt(1), 16);
+      const b = Number.parseInt(hex.charAt(2) + hex.charAt(2), 16);
+      return `${r}, ${g}, ${b}`;
+   }
+   if (/^[0-9a-f]{6}$/i.test(hex) || /^[0-9a-f]{8}$/i.test(hex)) {
+      const r = Number.parseInt(hex.slice(0, 2), 16);
+      const g = Number.parseInt(hex.slice(2, 4), 16);
+      const b = Number.parseInt(hex.slice(4, 6), 16);
+      return `${r}, ${g}, ${b}`;
+   }
+   return null;
+}
+
+/**
+ * Parse a CSS color string (`#hex`, `rgb(...)`, `rgba(...)`, or `color(srgb ...)`)
+ * into an `r, g, b` triplet without `<canvas>.getImageData()` or mutating a
+ * live DOM node's `style.color` (which WebKit can answer with the inherited
+ * `text-popover-foreground`, painting every token `#f6f6f7` on dark mode).
+ */
+function parseColorTriplet(raw: string): string | null {
+   const trimmed = raw.trim();
+   if (!trimmed) return null;
+   if (trimmed.startsWith('#')) return parseHexTriplet(trimmed);
+
+   const rgb = trimmed.match(/^rgba?\(\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)/i);
    if (rgb) {
-      const toByte = (raw: string) => {
-         const value = Number.parseFloat(raw);
+      const toByte = (part: string) => {
+         const value = Number.parseFloat(part);
          if (Number.isNaN(value)) return null;
-         const scaled = raw.endsWith('%') ? (value / 100) * 255 : value;
+         const scaled = part.endsWith('%') ? (value / 100) * 255 : value;
          return Math.max(0, Math.min(255, Math.round(scaled)));
       };
       const r = toByte(rgb[1] ?? '');
@@ -108,10 +152,10 @@ function parseRgbTriplet(computed: string): string | null {
       if (r !== null && g !== null && b !== null) return `${r}, ${g}, ${b}`;
    }
 
-   const srgb = computed.match(/^color\(\s*srgb\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)/i);
+   const srgb = trimmed.match(/^color\(\s*srgb\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)/i);
    if (srgb) {
-      const toByte = (raw: string) => {
-         const value = Number.parseFloat(raw);
+      const toByte = (part: string) => {
+         const value = Number.parseFloat(part);
          if (Number.isNaN(value)) return null;
          return Math.max(0, Math.min(255, Math.round(value * 255)));
       };
@@ -124,28 +168,74 @@ function parseRgbTriplet(computed: string): string | null {
    return null;
 }
 
-/** Resolve a CSS custom property into an `r, g, b` triplet via computed style. */
-function rgbTriplet(probe: HTMLElement, token: string): string | null {
-   probe.style.color = `var(${token})`;
-   const computed = getComputedStyle(probe).color;
-   return parseRgbTriplet(computed);
+/**
+ * Read a theme token straight off `<html>`'s computed custom properties (and
+ * follow simple `var(--x)` aliases such as `--primary: var(--pri-a)`).
+ */
+function resolveTokenTriplet(rootStyles: CSSStyleDeclaration, token: string): string | null {
+   let raw = rootStyles.getPropertyValue(token).trim();
+   for (let depth = 0; depth < 4 && raw.startsWith('var('); depth += 1) {
+      const inner = raw.match(/^var\(\s*(--[^,\s)]+)/)?.[1];
+      if (!inner) break;
+      raw = rootStyles.getPropertyValue(inner).trim();
+   }
+   return parseColorTriplet(raw);
 }
 
-/** Sync emoji-mart's theme attribute and CSS custom properties with Berry's active theme. */
-function applyPickerTheme(container: HTMLElement, picker: HTMLElement) {
+/** Sync emoji-mart's host variables and shadow-root theme stylesheet with Berry's active theme. */
+function applyPickerTheme(picker: HTMLElement, themeStyle: HTMLStyleElement | null) {
    const dark = document.documentElement.classList.contains('dark');
    const theme = dark ? 'dark' : 'light';
+   const rootStyles = getComputedStyle(document.documentElement);
+   const fallbacks = THEME_FALLBACK_TRIPLETS[theme];
+
    picker.setAttribute('data-theme', theme);
    picker.shadowRoot?.querySelector('#root')?.setAttribute('data-theme', theme);
 
-   for (const [name, token] of Object.entries(TRIPLET_TOKENS)) {
-      const triplet = rgbTriplet(container, token);
-      if (triplet) picker.style.setProperty(name, triplet);
-      else picker.style.removeProperty(name);
+   const resolved: Record<TripletTokenName, string> = {
+      '--rgb-background':
+         resolveTokenTriplet(rootStyles, TRIPLET_TOKENS['--rgb-background']) ??
+         fallbacks['--rgb-background'],
+      '--rgb-color':
+         resolveTokenTriplet(rootStyles, TRIPLET_TOKENS['--rgb-color']) ?? fallbacks['--rgb-color'],
+      '--rgb-accent':
+         resolveTokenTriplet(rootStyles, TRIPLET_TOKENS['--rgb-accent']) ??
+         fallbacks['--rgb-accent'],
+      '--rgb-input':
+         resolveTokenTriplet(rootStyles, TRIPLET_TOKENS['--rgb-input']) ?? fallbacks['--rgb-input'],
+   };
+
+   for (const [name, triplet] of Object.entries(resolved)) {
+      picker.style.setProperty(name, triplet);
    }
-   container.style.color = '';
    for (const [name, value] of Object.entries(PLAIN_TOKENS)) {
       picker.style.setProperty(name, value);
+   }
+
+   const border = rootStyles.getPropertyValue('--border').trim() || (dark ? '#262629' : '#e6e6e6');
+   const borderOver =
+      rootStyles.getPropertyValue('--input').trim() || (dark ? '#333338' : '#d4d4d4');
+
+   if (themeStyle) {
+      themeStyle.textContent = `
+:host {
+   color-scheme: ${theme};
+   background-color: rgb(${resolved['--rgb-background']});
+   color: rgb(${resolved['--rgb-color']});
+}
+#root,
+#root[data-theme='light'],
+#root[data-theme='dark'] {
+   --em-rgb-background: ${resolved['--rgb-background']};
+   --em-rgb-color: ${resolved['--rgb-color']};
+   --em-rgb-accent: ${resolved['--rgb-accent']};
+   --em-rgb-input: ${resolved['--rgb-input']};
+   --em-color-border: ${border};
+   --em-color-border-over: ${borderOver};
+   background-color: rgb(${resolved['--rgb-background']});
+   color: rgb(${resolved['--rgb-color']});
+}
+`;
    }
 }
 
@@ -218,18 +308,23 @@ export function EmojiPicker({
                onEmojiSelect: (emoji: ChosenEmoji) => select.current(emoji.native),
             }) as unknown as HTMLElement;
 
+            let themeStyle: HTMLStyleElement | null = null;
             if (picker.shadowRoot) {
                const scrollFix = document.createElement('style');
                scrollFix.textContent = SHADOW_SCROLL_FIX_CSS;
                picker.shadowRoot.appendChild(scrollFix);
+
+               themeStyle = document.createElement('style');
+               themeStyle.setAttribute('data-berry-theme', '');
+               picker.shadowRoot.appendChild(themeStyle);
             }
 
-            applyPickerTheme(container, picker);
+            applyPickerTheme(picker, themeStyle);
             picker.style.height = '100%';
             container.replaceChildren(picker);
 
             themeObserver = new MutationObserver(() => {
-               if (picker) applyPickerTheme(container, picker);
+               if (picker) applyPickerTheme(picker, themeStyle);
             });
             themeObserver.observe(document.documentElement, {
                attributes: true,
