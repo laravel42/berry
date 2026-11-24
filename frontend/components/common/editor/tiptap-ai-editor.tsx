@@ -2,6 +2,7 @@
 
 import { EditorAiBar } from '@/components/common/editor/editor-ai-bar';
 import { formatExtensions } from '@/components/common/editor/format-extensions';
+import { SlashMenu } from '@/components/common/editor/slash-menu';
 import { Button } from '@/components/ui/button';
 import {
    Select,
@@ -67,6 +68,8 @@ interface TiptapAiEditorProps {
     * flight). Defaults to editable.
     */
    'editable'?: boolean;
+   /** Notion's "/" block menu. Off by default; the knowledge base turns it on. */
+   'slashMenu'?: boolean;
 }
 
 type TipTapEditor = NonNullable<ReturnType<typeof useEditor>>;
@@ -88,6 +91,7 @@ export function TiptapAiEditor({
    aiAssist = true,
    formatting = false,
    editable = true,
+   slashMenu = false,
 }: TiptapAiEditorProps) {
    const [aiPrompt, setAiPrompt] = useState('');
    const [aiPending, setAiPending] = useState(false);
@@ -97,6 +101,8 @@ export function TiptapAiEditor({
    const setLinkRef = useRef<() => void>(() => {});
    const onBlurRef = useRef(onBlur);
    onBlurRef.current = onBlur;
+   /** The editor, for handlers passed in before it exists. */
+   const editorRef = useRef<TipTapEditor | null>(null);
 
    const editor = useEditor({
       extensions: [
@@ -119,6 +125,29 @@ export function TiptapAiEditor({
             ...(ariaLabel ? { 'aria-label': ariaLabel } : {}),
             ...(dataHeading ? { 'data-heading': dataHeading } : {}),
          },
+         // VS Code tags what it copies with the file's language, and the code
+         // block extension turns any such paste into a code block. Markdown
+         // copied from VS Code is meant as text: it is parsed as markdown, so
+         // headings, lists and emphasis arrive as themselves. Code in any
+         // other language still lands in a code block.
+         handlePaste: (_view, event) => {
+            const current = editorRef.current;
+            const data = event.clipboardData;
+            if (!current || !data || current.isActive('codeBlock')) return false;
+            const vscode = data.getData('vscode-editor-data');
+            if (!vscode) return false;
+            let mode: unknown;
+            try {
+               mode = (JSON.parse(vscode) as { mode?: unknown }).mode;
+            } catch {
+               return false;
+            }
+            if (mode !== 'markdown') return false;
+            const text = data.getData('text/plain');
+            if (!text) return false;
+            current.chain().focus().insertContent(text).run();
+            return true;
+         },
       },
       onUpdate: ({ editor: current, transaction }) => {
          // Only a change the transaction itself made is an edit. Tiptap also
@@ -139,6 +168,8 @@ export function TiptapAiEditor({
          onBlurRef.current?.(readMarkdown(current));
       },
    });
+
+   editorRef.current = editor;
 
    useEffect(() => {
       if (!editor) return;
@@ -307,6 +338,7 @@ export function TiptapAiEditor({
                </Button>
             </FormatHint>
          </BubbleMenu>
+         {slashMenu ? <SlashMenu editor={editor} toggleCollapse={toggleCollapse} /> : null}
          <EditorContent
             editor={editor}
             className={cn(formatting ? 'min-h-24' : 'min-h-24 flex-1', aiAssist && 'pb-16')}
