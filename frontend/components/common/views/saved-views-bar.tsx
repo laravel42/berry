@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import { usePinsStore } from '@/store/pins-store';
 import { useSessionStore } from '@/store/session-store';
 import { useViewsStore } from '@/store/views-store';
-import { ChevronDown, GripVertical, MoreHorizontal, Plus, Settings2 } from 'lucide-react';
+import { ChevronDown, GripVertical, ListChecks, MoreHorizontal, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -52,6 +52,8 @@ interface ViewPreferences {
    hidden: string[];
 }
 
+const preferenceListeners = new Set<(workspaceId: string, next: ViewPreferences) => void>();
+
 function readPreferences(value: unknown): ViewPreferences {
    const record = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
    const nested =
@@ -64,40 +66,23 @@ function readPreferences(value: unknown): ViewPreferences {
    };
 }
 
-/**
- * The saved views, as tabs above a list.
- *
- * Order and visibility are one person's, not the workspace's — the same shared
- * view sits in a different place for each reader — so both live in that
- * person's view preferences on the server rather than on the view itself.
- */
-export function SavedViewsBar({
-   showCreate = true,
-}: {
-   /** False where the page already offers New view as its primary action. */
-   showCreate?: boolean;
-} = {}) {
+/** Shared order/visibility preferences for saved view tabs on the current workspace. */
+function useSavedViewPreferences() {
    const t = useTranslations('issueLists');
-   const { orgId, viewId } = useParams<{ orgId: string; viewId?: string }>();
+   const { viewId } = useParams<{ orgId: string; viewId?: string }>();
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const views = useViewsStore((state) => state.views);
-   const hydrateViews = useViewsStore((state) => state.hydrateViews);
-   const { pins, add: addPin, remove: removePin } = usePinsStore();
    const [preferences, setPreferences] = useState<ViewPreferences>({ order: [], hidden: [] });
-   const [editing, setEditing] = useState<View | undefined>();
-   const [creating, setCreating] = useState(false);
-   const [managing, setManaging] = useState(false);
-   const [deleting, setDeleting] = useState<View | undefined>();
-   const [dragging, setDragging] = useState<string | null>(null);
-   const [phone, setPhone] = useState(false);
 
    useEffect(() => {
-      const query = window.matchMedia('(max-width: 639px)');
-      const sync = () => setPhone(query.matches);
-      sync();
-      query.addEventListener('change', sync);
-      return () => query.removeEventListener('change', sync);
-   }, []);
+      const sync = (targetWorkspace: string, next: ViewPreferences) => {
+         if (targetWorkspace === workspaceId) setPreferences(next);
+      };
+      preferenceListeners.add(sync);
+      return () => {
+         preferenceListeners.delete(sync);
+      };
+   }, [workspaceId]);
 
    useEffect(() => {
       if (!workspaceId) return;
@@ -114,6 +99,7 @@ export function SavedViewsBar({
 
    const persist = (next: ViewPreferences) => {
       setPreferences(next);
+      for (const listener of preferenceListeners) listener(workspaceId, next);
       void saveViewPreferences(workspaceId, viewId ?? null, { views: next }).catch(() =>
          toast.error(t('states.loadFailed'))
       );
@@ -129,17 +115,6 @@ export function SavedViewsBar({
       return [...issueViews].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
    }, [issueViews, preferences.order]);
 
-   const visible = ordered.filter((view) => !preferences.hidden.includes(view.id));
-   const inlineTabs = phone ? PHONE_INLINE_TABS : INLINE_TABS;
-   const activeIndex = phone && viewId ? visible.findIndex((view) => view.id === viewId) : -1;
-   // On a phone the one inline tab is the active view, not always the first.
-   const shown =
-      activeIndex > 0
-         ? [visible[activeIndex]!, ...visible.filter((_, index) => index !== activeIndex)]
-         : visible;
-   const inline = shown.slice(0, inlineTabs);
-   const overflow = shown.slice(inlineTabs);
-
    const reorder = (draggedId: string, overId: string) => {
       const ids = ordered.map((view) => view.id);
       const next = ids.filter((id) => id !== draggedId);
@@ -154,6 +129,156 @@ export function SavedViewsBar({
             ? preferences.hidden.filter((entry) => entry !== id)
             : [...preferences.hidden, id],
       });
+
+   return { preferences, ordered, reorder, toggleHidden };
+}
+
+function ManageViewsDialog({
+   open,
+   onOpenChange,
+   ordered,
+   hidden,
+   onReorder,
+   onToggleHidden,
+}: {
+   open: boolean;
+   onOpenChange: (open: boolean) => void;
+   ordered: View[];
+   hidden: string[];
+   onReorder: (draggedId: string, overId: string) => void;
+   onToggleHidden: (id: string) => void;
+}) {
+   const t = useTranslations('issueLists');
+   const [dragging, setDragging] = useState<string | null>(null);
+
+   return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+         <DialogContent>
+            <DialogHeader>
+               <DialogTitle>{t('views.manageTitle')}</DialogTitle>
+               <DialogDescription>{t('views.manageHint')}</DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col">
+               {ordered.map((view) => (
+                  <div
+                     key={view.id}
+                     draggable
+                     onDragStart={() => setDragging(view.id)}
+                     onDragOver={(event) => event.preventDefault()}
+                     onDrop={() => {
+                        if (dragging && dragging !== view.id) onReorder(dragging, view.id);
+                        setDragging(null);
+                     }}
+                     className={cn(
+                        'flex items-center gap-2 border-b border-border/50 py-2',
+                        dragging === view.id && 'opacity-50'
+                     )}
+                  >
+                     <GripVertical className="size-3.5 cursor-grab text-muted-foreground" />
+                     <span aria-hidden>{view.icon}</span>
+                     <span className="flex-1 truncate">{view.name}</span>
+                     <Switch
+                        checked={!hidden.includes(view.id)}
+                        onCheckedChange={() => onToggleHidden(view.id)}
+                        aria-label={view.name}
+                     />
+                  </div>
+               ))}
+               {ordered.length === 0 ? (
+                  <p className="py-6 text-center text-muted-foreground">{t('states.empty')}</p>
+               ) : null}
+            </div>
+         </DialogContent>
+      </Dialog>
+   );
+}
+
+/**
+ * Standalone trigger for the "Order and visibility" dialog so list toolbars
+ * (such as the Views page) can place it inline beside Display options.
+ */
+export function ManageViewsButton({ iconOnly = false }: { iconOnly?: boolean }) {
+   const t = useTranslations('issueLists');
+   const { preferences, ordered, reorder, toggleHidden } = useSavedViewPreferences();
+   const [managing, setManaging] = useState(false);
+
+   return (
+      <>
+         <Button
+            size={iconOnly ? 'icon-sm' : 'xs'}
+            variant="ghost"
+            aria-label={t('views.manage')}
+            title={t('views.manage')}
+            onClick={() => setManaging(true)}
+         >
+            <ListChecks className={cn(iconOnly ? 'size-4' : 'size-3.5 sm:mr-1')} aria-hidden />
+            {iconOnly ? null : <span className="max-sm:sr-only">{t('views.manage')}</span>}
+         </Button>
+
+         <ManageViewsDialog
+            open={managing}
+            onOpenChange={setManaging}
+            ordered={ordered}
+            hidden={preferences.hidden}
+            onReorder={reorder}
+            onToggleHidden={toggleHidden}
+         />
+      </>
+   );
+}
+
+/**
+ * The saved views, as tabs above a list.
+ *
+ * Order and visibility are one person's, not the workspace's — the same shared
+ * view sits in a different place for each reader — so both live in that
+ * person's view preferences on the server rather than on the view itself.
+ */
+export function SavedViewsBar({
+   showCreate = true,
+   showManage = true,
+}: {
+   /** False where the page already offers New view as its primary action. */
+   showCreate?: boolean;
+   /** False where the toolbar below already places the Order and visibility trigger inline. */
+   showManage?: boolean;
+} = {}) {
+   const t = useTranslations('issueLists');
+   const { orgId, viewId } = useParams<{ orgId: string; viewId?: string }>();
+   const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
+   const views = useViewsStore((state) => state.views);
+   const hydrateViews = useViewsStore((state) => state.hydrateViews);
+   const { pins, add: addPin, remove: removePin } = usePinsStore();
+   const { preferences, ordered, reorder, toggleHidden } = useSavedViewPreferences();
+   const [editing, setEditing] = useState<View | undefined>();
+   const [creating, setCreating] = useState(false);
+   const [managing, setManaging] = useState(false);
+   const [deleting, setDeleting] = useState<View | undefined>();
+   const [dragging, setDragging] = useState<string | null>(null);
+   const [phone, setPhone] = useState(false);
+
+   useEffect(() => {
+      const query = window.matchMedia('(max-width: 639px)');
+      const sync = () => setPhone(query.matches);
+      sync();
+      query.addEventListener('change', sync);
+      return () => query.removeEventListener('change', sync);
+   }, []);
+
+   const visible = ordered.filter((view) => !preferences.hidden.includes(view.id));
+   const inlineTabs = phone ? PHONE_INLINE_TABS : INLINE_TABS;
+   const activeIndex = phone && viewId ? visible.findIndex((view) => view.id === viewId) : -1;
+   // On a phone the one inline tab is the active view, not always the first.
+   const shown =
+      activeIndex > 0
+         ? [visible[activeIndex]!, ...visible.filter((_, index) => index !== activeIndex)]
+         : visible;
+   const inline = shown.slice(0, inlineTabs);
+   const overflow = shown.slice(inlineTabs);
+
+   if (inline.length === 0 && overflow.length === 0 && !showCreate && !showManage) {
+      return null;
+   }
 
    const togglePin = (view: View) => {
       const pin = pins.find((entry) => entry.targetType === 'view' && entry.targetId === view.id);
@@ -271,28 +396,34 @@ export function SavedViewsBar({
                ) : null}
             </div>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-               <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label={t('views.manage')}
-                  onClick={() => setManaging(true)}
-               >
-                  <Settings2 className="size-3.5 sm:mr-1" />
-                  <span className="max-sm:sr-only">{t('views.manage')}</span>
-               </Button>
-               {showCreate ? (
-                  <Button
-                     size="xs"
-                     variant="ghost"
-                     aria-label={t('views.newView')}
-                     onClick={() => setCreating(true)}
-                  >
-                     <Plus className="size-3.5 sm:mr-1" />
-                     <span className="max-sm:sr-only">{t('views.newView')}</span>
-                  </Button>
-               ) : null}
-            </div>
+            {showManage || showCreate ? (
+               <div className="ml-auto flex shrink-0 items-center gap-1">
+                  {showManage ? (
+                     <Button
+                        size="xs"
+                        variant="ghost"
+                        aria-label={t('views.manage')}
+                        title={t('views.manage')}
+                        onClick={() => setManaging(true)}
+                     >
+                        <ListChecks className="size-3.5 sm:mr-1" aria-hidden />
+                        <span className="max-sm:sr-only">{t('views.manage')}</span>
+                     </Button>
+                  ) : null}
+                  {showCreate ? (
+                     <Button
+                        size="xs"
+                        variant="ghost"
+                        aria-label={t('views.newView')}
+                        title={t('views.newView')}
+                        onClick={() => setCreating(true)}
+                     >
+                        <Plus className="size-3.5 sm:mr-1" aria-hidden />
+                        <span className="max-sm:sr-only">{t('views.newView')}</span>
+                     </Button>
+                  ) : null}
+               </div>
+            ) : null}
          </div>
 
          <SaveViewDialog open={creating} onOpenChange={setCreating} />
@@ -304,44 +435,14 @@ export function SavedViewsBar({
             view={editing}
          />
 
-         <Dialog open={managing} onOpenChange={setManaging}>
-            <DialogContent>
-               <DialogHeader>
-                  <DialogTitle>{t('views.manageTitle')}</DialogTitle>
-                  <DialogDescription>{t('views.manageHint')}</DialogDescription>
-               </DialogHeader>
-               <div className="flex flex-col">
-                  {ordered.map((view) => (
-                     <div
-                        key={view.id}
-                        draggable
-                        onDragStart={() => setDragging(view.id)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => {
-                           if (dragging && dragging !== view.id) reorder(dragging, view.id);
-                           setDragging(null);
-                        }}
-                        className={cn(
-                           'flex items-center gap-2 border-b border-border/50 py-2',
-                           dragging === view.id && 'opacity-50'
-                        )}
-                     >
-                        <GripVertical className="size-3.5 cursor-grab text-muted-foreground" />
-                        <span aria-hidden>{view.icon}</span>
-                        <span className="flex-1 truncate">{view.name}</span>
-                        <Switch
-                           checked={!preferences.hidden.includes(view.id)}
-                           onCheckedChange={() => toggleHidden(view.id)}
-                           aria-label={view.name}
-                        />
-                     </div>
-                  ))}
-                  {ordered.length === 0 ? (
-                     <p className="py-6 text-center text-muted-foreground">{t('states.empty')}</p>
-                  ) : null}
-               </div>
-            </DialogContent>
-         </Dialog>
+         <ManageViewsDialog
+            open={managing}
+            onOpenChange={setManaging}
+            ordered={ordered}
+            hidden={preferences.hidden}
+            onReorder={reorder}
+            onToggleHidden={toggleHidden}
+         />
 
          <AlertDialog
             open={deleting !== undefined}

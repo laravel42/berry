@@ -43,6 +43,7 @@ import { parseAsStringLiteral, useQueryState } from 'nuqs';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { SaveViewDialog } from './save-view-dialog';
+import { ManageViewsButton } from './saved-views-bar';
 import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const TABS = ['issues', 'projects'] as const;
@@ -72,8 +73,13 @@ function DisplayOptions() {
    return (
       <Popover>
          <PopoverTrigger asChild>
-            <Button size="icon-sm" variant="ghost" aria-label="Display options">
-               <SlidersHorizontal className="size-4" />
+            <Button
+               size="icon-sm"
+               variant="ghost"
+               aria-label="Display options"
+               title="Display options"
+            >
+               <SlidersHorizontal className="size-4" aria-hidden />
             </Button>
          </PopoverTrigger>
          <PopoverContent align="end" className="w-72 p-3 flex flex-col gap-3">
@@ -242,7 +248,7 @@ export default function Views() {
 
    return (
       <div className="w-full h-full overflow-y-auto">
-         <div className="flex items-center justify-between px-6 pt-3 pb-2">
+         <div className="flex items-center justify-between gap-2 px-6 pt-3 pb-2">
             <SegmentedControl
                aria-label="View type"
                options={TABS.map((value) => ({
@@ -252,7 +258,10 @@ export default function Views() {
                value={tab}
                onValueChange={(next) => void setTab(next)}
             />
-            <DisplayOptions />
+            <div className="flex items-center gap-1">
+               <ManageViewsButton iconOnly />
+               <DisplayOptions />
+            </div>
          </div>
 
          <div

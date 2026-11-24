@@ -32,7 +32,7 @@ export default function Header() {
                {t('newView')}
             </Button>
          </PageStatement>
-         <SavedViewsBar showCreate={false} />
+         <SavedViewsBar showCreate={false} showManage={false} />
          <SaveViewDialog open={creating} onOpenChange={setCreating} />
       </div>
    );
