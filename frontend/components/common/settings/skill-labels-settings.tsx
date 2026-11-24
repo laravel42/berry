@@ -126,7 +126,7 @@ export default function SkillLabelsSettings() {
                value={query}
                onChange={setQuery}
             />
-            <div className="flex shrink-0 items-center gap-2 max-sm:basis-full">
+            <div className="flex shrink-0 items-center gap-2 max-sm:min-w-0 max-sm:flex-1">
                <Input
                   placeholder={t('newLabel')}
                   aria-label={t('newLabel')}

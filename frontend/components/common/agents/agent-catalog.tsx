@@ -22,7 +22,7 @@ import {
    CommandItem,
    CommandList,
 } from '@/components/ui/command';
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { loadWorkspaceAgents } from '@/lib/agents';
 import {
@@ -170,14 +170,7 @@ function AgentCatalogScreen() {
    const header = (
       <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5">
          <PageBackTitle href={`/${orgId}/agents`} backLabel={t('back')} title={t('title')} />
-         <Input
-            variant="search"
-            className="w-64 max-sm:w-full"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('search')}
-            aria-label={t('search')}
-         />
+         <ToolbarSearch label={t('search')} value={query} onChange={setQuery} />
          <DepartmentMultiselect
             options={departmentOptions}
             value={departments}

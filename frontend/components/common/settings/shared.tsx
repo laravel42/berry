@@ -15,7 +15,7 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { selectTriggerClass } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -479,31 +479,28 @@ export function SettingsIconButton({
    );
 }
 
-/** The list filter above a settings list: the app's search field. */
+/**
+ * The list filter above a settings list: the shared toolbar search, a field
+ * from `sm` up and an icon that opens it on a phone. The row it sits in must
+ * wrap (`flex-wrap`).
+ */
 export function SettingsSearch({
    value,
    onChange,
    placeholder,
    className,
-   'aria-label': ariaLabel,
 }: {
-   'value': string;
-   'onChange': (value: string) => void;
-   'placeholder': string;
-   'className'?: string;
-   'aria-label'?: string;
+   value: string;
+   onChange: (value: string) => void;
+   placeholder: string;
+   className?: string;
 }) {
    return (
-      <Input
-         variant="search"
-         // Not type="search": globals.css pins that type to 16px.
-         type="text"
-         role="searchbox"
+      <ToolbarSearch
+         label={placeholder}
          value={value}
-         onChange={(event) => onChange(event.target.value)}
-         placeholder={placeholder}
-         aria-label={ariaLabel ?? placeholder}
-         className={cn('min-w-0 flex-1', className)}
+         onChange={onChange}
+         className={cn('min-w-0 flex-1 max-sm:basis-full', className)}
       />
    );
 }

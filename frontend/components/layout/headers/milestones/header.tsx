@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { useMilestonesListStore } from '@/store/milestones-list-store';
 
 function HeaderOptions() {
@@ -11,13 +11,12 @@ function HeaderOptions() {
    const setQuery = useMilestonesListStore((state) => state.setQuery);
 
    return (
-      <div className="flex h-[52px] w-full items-center border-b px-5">
-         <Input
-            variant="search"
-            className="min-w-0 flex-1"
-            placeholder={t('list.search')}
+      <div className="flex min-h-[52px] w-full flex-wrap items-center border-b px-5 py-2">
+         <ToolbarSearch
+            label={t('list.search')}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={setQuery}
+            className="min-w-0 flex-1"
          />
       </div>
    );

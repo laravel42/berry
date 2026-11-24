@@ -153,13 +153,12 @@ export function KeyboardShortcuts() {
 
    return (
       <SettingsShell compact title={t('title')} description={t('description')}>
-         <div className="flex items-center gap-2.5">
+         <div className="flex flex-wrap items-center gap-2.5">
             <SettingsSearch
                // As tall as Restore defaults beside it, so the row is level.
                className="h-auto self-stretch"
                value={search}
                onChange={setSearch}
-               aria-label={t('searchLabel')}
                placeholder={t('searchPlaceholder')}
             />
             <AlertDialog>

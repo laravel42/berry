@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAgentFilterColumns } from '@/components/common/agents/agent-filter-columns';
 import { ListFilterTrigger, useListFilters } from '@/components/common/filters/list-filters';
@@ -53,16 +53,11 @@ export default function HeaderOptions() {
    };
 
    return (
-      <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[2px]">
-         <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
-            <Input
-               variant="search"
-               className="w-64 max-sm:w-40"
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={tHeader('search')}
-               aria-label={tHeader('search')}
-            />
+      <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[2px] max-sm:gap-x-1">
+         {/* On a phone the left group dissolves into the row, so an opened
+             search can take the first line (see ToolbarSearch). */}
+         <div className="flex min-w-0 shrink flex-wrap items-center gap-2 max-sm:contents">
+            <ToolbarSearch label={tHeader('search')} value={query} onChange={setQuery} />
             <ListFilterTrigger filter={filter} />
          </div>
 

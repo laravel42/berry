@@ -11,6 +11,7 @@ import {
    DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
    installPlugin,
@@ -241,14 +242,7 @@ export default function PluginsSettings() {
             <>
                <PageKpiHeader label="Connect" />
                <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px]">
-                  <Input
-                     variant="search"
-                     className="w-64 max-sm:w-full"
-                     value={query}
-                     onChange={(event) => setQuery(event.target.value)}
-                     placeholder="Search plugins"
-                     aria-label="Search plugins"
-                  />
+                  <ToolbarSearch label="Search plugins" value={query} onChange={setQuery} />
                   <Tabs value={filter} onValueChange={(value) => setFilter(value as PluginFilter)}>
                      <TabsList aria-label="Plugin catalog">
                         {PLUGIN_FILTERS.map((value) => (
