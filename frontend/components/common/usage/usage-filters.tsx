@@ -19,23 +19,41 @@ interface Props {
    onChange: (query: UsageQuery) => void;
 }
 
+/** Window length segmented control (`7 days`, `30 days`, `90 days`). */
+export function UsageRangeControl({
+   days,
+   onChange,
+   className,
+}: {
+   days: UsageQuery['days'];
+   onChange: (days: UsageQuery['days']) => void;
+   className?: string;
+}) {
+   const t = useTranslations('areas.usage.filters');
+   return (
+      <SegmentedControl
+         aria-label={t('range')}
+         value={days}
+         onValueChange={onChange}
+         className={className}
+         options={USAGE_DAY_OPTIONS.map((option) => ({
+            value: option,
+            label: t('days', { count: option }),
+         }))}
+      />
+   );
+}
+
 /** What every usage read is asking: how far back and on which project. */
 export default function UsageFilters({ timeframe, query, onChange }: Props) {
-   const t = useTranslations('areas.usage.filters');
-
    // A 20rem basis: beside the tabs when there is room, on its own line when
    // there is not, so the range control never shrinks past its buttons.
    return (
       <div className="flex flex-[1_1_20rem] flex-wrap items-center gap-2">
          {timeframe === 'window' ? (
-            <SegmentedControl
-               aria-label={t('range')}
-               value={query.days}
-               onValueChange={(days) => onChange({ ...query, days })}
-               options={USAGE_DAY_OPTIONS.map((days) => ({
-                  value: days,
-                  label: t('days', { count: days }),
-               }))}
+            <UsageRangeControl
+               days={query.days}
+               onChange={(days) => onChange({ ...query, days })}
             />
          ) : null}
 
