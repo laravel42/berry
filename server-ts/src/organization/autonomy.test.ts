@@ -5,6 +5,7 @@ import {
    effectivePermissions,
    effectiveTools,
    INVALID_CONTRACT_TOOLS,
+   KNOWLEDGE_TOOLS,
    KNOWN_TOOLS,
    toolCeiling,
 } from './autonomy.ts';
@@ -58,12 +59,12 @@ describe('autonomy ceilings', () => {
 
    test('editing, deleting and moving a file come with writing one', () => {
       const writer = { ...base, autonomy_level: 2 as const, allowed_tools: ['write_file', 'read_file'] };
-      assert.deepEqual(effectiveTools(writer), ['delete_file', 'edit_file', 'move_file', 'read_file', 'write_file']);
+      assert.deepEqual(effectiveTools(writer), ['delete_file', 'edit_file', 'move_file', 'read_file', 'read_knowledge_page', 'search_knowledge', 'write_file']);
       const reader = effectiveTools({ ...base, allowed_tools: ['read_file'] });
       for (const tool of ['edit_file', 'delete_file', 'move_file']) assert.equal(reader.includes(tool), false, tool);
       // A ceiling without write_file has none of them, whatever the contract lists.
       const capped = effectiveTools({ ...base, autonomy_level: 1, allowed_tools: ['write_file', 'delete_file', 'move_file'] });
-      assert.deepEqual(capped, []);
+      assert.deepEqual(capped, ['read_knowledge_page', 'search_knowledge']);
    });
 
    test('effective tools are the allowed tools inside the ceiling', () => {
@@ -73,18 +74,28 @@ describe('autonomy ceilings', () => {
          'check_page',
          'check_performance',
          'create_task',
+         'read_knowledge_page',
          'read_task',
          'run_command',
+         'search_knowledge',
       ]);
    });
 
    test('the page checks come with the shell and never without it', () => {
       const noShell = { ...base, allowed_tools: ['read_task', 'create_task'] };
-      assert.deepEqual(effectiveTools(noShell), ['create_task', 'read_task']);
+      assert.deepEqual(effectiveTools(noShell), ['create_task', 'read_knowledge_page', 'read_task', 'search_knowledge']);
       // Below Level 3 the shell is out of reach, so the checks are too, even
       // when a contract names them.
       const low = { ...base, autonomy_level: 2 as const, allowed_tools: ['read_task', 'run_command'] };
-      assert.deepEqual(effectiveTools(low), ['read_task']);
+      assert.deepEqual(effectiveTools(low), ['read_knowledge_page', 'read_task', 'search_knowledge']);
+   });
+
+   test('every valid role reads the knowledge base, stored contracts included', () => {
+      // A contract stored before the knowledge base existed names neither
+      // tool; both are still reached. An unvouched contract gets neither.
+      const old = effectiveTools({ ...base, autonomy_level: 1, allowed_tools: ['read_task'] });
+      for (const tool of KNOWLEDGE_TOOLS) assert.ok(old.includes(tool), tool);
+      for (const tool of KNOWLEDGE_TOOLS) assert.equal(INVALID_CONTRACT_TOOLS.includes(tool), false, tool);
    });
 
    test('code permissions follow run_command, never merge', () => {

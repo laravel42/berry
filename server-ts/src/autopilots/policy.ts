@@ -39,6 +39,8 @@ export const RECOMMEND_TOOLS: readonly string[] = [
    'read_file',
    'list_files',
    'read_project_resources',
+   'search_knowledge',
+   'read_knowledge_page',
    'post_comment',
    'escalate',
    'list_agents',

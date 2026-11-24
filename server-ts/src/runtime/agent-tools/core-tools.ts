@@ -15,6 +15,7 @@ import { setParent } from '../../work/hierarchy.ts';
 import { ActiveRunExists } from '../../runs/repository.ts';
 import { DependencyCycle, DependencyRepository } from '../../core/dependencies.ts';
 import { NotFound } from '../../identity/errors.ts';
+import { KnowledgeRepository } from '../../knowledge/repository.ts';
 import { DEFAULT_FETCH_LIMITS, FetchRefused, fetchPublicUrl, isTextual, readableHtml } from './fetch-url.ts';
 import { getAgentTool, registerAgentTool, type AgentToolContext } from './registry.ts';
 
@@ -892,6 +893,39 @@ export function registerCoreAgentTools(): void {
             })),
             truncated,
          };
+      },
+   });
+
+   // The knowledge base (migration 264): read-only for agents. People write
+   // the pages; a run looks up conventions, specs and decisions there.
+   registerAgentTool('search_knowledge', {
+      description:
+        "Search this workspace's knowledge base: pages whose title or text contains `query`, " +
+        'title matches first, each with an excerpt. Read one in full with read_knowledge_page.',
+      scope: 'task:read',
+      inputSchema: z.object({ query: z.string().trim().min(1).max(200) }),
+      handler: async (context, input) => {
+         const hits = await new KnowledgeRepository(context.sql).search(context.task.workspaceId, input.query, 20);
+         return { pages: hits.map(({ id, title, excerpt, updatedAt }) => ({ id, title, excerpt, updatedAt })) };
+      },
+   });
+
+   registerAgentTool('read_knowledge_page', {
+      description:
+         "Read one page of this workspace's knowledge base by id (from search_knowledge): its title, " +
+         'markdown body and the titles of the pages directly under it.',
+      scope: 'task:read',
+      inputSchema: z.object({ id: z.string().regex(UUID, 'id must be a page id') }),
+      handler: async (context, input) => {
+         const knowledge = new KnowledgeRepository(context.sql);
+         const page = await knowledge.get(context.task.workspaceId, input.id.toLowerCase()).catch((error: unknown) => {
+            if (error instanceof NotFound) throw ApiError.notFound('Knowledge page');
+            throw error;
+         });
+         const children = (await knowledge.tree(context.task.workspaceId))
+            .filter((entry) => entry.parentId === page.id)
+            .map(({ id, title }) => ({ id, title }));
+         return { id: page.id, title: page.title, body: page.body, updatedAt: page.updatedAt, children };
       },
    });
 

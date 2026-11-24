@@ -20,6 +20,7 @@ import {
    Bot,
    FolderKanban,
    Blocks,
+   BookOpen,
    Atom,
    RotateCw,
    ChartColumn,
@@ -41,6 +42,7 @@ interface ItemConfig {
 }
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
+   { key: 'knowledge', label: 'Knowledge', icon: BookOpen },
    { key: 'projects', label: 'Projects', icon: FolderKanban },
    { key: 'cycles', label: 'Cycles', icon: RotateCw },
    { key: 'my-issues', label: 'Tasks', icon: Folders },

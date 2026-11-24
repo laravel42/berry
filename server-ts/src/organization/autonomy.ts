@@ -28,6 +28,9 @@ const LEVEL_1 = [
    'read_repository_file',
    // The skills a person chose for this agent, read on demand.
    'read_skill',
+   // The workspace knowledge base, read-only (migration 264).
+   'search_knowledge',
+   'read_knowledge_page',
 ] as const;
 
 const LEVEL_2 = [
@@ -63,6 +66,9 @@ const LEVEL_3 = [...LEVEL_2, 'run_command', 'collect_file'] as const;
  */
 const WITH_SHELL = ['check_page', 'check_performance'] as const;
 
+/** The knowledge base, read-only: what every valid role reaches. */
+export const KNOWLEDGE_TOOLS = ['search_knowledge', 'read_knowledge_page'] as const;
+
 /** What write_file implies, granted with it the same way. */
 export const WITH_WRITE = ['edit_file', 'delete_file', 'move_file'] as const;
 
@@ -87,6 +93,8 @@ export const KNOWN_TOOLS: readonly string[] = [...LEVEL_5];
  * instructions a contract was meant to govern.
  */
 const UNVOUCHED_REACH = [
+   'search_knowledge',
+   'read_knowledge_page',
    'fetch_url',
    'list_agents',
    'list_tasks',
@@ -112,6 +120,9 @@ export function effectiveTools(contract: Pick<RoleContract, 'allowed_tools' | 'a
    // writing the whole file. Derived, so a stored contract does not have to
    // name them.
    if (reached.includes('write_file')) reached.push(...WITH_WRITE);
+   // Every valid role reads the knowledge base. Granted here rather than
+   // through `allowed_tools`, so contracts stored before it existed reach it.
+   reached.push(...KNOWLEDGE_TOOLS);
    return [...new Set(reached)].sort();
 }
 
