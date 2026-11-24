@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 
 import HeaderOptions from './header-options';
 
+const CATALOG_BUTTON_CLASS =
+   'border border-[#ccc]/40 !bg-black !text-[#cdcdcd] shadow-xs hover:!bg-[#1a1a1a] hover:!text-[#cdcdcd]';
+
 export default function Header() {
    const t = useTranslations('agents.header');
    const { orgId } = useParams<{ orgId: string }>();
@@ -19,7 +22,7 @@ export default function Header() {
          <PageKpiHeader label={t('title')}>
             <Button
                variant="soft"
-               className="shrink-0 border border-[#ccc]/40 !bg-black !text-[#cdcdcd] shadow-xs hover:!bg-[#1a1a1a] hover:!text-[#cdcdcd]"
+               className={`shrink-0 max-sm:hidden ${CATALOG_BUTTON_CLASS}`}
                asChild
             >
                <Link href={`/${orgId}/agent-catalog`}>
@@ -34,7 +37,21 @@ export default function Header() {
                </Link>
             </Button>
          </PageKpiHeader>
-         <HeaderOptions />
+         <HeaderOptions
+            mobileAction={
+               <Button
+                  variant="soft"
+                  size="sm"
+                  className={`w-full sm:hidden ${CATALOG_BUTTON_CLASS}`}
+                  asChild
+               >
+                  <Link href={`/${orgId}/agent-catalog`}>
+                     <LibraryBig className="size-4" aria-hidden />
+                     {t('catalog')}
+                  </Link>
+               </Button>
+            }
+         />
       </div>
    );
 }

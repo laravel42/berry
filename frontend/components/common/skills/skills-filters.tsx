@@ -113,6 +113,8 @@ interface Props {
    onQueryChange: (query: string) => void;
    /** Trailing primary action (e.g. New skill), after the list controls. */
    action?: ReactNode;
+   /** Full-width secondary action shown below the filter row on phones (`sm:hidden`). */
+   mobileAction?: ReactNode;
    scope?: SkillScope;
    onScopeChange?: (scope: SkillScope) => void;
    counts?: Record<SkillScope, number | null>;
@@ -124,6 +126,7 @@ export default function SkillsFilters({
    query,
    onQueryChange,
    action,
+   mobileAction,
    scope = 'all',
    onScopeChange,
    counts = { all: 0, archived: null },
@@ -135,7 +138,7 @@ export default function SkillsFilters({
    };
 
    return (
-      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] max-sm:gap-x-1">
+      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[8px] max-sm:gap-x-1 max-sm:gap-y-2">
          {/* On a phone the left group dissolves into the row, so an opened
              search can take the first line (see ToolbarSearch). */}
          <div className="flex min-w-0 shrink flex-wrap items-center gap-2 max-sm:contents">
@@ -159,6 +162,7 @@ export default function SkillsFilters({
                </TabsList>
             </Tabs>
          </div>
+         {mobileAction}
       </div>
    );
 }
