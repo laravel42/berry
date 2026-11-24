@@ -231,6 +231,8 @@ export function AssigneeUser({
       if (issueId) updateIssueAssignee(issueId, assignee);
    };
 
+   const hasMonogram = Boolean(!showName && monogram && currentAssignee?.role === 'Application');
+
    return (
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
@@ -274,7 +276,11 @@ export function AssigneeUser({
                   }
                   className={cn(
                      'relative min-w-0 gap-1.5 font-normal',
-                     showName && currentAssignee ? 'max-w-full justify-start px-1.5' : 'w-fit'
+                     showName && currentAssignee
+                        ? 'max-w-full justify-start px-1.5'
+                        : hasMonogram
+                          ? 'w-fit px-1'
+                          : 'p-0'
                   )}
                >
                   {currentAssignee ? (

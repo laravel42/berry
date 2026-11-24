@@ -148,13 +148,7 @@ function IssueLineView({
                   ) : null}
                   {displayProperties.assignee && (
                      <span className={cn('flex max-w-[14rem] min-w-0 items-center', CONTROL)}>
-                        <AssigneeUser
-                           user={issue.assignee}
-                           issueId={issue.id}
-                           monogram={false}
-                           showName
-                           nameClassName="max-sm:hidden"
-                        />
+                        <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} />
                      </span>
                   )}
                </div>
