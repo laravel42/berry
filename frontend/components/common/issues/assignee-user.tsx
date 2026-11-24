@@ -10,6 +10,7 @@ import {
    CommandSeparator,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { statusUserColors, type User } from '@/data/users';
 import { agentToUser } from '@/lib/agents';
 import { useAgentsStore } from '@/store/agents-store';
@@ -232,86 +233,100 @@ export function AssigneeUser({
    };
 
    const hasMonogram = Boolean(!showName && monogram && currentAssignee?.role === 'Application');
+   const showHoverTooltip = !row && !showName && Boolean(currentAssignee);
+
+   const trigger = row ? (
+      <Button
+         type="button"
+         variant="ghost"
+         size="sm"
+         aria-haspopup="listbox"
+         aria-expanded={open}
+         aria-label={
+            currentAssignee ? t('assigned', { name: currentAssignee.name }) : t('unassigned')
+         }
+         className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
+      >
+         {currentAssignee ? (
+            <>
+               <ActorAvatar user={currentAssignee} monogram={monogram} />
+               <span className="min-w-0 truncate">{currentAssignee.name}</span>
+            </>
+         ) : (
+            <>
+               <AssigneePlaceholder />
+               <span className="min-w-0 truncate text-muted-foreground">{emptyLabel}</span>
+            </>
+         )}
+      </Button>
+   ) : (
+      // The field height, like the priority and status beside it.
+      <Button
+         variant="ghost"
+         size={showName && currentAssignee ? 'sm' : 'icon-sm'}
+         aria-haspopup="listbox"
+         aria-expanded={open}
+         aria-label={
+            currentAssignee ? t('assigned', { name: currentAssignee.name }) : t('unassigned')
+         }
+         className={cn(
+            'relative min-w-0 gap-1.5 font-normal',
+            showName && currentAssignee
+               ? 'max-w-full justify-start px-1.5'
+               : hasMonogram
+                 ? 'w-fit px-1'
+                 : 'p-0'
+         )}
+      >
+         {currentAssignee ? (
+            <>
+               <span className="relative shrink-0">
+                  <ActorAvatar
+                     user={currentAssignee}
+                     monogram={monogram}
+                     showTitle={!showHoverTooltip}
+                  />
+                  {currentAssignee.role !== 'Application' ? (
+                     <span
+                        className="border-background absolute -end-0.5 -bottom-0.5 size-2 rounded-full border-2"
+                        style={{
+                           backgroundColor: statusUserColors[currentAssignee.status],
+                        }}
+                     >
+                        <span className="sr-only">{currentAssignee.status}</span>
+                     </span>
+                  ) : null}
+               </span>
+               {showName ? (
+                  <ActorName
+                     user={currentAssignee}
+                     plain={plainName}
+                     className={cn('min-w-0 truncate', nameClassName)}
+                  />
+               ) : null}
+            </>
+         ) : (
+            <AssigneePlaceholder />
+         )}
+      </Button>
+   );
 
    return (
       <Popover open={open} onOpenChange={setOpen}>
-         <PopoverTrigger asChild>
-            {row ? (
-               <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  aria-haspopup="listbox"
-                  aria-expanded={open}
-                  aria-label={
-                     currentAssignee
-                        ? t('assigned', { name: currentAssignee.name })
-                        : t('unassigned')
-                  }
-                  className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
-               >
-                  {currentAssignee ? (
-                     <>
-                        <ActorAvatar user={currentAssignee} monogram={monogram} />
-                        <span className="min-w-0 truncate">{currentAssignee.name}</span>
-                     </>
-                  ) : (
-                     <>
-                        <AssigneePlaceholder />
-                        <span className="min-w-0 truncate text-muted-foreground">{emptyLabel}</span>
-                     </>
-                  )}
-               </Button>
-            ) : (
-               // The field height, like the priority and status beside it.
-               <Button
-                  variant="ghost"
-                  size={showName && currentAssignee ? 'sm' : 'icon-sm'}
-                  aria-haspopup="listbox"
-                  aria-expanded={open}
-                  aria-label={
-                     currentAssignee
-                        ? t('assigned', { name: currentAssignee.name })
-                        : t('unassigned')
-                  }
-                  className={cn(
-                     'relative min-w-0 gap-1.5 font-normal',
-                     showName && currentAssignee
-                        ? 'max-w-full justify-start px-1.5'
-                        : hasMonogram
-                          ? 'w-fit px-1'
-                          : 'p-0'
-                  )}
-               >
-                  {currentAssignee ? (
-                     <>
-                        <span className="relative shrink-0">
-                           <ActorAvatar user={currentAssignee} monogram={monogram} />
-                           {currentAssignee.role !== 'Application' ? (
-                              <span
-                                 className="border-background absolute -end-0.5 -bottom-0.5 size-2 rounded-full border-2"
-                                 style={{
-                                    backgroundColor: statusUserColors[currentAssignee.status],
-                                 }}
-                              >
-                                 <span className="sr-only">{currentAssignee.status}</span>
-                              </span>
-                           ) : null}
-                        </span>
-                        {showName ? (
-                           <ActorName
-                              user={currentAssignee}
-                              plain={plainName}
-                              className={cn('min-w-0 truncate', nameClassName)}
-                           />
-                        ) : null}
-                     </>
-                  ) : (
-                     <AssigneePlaceholder />
-                  )}
-               </Button>
-            )}
-         </PopoverTrigger>
+         {showHoverTooltip && currentAssignee ? (
+            <Tooltip>
+               <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+               </TooltipTrigger>
+               {!open ? (
+                  <TooltipContent side="top" className="text-foreground shadow-sm">
+                     {currentAssignee.name}
+                  </TooltipContent>
+               ) : null}
+            </Tooltip>
+         ) : (
+            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
+         )}
          <PopoverContent
             align="start"
             collisionPadding={12}

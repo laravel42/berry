@@ -47,16 +47,12 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
          className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg"
       >
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
-            <IssuePriorityPicker issue={issue} />
             <span data-identifier className="min-w-0 truncate text-subtle-foreground">
                {issue.identifier}
             </span>
             {issue.autoGate ? <AutoGateMark /> : null}
-            <span
-               data-card-date
-               className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground"
-            >
-               {format(new Date(issue.createdAt), 'MMM dd')}
+            <span className="ml-auto -mr-1.5 flex shrink-0 items-center">
+               <IssuePriorityPicker issue={issue} />
             </span>
          </div>
          {/* Plain text, not a heading: the ghost is a transient copy of the
@@ -68,14 +64,13 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
          <div className="mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
             <LabelBadge label={issue.labels} />
          </div>
-         <div className="mt-auto flex min-w-0 justify-end pt-1">
-            <AssigneeUser
-               user={issue.assignee}
-               issueId={issue.id}
-               monogram={false}
-               showName
-               plainName
-            />
+         <div className="mt-auto flex min-w-0 items-center justify-between gap-2 pt-1">
+            <span data-card-date className="shrink-0 whitespace-nowrap text-muted-foreground">
+               {format(new Date(issue.createdAt), 'MMM dd')}
+            </span>
+            <span className="-mr-1.5 flex shrink-0 items-center">
+               <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} />
+            </span>
          </div>
       </div>
    );
@@ -240,11 +235,6 @@ function IssueGridCard({
                >
                   <div className="min-w-0">
                      <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
-                        {displayProperties.priority ? (
-                           <span className="relative z-[1] flex shrink-0 items-center">
-                              <IssuePriorityPicker issue={issue} />
-                           </span>
-                        ) : null}
                         {liveRun ? (
                            <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
                         ) : null}
@@ -261,40 +251,36 @@ function IssueGridCard({
                            </span>
                         ) : null}
                         {issue.autoGate ? <AutoGateMark /> : null}
-                        {displayProperties.created ? (
-                           <span
-                              data-card-date
-                              className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground"
+                        <div className="ml-auto -mr-1.5 flex shrink-0 items-center">
+                           {displayProperties.priority ? (
+                              <span className="relative z-[1] flex shrink-0 items-center">
+                                 <IssuePriorityPicker issue={issue} />
+                              </span>
+                           ) : null}
+                           {/* A finger has no right-click and no hover, so a touch
+                               screen gets a visible button that opens the card's
+                               menu where it stands. Pointer devices keep the
+                               right-click. */}
+                           <button
+                              type="button"
+                              aria-label={t('menu.cardActions')}
+                              className="relative z-[1] -my-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:hidden"
+                              onClick={(event) => {
+                                 const rect = event.currentTarget.getBoundingClientRect();
+                                 innerRef.current?.dispatchEvent(
+                                    new MouseEvent('contextmenu', {
+                                       bubbles: true,
+                                       cancelable: true,
+                                       view: window,
+                                       clientX: rect.left,
+                                       clientY: rect.bottom,
+                                    })
+                                 );
+                              }}
                            >
-                              {format(new Date(issue.createdAt), 'MMM dd')}
-                           </span>
-                        ) : null}
-                        {/* A finger has no right-click and no hover, so a touch
-                            screen gets a visible button that opens the card's
-                            menu where it stands. Pointer devices keep the
-                            right-click. */}
-                        <button
-                           type="button"
-                           aria-label={t('menu.cardActions')}
-                           className={cn(
-                              'relative z-[1] -my-1.5 -mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:hidden',
-                              !displayProperties.created && 'ml-auto'
-                           )}
-                           onClick={(event) => {
-                              const rect = event.currentTarget.getBoundingClientRect();
-                              innerRef.current?.dispatchEvent(
-                                 new MouseEvent('contextmenu', {
-                                    bubbles: true,
-                                    cancelable: true,
-                                    view: window,
-                                    clientX: rect.left,
-                                    clientY: rect.bottom,
-                                 })
-                              );
-                           }}
-                        >
-                           <MoreHorizontal className="size-4" aria-hidden />
-                        </button>
+                              <MoreHorizontal className="size-4" aria-hidden />
+                           </button>
+                        </div>
                      </div>
                      {/* The link covers the card through its pseudo-element,
                          so the card's hover promise -- the whole thing lifts
@@ -326,15 +312,25 @@ function IssueGridCard({
                      <div className="relative z-[1] mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
                         {displayProperties.labels && <LabelBadge label={issue.labels} />}
                      </div>
-                     {displayProperties.assignee ? (
-                        <div className="relative z-[1] mt-auto flex min-w-0 justify-end pt-1">
-                           <AssigneeUser
-                              user={issue.assignee}
-                              issueId={issue.id}
-                              monogram={false}
-                              showName
-                              plainName
-                           />
+                     {displayProperties.created || displayProperties.assignee ? (
+                        <div className="relative z-[1] mt-auto flex min-w-0 items-center gap-2 pt-1">
+                           {displayProperties.created ? (
+                              <span
+                                 data-card-date
+                                 className="shrink-0 whitespace-nowrap text-muted-foreground"
+                              >
+                                 {format(new Date(issue.createdAt), 'MMM dd')}
+                              </span>
+                           ) : null}
+                           {displayProperties.assignee ? (
+                              <span className="ml-auto -mr-1.5 flex shrink-0 items-center">
+                                 <AssigneeUser
+                                    user={issue.assignee}
+                                    issueId={issue.id}
+                                    monogram={false}
+                                 />
+                              </span>
+                           ) : null}
                         </div>
                      ) : null}
                   </div>
