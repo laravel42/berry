@@ -71,7 +71,12 @@ function readPreferences(value: unknown): ViewPreferences {
  * view sits in a different place for each reader — so both live in that
  * person's view preferences on the server rather than on the view itself.
  */
-export function SavedViewsBar() {
+export function SavedViewsBar({
+   showCreate = true,
+}: {
+   /** False where the page already offers New view as its primary action. */
+   showCreate?: boolean;
+} = {}) {
    const t = useTranslations('issueLists');
    const { orgId, viewId } = useParams<{ orgId: string; viewId?: string }>();
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
@@ -276,15 +281,17 @@ export function SavedViewsBar() {
                   <Settings2 className="size-3.5 sm:mr-1" />
                   <span className="max-sm:sr-only">{t('views.manage')}</span>
                </Button>
-               <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label={t('views.newView')}
-                  onClick={() => setCreating(true)}
-               >
-                  <Plus className="size-3.5 sm:mr-1" />
-                  <span className="max-sm:sr-only">{t('views.newView')}</span>
-               </Button>
+               {showCreate ? (
+                  <Button
+                     size="xs"
+                     variant="ghost"
+                     aria-label={t('views.newView')}
+                     onClick={() => setCreating(true)}
+                  >
+                     <Plus className="size-3.5 sm:mr-1" />
+                     <span className="max-sm:sr-only">{t('views.newView')}</span>
+                  </Button>
+               ) : null}
             </div>
          </div>
 

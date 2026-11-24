@@ -35,7 +35,7 @@ import { deleteSavedView, loadWorkspaceViews } from '@/lib/views';
 import { useSessionStore } from '@/store/session-store';
 import { useViewsStore } from '@/store/views-store';
 import { useViewsDisplayStore, ViewsOrdering } from '@/store/views-display-store';
-import { ArrowDown, MoreHorizontal, Plus, SlidersHorizontal } from 'lucide-react';
+import { ArrowDown, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -215,7 +215,6 @@ export default function Views() {
    const hydrateViews = useViewsStore((state) => state.hydrateViews);
    const viewsLoaded = useViewsStore((state) => state.loaded);
    const [editing, setEditing] = useState<View | undefined>();
-   const [creating, setCreating] = useState(false);
    const [deleting, setDeleting] = useState<View | undefined>();
 
    useEffect(() => {
@@ -253,13 +252,7 @@ export default function Views() {
                value={tab}
                onValueChange={(next) => void setTab(next)}
             />
-            <div className="flex items-center gap-1">
-               <Button size="sm" variant="ghost" onClick={() => setCreating(true)}>
-                  <Plus className="mr-1 size-3.5" />
-                  {t('views.newView')}
-               </Button>
-               <DisplayOptions />
-            </div>
+            <DisplayOptions />
          </div>
 
          <div
@@ -286,7 +279,6 @@ export default function Views() {
             </div>
          )}
 
-         <SaveViewDialog open={creating} onOpenChange={setCreating} />
          <SaveViewDialog
             open={editing !== undefined}
             onOpenChange={(open) => {
