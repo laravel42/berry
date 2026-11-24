@@ -7,6 +7,7 @@ import milestones from '@/messages/en/milestones.json';
 import cycles from '@/messages/en/cycles.json';
 import loops from '@/messages/en/loops.json';
 import inbox from '@/messages/en/inbox.json';
+import knowledge from '@/messages/en/knowledge.json';
 import issueDetail from '@/messages/en/issueDetail.json';
 import issueLists from '@/messages/en/issueLists.json';
 import navigation from '@/messages/en/navigation.json';
@@ -34,6 +35,7 @@ const messages = {
    cycles,
    loops,
    inbox,
+   knowledge,
    issueDetail,
    issueLists,
    navigation,

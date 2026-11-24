@@ -28,6 +28,7 @@ NAMESPACES = (
     "areas",
     "organization",
     "approvals",
+    "knowledge",
 )
 # An ICU argument is `{name}` or `{name, type, ...}`. The name is followed by
 # `}` or `,` — plain prose inside a plural branch (`{Its reply is}`) is not an
