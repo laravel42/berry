@@ -938,6 +938,25 @@ A Loop is an autopilot: storage and routes keep that name ([ADR-0020](../adr/002
 
 Event types: `issue.created`, `issue.updated`, `issue.status_changed`, `issue.assigned`, `issue.started`, `issue.completed`, `comment.created`, `project.created`, `project.updated`, `run.completed`, `run.failed`, `approval.requested`, `github.pull_request.updated`. `conditions` is `{match: "all" | "any", rules: [{field, op: "in" | "not_in", values}]}` with at most eight rules; a field the event type cannot state answers `422`. Skip reasons include `PAUSED`, `ALREADY_RUNNING`, `RATE_LIMITED`, `CHAIN_TOO_DEEP`, `LOOP_CYCLE` and `AGENT_EVENT`. The workspace stream carries `autopilot.run.updated` when a Loop's agent run ends.
 
+### Knowledge base (route table only)
+
+The workspace's nested pages (migration 264). Every route takes `?workspaceId=`: reads need `product.read`, changes `product.write`, and a page outside that workspace is `404`. A page is `{ id, parentId, title, icon, body, cover, sortOrder, createdAt, updatedAt, createdBy, updatedBy }`; `cover` is null, `{ kind: "preset", name }` (a gradient or colour the web app draws) or `{ kind: "image", version }` (an upload, migration 265); `body` is markdown, stored byte-exact, at most 1 MiB. The tree and search omit `body`.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/v1/knowledge/pages` | Every live page as `{ nodes }`, without bodies |
+| `POST /api/v1/knowledge/pages` | Create `{ parentId?, title?, icon?, body? }`; lands last among its siblings. `404` for a parent that is not a live page |
+| `GET`, `PATCH /api/v1/knowledge/pages/{id}` | Read / change any of `title`, `icon` (null clears), `body`, `cover` (a preset name; null removes any cover), `parentId` (null moves to the top level), `sortOrder`. A move under the page itself or one of its sub-pages is `422 VALIDATION_FAILED` |
+| `POST /api/v1/knowledge/pages/{id}/cover` | The body is the image itself: PNG, JPEG, GIF or WebP by its bytes, at most 5 MB (`413`), anything else `422`. Replaces any previous upload. `503 STORAGE_NOT_CONFIGURED` without object storage |
+| `GET /api/v1/knowledge/pages/{id}/cover?v=` | The uploaded cover image; `404` when the cover is a preset or none. Cached as immutable: each upload has its own `version` |
+| `DELETE /api/v1/knowledge/pages/{id}` | Move the page and its sub-pages to the Trash (reversible) |
+| `GET /api/v1/knowledge/trash` | Pages deleted on their own account, newest first, each with how many sub-pages went with it |
+| `POST /api/v1/knowledge/trash/{id}/restore` | Restore the page and the sub-pages deleted with it; at the top level when its parent is not live |
+| `DELETE /api/v1/knowledge/trash/{id}` | Delete a trashed page and what went with it, permanently |
+| `GET /api/v1/knowledge/search?q=` | Live pages whose title or body contains `q`, title matches first, each with an excerpt |
+
+Agents read the knowledge base through the `search_knowledge` and `read_knowledge_page` tools below; no tool writes it.
+
 ### Agent contract: `/api/v1/agent-tools` (route table only)
 
 This prefix is how a running agent acts on Berry — the only path it has, since agents never touch the database directly. It accepts a short-lived, task-scoped bearer token only (minted per run, TTL at most 8 hours); every other credential type is refused here, and a task token is refused everywhere else.
@@ -947,7 +966,7 @@ This prefix is how a running agent acts on Berry — the only path it has, since
 | `GET /api/v1/agent-tools` | List tools available to the calling agent for its current task |
 | `POST /api/v1/agent-tools/{name}` | Call one tool |
 
-Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling. Core tools include `read_task`, `list_tasks`, `list_plans`, `list_milestones`, `list_projects`, `list_agents`, `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` and `move_file` (the last three come with `write_file` and refuse `.git` and `.handoffs/`), `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). A chat envelope carries an open-work snapshot so a summary does not list first; those list tools remain for a filter, another page, or a full `read_task`. Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
+Available tools are the intersection of the agent's role contract (`allowed_tools`) and its autonomy-level ceiling; every valid role also reaches the read-only knowledge tools `search_knowledge` and `read_knowledge_page`. Core tools include `read_task`, `list_tasks`, `list_plans`, `list_milestones`, `list_projects`, `list_agents`, `list_files`, `read_file`, `write_file`, `edit_file`, `delete_file` and `move_file` (the last three come with `write_file` and refuse `.git` and `.handoffs/`), `set_status` (only `todo | in_progress | in_review | blocked` — never `done` or `cancelled`), `run_command` and `mention_agent`; organization tools add `escalate`, `delegate_to_agent`, `propose_work` and `submit_review` (autonomy level 5 only). A chat envelope carries an open-work snapshot so a summary does not list first; those list tools remain for a filter, another page, or a full `read_task`. Calling a tool that does not exist or is outside the task's scopes answers `404 NOT_FOUND`. Inside the runtime, a permissions hook in front of every tool refuses unknown tools before any HTTP call and returns the refusal to the model as the tool result.
 
 Subscription runtimes receive that same set from the berry MCP server. The task prompt names the sandbox commands, the same set on every runtime, and the agent runs them with `run_command`. A finished run's handoff is the file `.handoffs/<identifier> - <slug of the title>` in the repository. The first line is that path. A task that depends on it is told to read the file. A delivery does not delete any other file under `.handoffs/`. `HANDOFF.md` at the repository root is not a handoff.
 

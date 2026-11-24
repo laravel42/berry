@@ -59,6 +59,7 @@ Loops start in *Ask before acting* mode, which keeps the agent to reading, comme
 - **Views.** List, Board, Table, Swimlanes and Gantt show the same tasks. Filter and group from *Display*, then save the combination as a private or shared view and pin it.
 - **Cycles.** Timeboxes with a burn-up chart. A task belongs to at most one cycle.
 - **Projects and milestones.** A project has a lead, dates, health and a default repository for its tasks. Milestone progress is the share of its tasks that are done. Deleting a project deletes its tasks, their inbox notifications and their reviews with it.
+- **Knowledge base.** Nested pages for how your team works: conventions, specs, decisions and guides. Type `/` in a page for headings, lists, checklists, quotes, code, dividers and toggles. *Add cover* gives a page a banner from the gallery, or an image you upload (up to 5 MB). Archived pages go to *Archived* (the … menu beside New page), where you can restore them or delete them for good. Agents can search and read the knowledge base, but only people edit it.
 - **Labels and task fields.** Labels are workspace-wide and also steer reviews; the *security* label brings in a security reviewer. Custom task fields are managed under Settings → Task fields.
 - **Keyboard shortcuts.** Settings → Keyboard shortcuts lists every shortcut and lets you change them. Changes are kept in your browser.
 
