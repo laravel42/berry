@@ -8,7 +8,7 @@ import { format } from 'date-fns';
 import Link from 'next/link';
 import { useIssueHref } from './use-issue-href';
 import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { DragSourceMonitor, useDrag, useDragLayer, useDrop } from 'react-dnd';
 import { getEmptyImage } from 'react-dnd-html5-backend';
@@ -253,7 +253,16 @@ function IssueGridCard({
                         {issue.autoGate ? <AutoGateMark /> : null}
                         <div className="ml-auto -mr-1.5 flex shrink-0 items-center">
                            {displayProperties.priority ? (
-                              <span className="relative z-[1] flex shrink-0 items-center">
+                              <span
+                                 className={cn(
+                                    'relative z-[1] flex shrink-0 items-center',
+                                    // On touch screens the overflow menu already sits beside
+                                    // this slot and offers Priority; hiding the three-dash
+                                    // "no priority" glyph avoids two ellipsis-like icons in a row.
+                                    issue.priority.id === 'no-priority' &&
+                                       '[@media(hover:none)]:hidden'
+                                 )}
+                              >
                                  <IssuePriorityPicker issue={issue} />
                               </span>
                            ) : null}
@@ -264,7 +273,7 @@ function IssueGridCard({
                            <button
                               type="button"
                               aria-label={t('menu.cardActions')}
-                              className="relative z-[1] -my-1.5 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:hidden"
+                              className="relative z-[1] flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [@media(hover:hover)]:hidden"
                               onClick={(event) => {
                                  const rect = event.currentTarget.getBoundingClientRect();
                                  innerRef.current?.dispatchEvent(
@@ -278,7 +287,7 @@ function IssueGridCard({
                                  );
                               }}
                            >
-                              <MoreHorizontal className="size-4" aria-hidden />
+                              <MoreVertical className="size-4" aria-hidden />
                            </button>
                         </div>
                      </div>
