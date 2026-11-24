@@ -141,7 +141,7 @@ export const ShellTabBar = forwardRef<
                   data-figure
                   data-tab-badge
                   className={cn(
-                     'absolute top-1 left-1/2 ml-2 text-[var(--shell-accent)]',
+                     'absolute top-2 left-1/2 ml-2 text-[var(--shell-accent)]',
                      rise(selected === 0)
                   )}
                >
