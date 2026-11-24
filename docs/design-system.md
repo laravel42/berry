@@ -197,9 +197,7 @@ them. A bar pinned to a page's bottom edge, `UnsavedChangesBar` or a list's `Bul
 the stack's floor (`useFloatingFloor`): while it shows, every floating control stands
 above it, so none covers its buttons.
 
-Corner controls behave alike (`hooks/use-idle-tuck.ts`): left alone for ten seconds they
-tuck off the right edge, leaving a tenth showing, and pointing at one or focusing it
-brings that one back. Each keeps its own clock.
+Corner controls remain visible in place rather than tucking off the edge after idle time.
 
 `UnsavedChangesBar` has no rule on top: a warning tint rises from its bottom edge and
 fades into the card, the inverse of the tint a detail header falls from. Discard and Save
