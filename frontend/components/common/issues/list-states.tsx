@@ -47,7 +47,7 @@ function Card() {
 export function IssueListSkeleton({ mode }: { mode: ViewType }) {
    if (mode === 'grid') {
       return (
-         <div className="flex h-full min-w-max gap-3 px-4 py-3" aria-hidden>
+         <div className="flex h-full min-w-max gap-3 px-2 py-3 sm:px-4" aria-hidden>
             {[0, 1, 2].map((column) => (
                <div key={column} className="flex w-[278px] flex-col gap-1.5">
                   <Skeleton className="h-7 w-full rounded-lg" />

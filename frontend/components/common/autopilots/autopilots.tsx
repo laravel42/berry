@@ -130,7 +130,7 @@ export default function Autopilots({
          );
       }
       return (
-         <div className="flex w-full flex-col items-center px-5 py-12">
+         <div className="flex w-full flex-col items-center px-2 py-12 sm:px-5">
             <div className="flex w-full max-w-2xl flex-col items-center text-center">
                <EmptyStateMark label={t('empty.mark')} />
                <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>

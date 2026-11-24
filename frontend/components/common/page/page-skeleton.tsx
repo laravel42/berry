@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 function SkeletonRow({ index }: { index: number }) {
    const title = ['max-w-96', 'max-w-80', 'max-w-[26rem]', 'max-w-72', 'max-w-[22rem]'][index % 5];
    return (
-      <div className="flex items-center gap-3 border-b border-border/45 px-5 py-3">
+      <div className="flex items-center gap-3 border-b border-border/45 px-2 py-3 sm:px-5">
          <Skeleton className="size-4 shrink-0 rounded-full" />
          <Skeleton className="h-3 w-14 shrink-0 max-sm:hidden" />
          <Skeleton className={cn('h-3 flex-1', title)} />
@@ -44,12 +44,15 @@ export function ListSkeleton({ label, rows = 8 }: { label: string; rows?: number
 export function SectionSkeleton({ label }: { label: string }) {
    return (
       <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-container text-foreground">
-         <div aria-hidden className="flex h-[52px] shrink-0 items-center gap-3 border-b px-5">
+         <div
+            aria-hidden
+            className="flex h-[52px] shrink-0 items-center gap-3 border-b px-2 sm:px-5"
+         >
             <Skeleton className="h-4 w-28" />
             <Skeleton className="ml-auto h-8 w-28 rounded-full max-sm:hidden" />
             <Skeleton className="h-8 w-24 rounded-full max-sm:ml-auto" />
          </div>
-         <div aria-hidden className="flex h-12 shrink-0 items-center gap-2 border-b px-5">
+         <div aria-hidden className="flex h-12 shrink-0 items-center gap-2 border-b px-2 sm:px-5">
             <Skeleton className="h-7 w-20 rounded-full" />
             <Skeleton className="ml-auto h-7 w-32 rounded-lg" />
          </div>

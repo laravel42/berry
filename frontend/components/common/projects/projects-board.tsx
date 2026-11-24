@@ -114,7 +114,7 @@ export default function ProjectsBoard({
          <ProjectDragLayer />
          <div className="h-full flex flex-col">
             <div ref={scrollerRef} className="show-scrollbar flex-1 min-h-0 overflow-x-auto">
-               <div className="flex h-full min-w-max gap-3 px-4 py-3">
+               <div className="flex h-full min-w-max gap-3 px-2 py-3 sm:px-4">
                   {boardEntries.map((entry) => (
                      <GroupProjects
                         key={entry.group.id}

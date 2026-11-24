@@ -114,7 +114,7 @@ export default function PromptLogs() {
 
    return (
       <div className="flex min-h-0 flex-1 flex-col">
-         <div className="flex min-h-[48px] flex-wrap items-center gap-2 border-b px-5 py-[2px]">
+         <div className="flex min-h-[48px] flex-wrap items-center gap-2 border-b px-2 py-[2px] sm:px-5">
             <Select
                value={filter.kind ?? ANY}
                onValueChange={(value) =>
@@ -218,7 +218,7 @@ export default function PromptLogs() {
                            key={row.id}
                            data-log-card
                            {...openProps(row.id)}
-                           className="flex cursor-pointer flex-col gap-1 border-b px-5 py-3 hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
+                           className="flex cursor-pointer flex-col gap-1 border-b px-2 py-3 hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none sm:px-5"
                         >
                            <div className="flex items-start justify-between gap-3">
                               <span

@@ -68,7 +68,7 @@ export default function HeaderNav() {
       <div
          className={cn(
             'flex h-[52px] w-full items-center justify-between gap-4 border-b py-1.5',
-            inDrawer ? 'pr-4 pl-1.5 lg:px-5' : 'px-4 md:px-5'
+            inDrawer ? 'pr-2 pl-1.5 sm:pr-4 lg:px-5' : 'px-2 sm:px-4 md:px-5'
          )}
       >
          <div className="flex min-w-0 items-center gap-2">

@@ -81,7 +81,7 @@ function UsageScreen() {
                onRefresh={state.reload}
             />
          </PageKpiHeader>
-         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-1.5 border-b px-4 py-2 sm:gap-x-3 sm:gap-y-1.5 sm:py-[6px]">
+         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-1.5 border-b px-2 py-2 sm:gap-x-3 sm:gap-y-1.5 sm:px-4 sm:py-[6px]">
             <Tabs value={tab} onValueChange={(value) => open(value as Tab)} className="sm:mr-auto">
                <TabsList aria-label={t('tabs.label')}>
                   {TABS.map((name) => (

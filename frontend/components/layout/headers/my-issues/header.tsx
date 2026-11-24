@@ -44,7 +44,7 @@ export default function Header() {
          {/* On a phone the search rests as an icon beside the filter,
              display and layout controls; opened, it takes the first line and
              they move to the second (see ToolbarSearch). */}
-         <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2">
+         <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:py-2 sm:px-5">
             <div className="flex flex-wrap items-center gap-1 max-sm:contents">
                <ToolbarSearch
                   label={t('search')}

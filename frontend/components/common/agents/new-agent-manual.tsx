@@ -647,7 +647,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
             </div>
          </Tabs>
 
-         <div className="flex shrink-0 justify-end border-t bg-container px-5 py-3">
+         <div className="flex shrink-0 justify-end border-t bg-container px-2 py-3 sm:px-5">
             <Button type="submit" disabled={busy || !draft.name.trim()}>
                {busy ? t('creating') : t('create')}
             </Button>

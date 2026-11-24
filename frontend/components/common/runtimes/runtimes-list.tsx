@@ -205,7 +205,7 @@ export default function RuntimesList() {
          header={
             <>
                <Header />
-               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px]">
+               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-2 py-[8px] sm:px-4">
                   <ToolbarSearch label={t('catalogSearch')} value={query} onChange={setQuery} />
                   <Tabs value={filter} onValueChange={(value) => setFilter(value as CatalogFilter)}>
                      <TabsList aria-label={t('catalogTitle')}>
@@ -230,7 +230,7 @@ export default function RuntimesList() {
             </>
          }
       >
-         <div className="px-5 py-5">
+         <div className="px-2 py-5 sm:px-5">
             {catalog.error ? (
                <SettingsCard>
                   <SettingsEmpty title={catalog.error} />

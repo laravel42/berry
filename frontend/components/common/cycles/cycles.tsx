@@ -76,7 +76,7 @@ export default function Cycles() {
          </PageKpiHeader>
          {/* The toolbar row the other lists have under their title. */}
          {cycles.length > 0 ? (
-            <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:py-2">
+            <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:py-2 sm:px-5">
                <ToolbarSearch label={t('list.search')} value={query} onChange={setQuery} />
             </div>
          ) : null}

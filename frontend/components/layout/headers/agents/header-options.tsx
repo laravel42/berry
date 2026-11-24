@@ -53,7 +53,7 @@ export default function HeaderOptions({ mobileAction }: { mobileAction?: ReactNo
    };
 
    return (
-      <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[2px] max-sm:gap-x-1 max-sm:gap-y-2 max-sm:py-2">
+      <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:gap-y-2 max-sm:py-2 sm:px-5">
          {/* On a phone the left group dissolves into the row, so an opened
              search can take the first line (see ToolbarSearch). */}
          <div className="flex min-w-0 shrink flex-wrap items-center gap-2 max-sm:contents">

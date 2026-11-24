@@ -482,7 +482,7 @@ function CommentCard({
          </div>
 
          {replies.length > 0 && !collapsed ? (
-            <div className="mt-2 flex flex-col gap-2 border-l border-border/60 pl-3">
+            <div className="mt-2 flex flex-col gap-2 pl-3">
                {replies.map((reply) => (
                   <CommentCard
                      key={reply.id}
@@ -1357,7 +1357,7 @@ export function ActivityCommentComposer({
                   onClick={send}
                   disabled={!canSend}
                >
-                  <SendHorizonal className="size-4" strokeWidth={2.4} aria-hidden />
+                  <SendHorizonal className="ml-[2px] size-4" strokeWidth={2.4} aria-hidden />
                </Button>
             </div>
          </div>

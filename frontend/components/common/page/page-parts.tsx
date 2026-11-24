@@ -90,7 +90,7 @@ export function PageStatement({
    return (
       <header
          className={cn(
-            'flex w-full flex-col gap-1 border-b px-5',
+            'flex w-full flex-col gap-1 border-b px-2 sm:px-5',
             label || children ? (figure !== undefined ? 'pb-2' : '') : 'py-2'
          )}
       >
@@ -170,7 +170,7 @@ export function KpiStrip({ kpis, wrap = false }: { kpis: Kpi[]; wrap?: boolean }
    return (
       <dl
          className={cn(
-            'px-4 no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
+            'no-scrollbar -mx-2 flex snap-x scroll-px-2 gap-3 overflow-x-auto px-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
             // One row of equal columns on phones instead of a strip that scrolls off-screen.
             wrap && 'max-sm:mx-0 max-sm:gap-2 max-sm:overflow-visible max-sm:px-0'
          )}
@@ -228,7 +228,7 @@ export function PageKpiHeader({
    children?: ReactNode;
 }) {
    return (
-      <header className="flex w-full flex-col gap-3.5 border-b px-5">
+      <header className="flex w-full flex-col gap-3.5 border-b px-2 sm:px-5">
          <div className="flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:h-[52px] sm:flex-nowrap sm:py-0">
             <h1>{label}</h1>
             <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:flex-nowrap">

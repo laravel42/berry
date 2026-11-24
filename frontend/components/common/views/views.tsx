@@ -147,7 +147,7 @@ function ViewRow({
       <div className="flex items-center gap-1 pr-4 border-b border-border/50 hover:bg-accent/45 transition-colors">
          <Link
             href={`/${orgId}/view/${view.id}`}
-            className="flex flex-1 min-w-0 items-center gap-3 px-6 py-2.5"
+            className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2.5 sm:px-6"
          >
             <span className="inline-flex size-6 items-center justify-center rounded bg-muted/50 shrink-0">
                {view.icon}
@@ -248,7 +248,7 @@ export default function Views() {
 
    return (
       <div className="w-full h-full overflow-y-auto">
-         <div className="flex items-center justify-between gap-2 px-6 pt-3 pb-2">
+         <div className="flex items-center justify-between gap-2 px-2 pt-3 pb-2 sm:px-6">
             <SegmentedControl
                aria-label="View type"
                options={TABS.map((value) => ({
@@ -266,7 +266,7 @@ export default function Views() {
 
          <div
             data-heading="label"
-            className="flex h-9 items-center gap-1 border-b px-5 text-subtle-foreground"
+            className="flex h-9 items-center gap-1 border-b px-2 text-subtle-foreground sm:px-5"
          >
             {t('views.name')}
             <ArrowDown className="size-3" />

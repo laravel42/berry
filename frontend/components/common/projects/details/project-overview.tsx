@@ -229,7 +229,11 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                               onClick={submitComment}
                               disabled={!draft.trim()}
                            >
-                              <SendHorizonal className="size-4" strokeWidth={2.4} aria-hidden />
+                              <SendHorizonal
+                                 className="ml-[2px] size-4"
+                                 strokeWidth={2.4}
+                                 aria-hidden
+                              />
                            </Button>
                         </div>
                      </div>

@@ -11,7 +11,7 @@ function HeaderOptions() {
    const setQuery = useMilestonesListStore((state) => state.setQuery);
 
    return (
-      <div className="flex min-h-[52px] w-full flex-wrap items-center border-b px-5 py-2">
+      <div className="flex min-h-[52px] w-full flex-wrap items-center border-b px-2 py-2 sm:px-5">
          <ToolbarSearch
             label={t('list.search')}
             value={query}

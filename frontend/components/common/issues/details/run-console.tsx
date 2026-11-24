@@ -283,7 +283,7 @@ export function RunConsole({ issueId }: { issueId: string }) {
          className="absolute inset-0 z-30 flex flex-col bg-container font-mono"
          aria-label={t('title')}
       >
-         <div className="flex min-h-8 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-5 py-1 text-muted-foreground">
+         <div className="flex min-h-8 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-2 py-1 text-muted-foreground sm:px-5">
             <div
                ref={strip}
                role="tablist"

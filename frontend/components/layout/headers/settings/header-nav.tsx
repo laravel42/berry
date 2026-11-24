@@ -58,7 +58,7 @@ export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) 
          ?.labelKey;
 
    return (
-      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-5">
+      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-2 sm:px-5">
          {/* Breadcrumb: "Settings › Page". The h1 stays "Settings"; the page
              name is the section below it. */}
          <div className="flex min-w-0 items-baseline gap-2">

@@ -331,7 +331,7 @@ export default function AutopilotDetail({ autopilotId }: { autopilotId: string }
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
          {/* One row from `sm`. On a phone the actions take a row of their own
              under the name, which a single row squeezed to a letter. */}
-         <header className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b px-5 py-2 sm:h-[52px] sm:flex-nowrap sm:py-0">
+         <header className="flex min-h-[52px] shrink-0 flex-wrap items-center gap-x-2.5 gap-y-2 border-b px-2 py-2 sm:h-[52px] sm:flex-nowrap sm:px-5 sm:py-0">
             <nav aria-label={t('title')} className="flex min-w-0 items-center gap-2.5">
                {inDrawer ? null : (
                   <>

@@ -19,7 +19,7 @@ export function DetailHeaderSkeleton() {
    return (
       <div
          aria-hidden
-         className="flex h-[52px] w-full shrink-0 items-center justify-between border-b px-5"
+         className="flex h-[52px] w-full shrink-0 items-center justify-between border-b px-2 sm:px-5"
       >
          <div className="flex items-center gap-2">
             <Skeleton className="h-4 w-16" />
@@ -102,12 +102,12 @@ function DetailFrame({ label, children }: { label: string; children: React.React
          <span className="sr-only">{label}</span>
          <div aria-hidden className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
             <div className="min-h-0 flex-1 overflow-hidden">
-               <div className="mx-auto flex max-w-3xl flex-col gap-7 px-6 py-6 sm:px-8 sm:py-8">
+               <div className="mx-auto flex max-w-3xl flex-col gap-7 px-2 py-6 sm:px-8 sm:py-8">
                   {children}
                </div>
             </div>
             <div className="shrink-0 border-t border-border/60">
-               <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
+               <div className="mx-auto w-full max-w-3xl px-2 py-3 sm:px-8">
                   <div className="flex h-[46px] items-center justify-between rounded-lg border border-border bg-muted/15 px-2.5">
                      <Skeleton className="h-4 w-40" />
                      <Skeleton className="size-8 rounded-full" />

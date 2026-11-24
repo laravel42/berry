@@ -196,7 +196,7 @@ export default function NewLoop() {
       <MainLayout header={header}>
          <div className="h-full min-h-0 overflow-y-auto">
             <div
-               className="px-5 pt-14 pb-10"
+               className="px-2 pt-14 pb-10 sm:px-5"
                style={{
                   backgroundImage:
                      'radial-gradient(60% 120% at 50% 0%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%)',
@@ -293,7 +293,7 @@ export default function NewLoop() {
             </div>
 
             {templates.length > 0 ? (
-               <div className="mx-auto w-full max-w-5xl px-5 pb-12">
+               <div className="mx-auto w-full max-w-5xl px-2 pb-12 sm:px-5">
                   <h3 data-heading="label" className="mb-3 text-subtle-foreground">
                      {t('templates')}
                   </h3>

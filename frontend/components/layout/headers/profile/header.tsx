@@ -86,7 +86,7 @@ export default function Header({ member }: { member: User }) {
 
    return (
       <>
-         <div className="flex min-h-[52px] w-full flex-wrap items-center justify-between gap-y-1.5 border-b px-5 py-1.5">
+         <div className="flex min-h-[52px] w-full flex-wrap items-center justify-between gap-y-1.5 border-b px-2 py-1.5 sm:px-5">
             <div className="flex items-center gap-2 min-w-0">
                <div className="flex items-center gap-1.5 min-w-0">
                   <Link
@@ -111,7 +111,7 @@ export default function Header({ member }: { member: User }) {
                <HeaderSearch />
             </div>
          </div>
-         <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
+         <div className="flex h-[52px] w-full items-center justify-between border-b px-2 py-1.5 sm:px-5">
             <div className="flex items-center gap-3">
                <ProfileTabs />
                <span className="text-muted-foreground hidden sm:inline">

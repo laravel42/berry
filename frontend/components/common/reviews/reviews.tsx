@@ -429,7 +429,7 @@ export default function Reviews({
                />
             </div>
             {showScope ? (
-               <div className="flex h-[44px] shrink-0 items-center px-5">
+               <div className="flex h-[44px] shrink-0 items-center px-2 sm:px-5">
                   <Tabs value={listTab} className="items-center gap-0">
                      <TabsList>
                         <TabsTrigger value="for-you" asChild>

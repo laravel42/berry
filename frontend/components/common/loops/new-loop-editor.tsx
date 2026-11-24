@@ -128,7 +128,7 @@ export default function NewLoopEditor({
 
    return (
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-         <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b px-5">
+         <header className="flex h-[52px] shrink-0 items-center gap-2.5 border-b px-2 sm:px-5">
             <nav aria-label={t('title')} className="flex min-w-0 items-center gap-2.5">
                <Link
                   href={`/${orgId}/loops`}

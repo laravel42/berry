@@ -110,7 +110,7 @@ export function InboxDetail({
          />
 
          {item.commentBody || item.commentId ? (
-            <div className="shrink-0 border-b border-border/60 bg-muted/20 px-5 py-3">
+            <div className="shrink-0 border-b border-border/60 bg-muted/20 px-2 py-3 sm:px-5">
                <p className="text-muted-foreground">{t('detail.comment')}</p>
                {item.commentBody ? (
                   <p className="mt-1 line-clamp-4 leading-relaxed">{item.commentBody}</p>
@@ -119,7 +119,7 @@ export function InboxDetail({
          ) : null}
 
          {showPrompt || canRetry ? (
-            <div className="shrink-0 border-b border-border/60 px-5 py-3">
+            <div className="shrink-0 border-b border-border/60 px-2 py-3 sm:px-5">
                {showPrompt ? (
                   <>
                      <p className="text-muted-foreground">{t('detail.prompt')}</p>

@@ -219,7 +219,7 @@ export default function MemberProfile({ member }: { member: User }) {
             {/* Profile panel */}
             {openPanel !== 'hidden' && openPanel !== 'insights' && (
                <aside className="absolute inset-0 z-20 flex flex-col w-full shrink-0 h-full overflow-y-auto bg-container lg:static lg:z-auto lg:w-[340px] lg:border-l">
-                  <div className="px-5 pt-5 pb-4 border-b">
+                  <div className="border-b px-2 pt-5 pb-4 sm:px-5">
                      <div className="flex items-center gap-3">
                         <div className="relative">
                            <Avatar className="size-9">
@@ -241,7 +241,7 @@ export default function MemberProfile({ member }: { member: User }) {
                      </div>
                   </div>
 
-                  <div className="px-5 py-4 border-b flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-2.5 border-b px-2 py-4 sm:px-5">
                      <div className="flex items-start justify-between gap-4">
                         <span className="text-muted-foreground shrink-0">Email</span>
                         <span className="truncate">{member.email}</span>
@@ -279,7 +279,7 @@ export default function MemberProfile({ member }: { member: User }) {
                      </div>
                   </div>
 
-                  <div className="px-5 py-4">
+                  <div className="px-2 py-4 sm:px-5">
                      <Tabs defaultValue="labels">
                         <TabsList className="bg-transparent gap-1 p-0">
                            <TabsTrigger value="labels" className="px-2.5 rounded-full">

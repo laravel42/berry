@@ -243,7 +243,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                >
                   <div
                      data-detail-body
-                     className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5"
+                     className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-2 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5"
                   >
                      <div className="flex flex-col gap-3">
                         <IssueTitle issue={issue} />
@@ -330,7 +330,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
 
                {stickyCommentBar && !agentManaged ? (
                   <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
-                     <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
+                     <div className="mx-auto w-full max-w-3xl px-2 py-3 sm:px-8">
                         <ActivityCommentComposer
                            issueRef={issue.identifier}
                            onPosted={activity.addComment}

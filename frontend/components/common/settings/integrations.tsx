@@ -712,7 +712,7 @@ function IntegrationsDirectory() {
             open={drawer !== null}
             onClose={() => setDrawer(null)}
             header={
-               <div className="flex h-[52px] w-full items-center gap-1 border-b px-5">
+               <div className="flex h-[52px] w-full items-center gap-1 border-b px-2 sm:px-5">
                   <button
                      type="button"
                      onClick={() => setDrawer(null)}

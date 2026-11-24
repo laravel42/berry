@@ -89,7 +89,7 @@ export default function Header({
 
    return (
       <>
-         <div className="flex h-[52px] w-full items-center justify-between border-b px-5">
+         <div className="flex h-[52px] w-full items-center justify-between border-b px-2 sm:px-5">
             <div className="flex min-w-0 items-center gap-1.5">
                <Link
                   href={`/${orgId}/projects`}

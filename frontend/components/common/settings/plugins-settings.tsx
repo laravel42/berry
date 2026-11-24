@@ -273,11 +273,11 @@ export default function PluginsSettings() {
             </div>
          ) : null}
          {installedCards.length > 0 ? (
-            <div className="grid grid-cols-1 items-start gap-3 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 items-start gap-3 px-2 pt-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
                {installedCards}
             </div>
          ) : null}
-         <div className={cn('space-y-4 px-5', groups.length > 0 ? 'empty:hidden' : 'py-5')}>
+         <div className={cn('space-y-4 px-2 sm:px-5', groups.length > 0 ? 'empty:hidden' : 'py-5')}>
             {plugins.error ? (
                <SettingsCard>
                   <SettingsEmpty title={plugins.error} />
@@ -420,7 +420,7 @@ export default function PluginsSettings() {
                open={openPlugin !== null}
                onClose={closePlugin}
                header={
-                  <div className="flex h-[52px] w-full items-center gap-1 border-b px-5">
+                  <div className="flex h-[52px] w-full items-center gap-1 border-b px-2 sm:px-5">
                      <button
                         type="button"
                         onClick={closePlugin}
@@ -483,7 +483,7 @@ function PluginCategoryGroup({
             </div>
          </div>
          <CollapsibleContent>
-            <div className="grid grid-cols-1 items-start gap-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 items-start gap-3 px-2 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
                {children}
             </div>
          </CollapsibleContent>
