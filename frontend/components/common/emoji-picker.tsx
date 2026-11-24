@@ -37,18 +37,116 @@ interface ChosenEmoji {
    native: string;
 }
 
-/** Any CSS colour (hex, oklab, a color-mix) as `r, g, b`, via the probe's computed colour. */
+/**
+ * Height shared by the picker host and the <em-emoji-picker> element so the
+ * flex column inside the shadow root always gets a bounded scroll viewport
+ * and Radix Popper measures its true height to flip cleanly above/below.
+ */
+const PICKER_HEIGHT = 'min(26rem, 60dvh)';
+
+/**
+ * Injected into emoji-mart's open shadow root to fix mobile Safari touch
+ * scrolling:
+ * - Explicitly bounds `#root` and gives `.scroll` `flex: 1 1 0%; min-height: 0`
+ *   so WebKit computes a real scrollable flex area inside `position: fixed`
+ *   popovers.
+ * - Sets `-webkit-overflow-scrolling: touch`, `overscroll-behavior: contain`,
+ *   and `touch-action: pan-y` on both `.scroll` and its emoji `<button>` cells
+ *   so vertical finger drags start native momentum scrolling immediately.
+ * - Drops `-webkit-backdrop-filter` on sticky category headers (a known iOS
+ *   Safari compositor glitch inside shadow-DOM fixed popovers).
+ */
+const SHADOW_SCROLL_FIX_CSS = `
+:host {
+   display: flex;
+   height: 100%;
+   max-height: 100%;
+}
+#root {
+   height: 100%;
+   max-height: 100%;
+   min-height: 0;
+   overflow: hidden;
+}
+.scroll {
+   flex: 1 1 0%;
+   min-height: 0;
+   overflow-x: hidden;
+   overflow-y: auto;
+   -webkit-overflow-scrolling: touch;
+   overscroll-behavior: contain;
+   touch-action: pan-y;
+}
+.scroll button {
+   touch-action: pan-y;
+}
+.sticky {
+   background-color: rgb(var(--em-rgb-background));
+   -webkit-backdrop-filter: none;
+   backdrop-filter: none;
+}
+`;
+
+/**
+ * Parse a browser-computed CSS color (`rgb(...)`, `rgba(...)`, or `color(srgb ...)`)
+ * into an `r, g, b` triplet without `<canvas>.getImageData()` — canvas readback
+ * is blanked to pure white `(255, 255, 255)` by anti-fingerprinting protections,
+ * which otherwise turns the entire dark-mode picker white-on-white.
+ */
+function parseRgbTriplet(computed: string): string | null {
+   const rgb = computed.match(/^rgba?\(\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)\s*[,\s]\s*([\d.]+%?)/i);
+   if (rgb) {
+      const toByte = (raw: string) => {
+         const value = Number.parseFloat(raw);
+         if (Number.isNaN(value)) return null;
+         const scaled = raw.endsWith('%') ? (value / 100) * 255 : value;
+         return Math.max(0, Math.min(255, Math.round(scaled)));
+      };
+      const r = toByte(rgb[1] ?? '');
+      const g = toByte(rgb[2] ?? '');
+      const b = toByte(rgb[3] ?? '');
+      if (r !== null && g !== null && b !== null) return `${r}, ${g}, ${b}`;
+   }
+
+   const srgb = computed.match(/^color\(\s*srgb\s+([\d.eE+-]+)\s+([\d.eE+-]+)\s+([\d.eE+-]+)/i);
+   if (srgb) {
+      const toByte = (raw: string) => {
+         const value = Number.parseFloat(raw);
+         if (Number.isNaN(value)) return null;
+         return Math.max(0, Math.min(255, Math.round(value * 255)));
+      };
+      const r = toByte(srgb[1] ?? '');
+      const g = toByte(srgb[2] ?? '');
+      const b = toByte(srgb[3] ?? '');
+      if (r !== null && g !== null && b !== null) return `${r}, ${g}, ${b}`;
+   }
+
+   return null;
+}
+
+/** Resolve a CSS custom property into an `r, g, b` triplet via computed style. */
 function rgbTriplet(probe: HTMLElement, token: string): string | null {
    probe.style.color = `var(${token})`;
    const computed = getComputedStyle(probe).color;
-   const context = document.createElement('canvas').getContext('2d', {
-      willReadFrequently: true,
-   });
-   if (!context) return null;
-   context.fillStyle = computed;
-   context.fillRect(0, 0, 1, 1);
-   const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
-   return `${r}, ${g}, ${b}`;
+   return parseRgbTriplet(computed);
+}
+
+/** Sync emoji-mart's theme attribute and CSS custom properties with Berry's active theme. */
+function applyPickerTheme(container: HTMLElement, picker: HTMLElement) {
+   const dark = document.documentElement.classList.contains('dark');
+   const theme = dark ? 'dark' : 'light';
+   picker.setAttribute('data-theme', theme);
+   picker.shadowRoot?.querySelector('#root')?.setAttribute('data-theme', theme);
+
+   for (const [name, token] of Object.entries(TRIPLET_TOKENS)) {
+      const triplet = rgbTriplet(container, token);
+      if (triplet) picker.style.setProperty(name, triplet);
+      else picker.style.removeProperty(name);
+   }
+   container.style.color = '';
+   for (const [name, value] of Object.entries(PLAIN_TOKENS)) {
+      picker.style.setProperty(name, value);
+   }
 }
 
 /**
@@ -80,6 +178,23 @@ export function EmojiPicker({
       if (!container) return;
       let cancelled = false;
       let picker: HTMLElement | null = null;
+      let themeObserver: MutationObserver | null = null;
+
+      // Radix Sheet/Dialog uses react-remove-scroll, which listens for `wheel`
+      // and `touchmove` on `document` and calls `preventDefault()` whenever the
+      // target sits outside the dialog's shard or inside a shadow root whose
+      // host isn't itself scrollable. Stopping propagation from the picker's
+      // shadow `.scroll` container lets native scrolling work smoothly on both
+      // desktop wheel and iOS Safari touch without leaking overscroll.
+      const stopScrollEscape = (event: Event) => {
+         const scroller = picker?.shadowRoot?.querySelector('.scroll');
+         if (!scroller) return;
+         if (event.composedPath().includes(scroller)) {
+            event.stopPropagation();
+         }
+      };
+      container.addEventListener('wheel', stopScrollEscape, { passive: true });
+      container.addEventListener('touchmove', stopScrollEscape, { passive: true });
 
       void Promise.all([import('emoji-mart'), import('@emoji-mart/data')]).then(
          ([{ Picker }, { default: data }]) => {
@@ -103,33 +218,44 @@ export function EmojiPicker({
                onEmojiSelect: (emoji: ChosenEmoji) => select.current(emoji.native),
             }) as unknown as HTMLElement;
 
-            for (const [name, token] of Object.entries(TRIPLET_TOKENS)) {
-               const triplet = rgbTriplet(container, token);
-               if (triplet) picker.style.setProperty(name, triplet);
+            if (picker.shadowRoot) {
+               const scrollFix = document.createElement('style');
+               scrollFix.textContent = SHADOW_SCROLL_FIX_CSS;
+               picker.shadowRoot.appendChild(scrollFix);
             }
-            container.style.color = '';
-            for (const [name, value] of Object.entries(PLAIN_TOKENS)) {
-               picker.style.setProperty(name, value);
-            }
-            // Short enough to leave the page in sight on a phone.
-            picker.style.height = 'min(26rem, 60dvh)';
+
+            applyPickerTheme(container, picker);
+            picker.style.height = '100%';
             container.replaceChildren(picker);
+
+            themeObserver = new MutationObserver(() => {
+               if (picker) applyPickerTheme(container, picker);
+            });
+            themeObserver.observe(document.documentElement, {
+               attributes: true,
+               attributeFilter: ['class'],
+            });
+
             setReady(true);
          }
       );
 
       return () => {
          cancelled = true;
+         themeObserver?.disconnect();
+         container.removeEventListener('wheel', stopScrollEscape);
+         container.removeEventListener('touchmove', stopScrollEscape);
          picker?.remove();
       };
    }, []);
 
    return (
       <div
-         className={cn('relative min-h-[min(26rem,60dvh)] min-w-[18rem]', className)}
+         className={cn('relative min-w-[18rem]', className)}
+         style={{ height: PICKER_HEIGHT }}
          aria-busy={!ready}
       >
-         <div ref={host} />
+         <div ref={host} className="h-full" />
          {ready ? null : (
             <p className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                {t('loading')}
