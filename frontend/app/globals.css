@@ -918,6 +918,12 @@
       font-variant-numeric: tabular-nums;
    }
 
+   /* The unread count on the phone tab bar's Inbox tab: a step under the
+      label so it reads as a mark on the icon, not a second label. */
+   [data-tab-badge] {
+      font-size: 0.75rem;
+   }
+
    [data-identifier] {
       font-family: var(--font-mono);
       font-weight: 400;

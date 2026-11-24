@@ -36,7 +36,8 @@ const rise = (on: boolean) =>
       on && '-translate-y-[3px]'
    );
 const glyph = (on: boolean) => cn('flex', on && 'text-[var(--shell-accent)]');
-const inner = 'flex flex-col items-center gap-0.5';
+// leading-none: the label's line box, not the gap, was what kept it off the icon.
+const inner = 'flex flex-col items-center gap-0.5 leading-none';
 
 /**
  * The phone's primary navigation: five tabs fixed to the bottom edge, below
@@ -136,6 +137,7 @@ export const ShellTabBar = forwardRef<
             {inboxUnread > 0 ? (
                <span
                   data-figure
+                  data-tab-badge
                   className={cn(
                      'absolute top-1 left-1/2 ml-2 text-[var(--shell-accent)]',
                      rise(selected === 0)
