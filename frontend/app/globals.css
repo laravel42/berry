@@ -920,8 +920,13 @@
 
    /* The unread count on the phone tab bar's Inbox tab: a step under the
       label so it reads as a mark on the icon, not a second label. */
-   [data-tab-badge] {
+   /* The phone tab bar's labels: a step under the body so the five fit
+      under their icons without crowding. */
+   [data-tab-bar] {
       font-size: 0.75rem;
+   }
+   [data-tab-badge] {
+      font-size: 0.6875rem;
    }
 
    [data-identifier] {

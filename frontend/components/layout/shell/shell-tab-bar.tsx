@@ -36,8 +36,9 @@ const rise = (on: boolean) =>
       on && '-translate-y-[3px]'
    );
 const glyph = (on: boolean) => cn('flex', on && 'text-[var(--shell-accent)]');
-// leading-none: the label's line box, not the gap, was what kept it off the icon.
-const inner = 'flex flex-col items-center gap-0.5 leading-none';
+// No gap and leading-none: the label sits directly under the icon. Its size
+// comes from [data-tab-bar] in globals.css (components may not set text-*).
+const inner = 'flex flex-col items-center leading-none';
 
 /**
  * The phone's primary navigation: five tabs fixed to the bottom edge, below
@@ -97,6 +98,7 @@ export const ShellTabBar = forwardRef<
    return (
       <nav
          data-shell-chrome
+         data-tab-bar
          aria-label={t('tabs.label')}
          className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--shell-tabbar-h)+env(safe-area-inset-bottom))] items-stretch border-t border-[var(--shell-line)] bg-[var(--shell-rail)] pb-[env(safe-area-inset-bottom)] md:hidden"
       >
@@ -113,7 +115,7 @@ export const ShellTabBar = forwardRef<
                style={{ transform: `translateX(${shown * 100}%)` }}
             >
                <div
-                  className="absolute inset-x-1.5 inset-y-1 -translate-y-[3px] rounded-xl border"
+                  className="absolute inset-x-0.5 inset-y-1 -translate-y-[3px] rounded-xl border"
                   style={{
                      background: 'var(--shell-tab-pill-bg)',
                      borderColor: 'var(--shell-tab-pill-border)',
