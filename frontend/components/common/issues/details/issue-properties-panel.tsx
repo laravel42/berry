@@ -67,7 +67,7 @@ export function IssuePropertiesPanel({ issue, detail }: IssuePropertiesPanelProp
 
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto">
+         <div className="no-scrollbar -mx-1 flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto px-1">
             <Section title={t('title')}>
                <div className="flex flex-col [&>button]:pl-0!">
                   <AssigneeUser

@@ -142,7 +142,10 @@ function GroupHeaderBar({
       <div className={cn('h-(--field-h) w-full bg-container', !onToggle && 'sticky top-0 z-10')}>
          <div
             data-column-tint={tone}
-            className={cn('flex h-full w-full items-center justify-between px-6', GROUP_TINT[tone])}
+            className={cn(
+               'flex h-full w-full items-center justify-between px-4 sm:px-6',
+               GROUP_TINT[tone]
+            )}
          >
             {showChevron && onToggle ? (
                <button

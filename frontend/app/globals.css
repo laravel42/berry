@@ -819,11 +819,12 @@
       line-height: 1rem;
    }
 
-   /* A task label chip. The same step under the body, so a row of them sits
-      quieter than the property names beside them. */
+   /* A task label chip. One step under the body (14px vs 16px) at a semibold
+      weight so coloured pills breathe inside their border and stay legible. */
    [data-label-chip] {
-      font-size: 0.75rem;
-      line-height: 1rem;
+      font-size: var(--text-2xs);
+      line-height: 1.125rem;
+      font-weight: 600;
    }
 
    /* A note riding on a field's top edge, like a legend ("Draft saved" on a
@@ -1558,7 +1559,7 @@ input[type='search'] {
 }
 
 :is([data-detail-sidebar], [data-detail-body])
-   :is(button, input, textarea, select):not([data-detail-title]) {
+   :is(button, input, textarea, select):not([data-detail-title]):not([data-label-chip]) {
    font-size: inherit;
 }
 

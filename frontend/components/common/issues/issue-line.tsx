@@ -83,12 +83,12 @@ function IssueLineView({
                   issue.status.id === 'blocked' && 'bg-status-warning/[0.035]'
                )}
             >
-               <div className={cn('flex items-center gap-0.5', CONTROL)}>
+               <div className={cn('flex items-center gap-0 sm:gap-0.5', CONTROL)}>
                   {order.length > 0 ? (
                      <SelectionCheckbox
                         issueId={issue.id}
                         order={order}
-                        className="mr-1.5 [@media(hover:none)]:mr-px"
+                        className="sm:mr-1.5 sm:[@media(hover:none)]:mr-px"
                      />
                   ) : null}
                   {displayProperties.priority && <IssuePriorityPicker issue={issue} />}
