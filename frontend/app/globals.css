@@ -47,26 +47,22 @@
       var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-mono: var(--font-jetbrains-mono);
    --font-display: var(--font-jetbrains-mono);
-   /* --- Weight floor ------------------------------------------------------
-      400 is the lightest weight in this interface. Below it Inter goes faint
-      and the text stops holding its own against the surface, which is a
-      legibility floor and not a taste: a 300 row on the dark container was
-      already hard to read, and the page used to be set at 100.
+   /* --- Weight scale ----------------------------------------------------
+      The whole interface is set lighter than Tailwind's defaults: body text
+      (`font-normal`) and `font-medium` sit at 200, the light steps at 300,
+      and emphasis comes down to 400 (`font-semibold`) and 600 (`font-bold`).
+      Both faces are variable over 100-900 (app/layout.tsx), so every step is
+      a real weight, not a synthesised one.
 
-      The floor is enforced here rather than by deleting every `font-light`
-      and `font-thin`, because a rule in one place cannot be undone by the
-      next component that reaches for a light utility: all four sub-400 steps
-      resolve to 400, so those classes are now no-ops rather than hazards.
-      `font-normal` in particular used to mean 300, so a component asking for
-      normal text got light text.
-
-      This does NOT catch an arbitrary value -- `[font-weight:100]` writes the
-      declaration directly and bypasses the scale. There are none left; do not
-      add one. */
-   --font-weight-thin: 400;
-   --font-weight-extralight: 400;
-   --font-weight-light: 400;
-   --font-weight-normal: 400;
+      Declarations written as numbers (`font-weight: 600` in this file, or an
+      arbitrary `[font-weight:...]`) bypass this scale and keep their value. */
+   --font-weight-thin: 300;
+   --font-weight-extralight: 300;
+   --font-weight-light: 300;
+   --font-weight-normal: 200;
+   --font-weight-medium: 200;
+   --font-weight-semibold: 400;
+   --font-weight-bold: 600;
    /* The body size, 16px: `body` applies `text-xs`, so this step is what the
       interface reads at, and every step below keeps its own measure.
       The three steps above it moved with it rather than being left where they
@@ -672,8 +668,8 @@
       than merely the default. */
    body {
       @apply text-foreground font-sans text-xs;
-      /* 400, not the 300 that `font-normal` resolves to. Titles are 600. */
-      font-weight: 400;
+      /* The scale's body step (see Weight scale in @theme). */
+      font-weight: var(--font-weight-normal);
       /* dvh, not vh: on phones 100vh is the large viewport (toolbars retracted),
          which made the page taller than the screen. Same value on desktop. */
       min-height: 100dvh;
@@ -1037,7 +1033,7 @@
    }
 
    :where(.text-xs) {
-      font-weight: 400;
+      font-weight: var(--font-weight-normal);
    }
 
    /* Selection takes the focus hue, not the brand red: berry is reserved for
