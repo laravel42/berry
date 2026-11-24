@@ -40,7 +40,12 @@ function ProjectDragPreview({ project }: { project: Project }) {
                {project.health.name}
             </span>
          </div>
-         <div className="mb-2 line-clamp-2 min-h-[2lh]" role="heading" aria-level={4}>
+         <div
+            data-card-title
+            className="mb-2 line-clamp-2 min-h-[2lh]"
+            role="heading"
+            aria-level={4}
+         >
             {project.name}
          </div>
          <div className="flex min-h-[1.25rem] items-center gap-2">
@@ -196,6 +201,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                             larger than the task titles. Two lines are reserved
                             so a short name still fills the same card. */}
                         <div
+                           data-card-title
                            className="mb-2 line-clamp-2 min-h-[2lh]"
                            role="heading"
                            aria-level={4}

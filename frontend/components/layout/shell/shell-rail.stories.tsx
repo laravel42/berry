@@ -168,5 +168,9 @@ export const Settings: Story = {
    },
    play: async ({ canvas }) => {
       await expect(canvas.getByRole('link', { name: 'Back to app' })).toBeVisible();
+      await expect(canvas.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+         'aria-current',
+         'page'
+      );
    },
 };

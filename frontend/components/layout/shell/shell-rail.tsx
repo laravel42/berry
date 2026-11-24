@@ -370,22 +370,20 @@ export function ShellRail({
             className="mt-auto shrink-0 border-t border-[var(--shell-line)] px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-3"
          >
             <ul className="flex flex-col gap-0 md:gap-1">
-               {!settingsMode ? (
-                  <li>
-                     <Link
-                        prefetch={false}
-                        data-shell-nav
-                        href={`/${slug}/settings`}
-                        aria-current={onSettings ? 'page' : undefined}
-                        className={shellNavRow(onSettings)}
-                     >
-                        <ShellNavIcon on={onSettings}>
-                           <Settings size={13} strokeWidth={2} />
-                        </ShellNavIcon>
-                        {t('nav.settings')}
-                     </Link>
-                  </li>
-               ) : null}
+               <li>
+                  <Link
+                     prefetch={false}
+                     data-shell-nav
+                     href={`/${slug}/settings`}
+                     aria-current={onSettings ? 'page' : undefined}
+                     className={shellNavRow(onSettings)}
+                  >
+                     <ShellNavIcon on={onSettings}>
+                        <Settings size={13} strokeWidth={2} />
+                     </ShellNavIcon>
+                     {t('nav.settings')}
+                  </Link>
+               </li>
                <li>
                   <button
                      type="button"

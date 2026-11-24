@@ -219,11 +219,11 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                            <Button
                               type="button"
                               size="icon-sm"
-                              // Same as the task composer's send: the default
-                              // berry gradient with a white glyph. The old
-                              // `bg-secondary` sat under the gradient unseen,
-                              // while its text colour turned the glyph black.
-                              className="flex-none disabled:opacity-40"
+                              variant={draft.trim() ? 'default' : 'secondary'}
+                              className={cn(
+                                 'flex-none',
+                                 !draft.trim() && 'border border-transparent'
+                              )}
                               aria-label="post update"
                               title="post update"
                               onClick={submitComment}

@@ -1347,11 +1347,8 @@ export function ActivityCommentComposer({
                </div>
                <Button
                   size="icon-sm"
-                  // The default variant's berry gradient and white glyph. A
-                  // `bg-*` override here only set the colour under that
-                  // gradient image, so it never showed; its text colour did,
-                  // and left a black glyph on berry in the light theme.
-                  className="flex-none disabled:opacity-40"
+                  variant={canSend ? 'default' : 'secondary'}
+                  className={cn('flex-none', !canSend && 'border border-transparent')}
                   aria-label={sendLabel}
                   title={sendLabel}
                   onClick={send}

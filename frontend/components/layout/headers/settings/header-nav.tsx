@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -59,23 +59,8 @@ export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) 
 
    return (
       <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-2 sm:px-5">
-         {/* Breadcrumb: "Settings › Page". The h1 stays "Settings"; the page
-             name is the section below it. */}
          <div className="flex min-w-0 items-baseline gap-2">
             <h1 className="m-0 shrink-0 font-normal text-subtle-foreground">{t('title')}</h1>
-            {currentLabelKey ? (
-               <>
-                  {/* On a phone the selector on the right already names the page. */}
-                  <ChevronRight
-                     className="hidden size-2.5 shrink-0 sm:block text-settings-field-focus"
-                     strokeWidth={2.5}
-                     aria-hidden
-                  />
-                  <span className="hidden min-w-0 truncate font-semibold sm:inline">
-                     {admin(`nav.${currentLabelKey}`)}
-                  </span>
-               </>
-            ) : null}
          </div>
 
          <div className="flex min-w-0 items-center gap-2">

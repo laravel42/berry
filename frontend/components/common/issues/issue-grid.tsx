@@ -42,21 +42,29 @@ type IssueGridProps = {
 
 function IssueDragPreview({ issue }: { issue: Issue }) {
    return (
-      <div className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg">
+      <div
+         data-board-card
+         className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg"
+      >
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <IssuePriorityPicker issue={issue} />
             <span data-identifier className="min-w-0 truncate text-subtle-foreground">
                {issue.identifier}
             </span>
             {issue.autoGate ? <AutoGateMark /> : null}
-            <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+            <span
+               data-card-date
+               className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground"
+            >
                {format(new Date(issue.createdAt), 'MMM dd')}
             </span>
          </div>
          {/* Plain text, not a heading: the ghost is a transient copy of the
              card that only exists mid-drag, so it has nothing to contribute to
              the document outline. */}
-         <div className="mb-2 line-clamp-2">{issue.title}</div>
+         <div data-card-title className="mb-2 line-clamp-2">
+            {issue.title}
+         </div>
          <div className="mb-2 flex min-h-[1.25rem] flex-wrap gap-1">
             <LabelBadge label={issue.labels} />
          </div>
@@ -212,6 +220,7 @@ function IssueGridCard({
             <ContextMenuTrigger asChild>
                <div
                   ref={innerRef}
+                  data-board-card
                   className={cn(
                      'group relative w-full cursor-grab rounded-lg bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] transition-colors active:cursor-grabbing',
                      /* Not the themed `--border`, which would turn near-white on a
@@ -253,7 +262,10 @@ function IssueGridCard({
                         ) : null}
                         {issue.autoGate ? <AutoGateMark /> : null}
                         {displayProperties.created ? (
-                           <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+                           <span
+                              data-card-date
+                              className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground"
+                           >
                               {format(new Date(issue.createdAt), 'MMM dd')}
                            </span>
                         ) : null}
@@ -302,7 +314,12 @@ function IssueGridCard({
                             back: a grid of cards is skimmed by its titles,
                             and dropping to a bare div would leave screen
                             readers tabbing every card to find one. */}
-                        <div className="mb-2 line-clamp-2" role="heading" aria-level={4}>
+                        <div
+                           data-card-title
+                           className="mb-2 line-clamp-2"
+                           role="heading"
+                           aria-level={4}
+                        >
                            {issue.title}
                         </div>
                      </Link>

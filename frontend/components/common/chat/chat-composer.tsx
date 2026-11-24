@@ -198,7 +198,7 @@ export function ChatComposer({
                            title={sendLabel}
                            className={[
                               'flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
-                              SEND_VARIANT[sendVariant],
+                              SEND_VARIANT[canSend ? sendVariant : 'secondary'],
                            ].join(' ')}
                         >
                            <ArrowUp className="size-4" aria-hidden />

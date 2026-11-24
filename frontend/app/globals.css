@@ -827,6 +827,19 @@
       font-weight: 600;
    }
 
+   /* Board cards: tighter title and smaller metadata so titles and dates read
+      cleanly inside 266px Kanban columns. */
+   [data-card-title] {
+      font-size: var(--text-2xs);
+      line-height: 1.35;
+   }
+
+   [data-card-date],
+   [data-board-card] [data-identifier] {
+      font-size: 0.75rem;
+      line-height: 1rem;
+   }
+
    /* A note riding on a field's top edge, like a legend ("Draft saved" on a
       comment box). A step under the body, so it reads as a remark about the
       box rather than as part of what is written in it. */
@@ -1117,13 +1130,10 @@
       --shell-tabbar-h: 3.5rem;
       --shell-launcher-b: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom) + 0.75rem);
       --shell-launcher-clear: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom));
-      /* viewport-fit=cover lets the page run under the notch and status bar, so
-         the frame insets fold the safe areas in. The bottom is the tab bar's. */
-      --app-inset-t: max(8px, env(safe-area-inset-top));
-      --app-inset-r: max(6px, env(safe-area-inset-right));
-      /* Equal side gaps on a phone: the desktop rail owns the left edge, so
-         there the left stays 0, but with no rail a lopsided frame reads as a bug. */
-      --app-inset-l: max(6px, env(safe-area-inset-left, 0px));
+      --app-inset-t: 0px;
+      --app-inset-r: 0px;
+      --app-inset-b: 0px;
+      --app-inset-l: 0px;
    }
 }
 
@@ -1177,6 +1187,12 @@ body {
    border-color: var(--app-frame);
    border-width: var(--app-inset-t) var(--app-inset-r) var(--app-inset-b) var(--app-inset-l);
    overflow: hidden;
+}
+
+@media (width < 48rem) {
+   body {
+      border-width: 0;
+   }
 }
 
 /*

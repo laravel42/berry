@@ -292,7 +292,11 @@ export function AgentDraftPanel({
                      <Button
                         type="submit"
                         size="icon"
-                        className="size-7 rounded-full"
+                        variant={canSend ? 'default' : 'secondary'}
+                        className={cn(
+                           'size-7 rounded-full',
+                           !canSend && 'border border-transparent'
+                        )}
                         aria-label="Send"
                         disabled={!canSend}
                      >
