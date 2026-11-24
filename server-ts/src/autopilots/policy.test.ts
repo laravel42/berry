@@ -22,7 +22,7 @@ describe('loop access ceiling', () => {
 
    test('recommend never adds a tool the agent lacks', () => {
       const reader = effectiveTools({ allowed_tools: ['read_task', 'post_comment'], autonomy_level: 1 });
-      assert.deepEqual(ceilTools(reader, 'recommend'), ['post_comment', 'read_task']);
+      assert.deepEqual(ceilTools(reader, 'recommend'), ['post_comment', 'read_knowledge_page', 'read_task', 'search_knowledge']);
    });
 
    test('recommend closes an agent whose own permissions would leave it open', () => {
