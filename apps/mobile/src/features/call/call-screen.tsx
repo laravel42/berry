@@ -18,7 +18,7 @@ export function CallScreen() {
   const endCall = useApp((state) => state.endCall);
   const showToast = useApp((state) => state.showToast);
   const insets = useSafeAreaInsets();
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!call) return;

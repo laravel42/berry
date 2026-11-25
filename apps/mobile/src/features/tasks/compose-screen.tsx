@@ -6,8 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
-import { PRIORITY_LEVEL, person } from '@/data/people';
-import { issueKey } from '@/data/people';
+import { PRIORITY_LEVEL, issueKey, person } from '@/data/people';
 import {
   ASSIGNEE_OPTIONS,
   COMPOSE_EXAMPLES,

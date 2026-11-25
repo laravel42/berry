@@ -1,8 +1,7 @@
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { TONE_COLOR } from '@/data/people';
+import { STATUS, TONE_COLOR } from '@/data/people';
 import type { Status } from '@/model/types';
-import { STATUS } from '@/data/people';
 import { colors } from '@/theme/tokens';
 
 type MarkProps = {

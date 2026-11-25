@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -34,19 +34,21 @@ export function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState('');
   const [recording, setRecording] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [playing, setPlaying] = useState<{ id: string; start: number; dur: number } | null>(null);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
 
   useEffect(() => {
     if (!recording && !playing) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
+    const timer = setInterval(() => {
+      const current = Date.now();
+      setNow(current);
+      if (playing && (current - playing.start) / 1000 >= playing.dur) {
+        setPlaying(null);
+      }
+    }, 250);
     return () => clearInterval(timer);
   }, [recording, playing]);
-
-  useEffect(() => {
-    if (playing && (Date.now() - playing.start) / 1000 >= playing.dur) setPlaying(null);
-  }, [now, playing]);
 
   useEffect(() => {
     scroll.current?.scrollToEnd({ animated: true });

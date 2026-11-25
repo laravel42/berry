@@ -1,5 +1,3 @@
-import 'react-native-gesture-handler';
-
 import { useFonts } from 'expo-font';
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono/400Regular';
 import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';

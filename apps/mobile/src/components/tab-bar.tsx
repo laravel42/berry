@@ -15,13 +15,13 @@ const TABS: { route: string; label: string; icon: IconName }[] = [
 
 type TabBarProps = {
   state: { index: number; routes: { key: string; name: string }[] };
-  navigation: {
+  emitter: {
     emit: (event: { type: 'tabPress'; target?: string; canPreventDefault: true }) => { defaultPrevented: boolean };
-    navigate: (name: string) => void;
   };
+  navigateToTab: (routeKey: string) => void;
 };
 
-export function BerryTabBar({ state, navigation }: TabBarProps) {
+export function BerryTabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const inbox = useApp((store) => unreadInboxCount(store.notifications));
   const chat = useApp((store) => chatUnreadCount(store.chats));
@@ -43,8 +43,8 @@ export function BerryTabBar({ state, navigation }: TabBarProps) {
             accessibilityState={{ selected: focused }}
             accessibilityLabel={meta.label}
             onPress={() => {
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!focused && !event.defaultPrevented) navigateToTab(route.key);
             }}
             style={styles.tab}>
             <View style={[styles.iconWrap, focused && ios && styles.pill]}>

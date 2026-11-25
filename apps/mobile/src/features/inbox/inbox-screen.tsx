@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useRef } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
+import ReanimatedSwipeable, { SwipeDirection, type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Fab } from '@/components/fab';
@@ -145,13 +145,13 @@ function labelFor(kind: NotifKind, count: number): string {
 function InboxRow({ item, title, resolved }: { item: Notification; title: string; resolved?: string }) {
   const toggleRead = useApp((state) => state.toggleRead);
   const archive = useApp((state) => state.archiveNotification);
-  const ref = useRef<Swipeable>(null);
+  const ref = useRef<SwipeableMethods>(null);
   const kind = KIND[item.kind];
   const decided = !item.needs && DECISIONS.has(item.kind) && resolved;
   const event = decided ? `Decided · ${resolved}` : `${kind.label} · ${item.body}`;
 
   return (
-    <Swipeable
+    <ReanimatedSwipeable
       ref={ref}
       overshootLeft={false}
       overshootRight={false}
@@ -168,7 +168,7 @@ function InboxRow({ item, title, resolved }: { item: Notification; title: string
       )}
       onSwipeableOpen={(direction) => {
         ref.current?.close();
-        if (direction === 'left') toggleRead(item.id);
+        if (direction === SwipeDirection.RIGHT) toggleRead(item.id);
         else archive(item.id);
       }}>
       <Pressable
@@ -194,7 +194,7 @@ function InboxRow({ item, title, resolved }: { item: Notification; title: string
         </View>
         {item.read ? <View style={styles.dotSpacer} /> : <View style={styles.dot} accessibilityLabel="Unread" />}
       </Pressable>
-    </Swipeable>
+    </ReanimatedSwipeable>
   );
 }
 
