@@ -12,8 +12,10 @@ export default function TabLayout() {
         sceneStyle: { backgroundColor: colors.void },
       }}>
       <Tabs.Screen name="index" options={{ title: 'Inbox' }} />
-      <Tabs.Screen name="tasks" options={{ title: 'My tasks' }} />
-      <Tabs.Screen name="chat" options={{ title: 'Chat' }} />
+      <Tabs.Screen name="tasks" options={{ title: 'Tasks' }} />
+      <Tabs.Screen name="projects" options={{ title: 'Projects' }} />
+      <Tabs.Screen name="agents" options={{ title: 'Agents' }} />
+      <Tabs.Screen name="more" options={{ title: 'More' }} />
     </Tabs>
   );
 }

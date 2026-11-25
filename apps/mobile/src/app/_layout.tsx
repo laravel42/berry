@@ -123,6 +123,7 @@ export default function RootLayout() {
           <Stack.Screen name="issue/[id]" />
           <Stack.Screen name="project/[id]" />
           <Stack.Screen name="conversation/[id]" />
+          <Stack.Screen name="settings" />
           <Stack.Screen name="compose" options={{ presentation: 'modal' }} />
           <Stack.Screen name="new-chat" options={{ presentation: 'modal' }} />
           <Stack.Screen name="call" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />

@@ -1,0 +1,184 @@
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { Icon } from '@/components/icon';
+import { AppText } from '@/components/text';
+import { WorkspaceSheet } from '@/components/workspace-sheet';
+import { useAuthStore } from '@/store/auth-store';
+import { useWorkspaceStore } from '@/store/workspace-store';
+import { colors } from '@/theme/tokens';
+
+function KeyValueRow({
+  label,
+  value,
+  tone = 'chalk',
+}: {
+  label: string;
+  value: string;
+  tone?: 'chalk' | 'ash' | 'verdant' | 'amber';
+}) {
+  return (
+    <View style={styles.kvRow}>
+      <AppText size={13} tone="ash">
+        {label}
+      </AppText>
+      <AppText size={13} tone={tone} numberOfLines={1} style={styles.kvValue}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+export function SettingsScreen() {
+  const insets = useSafeAreaInsets();
+  const user = useAuthStore((state) => state.user);
+  const baseUrl = useAuthStore((state) => state.baseUrl);
+  const capabilities = useAuthStore((state) => state.capabilities);
+  const workspaces = useAuthStore((state) => state.workspaces);
+  const logout = useAuthStore((state) => state.logout);
+  const workspace = useWorkspaceStore((state) => state.workspace);
+
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  const confirmSignOut = () => {
+    Alert.alert('Sign out', 'Disconnect this device from Berry?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign out', style: 'destructive', onPress: () => void logout({ reason: 'manual' }) },
+    ]);
+  };
+
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      <View style={styles.topBar}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconBtn}>
+          <Icon name="arrowLeft" size={20} color={colors.chalk} />
+        </Pressable>
+        <AppText size={16} weight="medium" tone="chalk" style={styles.topTitle}>
+          Settings
+        </AppText>
+        <View style={styles.iconBtn} />
+      </View>
+
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
+        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+          WORKSPACE
+        </AppText>
+        <View style={styles.card}>
+          <KeyValueRow label="Active workspace" value={workspace?.name ?? 'None'} />
+          <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} />
+          <KeyValueRow label="Role" value={workspace?.role ?? '—'} />
+          {workspaces.length > 1 ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setSwitcherOpen(true)}
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+              <AppText size={13} weight="medium" tone="chalk">
+                Switch workspace
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
+
+        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+          SERVER
+        </AppText>
+        <View style={styles.card}>
+          <KeyValueRow label="Endpoint" value={baseUrl} />
+          <KeyValueRow
+            label="Realtime"
+            value={capabilities?.realtime ? 'Available' : 'Unavailable'}
+            tone={capabilities?.realtime ? 'verdant' : 'ash'}
+          />
+          <KeyValueRow
+            label="Agent execution"
+            value={capabilities?.agentExecution ? 'Enabled' : 'Disabled'}
+            tone={capabilities?.agentExecution ? 'verdant' : 'ash'}
+          />
+          <KeyValueRow
+            label="Two-factor auth"
+            value={capabilities?.twoFactor ? 'Supported' : 'Unavailable'}
+            tone={capabilities?.twoFactor ? 'verdant' : 'ash'}
+          />
+        </View>
+
+        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+          ACCOUNT
+        </AppText>
+        <View style={styles.card}>
+          <KeyValueRow label="Name" value={user?.name ?? '—'} />
+          <KeyValueRow label="Email" value={user?.email ?? '—'} />
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={confirmSignOut}
+          style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}>
+          <Icon name="logOut" size={16} color={colors.danger} />
+          <AppText size={14} weight="medium" tone="danger">
+            Sign out
+          </AppText>
+        </Pressable>
+      </ScrollView>
+
+      <WorkspaceSheet visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.void },
+  topBar: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+    gap: 6,
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topTitle: { flex: 1, textAlign: 'center' },
+  content: { padding: 16, gap: 12 },
+  sectionLabel: { letterSpacing: 0.7, marginTop: 4, marginLeft: 2 },
+  card: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    gap: 10,
+  },
+  kvRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  kvValue: { flex: 1, textAlign: 'right' },
+  actionBtn: {
+    marginTop: 4,
+    height: 38,
+    borderRadius: 9,
+    backgroundColor: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dangerBtn: {
+    marginTop: 8,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  pressed: { opacity: 0.85 },
+});
