@@ -108,26 +108,37 @@ async function mintMobilePat(input: {
   fetchImpl: FetchLike;
 }): Promise<{ token: string; tokenId: string }> {
   const expiresAt = new Date(Date.now() + NINETY_DAYS_MS).toISOString();
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    'Idempotency-Key': createIdempotencyKey(),
-  };
-  if (input.sessionCookie) {
-    headers.Cookie = input.sessionCookie;
-  }
-
-  const response = await input.fetchImpl(`${cleanBaseUrl(input.baseUrl)}/api/v1/tokens`, {
-    method: 'POST',
-    headers,
-    // iOS NSURLSession keeps HttpOnly session cookies in its native jar and may hide
-    // Set-Cookie from JS; `include` lets the jar attach them when we could not read one.
-    credentials: 'include',
-    body: JSON.stringify({
-      name: `Berry Mobile (${input.deviceLabel})`,
-      expiresAt,
-    }),
+  const payload = JSON.stringify({
+    name: `Berry Mobile (${input.deviceLabel})`,
+    expiresAt,
   });
+
+  const postToken = (mode: 'explicit-cookie' | 'native-jar') => {
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'Idempotency-Key': createIdempotencyKey(),
+    };
+    if (mode === 'explicit-cookie' && input.sessionCookie) {
+      headers.Cookie = input.sessionCookie;
+    }
+    // On iOS NSURLSession, mixing `credentials: 'include'` with a manual `Cookie` header
+    // can prepend stale NSHTTPCookieStorage cookies or drop the manual header. Keep them
+    // mutually exclusive: `omit` when sending an explicit Cookie, `include` for the native jar.
+    return input.fetchImpl(`${cleanBaseUrl(input.baseUrl)}/api/v1/tokens`, {
+      method: 'POST',
+      headers,
+      credentials: mode === 'explicit-cookie' ? 'omit' : 'include',
+      body: payload,
+    });
+  };
+
+  let response = await postToken(input.sessionCookie ? 'explicit-cookie' : 'native-jar');
+  if (response.status === 401 && input.sessionCookie) {
+    // Set-Cookie may have only exposed a non-session cookie (e.g. edge/CDN) while the
+    // HttpOnly session cookie lives in the native jar; retry once with the jar alone.
+    response = await postToken('native-jar');
+  }
 
   const parsed = await parseJsonSafe(response);
   if (!response.ok) {
@@ -157,7 +168,7 @@ async function mintMobilePat(input: {
   try {
     await input.fetchImpl(`${cleanBaseUrl(input.baseUrl)}/api/auth/sign-out`, {
       method: 'POST',
-      credentials: 'include',
+      credentials: input.sessionCookie ? 'omit' : 'include',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',

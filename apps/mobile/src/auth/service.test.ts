@@ -257,4 +257,57 @@ describe('auth service', () => {
     expect(seen[1]?.url).toBe('https://berry.example.com/api/v1/tokens');
     expect(seen[1]?.credentials).toBe('include');
   });
+
+  test('uses credentials: omit with explicit Cookie header and falls back to native jar on 401', async () => {
+    const tokenCalls: { credentials?: RequestCredentials; cookie: string | null }[] = [];
+
+    const result = await signInWithPassword(
+      {
+        baseUrl: 'https://berry.example.com',
+        email: 'edo@laravel42.com',
+        password: 'Berry-secret-password',
+        deviceLabel: 'iOS',
+      },
+      async (input, init) => {
+        const headers = new Headers(init?.headers);
+        if (String(input).endsWith('/api/auth/sign-in/email')) {
+          return jsonResponse(
+            { user: { id: 'u1', email: 'edo@laravel42.com' } },
+            200,
+            { 'set-cookie': '__cf_bm=edge_cookie; Path=/' },
+          );
+        }
+        if (String(input).endsWith('/api/v1/tokens')) {
+          tokenCalls.push({
+            credentials: init?.credentials,
+            cookie: headers.get('cookie'),
+          });
+          if (tokenCalls.length === 1) {
+            return jsonResponse(
+              { error: { code: 'UNAUTHENTICATED', message: 'Authentication required.', requestId: 'r1', details: null } },
+              401,
+            );
+          }
+          return jsonResponse(
+            {
+              personalToken: { id: 'tok-ios-2', name: 'Berry Mobile (iOS)' },
+              token: 'berry_pat_ios_fallback_ok',
+            },
+            201,
+          );
+        }
+        return jsonResponse({ success: true }, 200);
+      },
+    );
+
+    expect(result).toEqual({
+      kind: 'signed_in',
+      token: 'berry_pat_ios_fallback_ok',
+      tokenId: 'tok-ios-2',
+    });
+    expect(tokenCalls).toEqual([
+      { credentials: 'omit', cookie: '__cf_bm=edge_cookie' },
+      { credentials: 'include', cookie: null },
+    ]);
+  });
 });
