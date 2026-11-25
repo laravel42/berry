@@ -1,5 +1,8 @@
-import { cn } from '@/lib/utils';
+import { ChevronLeft } from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
+
+import { cn } from '@/lib/utils';
 
 /**
  * The parts every page is set with, so the app reads as one hand: a page
@@ -87,12 +90,12 @@ export function PageStatement({
    return (
       <header
          className={cn(
-            'flex w-full flex-col gap-1 border-b px-5',
+            'flex w-full flex-col gap-1 border-b px-2 sm:px-5',
             label || children ? (figure !== undefined ? 'pb-2' : '') : 'py-2'
          )}
       >
          {label || children ? (
-            <div className="flex h-10 items-center justify-between gap-4">
+            <div className="flex min-h-[52px] items-center justify-between gap-4 py-2 sm:h-[52px] sm:py-0">
                {label ? (
                   heading === 'h1' ? (
                      <h1 className="min-w-0 truncate">{label}</h1>
@@ -163,15 +166,31 @@ export interface Kpi {
  * six of them filled the first screen and pushed the list they sum up below
  * the fold. The bleed (`-mx-6 px-6`) matches the header's own padding.
  */
-export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
+export function KpiStrip({ kpis, wrap = false }: { kpis: Kpi[]; wrap?: boolean }) {
    return (
-      <dl className="no-scrollbar -mx-6 flex snap-x scroll-px-6 gap-3 overflow-x-auto px-6 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6">
+      <dl
+         className={cn(
+            'no-scrollbar -mx-2 flex snap-x scroll-px-2 gap-3 overflow-x-auto px-2 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 xl:grid-cols-6',
+            // One row of equal columns on phones instead of a strip that scrolls off-screen.
+            wrap && 'max-sm:mx-0 max-sm:gap-2 max-sm:overflow-visible max-sm:px-0'
+         )}
+      >
          {kpis.map((kpi) => (
             <div
                key={kpi.label}
-               className="flex w-40 min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-[10px] bg-accent px-4 pt-3.5 pb-4 sm:w-auto"
+               className={cn(
+                  'flex w-40 min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-[10px] bg-accent px-4 pt-3.5 pb-4 sm:w-auto',
+                  wrap && 'max-sm:w-auto max-sm:grow max-sm:basis-0 max-sm:px-2.5'
+               )}
             >
-               <dt data-heading="label" className="truncate text-subtle-foreground">
+               <dt
+                  data-heading="label"
+                  className={cn(
+                     'truncate text-subtle-foreground',
+                     wrap &&
+                        'max-sm:whitespace-normal max-sm:[overflow-wrap:anywhere] max-sm:text-clip'
+                  )}
+               >
                   {kpi.label}
                </dt>
                <dd className="flex min-w-0 flex-col gap-2">
@@ -198,20 +217,53 @@ export function KpiStrip({ kpis }: { kpis: Kpi[] }) {
 export function PageKpiHeader({
    label,
    kpis,
+   wrapKpis = false,
    children,
 }: {
    label: string;
    kpis?: Kpi[];
+   /** Wrap the KPI cards two per row below `sm` rather than scroll them. */
+   wrapKpis?: boolean;
    /** Search and the page's one create action. */
    children?: ReactNode;
 }) {
    return (
-      <header className="flex w-full flex-col gap-3.5 border-b px-5">
-         <div className="flex h-[52px] items-center gap-3">
+      <header className="flex w-full flex-col gap-3.5 border-b px-2 sm:px-5">
+         <div className="flex min-h-[52px] flex-wrap items-center gap-x-3 gap-y-2 py-2 sm:h-[52px] sm:flex-nowrap sm:py-0">
             <h1>{label}</h1>
-            <div className="ml-auto flex items-center gap-2">{children}</div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
+               {children}
+            </div>
          </div>
-         {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} /> : null}
+         {kpis && kpis.length > 0 ? <KpiStrip kpis={kpis} wrap={wrapKpis} /> : null}
       </header>
+   );
+}
+
+/**
+ * A page's title row with a way back to the page it belongs to (a catalog
+ * back to its list), for a page whose toolbar has no title of its own. It
+ * sits first in a toolbar padded `px-4 py-2.5` and runs edge to edge.
+ */
+export function PageBackTitle({
+   href,
+   backLabel,
+   title,
+}: {
+   href: string;
+   backLabel: string;
+   title: string;
+}) {
+   return (
+      <div className="-mx-4 -mt-2.5 flex w-[calc(100%+2rem)] items-center gap-1 border-b px-2 py-1.5">
+         <Link
+            href={href}
+            aria-label={backLabel}
+            className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent"
+         >
+            <ChevronLeft className="size-5" aria-hidden />
+         </Link>
+         <h1 className="min-w-0 truncate">{title}</h1>
+      </div>
    );
 }

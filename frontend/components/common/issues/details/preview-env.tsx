@@ -1,12 +1,13 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { CodeEditor } from '@/components/ui/code-editor';
+import { CodeEditor } from '@/components/ui/code-editor-lazy';
 import { loadPreviewEnv, savePreviewEnv, type PreviewEnvFile } from '@/lib/preview-environment';
 import type { EditorView } from '@codemirror/view';
 import { Loader2, LockKeyhole } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useReportUnsavedEdits } from '@/store/unsaved-edits-store';
 
 /**
  * The panel's ENV tab: the variables the project's builds are given, written
@@ -108,6 +109,8 @@ export function PreviewEnv({
       },
       [issueRef, text, onRebuild, t]
    );
+
+   useReportUnsavedEdits('preview-env', file !== null && text !== file.text);
 
    if (!file) {
       return (

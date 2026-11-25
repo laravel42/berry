@@ -5,10 +5,10 @@ import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trig
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { useMyIssuesTab } from '@/components/common/my-issues/use-my-issues';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { canEditProduct } from '@/lib/workspace-role';
-import { cn } from '@/lib/utils';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useSearchStore } from '@/store/search-store';
 import { useSessionStore } from '@/store/session-store';
@@ -41,14 +41,15 @@ export default function Header() {
                </Button>
             ) : null}
          </PageKpiHeader>
-         <div className="mb-1 flex h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] [&_button]:!h-[30px]">
-            <div className="flex flex-wrap items-center gap-1">
-               <Input
-                  className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
-                  placeholder={t('search')}
+         {/* On a phone the search rests as an icon beside the filter,
+             display and layout controls; opened, it takes the first line and
+             they move to the second (see ToolbarSearch). */}
+         <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:py-2 sm:px-5">
+            <div className="flex flex-wrap items-center gap-1 max-sm:contents">
+               <ToolbarSearch
+                  label={t('search')}
                   value={searchQuery}
-                  onChange={(event) => {
-                     const value = event.target.value;
+                  onChange={(value) => {
                      setSearchQuery(value);
                      if (value.trim() === '') closeSearch();
                      else openSearch();
@@ -58,33 +59,17 @@ export default function Header() {
                <IssueFilterBarActions />
                <DisplayOptions iconOnly />
             </div>
-            <div
-               role="group"
+            <SegmentedControl
+               className="ml-auto"
                aria-label={t('layout.label')}
-               className="ml-auto flex items-center rounded-md border p-0.5"
-            >
-               {LAYOUTS.map((layout) => {
-                  const on = view.mode === layout.value;
-                  return (
-                     <button
-                        key={layout.value}
-                        type="button"
-                        aria-pressed={on}
-                        aria-label={t(`layout.${layout.key}`)}
-                        title={t(`layout.${layout.key}`)}
-                        onClick={() => view.setMode(layout.value)}
-                        className={cn(
-                           'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                           on
-                              ? 'bg-secondary text-foreground'
-                              : 'text-muted-foreground hover:text-foreground'
-                        )}
-                     >
-                        <layout.icon className="size-4" />
-                     </button>
-                  );
-               })}
-            </div>
+               value={view.mode}
+               onValueChange={view.setMode}
+               options={LAYOUTS.map((layout) => ({
+                  value: layout.value,
+                  title: t(`layout.${layout.key}`),
+                  label: <layout.icon className="size-4" aria-hidden />,
+               }))}
+            />
          </div>
       </div>
    );

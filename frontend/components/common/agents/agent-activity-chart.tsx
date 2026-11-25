@@ -2,11 +2,20 @@
 
 import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
 
-import { UsageDailyChart } from '@/components/common/usage/usage-daily-chart';
 import type { AgentRoster } from '@/lib/agents';
 import type { UsageBucket } from '@/lib/usage';
 import { cn } from '@/lib/utils';
+
+/**
+ * The usage chart, with Recharts inside it, loaded after the page rather than
+ * with it. The placeholder holds the chart's fixed `h-48` box.
+ */
+const UsageDailyChart = dynamic(
+   () => import('@/components/common/usage/usage-daily-chart').then((m) => m.UsageDailyChart),
+   { ssr: false, loading: () => <div aria-hidden className="h-48 w-full" /> }
+);
 
 const DAYS = 30;
 

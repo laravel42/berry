@@ -69,7 +69,6 @@ function HeaderRows({
          {rows.map((row, index) => (
             <div key={index} className="flex items-center gap-2">
                <Input
-                  variant="settings"
                   className="min-w-0 flex-1"
                   value={row.name}
                   placeholder="Authorization"
@@ -83,7 +82,6 @@ function HeaderRows({
                   }
                />
                <Input
-                  variant="settings"
                   type="password"
                   className="min-w-0 flex-1"
                   value={row.value}
@@ -109,6 +107,7 @@ function HeaderRows({
          ))}
          {addButton ? (
             <Button
+               size="sm"
                variant="soft"
                className="w-fit"
                onClick={() => onChange([...rows, { name: '', value: '' }])}
@@ -188,7 +187,6 @@ function ServerRow({
             </div>
             <div className="flex shrink-0 items-center gap-2">
                <Switch
-                  variant="settings"
                   checked={checked}
                   disabled={readOnly}
                   aria-label={`Enable ${server.name}`}
@@ -205,7 +203,7 @@ function ServerRow({
                />
                {readOnly ? null : (
                   <>
-                     <Button variant="soft" onClick={() => setReplacing(!replacing)}>
+                     <Button size="sm" variant="soft" onClick={() => setReplacing(!replacing)}>
                         Replace headers
                      </Button>
                      <SettingsIconButton
@@ -226,6 +224,7 @@ function ServerRow({
                </p>
                <HeaderRows rows={rows} onChange={setRows} />
                <Button
+                  size="sm"
                   className="w-fit"
                   onClick={() =>
                      void patch(
@@ -301,11 +300,11 @@ function AddServerForm({
       return (
          <SettingsCard>
             <SettingsRow
+               wide
                title="Name"
                description="Lowercase, e.g. docs."
                trailing={
                   <Input
-                     variant="settings"
                      className="w-[260px]"
                      value={name}
                      placeholder="docs"
@@ -315,10 +314,10 @@ function AddServerForm({
                }
             />
             <SettingsRow
+               wide
                title="URL"
                trailing={
                   <Input
-                     variant="settings"
                      className="w-[260px]"
                      value={url}
                      placeholder="https://example.com/mcp"
@@ -328,6 +327,7 @@ function AddServerForm({
                }
             />
             <SettingsRow
+               wide
                title="Transport"
                trailing={
                   <SelectMenu
@@ -345,6 +345,7 @@ function AddServerForm({
                description="Values are encrypted and never shown again."
                trailing={
                   <Button
+                     size="sm"
                      variant="soft"
                      onClick={() => setRows([...rows, { name: '', value: '' }])}
                   >
@@ -362,7 +363,6 @@ function AddServerForm({
                description="Agents reach the server through the gateway instead of directly."
                trailing={
                   <Switch
-                     variant="settings"
                      aria-label="Route through AgentCore Gateway"
                      checked={viaGateway}
                      onCheckedChange={setViaGateway}
@@ -382,14 +382,12 @@ function AddServerForm({
       <div className="flex flex-col gap-3 rounded-md border border-border p-3">
          <div className="grid gap-2 sm:grid-cols-3">
             <Input
-               variant="settings"
                value={name}
                placeholder="name (lowercase, e.g. docs)"
                aria-label="Server name"
                onChange={(event) => setName(event.target.value.toLowerCase())}
             />
             <Input
-               variant="settings"
                value={url}
                placeholder="https://example.com/mcp"
                aria-label="Server URL"
@@ -410,7 +408,7 @@ function AddServerForm({
          </div>
          <HeaderRows rows={rows} onChange={setRows} />
          <label className="flex items-center gap-2">
-            <Switch variant="settings" checked={viaGateway} onCheckedChange={setViaGateway} />
+            <Switch checked={viaGateway} onCheckedChange={setViaGateway} />
             <span>Route through AgentCore Gateway</span>
          </label>
          <div className="flex flex-wrap items-center gap-2">
@@ -583,7 +581,12 @@ export function McpServerManager({
                <div className="flex items-baseline gap-2">
                   <h3 className="font-medium">{title}</h3>
                   {readOnly || adding || !servers || error ? null : (
-                     <Button variant="soft" className="ml-auto" onClick={() => setAdding(true)}>
+                     <Button
+                        size="sm"
+                        variant="soft"
+                        className="ml-auto"
+                        onClick={() => setAdding(true)}
+                     >
                         <Plus className="size-4" />
                         Add server
                      </Button>

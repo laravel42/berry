@@ -29,7 +29,7 @@ export default function Header() {
    return (
       <div className="w-full flex flex-col">
          <SavedViewsBar />
-         <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
+         <div className="flex h-[52px] w-full items-center justify-between border-b px-2 py-1.5 sm:px-5">
             <span className="text-muted-foreground">
                {count} {view?.type === 'project' ? 'projects' : 'tasks'}
             </span>
@@ -37,7 +37,7 @@ export default function Header() {
                <div className="flex items-center gap-1">
                   <IssueFilterTrigger iconOnly />
                   <Button
-                     size="xs"
+                     size="icon-sm"
                      variant="track"
                      aria-label={'Insights'}
                      title={'Insights'}

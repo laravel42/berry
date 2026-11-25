@@ -7,7 +7,7 @@ import { RiGithubFill } from '@remixicon/react';
 import { useRouter } from 'next/navigation';
 import type { FormEvent } from 'react';
 
-import { AuthCard } from '@/components/auth/auth-card';
+import { AuthCard, AuthLegalNote } from '@/components/auth/auth-card';
 import {
    AuthField,
    AuthFieldGroup,
@@ -61,6 +61,7 @@ function GitHubOnly({ returnedError }: { returnedError: string | null }) {
          title="Sign in to Berry"
          description="Welcome back. Continue with the GitHub account your team uses."
          error={error}
+         aside={<AuthLegalNote />}
       >
          <div className="flex flex-col gap-3.5">
             <AuthPrimaryButton
@@ -78,7 +79,7 @@ function GitHubOnly({ returnedError }: { returnedError: string | null }) {
                {pending ? 'Opening GitHub…' : 'Continue with GitHub'}
             </AuthPrimaryButton>
             {available === false ? (
-               <div role="status" className="grid gap-1.5 text-[var(--brand-ash)]">
+               <div role="status" className="grid gap-1.5 text-muted-foreground">
                   <p>
                      Sign-in is not set up on this server. An administrator needs to add GitHub
                      sign-in credentials.
@@ -123,8 +124,13 @@ function PasswordlessSignIn({ github }: { github: boolean }) {
    };
 
    return (
-      <AuthCard title="Sign in to Berry" description="Welcome back." error={error}>
-         <form className="flex flex-col gap-3.5" onSubmit={(event) => void submit(event)}>
+      <AuthCard
+         title="Sign in to Berry"
+         description="Welcome back."
+         error={error}
+         aside={<AuthLegalNote />}
+      >
+         <form className="flex flex-col gap-4" onSubmit={(event) => void submit(event)}>
             <AuthFieldGroup label="Email" htmlFor="sign-in-email">
                <AuthField
                   id="sign-in-email"
@@ -145,7 +151,6 @@ function PasswordlessSignIn({ github }: { github: boolean }) {
             </AuthPrimaryButton>
             {github ? (
                <AuthSecondaryButton
-                  inverted
                   disabled={pending}
                   onClick={() => {
                      setPending(true);
@@ -206,7 +211,7 @@ function SignInContent() {
    }, [params]);
 
    if (options === null) {
-      return <div className="min-h-svh bg-[var(--brand-void)]" />;
+      return <div className="h-full bg-background" />;
    }
 
    // Full email auth surface whenever registration, magic link or reset is on.
@@ -226,7 +231,7 @@ function SignInContent() {
 /** `useSearchParams` needs a Suspense boundary for the page to prerender. */
 export default function SignInPage() {
    return (
-      <Suspense fallback={<div className="min-h-svh bg-[var(--brand-void)]" />}>
+      <Suspense fallback={<div className="h-full bg-background" />}>
          <SignInContent />
       </Suspense>
    );

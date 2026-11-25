@@ -15,13 +15,13 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { BulkBar } from '@/components/common/bulk-bar';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -62,6 +62,7 @@ import { useAgentFilterColumns } from './agent-filter-columns';
 import AgentLine, { COLUMN_BREAKPOINT, COLUMN_WIDTH } from './agent-line';
 import { roleDefaultTier, TIER_ORDER } from './agent-tier-section';
 import { TierChip } from './tier-chip';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** Which column heading sorts by what; the rest are labels only. */
 const SORT_FOR_COLUMN: Partial<Record<AgentColumn, AgentsSortKey>> = {
@@ -376,7 +377,7 @@ export default function Agents() {
                onClick={() => sortBy(key)}
                aria-label={label}
                className={cn(
-                  'truncate uppercase hover:text-foreground',
+                  'truncate uppercase hover:text-foreground [@media(hover:none)]:min-h-6',
                   sortKey === key && 'text-foreground'
                )}
             >
@@ -392,9 +393,9 @@ export default function Agents() {
          <div className="w-full shrink-0">
             <ListFilterBar filter={filter} />
          </div>
-         <div className="min-h-0 w-full flex-1 overflow-y-auto">
+         <div className="min-h-0 w-full flex-1 overflow-y-auto md:pb-[var(--shell-launcher-room)]">
             {loading ? (
-               <EmptyStateLoading label={common('loading')} />
+               <ListSkeleton label={common('loading')} />
             ) : storedError ? (
                <div className="flex flex-col items-start gap-3 px-6 py-10">
                   <p className="text-muted-foreground">{storedError}</p>
@@ -445,7 +446,7 @@ export default function Agents() {
                         type="button"
                         onClick={() => sortBy('name')}
                         className={cn(
-                           'min-w-0 flex-1 text-left uppercase hover:text-foreground',
+                           'min-w-0 flex-1 text-left uppercase hover:text-foreground [@media(hover:none)]:min-h-6',
                            sortKey === 'name' && 'text-foreground'
                         )}
                      >
@@ -460,7 +461,7 @@ export default function Agents() {
                   </div>
 
                   {bulkReport ? (
-                     <div className="border-b bg-sidebar/20 px-6 py-2" role="status">
+                     <div className="border-b bg-muted px-6 py-2" role="status">
                         <div className="flex items-center gap-3">
                            <span>
                               {t('bulkDone', { done: bulkReport.done, total: bulkReport.total })}
@@ -512,7 +513,7 @@ export default function Agents() {
          </div>
 
          {selectedRows.length > 0 ? (
-            <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+            <BulkBar>
                <span className="font-bold">
                   {t('bulkSelected', { count: selectedRows.length })}
                </span>
@@ -669,7 +670,7 @@ export default function Agents() {
                >
                   {t('bulkClear')}
                </Button>
-            </div>
+            </BulkBar>
          ) : null}
 
          <AlertDialog

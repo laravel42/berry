@@ -23,6 +23,7 @@ import type { Status } from '@/data/status';
 import { quickCreateIssue } from '@/lib/issue-tracking';
 import { describePatchFailure, patchBoardIssue, setIssueProject } from '@/lib/issues';
 import { setIssueProperty } from '@/lib/properties';
+import { isSameValue } from '@/lib/same-value';
 import { useVirtualRows } from '@/lib/use-virtual-rows';
 import { cn } from '@/lib/utils';
 import { useFilterStore } from '@/store/filter-store';
@@ -34,8 +35,8 @@ import { useSessionStore } from '@/store/session-store';
 import { ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useIssueHref } from './use-issue-href';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AssigneeUser } from './assignee-user';
@@ -48,6 +49,7 @@ import {
    useWorkspaceProperties,
 } from './issue-grouping';
 import { SelectionCheckbox } from './selection-checkbox';
+import { IssueListMoreLoader } from './list-states';
 import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';
 import { sortIssues, useIssueListView } from './use-issue-list-view';
 
@@ -112,7 +114,9 @@ function readLayout(): StoredLayout | null {
 /*                                   Cells                                    */
 /* -------------------------------------------------------------------------- */
 
-function TitleCell({
+/* Memoized like the cells below: the toggle takes the row's id rather than
+   closing over it, so the table hands every row the same stable callback. */
+const TitleCell = memo(function TitleCell({
    issue,
    depth,
    expandable,
@@ -123,9 +127,9 @@ function TitleCell({
    depth: number;
    expandable: boolean;
    expanded: boolean;
-   onToggle: () => void;
+   onToggle: (issueId: string) => void;
 }) {
-   const { orgId } = useParams<{ orgId: string }>();
+   const issueHref = useIssueHref();
    const updateIssue = useIssuesStore((state) => state.updateIssue);
    const liveRun = useIssueLiveRun(issue);
    const [editing, setEditing] = useState(false);
@@ -155,7 +159,7 @@ function TitleCell({
          {expandable ? (
             <button
                type="button"
-               onClick={onToggle}
+               onClick={() => onToggle(issue.id)}
                aria-label={expanded ? 'Collapse sub-tasks' : 'Expand sub-tasks'}
                className="text-muted-foreground transition-colors hover:text-foreground"
             >
@@ -171,7 +175,6 @@ function TitleCell({
          {editing ? (
             <Input
                autoFocus
-               className="h-7"
                value={title}
                onChange={(event) => setTitle(event.target.value)}
                onBlur={commit}
@@ -188,9 +191,12 @@ function TitleCell({
          ) : (
             // The link fills its cell, so the whole title column is the
             // target rather than the width of the words in it.
+            // Double-click renames in place, which a finger cannot do: a tap follows
+            // the link and opens the task, where IssueTitle edits the title with one
+            // tap. That is the touch way to rename, so there is no second path here.
             <Link
                className="flex h-full min-w-0 flex-1 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-               href={`/${orgId}/issue/${issue.identifier}`}
+               href={issueHref(issue.identifier)}
                onDoubleClick={(event) => {
                   event.preventDefault();
                   setEditing(true);
@@ -204,10 +210,22 @@ function TitleCell({
          )}
       </span>
    );
-}
+});
+
+/*
+ * The cells below take the row's issue, which the store keeps as the same
+ * object until that task changes, so each is memoized and skips the renders
+ * the table makes for other rows.
+ */
 
 /** The start or due day. Each bounds the other, so a start never falls after the due date. */
-function DateCell({ issue, field }: { issue: Issue; field: 'startDate' | 'dueDate' }) {
+const DateCell = memo(function DateCell({
+   issue,
+   field,
+}: {
+   issue: Issue;
+   field: 'startDate' | 'dueDate';
+}) {
    const updateIssue = useIssuesStore((state) => state.updateIssue);
    const start = issue.startDate?.slice(0, 10);
    const due = issue.dueDate?.slice(0, 10);
@@ -233,9 +251,9 @@ function DateCell({ issue, field }: { issue: Issue; field: 'startDate' | 'dueDat
          }}
       />
    );
-}
+});
 
-function ProjectCell({ issue }: { issue: Issue }) {
+const ProjectCell = memo(function ProjectCell({ issue }: { issue: Issue }) {
    const projects = useProjectsStore((state) => state.projects);
    const updateIssueProject = useIssuesStore((state) => state.updateIssueProject);
 
@@ -265,11 +283,12 @@ function ProjectCell({ issue }: { issue: Issue }) {
          </SelectContent>
       </Select>
    );
-}
+});
 
-function LabelsCell({ issue }: { issue: Issue }) {
+const LabelsCell = memo(function LabelsCell({ issue }: { issue: Issue }) {
    const labels = useLabelsStore((state) => state.labels);
-   const { addIssueLabel, removeIssueLabel } = useIssuesStore();
+   const addIssueLabel = useIssuesStore((state) => state.addIssueLabel);
+   const removeIssueLabel = useIssuesStore((state) => state.removeIssueLabel);
 
    return (
       <Popover>
@@ -322,19 +341,31 @@ function LabelsCell({ issue }: { issue: Issue }) {
          </PopoverContent>
       </Popover>
    );
-}
+});
 
-function PropertyCell({
-   issue,
-   propertyId,
-   value,
-   options,
-}: {
+interface PropertyCellProps {
    issue: Issue;
    propertyId: string;
    value: string;
    options: { id: string; name: string }[];
-}) {
+}
+
+/** `options` falls back to a fresh `[]` for a field with no definition, so it is compared by content. */
+function samePropertyCellProps(previous: PropertyCellProps, next: PropertyCellProps): boolean {
+   return (
+      previous.issue === next.issue &&
+      previous.propertyId === next.propertyId &&
+      previous.value === next.value &&
+      isSameValue(previous.options, next.options)
+   );
+}
+
+const PropertyCell = memo(function PropertyCell({
+   issue,
+   propertyId,
+   value,
+   options,
+}: PropertyCellProps) {
    const [current, setCurrent] = useState(value);
 
    useEffect(() => {
@@ -372,7 +403,7 @@ function PropertyCell({
          </SelectContent>
       </Select>
    );
-}
+}, samePropertyCellProps);
 
 /** The last row: type a title, press Enter, the task lands on the board. */
 function QuickAddRow() {
@@ -397,7 +428,7 @@ function QuickAddRow() {
    return (
       <div className="border-t px-4 py-1.5">
          <Input
-            className="h-7 border-0 px-0 shadow-none focus-visible:ring-0"
+            className="border-0 px-0 shadow-none focus-visible:ring-0"
             placeholder={t('table.quickAdd')}
             value={title}
             disabled={busy}
@@ -432,13 +463,16 @@ export function IssueTable({
    statuses,
    totalIssues,
    loading = false,
+   loadingMore = false,
 }: {
    issues: Issue[];
    statuses: Status[];
    totalIssues?: Issue[];
    loading?: boolean;
+   loadingMore?: boolean;
 }) {
    const t = useTranslations('issueLists');
+   const tTasks = useTranslations('tasks');
    const view = useIssueListView();
    const properties = useWorkspaceProperties();
    const propertyGrouping = usePropertyGrouping(view.grouping);
@@ -451,6 +485,15 @@ export function IssueTable({
    });
    const [dragging, setDragging] = useState<Column | null>(null);
    const [collapsed, setCollapsed] = useState<string[]>([]);
+   // One callback for every row, so the memoized title cells keep skipping
+   // the renders the table makes for other rows.
+   const toggleCollapsed = useCallback((issueId: string) => {
+      setCollapsed((previous) =>
+         previous.includes(issueId)
+            ? previous.filter((id) => id !== issueId)
+            : [...previous, issueId]
+      );
+   }, []);
 
    useEffect(() => {
       const stored = readLayout();
@@ -617,7 +660,11 @@ export function IssueTable({
       }
       switch (column as BuiltInColumn) {
          case 'identifier':
-            return <span className="truncate text-muted-foreground">{issue.identifier}</span>;
+            return (
+               <span data-identifier className="truncate text-muted-foreground">
+                  {issue.identifier}
+               </span>
+            );
          case 'status':
             return <IssueStatusPicker issue={issue} />;
          case 'priority':
@@ -651,7 +698,7 @@ export function IssueTable({
       }
    };
 
-   if (!loading && issues.length === 0) {
+   if (!loading && !loadingMore && issues.length === 0) {
       const scoped = totalIssues ?? issues;
       return <IssueListEmpty filtered={filters.length > 0 || scoped.length > issues.length} />;
    }
@@ -698,58 +745,73 @@ export function IssueTable({
          </div>
 
          {/* Rows */}
-         <div ref={virtual.ref} className="min-h-0 flex-1 overflow-auto">
+         <div
+            ref={virtual.ref}
+            className="min-h-0 flex-1 overflow-auto overscroll-contain"
+            style={{ overflowAnchor: 'none', transform: 'translateZ(0)' }}
+         >
             {loading ? (
                <div className="px-4 py-3 text-muted-foreground">{t('table.loadingGroup')}</div>
             ) : null}
-            <div style={{ height: virtual.totalHeight, position: 'relative' }}>
-               <div style={{ transform: `translateY(${virtual.offset}px)` }}>
-                  {entries.slice(virtual.start, virtual.end).map((entry) =>
-                     entry.kind === 'header' ? (
-                        <div
-                           key={`header-${entry.id}`}
-                           className="flex items-center gap-2 border-b bg-accent/30 px-4 font-medium"
-                           style={{ height: ROW_HEIGHT }}
-                        >
-                           {entry.icon}
-                           <span className="truncate">{entry.name}</span>
-                           <span className="text-muted-foreground">{entry.count}</span>
-                           {loading ? (
-                              <span className="text-muted-foreground">
-                                 {t('table.loadingGroup')}
-                              </span>
-                           ) : null}
-                        </div>
-                     ) : (
-                        <div
-                           key={entry.row.issue.id}
-                           className="group grid items-center border-b px-4"
-                           style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}
-                        >
-                           <SelectionCheckbox issueId={entry.row.issue.id} order={orderIds} />
-                           <TitleCell
-                              issue={entry.row.issue}
-                              depth={entry.row.depth}
-                              expandable={entry.row.expandable}
-                              expanded={entry.row.expanded}
-                              onToggle={() =>
-                                 setCollapsed((previous) =>
-                                    previous.includes(entry.row.issue.id)
-                                       ? previous.filter((id) => id !== entry.row.issue.id)
-                                       : [...previous, entry.row.issue.id]
-                                 )
-                              }
-                           />
-                           {visible.map((column) => (
-                              <span key={column} className="min-w-0 truncate">
-                                 {cell(entry.row.issue, column)}
-                              </span>
-                           ))}
-                        </div>
-                     )
-                  )}
-               </div>
+            <div>
+               {virtual.offset > 0 ? (
+                  <div
+                     aria-hidden
+                     style={{
+                        height: virtual.offset,
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT}px)`,
+                     }}
+                  />
+               ) : null}
+               {entries.slice(virtual.start, virtual.end).map((entry) =>
+                  entry.kind === 'header' ? (
+                     <div
+                        key={`header-${entry.id}`}
+                        className="flex items-center gap-2 border-b bg-accent/30 px-4 font-medium"
+                        style={{ height: ROW_HEIGHT }}
+                     >
+                        {entry.icon}
+                        <span className="truncate">{entry.name}</span>
+                        <span className="text-muted-foreground">{entry.count}</span>
+                        {loading ? (
+                           <span className="text-muted-foreground">{t('table.loadingGroup')}</span>
+                        ) : null}
+                     </div>
+                  ) : (
+                     <div
+                        key={entry.row.issue.id}
+                        className="group grid animate-[berry-row-in_140ms_ease-out] items-center border-b px-4"
+                        style={{ gridTemplateColumns: template, height: ROW_HEIGHT }}
+                     >
+                        <SelectionCheckbox issueId={entry.row.issue.id} order={orderIds} />
+                        <TitleCell
+                           issue={entry.row.issue}
+                           depth={entry.row.depth}
+                           expandable={entry.row.expandable}
+                           expanded={entry.row.expanded}
+                           onToggle={toggleCollapsed}
+                        />
+                        {visible.map((column) => (
+                           <span key={column} className="min-w-0 truncate">
+                              {cell(entry.row.issue, column)}
+                           </span>
+                        ))}
+                     </div>
+                  )
+               )}
+               {virtual.totalHeight > virtual.end * ROW_HEIGHT ? (
+                  <div
+                     aria-hidden
+                     style={{
+                        height: Math.max(0, virtual.totalHeight - virtual.end * ROW_HEIGHT),
+                        backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT - 1}px, color-mix(in oklab, var(--border) 38%, transparent) ${ROW_HEIGHT}px)`,
+                     }}
+                  />
+               ) : null}
             </div>
+            {loadingMore ? (
+               <IssueListMoreLoader mode="table" label={tTasks('loadingMore')} />
+            ) : null}
             <QuickAddRow />
          </div>
 

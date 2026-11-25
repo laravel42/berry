@@ -21,8 +21,8 @@ import {
 import { bindAgentRuntime, listRuntimes, unbindAgentRuntime, type Runtime } from '@/lib/runtimes';
 import { useSessionStore } from '@/store/session-store';
 
-/** Same footprint as the tier cards: selected keeps secondary gray, adds a berry border. */
-const CHOICE_SIZE = '!h-auto min-h-11 px-4 py-3';
+/** Same footprint as the tier options: selected keeps secondary gray, adds a berry border. */
+const CHOICE_SIZE = 'px-4';
 const CHOICE_SELECTED = '!border !border-primary';
 const CHOICE_IDLE = '!border !border-transparent';
 
@@ -265,8 +265,8 @@ export default function AgentExecutionSettings({
 
    // The form scrolls; the save bar stays on the bottom edge of the tab, full width.
    return (
-      <div className="flex h-full min-h-0 flex-1 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto px-8 py-6">
+      <div className="flex flex-1 flex-col">
+         <div className="flex flex-1 flex-col gap-6 px-8 py-6">
             <div hidden={hidden('mcp')}>
                <SettingsSection
                   title={view === undefined ? t('capMcpAgent') : undefined}
@@ -303,7 +303,7 @@ export default function AgentExecutionSettings({
                         return (
                            <Button
                               key={choice.id ?? NO_RUNTIME}
-                              size="xs"
+                              size="sm"
                               variant="secondary"
                               className={`${CHOICE_SIZE} ${selected ? CHOICE_SELECTED : CHOICE_IDLE}`}
                               disabled={readOnly}
@@ -324,7 +324,7 @@ export default function AgentExecutionSettings({
                         return (
                            <Button
                               key={level}
-                              size="xs"
+                              size="sm"
                               variant="secondary"
                               className={`${CHOICE_SIZE} ${selected ? CHOICE_SELECTED : CHOICE_IDLE}`}
                               disabled={readOnly || saving}
@@ -350,7 +350,7 @@ export default function AgentExecutionSettings({
                         return (
                            <Button
                               key={mode}
-                              size="xs"
+                              size="sm"
                               variant="secondary"
                               className={`${CHOICE_SIZE} ${selected ? CHOICE_SELECTED : CHOICE_IDLE}`}
                               disabled={readOnly || !accessBaseline}

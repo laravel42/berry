@@ -1,12 +1,23 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { SegmentIndicator, useSegmentGroupId } from '@/components/ui/segment-indicator';
 import type { ReactNode } from 'react';
 
 export interface SegmentedOption<T extends string | number> {
    value: T;
    label: ReactNode;
+   /** Accessible name and tooltip, for a segment whose label is only an icon. */
+   title?: string;
 }
+
+/**
+ * The track every segmented choice sits in. As tall as a field
+ * (`--field-h`), so it lines up with the search and buttons of the line it
+ * sits on. Dark: a hairline edge, so the box reads against the canvas.
+ */
+export const segmentTrackClass =
+   'flex h-(--field-h) items-center rounded-[8px] bg-segment-track p-[3px] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]';
 
 interface SegmentedControlProps<T extends string | number> {
    /** Names the choice for assistive tech ("Time range"); the group has no visible heading of its own. */
@@ -15,8 +26,6 @@ interface SegmentedControlProps<T extends string | number> {
    'value': T;
    'onValueChange': (value: T) => void;
    'className'?: string;
-   /** `md` is the settings size: a 30px track with 26px segments. */
-   'size'?: 'default' | 'md';
 }
 
 /**
@@ -25,6 +34,7 @@ interface SegmentedControlProps<T extends string | number> {
  *
  * Each segment is a toggle button with `aria-pressed`. It changes how data
  * is shown, never what is saved; for a setting that persists, use a `Select`.
+ * The selected fill is one `SegmentIndicator` that slides between segments.
  */
 export function SegmentedControl<T extends string | number>({
    'aria-label': label,
@@ -32,18 +42,10 @@ export function SegmentedControl<T extends string | number>({
    value,
    onValueChange,
    className,
-   size = 'default',
 }: SegmentedControlProps<T>) {
+   const groupId = useSegmentGroupId();
    return (
-      <div
-         role="group"
-         aria-label={label}
-         className={cn(
-            'flex w-fit items-center rounded-[7px] bg-segment-track p-0.5',
-            size === 'md' ? 'h-[30px] gap-0.5 overflow-hidden' : 'h-7',
-            className
-         )}
-      >
+      <div role="group" aria-label={label} className={cn(segmentTrackClass, 'w-fit', className)}>
          {options.map((option) => {
             const active = option.value === value;
             return (
@@ -51,18 +53,16 @@ export function SegmentedControl<T extends string | number>({
                   key={option.value}
                   type="button"
                   aria-pressed={active}
-                  data-settings-type={size === 'md' ? 'segment' : undefined}
+                  aria-label={option.title}
+                  title={option.title}
                   onClick={() => onValueChange(option.value)}
                   className={cn(
-                     'inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-primary/40',
-                     size === 'md' ? 'h-full gap-1.5 px-2.5 leading-none' : 'h-6 px-3',
-                     active
-                        ? size === 'md'
-                           ? 'bg-settings-segment-on text-foreground'
-                           : 'bg-segment-selected text-foreground'
-                        : 'text-muted-foreground hover:text-foreground'
+                     'relative isolate inline-flex items-center justify-center rounded-[5px] font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-foreground/20',
+                     'h-full px-3',
+                     active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                   )}
                >
+                  {active ? <SegmentIndicator layoutId={groupId} /> : null}
                   {option.label}
                </button>
             );

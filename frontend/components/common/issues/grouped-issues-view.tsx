@@ -21,8 +21,12 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { GroupIssues } from './group-issues';
-import { CustomDragLayer } from './issue-grid';
+import { VirtualIssueList } from './virtual-issue-list';
+import dynamic from 'next/dynamic';
+import { BoardMoveContext, type BoardMove } from './issue-dnd';
+import type { CustomDragLayer as CustomDragLayerComponent } from './issue-grid';
 import { EmptyQueue, NoMatches } from './issue-list-empty';
+import { IssueListMoreLoader } from './list-states';
 import {
    groupsForDisplay,
    IssueGroupEntry,
@@ -30,6 +34,12 @@ import {
    usePropertyGrouping,
 } from './issue-grouping';
 import { applySubIssueVisibility, sortIssues, useIssueListView } from './use-issue-list-view';
+
+/** The board's drag ghost loads with the board; the list does not draw one. */
+const CustomDragLayer = dynamic(
+   () => import('./issue-grid').then((module) => module.CustomDragLayer),
+   { ssr: false, loading: () => null }
+) as typeof CustomDragLayerComponent;
 
 interface GroupedIssuesViewProps {
    /** Issues to display (after the filter bar has been applied). */
@@ -39,6 +49,8 @@ interface GroupedIssuesViewProps {
    /** Statuses to render when grouping by status (empty groups are skipped unless enabled). */
    statuses: Status[];
    isViewTypeGrid: boolean;
+   /** True while background task pages are still arriving after the first paint. */
+   loadingMore?: boolean;
 }
 
 /** Footer shown when active filters hide tasks — "n tasks hidden by filters". */
@@ -147,8 +159,10 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
    totalIssues,
    statuses,
    isViewTypeGrid,
+   loadingMore = false,
 }) => {
    const t = useTranslations('issueLists');
+   const tTasks = useTranslations('tasks');
    const view = useIssueListView();
    const {
       hiddenBoardColumns,
@@ -277,6 +291,22 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
       ]
    );
 
+   /* One drop handler per group, kept until `applyGroupValue` changes. The
+      cards compare it by reference, so a fresh closure every render would
+      re-render every card; a new grouping or value list still replaces them
+      all, so no card keeps the drop the board had before. */
+   const dropFor = useMemo(() => {
+      const handlers = new Map<string, (issue: Issue) => void>();
+      return (groupId: string): ((issue: Issue) => void) => {
+         let handler = handlers.get(groupId);
+         if (!handler) {
+            handler = applyGroupValue(groupId);
+            handlers.set(groupId, handler);
+         }
+         return handler;
+      };
+   }, [applyGroupValue]);
+
    /* Dragging towards the edge of the board scrolls it, so a card can reach a
       column that is not on screen without being dropped halfway. */
    const scrollerRef = useRef<HTMLDivElement>(null);
@@ -292,6 +322,21 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
 
    const hiddenCount = Math.max(0, scoped.total.length - scoped.visible.length);
    const showFooter = hasActiveFilters && hiddenCount > 0;
+
+   /* Move to, for a finger: the columns the board shows, and the same write a
+      drop onto one of them performs. A parent or workspace-field grouping has
+      no single value to give a card, so it offers none. */
+   const boardMove = useMemo<BoardMove | null>(() => {
+      if (!['status', 'assignee', 'priority', 'project'].includes(view.grouping)) return null;
+      const columns = groupsForDisplay(groups, showEmptyGroups)
+         .filter((entry) => !hiddenBoardColumns.includes(entry.group.id))
+         .map((entry) => ({ id: entry.group.id, name: entry.group.name, icon: entry.group.icon }));
+      return {
+         columns,
+         replacesStatus: view.grouping === 'status',
+         move: (columnId, issue) => dropFor(columnId)(issue),
+      };
+   }, [view.grouping, groups, showEmptyGroups, hiddenBoardColumns, dropFor]);
 
    /* ------------------------------- Board ------------------------------- */
    if (isViewTypeGrid) {
@@ -312,67 +357,75 @@ export const GroupedIssuesView: FC<GroupedIssuesViewProps> = ({
 
       return (
          <DndProvider backend={HTML5Backend}>
-            <CustomDragLayer />
-            <div className="h-full flex flex-col">
-               <div
-                  ref={scrollerRef}
-                  onDragOver={autoScroll}
-                  className="show-scrollbar flex-1 min-h-0 overflow-x-auto"
-               >
-                  <div className="flex h-full min-w-max gap-3 px-4 py-3">
-                     {onBoard.map((entry) => (
-                        <GroupIssues
-                           key={entry.group.id}
-                           group={entry.group}
-                           issues={entry.issues}
-                           count={entry.issues.length}
-                           onDropIssue={applyGroupValue(entry.group.id)}
-                        />
-                     ))}
-                     {manuallyHidden.length + emptied.length > 0 && (
-                        <HiddenColumns
-                           manual={manuallyHidden}
-                           emptied={emptied}
-                           onRestore={restoreBoardColumn}
-                           onRestoreAll={restoreAllBoardColumns}
-                        />
-                     )}
-                     {onBoard.length === 0 &&
-                        manuallyHidden.length + emptied.length === 0 &&
-                        (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
+            <BoardMoveContext.Provider value={boardMove}>
+               <CustomDragLayer />
+               <div className="h-full flex flex-col">
+                  <div
+                     ref={scrollerRef}
+                     onDragOver={autoScroll}
+                     className="show-scrollbar flex-1 min-h-0 overflow-x-auto"
+                  >
+                     <div className="flex h-full min-w-max gap-3 px-2 py-3 sm:px-4">
+                        {onBoard.map((entry) => (
+                           <GroupIssues
+                              key={entry.group.id}
+                              group={entry.group}
+                              issues={entry.issues}
+                              count={entry.issues.length}
+                              onDropIssue={dropFor(entry.group.id)}
+                              loadingMore={loadingMore}
+                           />
+                        ))}
+                        {manuallyHidden.length + emptied.length > 0 && (
+                           <HiddenColumns
+                              manual={manuallyHidden}
+                              emptied={emptied}
+                              onRestore={restoreBoardColumn}
+                              onRestoreAll={restoreAllBoardColumns}
+                           />
+                        )}
+                        {!loadingMore &&
+                           onBoard.length === 0 &&
+                           manuallyHidden.length + emptied.length === 0 &&
+                           (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
+                     </div>
                   </div>
+                  {showFooter && (
+                     <div className="shrink-0 border-t bg-container">
+                        <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+                     </div>
+                  )}
                </div>
-               {showFooter && (
-                  <div className="shrink-0 border-t bg-container">
-                     <HiddenByFiltersFooter hiddenCount={hiddenCount} />
-                  </div>
-               )}
-            </div>
+            </BoardMoveContext.Provider>
          </DndProvider>
       );
    }
 
    /* -------------------------------- List ------------------------------- */
    const listGroups = groupsForDisplay(groups, showEmptyGroups);
+   const listFooter =
+      showFooter && listGroups.length > 0 ? (
+         <HiddenByFiltersFooter hiddenCount={hiddenCount} />
+      ) : null;
 
    return (
       <DndProvider backend={HTML5Backend}>
-         <CustomDragLayer />
-         <div className="h-full overflow-y-auto divide-y-[3px] divide-background">
-            {listGroups.length === 0 && (hasActiveFilters ? <NoMatches /> : <EmptyQueue />)}
-            {listGroups.map((entry) => (
-               <GroupIssues
-                  key={entry.group.id}
-                  group={entry.group}
-                  issues={entry.issues}
-                  count={entry.issues.length}
-                  onDropIssue={applyGroupValue(entry.group.id)}
-               />
-            ))}
-            {showFooter && listGroups.length > 0 && (
-               <HiddenByFiltersFooter hiddenCount={hiddenCount} />
-            )}
-         </div>
+         <VirtualIssueList
+            groups={listGroups}
+            onDropFor={dropFor}
+            loadingMore={loadingMore}
+            tailLoader={<IssueListMoreLoader mode="list" label={tTasks('loadingMore')} />}
+            empty={
+               !loadingMore && listGroups.length === 0 ? (
+                  hasActiveFilters ? (
+                     <NoMatches />
+                  ) : (
+                     <EmptyQueue />
+                  )
+               ) : null
+            }
+            footer={listFooter}
+         />
       </DndProvider>
    );
 };

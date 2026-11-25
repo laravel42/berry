@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
-import { expect } from 'storybook/test';
+import { expect, waitFor } from 'storybook/test';
 import QuickActionsSettings from './quick-actions-settings';
 import { apiError, page, quickActions, seedSession, workspaceAgents } from './stories-fixtures';
 
@@ -34,7 +34,7 @@ export const Actions: Story = {
       // Archived actions sit behind a toggle and can come back.
       await userEvent.click(canvas.getByRole('switch'));
       await userEvent.click(canvas.getByRole('button', { name: 'Restore' }));
-      await expect(canvas.queryByRole('switch')).toBeNull();
+      await waitFor(() => expect(canvas.queryByRole('switch')).toBeNull());
    },
 };
 

@@ -6,6 +6,20 @@ const meta = {
    component: BerryMark,
    tags: ['ai-generated'],
    args: { size: 'lg', label: 'Berry' },
+   argTypes: {
+      tone: {
+         control: 'select',
+         options: ['brand', 'neutral', 'working', 'attention', 'complete', 'danger'],
+      },
+      state: {
+         control: 'select',
+         options: ['solid', 'hollow', 'crossed', 'empty'],
+      },
+      size: {
+         control: 'select',
+         options: ['sm', 'md', 'lg'],
+      },
+   },
 } satisfies Meta<typeof BerryMark>;
 
 export default meta;

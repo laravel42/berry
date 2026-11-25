@@ -264,9 +264,9 @@ export function ProgressStats({
             <div key={stat.key} className="flex min-w-0 flex-col gap-0.5">
                <dt
                   data-heading="label"
-                  className="flex items-center gap-1.5 whitespace-nowrap font-[400] text-subtle-foreground"
+                  className="flex items-center gap-1.5 font-[400] text-subtle-foreground sm:whitespace-nowrap"
                >
-                  <span aria-hidden className={cn('size-1.5 rounded-full', stat.dot)} />
+                  <span aria-hidden className={cn('size-1.5 shrink-0 rounded-full', stat.dot)} />
                   {t(stat.key)}
                </dt>
                <dd data-heading="h1" className="tabular-nums">

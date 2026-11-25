@@ -13,14 +13,15 @@ import {
    SectionCard,
    SettingRow,
    SwitchRow,
-   insetFieldClass,
 } from '@/components/common/loops/loop-editor-parts';
+import { Input } from '@/components/ui/input';
 import {
    Select,
    SelectContent,
    SelectItem,
    SelectTrigger,
    SelectValue,
+   selectTriggerClass,
 } from '@/components/ui/select';
 import type { AutopilotDraft } from '@/lib/autopilots';
 import type { BoardSummary } from '@/lib/boards';
@@ -105,9 +106,8 @@ export function LoopEditorFields({
       <>
          <SectionCard title={te('general')}>
             <SettingRow label={td('name')} hint={te('nameHint')} htmlFor="loop-name">
-               <input
+               <Input
                   id="loop-name"
-                  className={insetFieldClass}
                   value={draft.name}
                   maxLength={200}
                   disabled={!editable}
@@ -120,9 +120,8 @@ export function LoopEditorFields({
                hint={te('descriptionHint')}
                htmlFor="loop-description"
             >
-               <input
+               <Input
                   id="loop-description"
-                  className={insetFieldClass}
                   value={draft.description ?? ''}
                   maxLength={500}
                   disabled={!editable}
@@ -145,11 +144,7 @@ export function LoopEditorFields({
                      if (typeof next === 'string') set('assigneeId', next);
                   }}
                   trigger={
-                     <button
-                        type="button"
-                        disabled={!editable}
-                        className={cn(insetFieldClass, 'flex items-center gap-2 text-left')}
-                     >
+                     <button type="button" disabled={!editable} className={selectTriggerClass}>
                         <BerryMark size="sm" tone="working" label="" />
                         <span className="min-w-0 flex-1 truncate">{draftAgentName}</span>
                         <ChevronDown className="size-3.5 shrink-0 text-subtle-foreground" />
@@ -333,7 +328,7 @@ function InsetSelect({
 }) {
    return (
       <Select value={value} onValueChange={onChange} disabled={disabled}>
-         <SelectTrigger className={cn(insetFieldClass, 'justify-between')}>
+         <SelectTrigger>
             <SelectValue placeholder={placeholder} />
          </SelectTrigger>
          <SelectContent>
@@ -366,7 +361,7 @@ function NumberInput({
    onChange: (next: number | null) => void;
 }) {
    return (
-      <input
+      <Input
          id={id}
          type="number"
          inputMode="numeric"
@@ -375,7 +370,7 @@ function NumberInput({
          value={value ?? ''}
          placeholder="—"
          disabled={disabled}
-         className={cn(insetFieldClass, 'tabular-nums', className ?? 'w-32')}
+         className={cn('tabular-nums', className ?? 'w-32')}
          onChange={(event) => {
             const raw = event.target.value.trim();
             if (raw === '') return onChange(null);

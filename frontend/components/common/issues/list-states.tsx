@@ -1,8 +1,10 @@
 'use client';
 
+import { BerryMark } from '@/components/brand/berry-mark';
 import { EmptyState, EmptyStateActions, EmptyStateText } from '@/components/common/empty-state';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import type { ViewType } from '@/store/view-store';
 import { AlertTriangle } from 'lucide-react';
@@ -45,7 +47,7 @@ function Card() {
 export function IssueListSkeleton({ mode }: { mode: ViewType }) {
    if (mode === 'grid') {
       return (
-         <div className="flex h-full min-w-max gap-3 px-4 py-3" aria-hidden>
+         <div className="flex h-full min-w-max gap-3 px-2 py-3 sm:px-4" aria-hidden>
             {[0, 1, 2].map((column) => (
                <div key={column} className="flex w-[278px] flex-col gap-1.5">
                   <Skeleton className="h-7 w-full rounded-lg" />
@@ -84,6 +86,87 @@ export function IssueListSkeleton({ mode }: { mode: ViewType }) {
          {[0, 1, 2, 3, 4, 5, 6].map((row) => (
             <Row key={row} />
          ))}
+      </div>
+   );
+}
+
+const TAIL_SKELETON_ROWS = [
+   { width: 'w-2/5 max-w-64', opacity: 'opacity-90' },
+   { width: 'w-3/5 max-w-80', opacity: 'opacity-55' },
+   { width: 'w-1/2 max-w-72', opacity: 'opacity-25' },
+] as const;
+
+const TAIL_SKELETON_CARDS = ['opacity-80', 'opacity-35'] as const;
+
+/**
+ * Tail loader shown while background task pages are still arriving: fading
+ * row or card silhouettes that match the layout above, closed by Berry's
+ * pulsing mark.
+ */
+export function IssueListMoreLoader({ mode = 'list', label }: { mode?: ViewType; label: string }) {
+   if (mode === 'grid') {
+      return (
+         <div
+            role="status"
+            aria-live="polite"
+            className="flex shrink-0 flex-col gap-1.5 animate-[berry-row-in_140ms_ease-out]"
+         >
+            <div aria-hidden className="flex flex-col gap-1.5">
+               {TAIL_SKELETON_CARDS.map((opacity, index) => (
+                  <div
+                     key={index}
+                     className={cn(
+                        'flex flex-col gap-2 rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2.5',
+                        opacity
+                     )}
+                  >
+                     <div className="flex items-center justify-between gap-2">
+                        <Skeleton className="h-3 w-14" />
+                        <Skeleton className="h-3 w-10" />
+                     </div>
+                     <Skeleton className="h-3 w-full" />
+                     <Skeleton className="h-3 w-2/3" />
+                     <div className="flex justify-end pt-1">
+                        <Skeleton className="size-5 rounded-full" />
+                     </div>
+                  </div>
+               ))}
+            </div>
+            <div className="flex h-10 items-center justify-center gap-2 text-muted-foreground">
+               <BerryMark size="sm" tone="brand" pulse />
+               <span>{label}</span>
+            </div>
+         </div>
+      );
+   }
+
+   return (
+      <div
+         role="status"
+         aria-live="polite"
+         className="w-full bg-container animate-[berry-row-in_140ms_ease-out]"
+      >
+         <div aria-hidden>
+            {TAIL_SKELETON_ROWS.map((row, index) => (
+               <div
+                  key={index}
+                  className={cn(
+                     'flex items-center gap-3 border-b border-border/45',
+                     mode === 'table' ? 'h-[38px] px-4' : 'h-10 px-4 sm:px-6',
+                     row.opacity
+                  )}
+               >
+                  <Skeleton className="size-3.5 shrink-0 rounded-full" />
+                  <Skeleton className="hidden h-3 w-14 shrink-0 sm:block" />
+                  <Skeleton className={cn('h-3', row.width)} />
+                  <Skeleton className="ml-auto size-5 shrink-0 rounded-full" />
+               </div>
+            ))}
+         </div>
+         <div className="flex h-12 items-center justify-center gap-2 text-muted-foreground">
+            <BerryMark size="sm" tone="brand" pulse />
+            <span>{label}</span>
+         </div>
       </div>
    );
 }

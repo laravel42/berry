@@ -88,7 +88,7 @@ export function HealthPopover({
                <Button
                   id={id}
                   type="button"
-                  className="w-full min-w-0 justify-start gap-2 px-0"
+                  className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
                   size="sm"
                   variant="ghost"
                   role="combobox"
@@ -104,7 +104,7 @@ export function HealthPopover({
             ) : (
                <Button
                   id={id}
-                  className="flex h-7 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                  className="justify-start gap-1 px-2 has-[>svg]:px-2"
                   size="sm"
                   variant="ghost"
                   role="combobox"
@@ -135,7 +135,9 @@ export function HealthPopover({
                               <HealthIcon healthId={entry.id} />
                               <span>{entry.name}</span>
                            </div>
-                           {value === entry.id ? <CheckIcon size={14} className="ml-auto" /> : null}
+                           {value === entry.id ? (
+                              <CheckIcon size={14} className="text-(--primary) ml-auto" />
+                           ) : null}
                         </CommandItem>
                      ))}
                   </CommandGroup>

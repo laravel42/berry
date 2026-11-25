@@ -26,7 +26,7 @@ export default function Header({ milestoneId }: { milestoneId: string }) {
    const look = goal ? statusLook(GOAL_STATUS, goal.status) : null;
 
    return (
-      <div className="flex h-[52px] w-full items-center justify-between gap-4 border-b px-5 py-1.5">
+      <div className="flex h-[52px] w-full items-center justify-between gap-4 border-b px-2 py-1.5 sm:px-5">
          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5">
             <Link
                href={`/${orgId}/milestones`}

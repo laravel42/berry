@@ -125,8 +125,8 @@ function AddLabel({
          }}
       >
          <PopoverTrigger asChild>
-            <Button type="button" size="xs" variant="track">
-               <Plus className="size-3" />
+            <Button type="button" size="sm" variant="track">
+               <Plus className="size-3.5" />
                {t('detail.addLabel')}
             </Button>
          </PopoverTrigger>

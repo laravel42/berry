@@ -3,7 +3,6 @@
 import { BerryMark } from '@/components/brand/berry-mark';
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -29,6 +28,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useMemo, useState } from 'react';
 import { ApprovalCard, useApprovalOutcomeLabel } from './approval-card';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const RISK_TONE = { low: 'neutral', medium: 'attention', high: 'danger' } as const;
 
@@ -240,7 +240,7 @@ export default function Approvals() {
          >
             <div className="min-h-0 flex-1 overflow-y-auto">
                {!loaded && !error ? (
-                  <EmptyStateLoading label={t('loading')} />
+                  <ListSkeleton label={t('loading')} />
                ) : error ? (
                   <p className="px-4 py-10 text-status-danger" role="alert">
                      {error}
@@ -279,7 +279,7 @@ export default function Approvals() {
             )}
          >
             {selected && (
-               <div className="flex h-[44px] shrink-0 items-center gap-2 border-b px-5 md:hidden">
+               <div className="flex h-[44px] shrink-0 items-center gap-2 border-b px-2 sm:px-5 md:hidden">
                   <button
                      type="button"
                      onClick={() => select(null)}

@@ -6,25 +6,20 @@ import { CheckIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-function Checkbox({
-   className,
-   variant = 'default',
-   ...props
-}: React.ComponentProps<typeof CheckboxPrimitive.Root> & {
-   /**
-    * `settings`: a 16px box with a dark check. A disabled checked box is dimmed
-    * (it is covered by a broader choice, such as Full access).
-    */
-   variant?: 'default' | 'settings';
-}) {
+// Touch screens: the button itself is 24px (the WCAG 2.2 minimum target) and
+// the negative margin (24px minus the 14px box, split either side) keeps its
+// layout footprint. The box the eye sees is drawn by ::before at the old size,
+// so it looks the same as on desktop.
+const TOUCH_TARGET =
+   "[@media(hover:none)]:relative [@media(hover:none)]:-m-[5px] [@media(hover:none)]:size-6 [@media(hover:none)]:border-transparent [@media(hover:none)]:bg-transparent [@media(hover:none)]:p-[5px] [@media(hover:none)]:shadow-none [@media(hover:none)]:data-[state=checked]:border-transparent [@media(hover:none)]:data-[state=checked]:bg-transparent [@media(hover:none)]:focus-visible:border-transparent [@media(hover:none)]:before:pointer-events-none [@media(hover:none)]:before:absolute [@media(hover:none)]:before:inset-[5px] [@media(hover:none)]:before:rounded-[3px] [@media(hover:none)]:before:border [@media(hover:none)]:before:border-input [@media(hover:none)]:before:content-[''] [@media(hover:none)]:data-[state=checked]:before:border-primary [@media(hover:none)]:data-[state=checked]:before:bg-primary [@media(hover:none)]:focus-visible:before:border-ring";
+
+function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
    return (
       <CheckboxPrimitive.Root
          data-slot="checkbox"
          className={cn(
-            'peer shrink-0 cursor-pointer border outline-none transition-shadow data-[state=checked]:border-status-success data-[state=checked]:bg-status-success focus-visible:border-ring disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
-            variant === 'settings'
-               ? 'size-4 rounded-[4px] border-settings-field-focus text-void disabled:opacity-100 disabled:data-[state=checked]:border-settings-check-dim disabled:data-[state=checked]:bg-settings-check-dim'
-               : 'size-3.5 rounded-[3px] border-input shadow-xs data-[state=checked]:text-background disabled:opacity-50',
+            'peer size-3.5 shrink-0 cursor-pointer rounded-[3px] border border-input shadow-xs outline-none transition-shadow data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40',
+            TOUCH_TARGET,
             className
          )}
          {...props}
@@ -33,10 +28,9 @@ function Checkbox({
             data-slot="checkbox-indicator"
             className="flex items-center justify-center text-current transition-none"
          >
-            <CheckIcon
-               className={variant === 'settings' ? 'size-2.5' : 'size-3.5'}
-               strokeWidth={variant === 'settings' ? 3.5 : 2}
-            />
+            {/* `text-current` keeps menu rows (CommandItem, menu items) from
+                greying the tick: they recolour any svg without a text- class. */}
+            <CheckIcon className="size-3.5 text-current" />
          </CheckboxPrimitive.Indicator>
       </CheckboxPrimitive.Root>
    );

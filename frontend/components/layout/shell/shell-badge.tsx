@@ -11,20 +11,33 @@ export function badgeText(count: number): string {
  * in approvals. Nothing at zero — a row that says "0" is a row asking to be
  * looked at for no reason.
  *
- * The figure is hidden from assistive technology and the row carries a
- * spoken form instead ("3 approvals waiting"): a bare number announced after
- * a link's name says nothing about what it counts.
+ * It is a figure, not a pill: mono 700 tabular (`data-figure`), so counts line
+ * up down the rail and read as one voice with every other number in the app.
+ * `hot` is owed work — "waiting on you" — the one rail state invariant 3 lets
+ * wear the berry accent; every other count stays the neutral dim. The accent
+ * is the colour, not a fill, so it never becomes the berry-pill-everywhere the
+ * redesign set out to remove.
+ *
+ * The figure is hidden from assistive technology and the row carries a spoken
+ * form instead ("3 approvals waiting"): a bare number announced after a link's
+ * name says nothing about what it counts.
  */
-export function ShellBadge({ count, label }: { count: number; label: string }) {
+export function ShellBadge({
+   count,
+   label,
+   hot = false,
+}: {
+   count: number;
+   label: string;
+   hot?: boolean;
+}) {
    if (count <= 0) return null;
    return (
       <span
-         // Smaller than anything the base type scale sizes, so the size is set
-         // here rather than with a text utility the project keeps in globals.
-         // Darker berry red (#a8384c) — not a black mix; chalk/white stays
-         // readable at 10px without muddying the hue.
-         style={{ fontSize: '10px', lineHeight: '16px', backgroundColor: '#a8384c' }}
-         className="ml-auto min-w-[18px] rounded-full px-1.5 py-px text-center font-medium leading-4 text-[var(--primary-foreground)]"
+         data-figure
+         className={`ml-auto ${
+            hot ? 'text-[var(--shell-accent)]' : 'text-[var(--shell-text-dim)]'
+         }`}
       >
          <span aria-hidden="true">{badgeText(count)}</span>
          <span className="sr-only">{label}</span>

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { health as HEALTH, Project } from '@/data/projects';
 import type { User } from '@/data/users';
 import type { Status } from '@/data/status';
@@ -15,7 +15,7 @@ import { useProjectsFilterStore } from '@/store/projects-filter-store';
 import { useProjectsDisplayStore, type ProjectsOrdering } from '@/store/projects-display-store';
 import { useSessionStore } from '@/store/session-store';
 import { ChartNoAxesGantt, FolderKanban, LayoutGrid, List } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -36,6 +36,7 @@ import ProjectsTimeline from './projects-timeline';
 import { useProjectFilterColumns } from './project-filter-columns';
 import { projectCreateStatusOptions } from './create-project/project-status-options';
 import type { ProjectsViewType } from '@/store/projects-display-store';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** How one group of projects is found and shown; a status group also takes drops. */
 interface ProjectGroupSpec {
@@ -133,11 +134,13 @@ const LAYOUTS: { value: ProjectsViewType; icon: React.ElementType }[] = [
 /** Projects page: search, filters, display options and views. */
 export default function Projects() {
    const lists = useTranslations('issueLists');
+   const common = useTranslations('common');
    const { filters, setFilters, query, setQuery } = useProjectsFilterStore();
    const { viewType, setViewType, grouping, ordering, direction, closedProjects, showEmptyGroups } =
       useProjectsDisplayStore();
    const allProjects = useProjectsStore((state) => state.projects);
    const hydrateProjects = useProjectsStore((state) => state.hydrateProjects);
+   const projectsLoaded = useProjectsStore((state) => state.loaded);
    const issues = useIssuesStore((state) => state.issues);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const sessionStatus = useSessionStore((state) => state.status);
@@ -318,45 +321,26 @@ export default function Projects() {
                <CreateProjectButton />
             </PageKpiHeader>
          </div>
-         <div className="mb-1 flex h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-5 py-[2px] [&_button]:!h-[30px]">
-            <div className="flex flex-wrap items-center gap-1">
-               <Input
-                  className={cn(searchFieldClass, 'w-64 max-sm:w-40')}
-                  placeholder={lists('projects.search')}
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-               />
+         {/* On a phone the search rests as an icon beside the filter,
+             display and layout controls; opened, it takes the first line and
+             they move to the second (see ToolbarSearch). */}
+         <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:py-2 sm:px-5">
+            <div className="flex flex-wrap items-center gap-1 max-sm:contents">
+               <ToolbarSearch label={lists('projects.search')} value={query} onChange={setQuery} />
                <ListFilterTrigger filter={filter} iconOnly />
                <ProjectsDisplayOptions iconOnly />
             </div>
             <div className="ml-auto flex items-center gap-1.5">
-               <div
-                  role="group"
+               <SegmentedControl
                   aria-label={lists('projects.layout.label')}
-                  className="flex items-center rounded-md border p-0.5"
-               >
-                  {LAYOUTS.map((layout) => {
-                     const on = viewType === layout.value;
-                     return (
-                        <button
-                           key={layout.value}
-                           type="button"
-                           aria-pressed={on}
-                           aria-label={lists(`projects.layout.${layout.value}`)}
-                           title={lists(`projects.layout.${layout.value}`)}
-                           onClick={() => setViewType(layout.value)}
-                           className={cn(
-                              'flex w-10 items-center justify-center rounded outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                              on
-                                 ? 'bg-secondary text-foreground'
-                                 : 'text-muted-foreground hover:text-foreground'
-                           )}
-                        >
-                           <layout.icon className="size-4" />
-                        </button>
-                     );
-                  })}
-               </div>
+                  value={viewType}
+                  onValueChange={setViewType}
+                  options={LAYOUTS.map((layout) => ({
+                     value: layout.value,
+                     title: lists(`projects.layout.${layout.value}`),
+                     label: <layout.icon className="size-4" aria-hidden />,
+                  }))}
+               />
             </div>
          </div>
 
@@ -381,7 +365,9 @@ export default function Projects() {
 
          <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
-               {viewType === 'board' ? (
+               {!projectsLoaded ? (
+                  <ListSkeleton label={common('loading')} />
+               ) : viewType === 'board' ? (
                   <ProjectsBoard
                      entries={boardEntries}
                      totalCount={scoped.length}

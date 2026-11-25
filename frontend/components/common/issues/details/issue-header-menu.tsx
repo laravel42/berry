@@ -23,6 +23,7 @@ import { status as STATUSES } from '@/data/status';
 import type { Issue } from '@/data/issues';
 import { loadSubscribers, setSubscription } from '@/lib/subscribers';
 import { pinTarget, unpinTarget } from '@/lib/pins';
+import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { usePinsStore } from '@/store/pins-store';
 import { selectOpenReviewForIssue, useReviewsStore } from '@/store/reviews-store';
@@ -53,7 +54,20 @@ import { toast } from 'sonner';
  * offering a way around the gate; anywhere else "Mark done" and "Reopen" ask
  * first and say what they skip.
  */
-export function IssueHeaderMenu({ issue, onDeleted }: { issue: Issue; onDeleted?: () => void }) {
+export function IssueHeaderMenu({
+   issue,
+   onDeleted,
+   triggerClassName,
+   iconClassName,
+   lazySubscription = false,
+}: {
+   issue: Issue;
+   onDeleted?: () => void;
+   triggerClassName?: string;
+   iconClassName?: string;
+   /** Skip eager subscription fetch on mount and refresh when the menu opens. */
+   lazySubscription?: boolean;
+}) {
    const t = useTranslations('issueDetail.header');
    const tSub = useTranslations('issueDetail.subscription');
    const { orgId } = useParams<{ orgId: string }>();
@@ -77,7 +91,10 @@ export function IssueHeaderMenu({ issue, onDeleted }: { issue: Issue; onDeleted?
          .then((state) => setSubscribed(state.subscribed))
          .catch(() => undefined);
    }, [issue.identifier]);
-   useEffect(reloadSubscription, [reloadSubscription]);
+   useEffect(() => {
+      if (lazySubscription) return;
+      reloadSubscription();
+   }, [lazySubscription, reloadSubscription]);
 
    const toggleSubscription = () => {
       setBusy(true);
@@ -104,15 +121,19 @@ export function IssueHeaderMenu({ issue, onDeleted }: { issue: Issue; onDeleted?
 
    return (
       <>
-         <DropdownMenu>
+         <DropdownMenu
+            onOpenChange={(open) => {
+               if (open) reloadSubscription();
+            }}
+         >
             <DropdownMenuTrigger asChild>
                <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 text-muted-foreground"
+                  className={cn('size-7 text-muted-foreground', triggerClassName)}
                   aria-label={t('actions')}
                >
-                  <MoreHorizontal className="size-4" />
+                  <MoreHorizontal className={cn('size-4', iconClassName)} />
                </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">

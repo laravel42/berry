@@ -314,7 +314,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
             }}
             className="flex min-h-0 flex-1 flex-col gap-0"
          >
-            <div className="flex justify-center border-b px-8 py-2">
+            <div className="no-scrollbar flex justify-center-safe overflow-x-auto border-b px-8 py-2">
                <TabsList aria-label={t('title')}>
                   {CREATE_TABS.map((entry) => (
                      <TabsTrigger key={entry} value={entry}>
@@ -393,6 +393,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                            <div className="flex flex-wrap gap-2">
                               <Button
                                  type="button"
+                                 size="sm"
                                  variant="secondary"
                                  className={
                                     draft.runtimeId === NO_RUNTIME ? CHOICE_SELECTED : undefined
@@ -405,6 +406,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={runtime.id}
                                     type="button"
+                                    size="sm"
                                     variant="secondary"
                                     className={
                                        draft.runtimeId === runtime.id ? CHOICE_SELECTED : undefined
@@ -428,6 +430,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={level}
                                     type="button"
+                                    size="sm"
                                     variant="secondary"
                                     className={
                                        draft.concurrency === level ? CHOICE_SELECTED : undefined
@@ -450,6 +453,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  <Button
                                     key={mode}
                                     type="button"
+                                    size="sm"
                                     variant="secondary"
                                     className={draft.access === mode ? CHOICE_SELECTED : undefined}
                                     onClick={() => set({ access: mode })}
@@ -563,10 +567,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
                                  className="h-8 w-56"
                               />
                               <Select value={skillLabel} onValueChange={setSkillLabel}>
-                                 <SelectTrigger
-                                    className="h-8 w-44"
-                                    aria-label={detail('skillsLabel')}
-                                 >
+                                 <SelectTrigger className="w-44" aria-label={detail('skillsLabel')}>
                                     <SelectValue />
                                  </SelectTrigger>
                                  <SelectContent>
@@ -646,7 +647,7 @@ export default function NewAgentManual({ duplicateId }: NewAgentManualProps) {
             </div>
          </Tabs>
 
-         <div className="flex shrink-0 justify-end border-t bg-container px-5 py-3">
+         <div className="flex shrink-0 justify-end border-t bg-container px-2 py-3 sm:px-5">
             <Button type="submit" disabled={busy || !draft.name.trim()}>
                {busy ? t('creating') : t('create')}
             </Button>

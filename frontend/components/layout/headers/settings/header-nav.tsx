@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -14,7 +14,21 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { selectTriggerClass } from '@/components/ui/select';
 import { isNavItemActive } from '@/lib/nav-active';
+import { cn } from '@/lib/utils';
+
+/**
+ * Pages under /settings that are not in the rail's list, which would otherwise
+ * show a bare "Settings" with no page name. Labels are `workspaceAdmin.nav` keys.
+ */
+const offRailPages = [
+   { segment: 'organization', labelKey: 'organization' },
+   { segment: 'repositories', labelKey: 'repositories' },
+   { segment: 'usage', labelKey: 'usage' },
+   { segment: 'ai', labelKey: 'agents' },
+   { segment: 'plugins', labelKey: 'plugins' },
+] as const;
 
 /**
  * The settings header, and the only settings navigation on a narrow screen.
@@ -38,24 +52,15 @@ export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) 
       .flatMap((group) => group.items)
       .find((item) => isNavItemActive(pathname, `/${orgId}${item.url}`));
 
+   const currentLabelKey =
+      current?.labelKey ??
+      offRailPages.find((page) => isNavItemActive(pathname, `/${orgId}/settings/${page.segment}`))
+         ?.labelKey;
+
    return (
-      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-5 py-1.5">
-         {/* Breadcrumb: "Settings › Page". The h1 stays "Settings"; the page
-             name is the section below it. */}
-         <div className="flex min-w-0 items-center gap-2">
+      <div className="flex h-[52px] w-full items-center justify-between gap-3 border-b border-settings-panel-line px-2 sm:px-5">
+         <div className="flex min-w-0 items-baseline gap-2">
             <h1 className="m-0 shrink-0 font-normal text-subtle-foreground">{t('title')}</h1>
-            {current ? (
-               <>
-                  <ChevronRight
-                     className="size-2.5 shrink-0 text-settings-field-focus"
-                     strokeWidth={2.5}
-                     aria-hidden
-                  />
-                  <span className="min-w-0 truncate font-semibold">
-                     {admin(`nav.${current.labelKey}`)}
-                  </span>
-               </>
-            ) : null}
          </div>
 
          <div className="flex min-w-0 items-center gap-2">
@@ -63,10 +68,12 @@ export default function HeaderNav({ trailing }: { trailing?: React.ReactNode }) 
             <DropdownMenu>
                <DropdownMenuTrigger
                   aria-label={admin('jump.label')}
-                  className="lg:hidden inline-flex h-7 max-w-56 items-center gap-1.5 truncate rounded-md border bg-container px-2.5 outline-none transition-colors hover:bg-accent"
+                  className={cn(selectTriggerClass, 'w-auto max-w-56 min-w-0 lg:hidden')}
                >
-                  {current ? admin(`nav.${current.labelKey}`) : admin('jump.current')}
-                  <ChevronDown className="size-3.5 text-muted-foreground" />
+                  <span className="min-w-0 truncate">
+                     {currentLabelKey ? admin(`nav.${currentLabelKey}`) : admin('jump.current')}
+                  </span>
+                  <ChevronDown className="size-4 shrink-0 opacity-50" />
                </DropdownMenuTrigger>
                <DropdownMenuContent align="end" className="max-h-[70svh] min-w-52 overflow-y-auto">
                   {settingsNav.map((group, index) => (

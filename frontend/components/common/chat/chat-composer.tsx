@@ -5,6 +5,7 @@ import { ArrowUp, Mic, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { useComposerPalette } from '@/components/common/composer-palette';
+import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import type { Agent } from '@/lib/agents';
 import { ChatTierModelSelect } from './chat-tier-model-select';
 
@@ -140,7 +141,7 @@ export function ChatComposer({
                         if (canSend) onSend();
                      }
                   }}
-                  className="max-h-48 min-h-[4.5rem] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
+                  className="max-h-48 min-h-[4.5rem] min-w-0 flex-1 resize-none overflow-y-auto bg-transparent px-1 py-1.5 leading-6 text-[var(--shell-text)] [--input-color:var(--shell-text)] [--placeholder-color:var(--shell-text-dim)] outline-none placeholder:text-[var(--shell-text-dim)] disabled:cursor-not-allowed"
                />
 
                {/* Mode and model sit under the text. While a reply
@@ -158,13 +159,22 @@ export function ChatComposer({
                      ) : null}
                   </div>
                   <div className="flex items-center gap-2">
+                     <EmojiInsertButton
+                        textareaRef={input}
+                        value={value}
+                        onChange={onChange}
+                        disabled={disabled}
+                        align="end"
+                        side="top"
+                        className="rounded-full text-[var(--shell-text)] hover:bg-[var(--shell-line)] hover:text-[var(--shell-text)]"
+                     />
                      {false && onVoice ? (
                         <button
                            type="button"
                            onClick={onVoice ?? undefined}
                            aria-label={t('voiceOpen')}
                            title={t('voiceOpen')}
-                           className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)]"
+                           className="flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)]"
                         >
                            <Mic className="size-4" aria-hidden />
                         </button>
@@ -175,7 +185,7 @@ export function ChatComposer({
                            onClick={onStop}
                            aria-label={t('stopReply')}
                            title={t('stopReply')}
-                           className="flex size-8 flex-none cursor-pointer items-center justify-center rounded-full bg-[var(--shell-text)] text-[var(--shell-canvas)] transition-colors hover:opacity-90"
+                           className="flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full bg-[var(--shell-text)] text-[var(--shell-canvas)] transition-colors hover:opacity-90"
                         >
                            <Square className="size-3 fill-current" aria-hidden />
                         </button>
@@ -187,8 +197,8 @@ export function ChatComposer({
                            aria-label={sendLabel}
                            title={sendLabel}
                            className={[
-                              'flex size-8 flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
-                              SEND_VARIANT[sendVariant],
+                              'flex size-(--field-h) flex-none cursor-pointer items-center justify-center rounded-full transition-[opacity,transform,background-color] disabled:cursor-not-allowed disabled:opacity-40',
+                              SEND_VARIANT[canSend ? sendVariant : 'secondary'],
                            ].join(' ')}
                         >
                            <ArrowUp className="size-4" aria-hidden />

@@ -38,6 +38,7 @@
       "next": "Create the first task to get started.",
       "mark": "Empty task list"
    },
+   "loadingMore": "Loading more tasks…",
    "discovery": {
       "body": "Your agents filed these discovery tasks on their weekly sweep. They wait in the backlog until someone starts them.",
       "dismiss": "Dismiss"

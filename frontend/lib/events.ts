@@ -85,6 +85,8 @@ export async function* readSseFrames(
 export interface StreamOptions {
    /** Resume after this event id; the server replays what came after it. */
    after?: string;
+   /** Replay only what happened after this server time (RFC 3339); exclusive with `after`. */
+   since?: string;
    signal?: AbortSignal;
 }
 
@@ -100,6 +102,7 @@ export async function* streamWorkspaceEvents(
 ): AsyncGenerator<EventEnvelope> {
    const params = new URLSearchParams({ workspaceId });
    if (options.after) params.set('after', options.after);
+   else if (options.since) params.set('since', options.since);
    const response = await apiStream(`/api/v1/events?${params.toString()}`, undefined, {
       signal: options.signal,
    });

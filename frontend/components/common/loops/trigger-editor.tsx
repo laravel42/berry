@@ -23,15 +23,16 @@ import {
    InsetSegments,
    SectionCard,
    SettingRow,
-   insetFieldClass,
 } from '@/components/common/loops/loop-editor-parts';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
    Select,
    SelectContent,
    SelectItem,
    SelectTrigger,
    SelectValue,
+   selectTriggerClass,
 } from '@/components/ui/select';
 import { absoluteApiUrl } from '@/lib/api';
 import {
@@ -358,9 +359,9 @@ function ScheduleRows({
             </SettingRow>
          ) : (
             <SettingRow label={t('cron')} hint={t('cronHint')} htmlFor="loop-cron">
-               <input
+               <Input
                   id="loop-cron"
-                  className={cn(insetFieldClass, 'font-mono')}
+                  className="font-mono"
                   value={draft.expression}
                   disabled={disabled}
                   onChange={(event) => onChange({ ...draft, expression: event.target.value })}
@@ -387,7 +388,7 @@ function ScheduleRows({
                               })
                            }
                            className={cn(
-                              'h-[30px] min-w-0 truncate rounded-[7px] border font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
+                              'h-(--field-h) min-w-0 truncate rounded-pill border font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
                               on
                                  ? 'border-foreground/25 bg-segment-selected text-foreground'
                                  : 'border-border/70 bg-background text-subtle-foreground enabled:hover:text-foreground'
@@ -403,12 +404,12 @@ function ScheduleRows({
 
          {cadence?.repeat === 'monthly' ? (
             <SettingRow label={t('dayOfMonth')} hint={t('dayOfMonthHint')} htmlFor="loop-month-day">
-               <input
+               <Input
                   id="loop-month-day"
                   type="number"
                   min={1}
                   max={28}
-                  className={cn(insetFieldClass, 'w-24 tabular-nums')}
+                  className="w-24 tabular-nums"
                   value={cadence.dayOfMonth}
                   disabled={disabled}
                   onChange={(event) => {
@@ -426,12 +427,12 @@ function ScheduleRows({
          >
             <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
                {cadence?.repeat === 'hourly' ? (
-                  <input
+                  <Input
                      id="loop-time"
                      type="number"
                      min={0}
                      max={59}
-                     className={cn(insetFieldClass, 'text-center tabular-nums')}
+                     className="px-2 text-center tabular-nums"
                      value={cadence.minute}
                      disabled={disabled}
                      onChange={(event) => {
@@ -441,10 +442,10 @@ function ScheduleRows({
                      }}
                   />
                ) : cadence ? (
-                  <input
+                  <Input
                      id="loop-time"
                      type="time"
-                     className={cn(insetFieldClass, 'text-center tabular-nums')}
+                     className="px-2 text-center tabular-nums"
                      value={`${pad(cadence.hour)}:${pad(cadence.minute)}`}
                      disabled={disabled}
                      onChange={(event) => {
@@ -456,7 +457,7 @@ function ScheduleRows({
                   <span />
                )}
                <select
-                  className={insetFieldClass}
+                  className={selectTriggerClass}
                   value={draft.timezone}
                   disabled={disabled}
                   aria-label={t('timezone')}
@@ -505,10 +506,7 @@ function PullRequestRows({
                onChange({ ...draft, states: next === 'any' ? [] : [next] });
             }}
          >
-            <SelectTrigger
-               className={cn(insetFieldClass, 'justify-between')}
-               aria-label={t('prWhen')}
-            >
+            <SelectTrigger aria-label={t('prWhen')}>
                <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -530,14 +528,12 @@ function SecretField({ value, label, mask }: { value: string; label: string; mas
    const [shown, setShown] = useState(!mask);
    return (
       <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2">
-         <span
-            className={cn(
-               insetFieldClass,
-               'flex items-center truncate font-mono text-muted-foreground'
-            )}
-         >
-            {shown ? value : '•'.repeat(Math.min(28, value.length))}
-         </span>
+         <Input
+            readOnly
+            value={shown ? value : '•'.repeat(Math.min(28, value.length))}
+            aria-label={label}
+            className="font-mono text-muted-foreground"
+         />
          {mask ? (
             <Button
                type="button"
@@ -640,9 +636,8 @@ function WebhookRows({
             hint={t('webhookEventsHint')}
             htmlFor="loop-webhook-events"
          >
-            <input
+            <Input
                id="loop-webhook-events"
-               className={insetFieldClass}
                value={draft.eventFilters}
                placeholder={t('webhookEventsPlaceholder')}
                disabled={disabled}

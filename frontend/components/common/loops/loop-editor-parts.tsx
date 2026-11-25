@@ -3,6 +3,8 @@
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
+import { segmentTrackClass } from '@/components/common/segmented-control';
+import { SegmentIndicator, useSegmentGroupId } from '@/components/ui/segment-indicator';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
@@ -133,12 +135,9 @@ export function InsetSegments<T extends string>({
    disabled?: boolean;
    onChange?: (value: T) => void;
 }) {
+   const groupId = useSegmentGroupId();
    return (
-      <div
-         role="radiogroup"
-         aria-label={label}
-         className="flex gap-0.5 rounded-[7px] border border-border/70 bg-background p-0.5"
-      >
+      <div role="radiogroup" aria-label={label} className={cn(segmentTrackClass, 'gap-0.5')}>
          {options.map((option) => {
             const on = option.value === value;
             return (
@@ -150,12 +149,11 @@ export function InsetSegments<T extends string>({
                   disabled={disabled}
                   onClick={() => onChange?.(option.value)}
                   className={cn(
-                     'h-[26px] min-w-0 flex-1 truncate rounded-[5px] px-2 font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
-                     on
-                        ? 'bg-segment-selected text-foreground'
-                        : 'text-muted-foreground enabled:hover:text-foreground'
+                     'relative isolate h-full min-w-0 flex-1 truncate rounded-[5px] px-2 font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed',
+                     on ? 'text-foreground' : 'text-muted-foreground enabled:hover:text-foreground'
                   )}
                >
+                  {on ? <SegmentIndicator layoutId={groupId} /> : null}
                   {option.label}
                </button>
             );
@@ -173,7 +171,3 @@ export function SoonPill() {
       </span>
    );
 }
-
-/** The input look the Loop page uses: inset, hairline-bordered, full width. */
-export const insetFieldClass =
-   'h-8 w-full rounded-[7px] border border-border/70 bg-background px-2.5 text-foreground outline-none placeholder:text-placeholder focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-70';

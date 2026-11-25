@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
 import { http, HttpResponse } from 'msw';
+import { toast } from 'sonner';
 import { expect, waitFor, within } from 'storybook/test';
 import { useCreateProjectStore } from '@/store/create-project-store';
 import { useProjectsStore } from '@/store/projects-store';
@@ -19,6 +20,10 @@ const meta = {
    beforeEach: ({ msw }) => {
       seedProjectStores({ projects: [] });
       useCreateProjectStore.setState({ isOpen: true, defaultStatus: null });
+      // Sonner's toast list is a module-level singleton that outlives any one
+      // story; a prior story's "Project created" toast can still be on screen
+      // when this one fires the same text, making the text ambiguous.
+      toast.dismiss();
       msw.use(
          http.get('*/api/v1/integrations/github/repositories', () =>
             HttpResponse.json(apiRepositories)
@@ -194,7 +199,11 @@ export const CreateWithAgent: Story = {
       await expect(within(dialog).getByPlaceholderText('Project name')).toHaveValue(
          'Billing export'
       );
-      await expect(within(dialog).getByText('Export invoices as CSV for finance.')).toBeVisible();
+      // The editor syncs its content from the patched form in its own effect,
+      // a tick after the state update — findByText polls for it.
+      await expect(
+         await within(dialog).findByText('Export invoices as CSV for finance.')
+      ).toBeVisible();
 
       // Hide folds the panel and keeps the draft.
       await userEvent.click(within(panel).getByRole('button', { name: 'Hide' }));

@@ -14,16 +14,13 @@ import {
    DropdownMenuItem,
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { selectTriggerClass } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-
-/** The settings secondary button, for a `<button>` or `<Link>` that cannot be a `Button`. */
-export const SETTINGS_PILL_SHAPE =
-   'inline-flex h-[30px] w-fit shrink-0 cursor-pointer items-center gap-1.5 rounded-[7px] bg-settings-control px-3 font-medium whitespace-nowrap transition-colors hover:bg-settings-control-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] disabled:pointer-events-none disabled:text-subtle-foreground';
-
-export const SETTINGS_PILL = `${SETTINGS_PILL_SHAPE} text-foreground`;
 
 /** Centered settings page: optional title and description, stacked sections. */
 export function SettingsShell({
@@ -50,7 +47,9 @@ export function SettingsShell({
       <div className="settings-surface h-full w-full overflow-y-auto">
          <div
             className={cn(
-               'flex flex-col gap-8 px-8 pb-24',
+               // The page ends with only the room the Agents launcher needs from
+               // `md`, where it floats over the canvas; phones keep a short gap.
+               'flex flex-col gap-8 px-4 pb-8 sm:px-8 md:pb-[var(--shell-launcher-room)]',
                heading ? 'pt-10' : 'pt-4',
                wide ? 'w-full' : 'mx-auto max-w-[720px]'
             )}
@@ -157,18 +156,27 @@ export function SettingsSection({
    );
 }
 
-/** A filled group of rows. Rows are divided by a hairline; the group has no outer border. */
+/**
+ * A filled group of rows. Rows are divided by a hairline; the group has no
+ * outer border. `danger` tints it berry, for rows whose action cannot be
+ * taken back (leaving or deleting the workspace).
+ */
 export function SettingsCard({
    children,
+   tone = 'default',
    className,
 }: {
    children: React.ReactNode;
+   tone?: 'default' | 'danger';
    className?: string;
 }) {
    return (
       <div
          className={cn(
-            'flex flex-col divide-y divide-settings-divider overflow-hidden rounded-[10px] bg-settings-group',
+            'flex flex-col divide-y overflow-hidden rounded-[10px]',
+            tone === 'danger'
+               ? 'divide-settings-danger-divider bg-settings-group-danger'
+               : 'divide-settings-divider bg-settings-group',
             className
          )}
       >
@@ -177,15 +185,29 @@ export function SettingsCard({
    );
 }
 
+/**
+ * One line of the title tall on a phone, so a control taller than the text
+ * is centred on the title's line and spills evenly into the row's padding.
+ */
+const TITLE_LINE = 'max-sm:h-[1lh]';
+
 /** The handoff's name for a group of rows. */
 export const SettingsGroup = SettingsCard;
 
-/** A single settings row: optional icon, label + description, trailing control. */
+/**
+ * A single settings row: optional icon, label + description, trailing control.
+ *
+ * On a phone a switch, a button or a chip stays on the right, centred on the
+ * title's line. A field (`wide`) takes the row's whole width under the label
+ * instead, with `action` kept on the title's line.
+ */
 export function SettingsRow({
    icon,
    title,
    description,
    trailing,
+   wide,
+   action,
    chevron,
    onClick,
    muted,
@@ -198,6 +220,17 @@ export function SettingsRow({
    title: React.ReactNode;
    description?: React.ReactNode;
    trailing?: React.ReactNode;
+   /**
+    * The trailing control is a field: an input, a select, or a field with its
+    * button. On a phone it goes under the label and stretches across the row.
+    */
+   wide?: boolean;
+   /**
+    * A button kept on the title's line on a phone while a `wide` control goes
+    * under the label (a member's Remove beside their role). On a wider screen
+    * it follows the trailing control.
+    */
+   action?: React.ReactNode;
    chevron?: boolean;
    onClick?: () => void;
    muted?: boolean;
@@ -225,12 +258,17 @@ export function SettingsRow({
       >
          <div
             className={cn(
-               'flex w-full min-w-0 gap-3',
-               align === 'start' ? 'items-start' : 'items-center'
+               'flex w-full min-w-0 gap-3 max-sm:flex-wrap',
+               align === 'start' ? 'items-start' : 'items-center',
+               // Beside a title and its description, a phone's control sits on
+               // the title's line rather than between the two.
+               description && 'max-sm:items-start'
             )}
          >
             {icon ? <SettingsTile>{icon}</SettingsTile> : null}
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            {/* An 8rem basis: a label never shrinks to a few letters beside a
+                control; one too wide to fit beside it wraps under it. */}
+            <div className="flex min-w-0 flex-[1_1_8rem] flex-col gap-0.5">
                <div className="flex min-w-0 flex-wrap items-center gap-2 font-medium text-foreground">
                   {title}
                </div>
@@ -241,9 +279,20 @@ export function SettingsRow({
                ) : null}
             </div>
             {trailing ? (
-               <div className="flex shrink-0 items-center gap-2 text-muted-foreground">
+               <div
+                  className={cn(
+                     'flex max-w-full shrink-0 items-center gap-2 text-muted-foreground',
+                     wide
+                        ? // Last, on a line of its own, the field stretched across it.
+                          'max-sm:order-last max-sm:basis-full max-sm:*:min-w-0 max-sm:*:flex-1'
+                        : TITLE_LINE
+                  )}
+               >
                   {trailing}
                </div>
+            ) : null}
+            {action ? (
+               <div className={cn('flex shrink-0 items-center gap-2', TITLE_LINE)}>{action}</div>
             ) : null}
             {chevron ? <ChevronRight className="size-4 shrink-0 text-subtle-foreground" /> : null}
          </div>
@@ -401,7 +450,7 @@ export function StatTileGrid({
    );
 }
 
-/** 28px icon button; `destructive` turns the glyph red on hover. */
+/** A row's icon action (edit, delete, restore): `Button` at the field height. */
 export function SettingsIconButton({
    label,
    onClick,
@@ -411,71 +460,56 @@ export function SettingsIconButton({
 }: {
    label: string;
    onClick?: () => void;
+   /** The glyph turns red on hover. */
    destructive?: boolean;
    disabled?: boolean;
    children: React.ReactNode;
 }) {
    return (
-      <button
-         type="button"
+      <Button
+         variant={destructive ? 'quiet-destructive' : 'quiet'}
+         size="icon-sm"
          aria-label={label}
          title={label}
          onClick={onClick}
          disabled={disabled}
-         className={cn(
-            'inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[6px] text-subtle-foreground transition-colors outline-none hover:bg-settings-control focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-[13px]',
-            destructive ? 'hover:text-status-danger' : 'hover:text-foreground'
-         )}
       >
          {children}
-      </button>
+      </Button>
    );
 }
 
-/** A filled search field with a leading glyph, used above settings lists. */
+/**
+ * The list filter above a settings list: the shared toolbar search, a field
+ * from `sm` up and an icon that opens it on a phone. The row it sits in must
+ * wrap (`flex-wrap`).
+ */
 export function SettingsSearch({
    value,
    onChange,
    placeholder,
    className,
-   'aria-label': ariaLabel,
 }: {
-   'value': string;
-   'onChange': (value: string) => void;
-   'placeholder': string;
-   'className'?: string;
-   'aria-label'?: string;
+   value: string;
+   onChange: (value: string) => void;
+   placeholder: string;
+   className?: string;
 }) {
    return (
-      <label
-         className={cn(
-            'flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-[7px] border border-settings-field-line bg-settings-field px-2.5 text-settings-placeholder focus-within:border-settings-field-focus',
-            className
-         )}
-      >
-         <Search className="size-[13px] shrink-0" aria-hidden />
-         <input
-            // Not type="search": globals.css pins that type to 16px, and this
-            // field sits in a 13px row.
-            type="text"
-            role="searchbox"
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={placeholder}
-            aria-label={ariaLabel ?? placeholder}
-            className="min-w-0 flex-1 border-0 bg-transparent p-0 text-foreground outline-none [font:inherit] placeholder:text-settings-placeholder [&::-webkit-search-cancel-button]:hidden"
-         />
-      </label>
+      <ToolbarSearch
+         label={placeholder}
+         value={value}
+         onChange={onChange}
+         className={cn('min-w-0 flex-1 max-sm:basis-full', className)}
+      />
    );
 }
 
 /** Width of a control right-aligned in a row. */
 export const SETTINGS_CONTROL_WIDTH = 'w-[220px]';
 
-const selectTriggerClass =
-   'relative inline-flex h-[30px] w-[220px] max-w-full items-center rounded-[7px] border border-settings-field-line bg-settings-field pr-[30px] pl-2.5 text-left text-foreground outline-none transition-colors focus-visible:border-settings-field-focus data-[state=open]:border-settings-field-focus disabled:cursor-not-allowed disabled:opacity-60';
-const selectChevronClass =
-   'pointer-events-none absolute top-1/2 right-2.5 size-2.5 -translate-y-1/2 text-subtle-foreground';
+/** `SelectMenu`'s trigger: the app's select, 220px unless the caller sizes it. */
+const selectMenuTriggerClass = cn(selectTriggerClass, 'w-[220px] max-w-full');
 
 /** Small functional select (local state) used across the settings pages. */
 export function SelectMenu({
@@ -528,10 +562,10 @@ export function SelectMenu({
             <PopoverTrigger
                disabled={disabled}
                aria-label={ariaLabel}
-               className={cn(selectTriggerClass, className)}
+               className={cn(selectMenuTriggerClass, className)}
             >
                <span className="min-w-0 truncate">{display}</span>
-               <ChevronDown className={selectChevronClass} strokeWidth={2.5} />
+               <ChevronDown className="size-4 opacity-50" />
             </PopoverTrigger>
             <PopoverContent align="end" className="w-72 p-0">
                <Command
@@ -554,7 +588,9 @@ export function SelectMenu({
                                  onSelect={() => choose(option)}
                               >
                                  <span className="min-w-0 flex-1 truncate">{label}</span>
-                                 {value === option ? <Check className="size-3.5 shrink-0" /> : null}
+                                 {value === option ? (
+                                    <Check className="text-(--primary) size-3.5 shrink-0" />
+                                 ) : null}
                               </CommandItem>
                            );
                         })}
@@ -571,10 +607,10 @@ export function SelectMenu({
          <DropdownMenuTrigger
             disabled={disabled}
             aria-label={ariaLabel}
-            className={cn(selectTriggerClass, className)}
+            className={cn(selectMenuTriggerClass, className)}
          >
             <span className="min-w-0 truncate">{display}</span>
-            <ChevronDown className={selectChevronClass} strokeWidth={2.5} />
+            <ChevronDown className="size-4 opacity-50" />
          </DropdownMenuTrigger>
          <DropdownMenuContent align="end" className="max-h-72 min-w-40 overflow-y-auto">
             {options.map((option) => (
@@ -584,7 +620,7 @@ export function SelectMenu({
                   className="flex items-center gap-2"
                >
                   <span className="flex-1">{labels?.[option] ?? option}</span>
-                  {value === option && <Check className="size-3.5" />}
+                  {value === option && <Check className="text-(--primary) size-3.5" />}
                </DropdownMenuItem>
             ))}
          </DropdownMenuContent>

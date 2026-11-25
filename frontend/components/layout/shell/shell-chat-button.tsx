@@ -1,15 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { formatCombo } from '@/lib/shortcuts';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { cn } from '@/lib/utils';
 import { useShellStore } from '@/store/shell-store';
-import { useShortcutBindings } from '@/store/shortcuts-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 
 /**
@@ -21,8 +18,12 @@ import { useUiPrefsStore } from '@/store/ui-prefs-store';
  * on and opens. Disabled on the chat page, which is this window's full-size
  * counterpart.
  *
- * Quiet `bg-container` chip with a thin rotating brand-colour border
- * (same motion as `.ai-animated-border`).
+ * Quiet chip with the `.spark` ring: a thin rotating brand-colour border,
+ * the ledger redesign's control for a secondary AI action. Stays visible in
+ * the corner rather than auto-hiding after idle time.
+ *
+ * No corner dot: unread replies are still in its accessible name, and the
+ * shortcut hint lives in the chat window's header.
  */
 export function ShellChatButton() {
    const t = useTranslations('shell');
@@ -32,15 +33,6 @@ export function ShellChatButton() {
    const unread = useShellStore((state) => state.chatUnread);
    const floatingEnabled = useUiPrefsStore((state) => state.floatingChat);
    const setFloatingChat = useUiPrefsStore((state) => state.setFloatingChat);
-   const combo = useShortcutBindings()['chat.toggleFloating'];
-
-   // The glyph for `mod` depends on the platform, which the server cannot
-   // know; the hint is filled in after mount so both sides render alike.
-   const [hint, setHint] = useState<string | null>(null);
-   useEffect(() => {
-      setHint(combo ? formatCombo(combo) : null);
-   }, [combo]);
-
    const onChatPage = pathname.includes('/chat');
    const open = floatingEnabled && chatWindow !== 'closed';
    const label = open
@@ -48,43 +40,30 @@ export function ShellChatButton() {
       : unread > 0
         ? t('chat.openUnread', { count: unread })
         : t('chat.open');
-   const title = onChatPage
-      ? t('chat.onChatPage')
-      : hint
-        ? t('chat.shortcutHint', { keys: hint })
-        : label;
+   // The shortcut is named by the info mark in the chat window's header.
+   const title = onChatPage ? t('chat.onChatPage') : label;
 
    return (
-      <span
+      <Button
+         type="button"
+         variant="ai"
+         size="md"
+         onClick={() => {
+            if (!floatingEnabled) setFloatingChat(true);
+            toggleChat();
+         }}
+         disabled={onChatPage}
+         aria-label={label}
+         aria-expanded={open}
+         title={title}
+         data-open={open ? 'true' : undefined}
          className={cn(
-            'ai-animated-border shell-agents-launcher h-6 origin-center scale-[1.3]',
+            'relative transition-[opacity,box-shadow] duration-200 ease-out data-[open=true]:text-foreground motion-reduce:transition-none',
             onChatPage && 'opacity-40'
          )}
       >
-         <Button
-            type="button"
-            variant="outline"
-            size="xxs"
-            onClick={() => {
-               if (!floatingEnabled) setFloatingChat(true);
-               toggleChat();
-            }}
-            disabled={onChatPage}
-            aria-label={label}
-            aria-expanded={open}
-            title={title}
-            data-open={open ? 'true' : undefined}
-            className="relative h-full min-h-0 border-0 bg-container shadow-none hover:bg-container hover:text-foreground data-[open=true]:bg-container data-[open=true]:text-foreground"
-         >
-            <Sparkles className="size-3.5" aria-hidden="true" />
-            {t('chat.label')}
-            {unread > 0 && !open ? (
-               <span
-                  aria-hidden="true"
-                  className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-[var(--brand-azure)]"
-               />
-            ) : null}
-         </Button>
-      </span>
+         <SparkIcon className="size-3.5" />
+         {t('chat.label')}
+      </Button>
    );
 }

@@ -100,12 +100,7 @@ export function CommentActions({
       <>
          <DropdownMenu>
             <DropdownMenuTrigger asChild>
-               <Button
-                  variant="ghost"
-                  size="icon"
-                  className="ml-auto size-6"
-                  aria-label={t('title')}
-               >
+               <Button variant="ghost" size="icon-sm" className="ml-auto" aria-label={t('title')}>
                   <MoreHorizontal className="size-4" />
                </Button>
             </DropdownMenuTrigger>

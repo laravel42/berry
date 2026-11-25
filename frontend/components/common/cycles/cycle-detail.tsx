@@ -23,6 +23,12 @@ import {
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import {
+   DropdownMenu,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useCycleIssues } from '@/hooks/use-cycle-issues';
 import { BerryApiError } from '@/lib/api';
 import { toUiUser } from '@/lib/catalog';
@@ -51,7 +57,7 @@ import { canEditProduct, canEditSettings } from '@/lib/workspace-role';
 import { useCyclesStore } from '@/store/cycles-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useSessionStore } from '@/store/session-store';
-import { ChevronRight, Plus, X } from 'lucide-react';
+import { ChevronRight, MoreHorizontal, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
@@ -295,6 +301,7 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
             {canRemove ? (
                <Button
                   variant="soft-destructive"
+                  className="max-sm:hidden"
                   disabled={busy}
                   onClick={() => setConfirmRemove(true)}
                >
@@ -302,9 +309,44 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                </Button>
             ) : null}
             {canEdit && cycle.status !== 'active' ? (
-               <Button variant="soft" disabled={busy} onClick={() => void setStatus('active')}>
+               <Button
+                  variant="soft"
+                  className="max-sm:hidden"
+                  disabled={busy}
+                  onClick={() => void setStatus('active')}
+               >
                   {t('detail.activate')}
                </Button>
+            ) : null}
+            {canRemove || (canEdit && cycle.status !== 'active') ? (
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                     <Button
+                        variant="quiet"
+                        size="icon"
+                        className="sm:hidden"
+                        aria-label={t('detail.moreActions')}
+                        disabled={busy}
+                     >
+                        <MoreHorizontal className="size-4" aria-hidden />
+                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-40">
+                     {canEdit && cycle.status !== 'active' ? (
+                        <DropdownMenuItem onClick={() => void setStatus('active')}>
+                           {t('detail.activate')}
+                        </DropdownMenuItem>
+                     ) : null}
+                     {canRemove ? (
+                        <DropdownMenuItem
+                           className="text-status-danger focus:text-status-danger"
+                           onClick={() => setConfirmRemove(true)}
+                        >
+                           {t('detail.remove')}
+                        </DropdownMenuItem>
+                     ) : null}
+                  </DropdownMenuContent>
+               </DropdownMenu>
             ) : null}
             {canEdit && cycle.status === 'active' ? (
                <Button disabled={busy} onClick={() => void setStatus('completed')}>
@@ -360,12 +402,12 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                   aside={
                      canEdit ? (
                         <Button
-                           size="xxs"
+                           size="sm"
                            variant="soft"
                            className="ml-auto"
                            onClick={() => setAdding(true)}
                         >
-                           <Plus className="size-3" aria-hidden />
+                           <Plus className="size-3.5" aria-hidden />
                            {t('detail.addTasks')}
                         </Button>
                      ) : null
@@ -380,7 +422,7 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                      {issues.map((issue) => (
                         <li
                            key={issue.id}
-                           className="group relative grid h-[42px] grid-cols-[64px_minmax(0,1fr)_auto_24px] items-center gap-3 border-t px-4 transition-colors hover:bg-secondary/50"
+                           className="group relative grid h-[42px] grid-cols-[64px_minmax(0,1fr)_auto_24px] items-center gap-3 border-t px-4 max-sm:gap-2 max-sm:px-3 [@media(hover:none)]:grid-cols-[64px_minmax(0,1fr)_auto_50px] transition-colors hover:bg-secondary/50"
                         >
                            <span className="truncate text-subtle-foreground">
                               {issue.identifier}
@@ -388,26 +430,26 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                            <Link
                               href={`/${orgId}/issue/${issue.identifier}`}
                               className={cn(
-                                 'truncate outline-none after:absolute after:inset-0 focus-visible:underline',
+                                 'truncate outline-none [@media(hover:none)]:min-h-6 after:absolute after:inset-0 focus-visible:underline',
                                  issue.status === 'cancelled' &&
                                     'text-subtle-foreground line-through decoration-subtle-foreground/50'
                               )}
                            >
                               {issue.title}
                            </Link>
-                           <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-settings-control px-2 text-muted-foreground">
+                           <span className="inline-flex h-[22px] items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-settings-control px-2 max-sm:w-4 max-sm:justify-center max-sm:px-0 text-muted-foreground">
                               <span
                                  aria-hidden
                                  className={cn('size-1.5 rounded-full', statusFill(issue.status))}
                               />
-                              {statusName(issue.status)}
+                              <span className="max-sm:sr-only">{statusName(issue.status)}</span>
                            </span>
-                           <span className="relative flex justify-end">
+                           <span className="relative flex justify-end [@media(hover:none)]:items-center [@media(hover:none)]:gap-1.5">
                               {canEdit ? (
                                  <Button
                                     variant="quiet"
                                     size="icon"
-                                    className="absolute -right-1 z-10 size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                    className="absolute -right-1 z-10 size-6 [@media(hover:none)]:static [@media(hover:none)]:order-2 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
                                     aria-label={t('detail.removeFromCycle', {
                                        identifier: issue.identifier,
                                     })}
@@ -417,7 +459,9 @@ export default function CycleDetail({ cycleId }: { cycleId: string }) {
                                  </Button>
                               ) : null}
                               <span
-                                 className={cn(canEdit && 'group-hover:opacity-0')}
+                                 className={cn(
+                                    canEdit && '[@media(hover:hover)]:group-hover:opacity-0'
+                                 )}
                                  title={issue.assignee?.name ?? t('detail.unassigned')}
                               >
                                  {issue.assignee ? (
@@ -539,14 +583,14 @@ function DetailHeader({
                <button
                   type="button"
                   onClick={onClose}
-                  className="shrink-0 cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                  className="cursor-pointer relative shrink-0 text-muted-foreground [@media(hover:none)]:inline-flex [@media(hover:none)]:min-h-6 [@media(hover:none)]:items-center transition-colors hover:text-foreground [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
                >
                   {t('back')}
                </button>
             ) : (
                <Link
                   href={listHref}
-                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                  className="relative shrink-0 text-muted-foreground transition-colors hover:text-foreground [@media(hover:none)]:inline-flex [@media(hover:none)]:min-h-6 [@media(hover:none)]:items-center [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
                >
                   {t('back')}
                </Link>

@@ -18,7 +18,6 @@ import {
 import { buttonVariants } from '@/components/ui/button';
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -35,6 +34,7 @@ import {
    type LoopTemplate,
 } from '@/lib/autopilots';
 import { WORKSPACE_SLUG } from '@/lib/config';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 export { FALLBACK_TEMPLATE_ICON, TEMPLATE_ICON } from '@/components/common/loops/template-card';
 
@@ -110,7 +110,7 @@ export default function Autopilots({
    };
 
    if (!loaded && !error) {
-      return <EmptyStateLoading label={t('loading')} />;
+      return <ListSkeleton label={t('loading')} />;
    }
    if (error) {
       return (
@@ -130,7 +130,7 @@ export default function Autopilots({
          );
       }
       return (
-         <div className="flex w-full flex-col items-center px-5 py-12">
+         <div className="flex w-full flex-col items-center px-2 py-12 sm:px-5">
             <div className="flex w-full max-w-2xl flex-col items-center text-center">
                <EmptyStateMark label={t('empty.mark')} />
                <EmptyStateTitle>{t('empty.title')}</EmptyStateTitle>

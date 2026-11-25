@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 
 import { MarkdownFile } from '@/components/common/markdown-file';
 import { FormRow } from '@/components/common/settings/form-row';
+import { SectionTabs } from '@/components/common/section-tabs';
 import { SettingsCard } from '@/components/common/settings/shared';
 import { SegmentedControl } from '@/components/common/segmented-control';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
@@ -177,41 +178,54 @@ export default function AgentCapabilitiesTab({
    );
 
    return (
-      <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-auto px-8 py-6">
-            <div className="flex flex-col" hidden={section !== 'instructions'}>
-               {INSTRUCTION_SECTIONS.map(({ key }) => (
-                  <FormRow
-                     key={key}
-                     label={t(`instructionSections.${key}.label`)}
-                     caption={t(`instructionSections.${key}.caption`)}
-                     htmlFor={`instructions-${key}`}
-                  >
-                     <Textarea
-                        id={`instructions-${key}`}
-                        rows={3}
-                        value={sections[key]}
-                        placeholder={t(`instructionSections.${key}.example`)}
-                        disabled={readOnly || saving}
-                        onChange={(event) =>
-                           setSections((current) => ({ ...current, [key]: event.target.value }))
-                        }
-                     />
-                  </FormRow>
-               ))}
-               <FormRow label={t('instructionsPrompt')} caption={t('instructionsPromptHint')}>
-                  {instructions === '' ? (
-                     <p className="text-muted-foreground">{t('instructionsPromptEmpty')}</p>
-                  ) : (
-                     <MarkdownFile
-                        collapsible
-                        testId="instructions"
-                        label={t('instructionsPrompt')}
-                        fileName="instructions.md"
-                        markdown={instructions}
-                     />
-                  )}
-               </FormRow>
+      <div className="flex flex-1 flex-col">
+         <div className="flex flex-1 flex-col gap-8 px-8 py-6">
+            <div hidden={section !== 'instructions'}>
+               <SectionTabs
+                  label={t('capInstructions')}
+                  sections={[
+                     ...INSTRUCTION_SECTIONS.map(({ key }) => ({
+                        key,
+                        label: t(`instructionSections.${key}.label`),
+                        caption: t(`instructionSections.${key}.caption`),
+                        htmlFor: `instructions-${key}`,
+                        dirty: sections[key] !== savedSections[key],
+                        content: (
+                           <Textarea
+                              id={`instructions-${key}`}
+                              rows={14}
+                              value={sections[key]}
+                              placeholder={t(`instructionSections.${key}.example`)}
+                              disabled={readOnly || saving}
+                              onChange={(event) =>
+                                 setSections((current) => ({
+                                    ...current,
+                                    [key]: event.target.value,
+                                 }))
+                              }
+                           />
+                        ),
+                     })),
+                     {
+                        key: 'prompt',
+                        label: t('instructionsPrompt'),
+                        caption: t('instructionsPromptHint'),
+                        content:
+                           instructions === '' ? (
+                              <p className="text-muted-foreground">
+                                 {t('instructionsPromptEmpty')}
+                              </p>
+                           ) : (
+                              <MarkdownFile
+                                 testId="instructions"
+                                 label={t('instructionsPrompt')}
+                                 fileName="instructions.md"
+                                 markdown={instructions}
+                              />
+                           ),
+                     },
+                  ]}
+               />
             </div>
 
             <div hidden={section !== 'skills'}>
@@ -228,10 +242,10 @@ export default function AgentCapabilitiesTab({
                               placeholder={t('skillsSearch')}
                               aria-label={t('skillsSearch')}
                               onChange={(event) => setSkillQuery(event.target.value)}
-                              className="h-8 w-56"
+                              className="w-56"
                            />
                            <Select value={skillLabel} onValueChange={setSkillLabel}>
-                              <SelectTrigger className="h-8 w-44" aria-label={t('skillsLabel')}>
+                              <SelectTrigger className="w-44" aria-label={t('skillsLabel')}>
                                  <SelectValue />
                               </SelectTrigger>
                               <SelectContent>

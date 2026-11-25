@@ -9,6 +9,12 @@ const meta = {
    component: UsageDailyChart,
    tags: ['ai-generated', 'needs-work'],
    args: { points: dailyBuckets(30), metric: 'cost' },
+   argTypes: {
+      metric: {
+         control: 'select',
+         options: ['cost', 'tokens', 'calls'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="w-[720px]">

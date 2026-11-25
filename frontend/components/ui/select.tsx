@@ -18,6 +18,15 @@ function SelectValue({ ...props }: React.ComponentProps<typeof SelectPrimitive.V
    return <SelectPrimitive.Value data-slot="select-value" {...props} />;
 }
 
+/**
+ * The select trigger's look: the same pill, height and focus ring as `Input`.
+ * Exported for a trigger that is not a Radix Select (a DropdownMenu or a
+ * Popover standing in for one, like settings' `SelectMenu`), so every select
+ * in the app is drawn by this one class.
+ */
+export const selectTriggerClass =
+   "border-input bg-card text-foreground data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--ring)_20%,transparent)] data-[state=open]:border-primary aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive flex h-(--field-h) min-h-(--field-h) w-full cursor-pointer items-center justify-between gap-2 rounded-pill border px-(--ctl-px) text-left whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4";
+
 function SelectTrigger({
    className,
    children,
@@ -26,10 +35,7 @@ function SelectTrigger({
    return (
       <SelectPrimitive.Trigger
          data-slot="select-trigger"
-         className={cn(
-            "border-input bg-card text-foreground data-[placeholder]:text-muted-foreground [&_svg:not([class*='text-'])]:text-muted-foreground focus-visible:border-primary focus-visible:shadow-[0_0_0_3px_color-mix(in_oklab,var(--brand-berry)_20%,transparent)] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive flex h-[30px] w-full cursor-pointer items-center justify-between rounded-[7px] border px-3 py-2 whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none disabled:cursor-not-allowed disabled:opacity-50 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-2 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-            className
-         )}
+         className={cn(selectTriggerClass, className)}
          {...props}
       >
          {children}
@@ -101,7 +107,7 @@ function SelectItem({
       >
          <span className="absolute right-2 flex size-3.5 items-center justify-center">
             <SelectPrimitive.ItemIndicator>
-               <CheckIcon className="size-4" />
+               <CheckIcon className="text-(--primary) size-4" />
             </SelectPrimitive.ItemIndicator>
          </span>
          <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>

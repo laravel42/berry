@@ -1,26 +1,18 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { useSignOut } from '@/components/auth/use-sign-out';
 import { BerryMark } from '@/components/brand/berry-mark';
 import {
    DropdownMenuGroup,
    DropdownMenuItem,
    DropdownMenuLabel,
-   DropdownMenuPortal,
    DropdownMenuSeparator,
-   DropdownMenuShortcut,
-   DropdownMenuSub,
-   DropdownMenuSubContent,
-   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { useCreateWorkspaceStore } from '@/store/create-workspace-store';
 import { loadInboxUnreadCount } from '@/lib/inbox';
 import {
@@ -29,19 +21,19 @@ import {
    loadPendingInvitations,
    type PendingInvitation,
 } from '@/lib/invitations';
+import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 
 /**
- * Contents of the workspace menu behind the brand.
+ * Contents of the workspace switcher menu behind the Berry brand mark.
  *
- * Extracted so the shell rail and the legacy sidebar's OrgSwitcher render one
- * definition. Two copies of a menu drift, and the drift is invisible until
- * someone notices an action missing from one of them.
+ * Lists the account's workspaces directly so switching takes one click,
+ * highlighting the active workspace, followed by workspace creation and any
+ * pending invitations. Settings and Log out live at the bottom of the rail.
  *
  * Everything here reads the live session (the persisted active workspace and
  * the user's full membership list), so the menu reflects what the account can
- * actually see rather than the build-time `WORKSPACE_NAME`. The switcher lists
- * each workspace once and ticks the one you are in; its name is on the rail.
+ * actually see rather than the build-time `WORKSPACE_NAME`.
  *
  * Two things are loaded when the menu is rendered rather than kept in a store:
  * the unread count of the workspaces you are *not* in right now, and the
@@ -56,16 +48,11 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
    const workspaces = useSessionStore((state) => state.workspaces);
    const switchWorkspace = useSessionStore((state) => state.switchWorkspace);
    const refreshWorkspaces = useSessionStore((state) => state.refreshWorkspaces);
-   const { signOut, pending } = useSignOut();
 
    const openCreateWorkspace = useCreateWorkspaceStore((state) => state.openModal);
    const [unread, setUnread] = useState<Record<string, number>>({});
    const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
    const [busyInvitation, setBusyInvitation] = useState<string | null>(null);
-
-   // The slug that scopes settings/route links: the active workspace, the route
-   // param, then the build-time default, in that order of trust.
-   const slug = active?.slug || orgId || WORKSPACE_SLUG;
 
    // A dot only ever marks a workspace you are not looking at: the one you are
    // in already has the inbox badge in the rail, and two counts for one place
@@ -134,59 +121,55 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
    return (
       <>
          <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-               <Link href={`/${slug}/settings`}>
-                  Settings
-                  <DropdownMenuShortcut>G then S</DropdownMenuShortcut>
-               </Link>
-            </DropdownMenuItem>
+            <DropdownMenuLabel>{t('menu')}</DropdownMenuLabel>
+            {workspaces.length > 0 ? (
+               workspaces.map((workspace) => {
+                  const isActive = active
+                     ? workspace.id === active.id
+                     : Boolean(orgId && workspace.slug === orgId);
+                  const hasUnread = !isActive && (unread[workspace.id] ?? 0) > 0;
+                  return (
+                     <DropdownMenuItem
+                        key={workspace.id}
+                        data-active={isActive ? 'true' : undefined}
+                        aria-current={isActive ? 'true' : undefined}
+                        className={cn(isActive && 'bg-accent font-semibold text-accent-foreground')}
+                        onSelect={(event) => {
+                           if (isActive) return;
+                           event.preventDefault();
+                           void onSwitch(workspace.id);
+                        }}
+                     >
+                        <BerryMark size="sm" />
+                        <span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+                        {hasUnread ? (
+                           <span
+                              aria-label={t('unreadItems', { name: workspace.name })}
+                              title={t('unreadItems', { name: workspace.name })}
+                              className="ml-auto size-1.5 shrink-0 rounded-full bg-[var(--brand-berry)]"
+                           />
+                        ) : null}
+                        {isActive ? (
+                           <Check
+                              className="ml-auto size-4 shrink-0 text-primary"
+                              aria-hidden="true"
+                           />
+                        ) : null}
+                     </DropdownMenuItem>
+                  );
+               })
+            ) : (
+               <DropdownMenuItem disabled>{t('none')}</DropdownMenuItem>
+            )}
          </DropdownMenuGroup>
+
          <DropdownMenuSeparator />
-         <DropdownMenuSub>
-            <DropdownMenuSubTrigger>{t('switch')}</DropdownMenuSubTrigger>
-            <DropdownMenuPortal>
-               <DropdownMenuSubContent>
-                  {workspaces.length > 0 ? (
-                     workspaces.map((workspace) => {
-                        const isActive = workspace.id === active?.id;
-                        const hasUnread = !isActive && (unread[workspace.id] ?? 0) > 0;
-                        return (
-                           <DropdownMenuItem
-                              key={workspace.id}
-                              disabled={isActive}
-                              onSelect={(event) => {
-                                 event.preventDefault();
-                                 void onSwitch(workspace.id);
-                              }}
-                           >
-                              <BerryMark size="sm" />
-                              <span className="truncate">{workspace.name}</span>
-                              {hasUnread ? (
-                                 <span
-                                    aria-label={t('unreadItems', { name: workspace.name })}
-                                    title={t('unreadItems', { name: workspace.name })}
-                                    className="ml-auto size-1.5 rounded-full bg-[var(--brand-berry)]"
-                                 />
-                              ) : null}
-                              {isActive ? (
-                                 <Check className="ml-auto size-4" aria-hidden="true" />
-                              ) : null}
-                           </DropdownMenuItem>
-                        );
-                     })
-                  ) : (
-                     <DropdownMenuItem disabled>{t('none')}</DropdownMenuItem>
-                  )}
-                  <DropdownMenuSeparator />
-                  {/* A dialog over the current workspace; `/workspaces/new` is the
-                      same form as a page. Opened after the menu has closed, so the
-                      menu's own focus handling does not fight the dialog's. */}
-                  <DropdownMenuItem onSelect={() => window.setTimeout(openCreateWorkspace, 0)}>
-                     {t('create')}
-                  </DropdownMenuItem>
-               </DropdownMenuSubContent>
-            </DropdownMenuPortal>
-         </DropdownMenuSub>
+         {/* A dialog over the current workspace; `/workspaces/new` is the
+             same form as a page. Opened after the menu has closed, so the
+             menu's own focus handling does not fight the dialog's. */}
+         <DropdownMenuItem onSelect={() => window.setTimeout(openCreateWorkspace, 0)}>
+            {t('create')}
+         </DropdownMenuItem>
 
          {invitations.length > 0 ? (
             <>
@@ -223,18 +206,6 @@ export function WorkspaceMenuItems({ orgId }: { orgId?: string }) {
                ))}
             </>
          ) : null}
-
-         <DropdownMenuSeparator />
-         <DropdownMenuItem
-            disabled={pending}
-            onSelect={(event) => {
-               event.preventDefault();
-               void signOut();
-            }}
-         >
-            {t('logOut')}
-            <DropdownMenuShortcut>⌥⇧Q</DropdownMenuShortcut>
-         </DropdownMenuItem>
       </>
    );
 }

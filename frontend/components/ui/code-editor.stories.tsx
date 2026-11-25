@@ -15,6 +15,25 @@ const meta = {
    component: CodeEditor,
    tags: ['ai-generated', 'needs-work'],
    args: { value: command },
+   argTypes: {
+      language: {
+         control: 'select',
+         options: [
+            'bash',
+            'javascript',
+            'typescript',
+            'json',
+            'css',
+            'html',
+            'xml',
+            'yaml',
+            'python',
+            'sql',
+            'markdown',
+            'plain',
+         ],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="w-[640px]">

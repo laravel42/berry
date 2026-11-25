@@ -56,7 +56,7 @@ export function IssueProjectProperty({ issue }: { issue: Issue }) {
                aria-haspopup="listbox"
                aria-expanded={open}
                aria-label={t('project')}
-               className="w-full min-w-0 justify-start gap-2 px-0"
+               className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
             >
                <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-status-warning">
                   <Icon className="size-4" aria-hidden />
@@ -79,7 +79,9 @@ export function IssueProjectProperty({ issue }: { issue: Issue }) {
                      >
                         <FolderKanban className="size-4 text-muted-foreground" aria-hidden />
                         <span className="min-w-0 flex-1 truncate">{t('noProject')}</span>
-                        {!issue.project ? <CheckIcon className="size-4 shrink-0" /> : null}
+                        {!issue.project ? (
+                           <CheckIcon className="text-(--primary) size-4 shrink-0" />
+                        ) : null}
                      </CommandItem>
                      {projects.map((project) => (
                         <CommandItem
@@ -91,7 +93,7 @@ export function IssueProjectProperty({ issue }: { issue: Issue }) {
                            <project.icon className="size-4 shrink-0 text-muted-foreground" />
                            <span className="min-w-0 flex-1 truncate">{project.name}</span>
                            {issue.project?.id === project.id ? (
-                              <CheckIcon className="size-4 shrink-0" />
+                              <CheckIcon className="text-(--primary) size-4 shrink-0" />
                            ) : null}
                         </CommandItem>
                      ))}

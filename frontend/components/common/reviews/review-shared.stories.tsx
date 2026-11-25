@@ -6,6 +6,12 @@ const meta = {
    component: PrIcon,
    tags: ['ai-generated', 'needs-work'],
    args: { status: 'open' },
+   argTypes: {
+      status: {
+         control: 'select',
+         options: ['open', 'merged', 'closed'],
+      },
+   },
 } satisfies Meta<typeof PrIcon>;
 
 export default meta;

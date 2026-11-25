@@ -36,8 +36,10 @@ import { useAgentsStore } from '@/store/agents-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRunConsoleStore } from '@/store/run-console-store';
+import { FLOATING_ORDER, useFloatingStackItem } from '@/store/floating-stack-store';
 import { ChevronDown, History, ListFilter, RotateCcw, SquareTerminal } from 'lucide-react';
 import { toast } from 'sonner';
+import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { markTone, runConsoleTabLabel, RunTab, statusTone, useRunDuration } from './run-entry';
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
@@ -45,13 +47,21 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 /** Board states where an idle agent task can be started again. */
 const RESTARTABLE_STATUSES = new Set(['to-do', 'in-progress']);
 
-/** Folded Restart/Console sit on the task pane, flush to its right edge. */
+/**
+ * Folded Restart/Console float in the bottom-right corner as part of the shared
+ * stack (floating-stack-store.ts): they take its lowest place and the Agents
+ * launcher rises above them, instead of the two landing on the same spot.
+ * They stay visible in place rather than tucking off the edge after idle time.
+ */
 function FoldedRunActions({ children }: { children: ReactNode }) {
+   const { ref, bottom } = useFloatingStackItem(FLOATING_ORDER.page);
    return (
-      <div className="pointer-events-none absolute inset-0 z-20">
-         <div className="pointer-events-auto absolute right-4 bottom-3 flex items-center justify-end gap-2">
-            {children}
-         </div>
+      <div
+         ref={ref}
+         style={{ bottom }}
+         className="fixed right-[calc(var(--app-inset-r)+0.75rem+4px)] z-50 flex items-center justify-end gap-2 transition-[bottom] duration-200 ease-out motion-reduce:transition-none"
+      >
+         {children}
       </div>
    );
 }
@@ -67,6 +77,8 @@ function FoldedRunActions({ children }: { children: ReactNode }) {
  */
 export function RunConsole({ issueId }: { issueId: string }) {
    const t = useTranslations('issueDetail.console');
+   const router = useRouter();
+   const { orgId } = useParams<{ orgId: string }>();
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const { runs, activeRun, upsert } = useIssueRuns(issueId);
    const workRuns = runs.filter((entry) => !isReviewGateRun(entry));
@@ -123,7 +135,18 @@ export function RunConsole({ issueId }: { issueId: string }) {
          follow(issueId);
          toast.success(t('restarted'));
       } catch (error) {
-         toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
+         // No runnable model on the tier is fixed in settings, so the alert
+         // takes you there rather than only describing it.
+         if (error instanceof BerryApiError && error.code === 'AI_RUNTIME_NOT_CONNECTED') {
+            toast.error(t('restartNoRuntime'), {
+               action: {
+                  label: t('openModelTiers'),
+                  onClick: () => router.push(`/${orgId}/settings/model-tiers`),
+               },
+            });
+         } else {
+            toast.error(error instanceof BerryApiError ? error.message : t('restartFailed'));
+         }
       } finally {
          setRestarting(false);
       }
@@ -212,7 +235,6 @@ export function RunConsole({ issueId }: { issueId: string }) {
             ) : null}
             <Button
                variant="outline"
-               size="sm"
                aria-expanded={false}
                onClick={() => {
                   // Opened by hand, the console starts on the latest run, not
@@ -233,8 +255,14 @@ export function RunConsole({ issueId }: { issueId: string }) {
    const actionClass = 'shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground';
 
    return (
-      <section className="absolute inset-0 z-30 flex flex-col bg-container" aria-label={t('title')}>
-         <div className="flex min-h-8 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-5 py-1 text-muted-foreground">
+      // `font-mono` is declared here rather than inherited: the console read
+      // as a terminal only because the shell painted everything in mono. The
+      // shell no longer does, and this pane is machine output.
+      <section
+         className="absolute inset-0 z-30 flex flex-col bg-container font-mono"
+         aria-label={t('title')}
+      >
+         <div className="flex min-h-8 min-w-0 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-2 py-1 text-muted-foreground sm:px-5">
             <div
                ref={strip}
                role="tablist"

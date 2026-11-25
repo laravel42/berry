@@ -13,7 +13,8 @@ import type { SaveState } from './use-autosave';
  * An autosaving field with no indicator asks a reader to trust that typing was
  * enough, and says nothing at all when it was not. The live region is mounted
  * even while idle so a screen reader announces the change rather than the
- * arrival of a new element.
+ * arrival of a new element. While idle it is empty and out of the layout, so
+ * it adds no gap beside the field it reports on.
  *
  * The failure is the state worth the most care: it names why, and offers the
  * write again, because the alternative is retyping something already typed.
@@ -35,7 +36,10 @@ export function SaveIndicator({
       <span
          role="status"
          aria-live="polite"
-         className={cn('inline-flex items-center gap-1.5 text-muted-foreground', className)}
+         className={cn(
+            'inline-flex items-center gap-1.5 text-muted-foreground empty:absolute',
+            className
+         )}
       >
          {state === 'saving' ? (
             <>

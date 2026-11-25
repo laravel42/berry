@@ -319,6 +319,7 @@ export default function Members() {
                {displayed.map((member) => {
                   const locked = lockedReason(member);
                   const role = member.role as WorkspaceRole;
+                  const editable = canManage && !locked;
                   return (
                      <SettingsRow
                         key={member.userId}
@@ -342,7 +343,8 @@ export default function Members() {
                            >
                               <Link
                                  href={`/${orgId}/members/${member.userId}`}
-                                 className="hover:underline"
+                                 title={member.name}
+                                 className="hover:underline max-sm:block max-sm:min-w-0 max-sm:max-w-full max-sm:truncate max-sm:leading-6"
                               >
                                  {member.name}
                                  {member.userId === myId ? (
@@ -353,52 +355,67 @@ export default function Members() {
                               </Link>
                            </MemberHoverCard>
                         }
-                        description={[
-                           member.email,
-                           t('joined', {
-                              when: format(parseISO(member.joinedAt), 'd MMM yyyy'),
-                           }),
-                           locked,
-                        ]
-                           .filter(Boolean)
-                           .join(' · ')}
+                        description={
+                           <>
+                              <a
+                                 href={`mailto:${member.email}`}
+                                 title={member.email}
+                                 className="text-settings-accent hover:underline max-sm:block max-sm:truncate"
+                              >
+                                 {member.email}
+                              </a>
+                              {/* A step under the address: when they joined is the
+                                  quieter fact about them. */}
+                              <span data-settings-type="small" className="max-sm:block">
+                                 <span className="max-sm:hidden"> · </span>
+                                 {[
+                                    t('joined', {
+                                       when: format(parseISO(member.joinedAt), 'd MMM yyyy'),
+                                    }),
+                                    locked,
+                                 ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                              </span>
+                           </>
+                        }
+                        wide={editable}
                         trailing={
-                           <span className="flex items-center gap-2">
-                              {canManage && !locked ? (
-                                 <SelectMenu
-                                    className="w-28"
-                                    aria-label={t('roleFor', { name: member.name })}
-                                    options={WORKSPACE_ROLES.filter(
-                                       // Only an owner may hand out owner.
-                                       (candidate) => candidate !== 'owner' || iAmOwner
-                                    )}
-                                    labels={Object.fromEntries(
-                                       WORKSPACE_ROLES.map((candidate) => [
-                                          candidate,
-                                          t(`role_${candidate}`),
-                                       ])
-                                    )}
-                                    value={role}
-                                    disabled={busy === member.userId}
-                                    onChange={(next) =>
-                                       void changeRole(member, next as WorkspaceRole)
-                                    }
-                                 />
-                              ) : (
-                                 <SettingsChip className="font-medium">
-                                    {t(`role_${role}`)}
-                                 </SettingsChip>
-                              )}
-                              {canManage && !locked && member.userId !== myId ? (
-                                 <Button
-                                    variant="soft-destructive"
-                                    disabled={busy === member.userId}
-                                    onClick={() => setRemoving(member)}
-                                 >
-                                    {t('remove')}
-                                 </Button>
-                              ) : null}
-                           </span>
+                           editable ? (
+                              <SelectMenu
+                                 className="w-32"
+                                 aria-label={t('roleFor', { name: member.name })}
+                                 options={WORKSPACE_ROLES.filter(
+                                    // Only an owner may hand out owner.
+                                    (candidate) => candidate !== 'owner' || iAmOwner
+                                 )}
+                                 labels={Object.fromEntries(
+                                    WORKSPACE_ROLES.map((candidate) => [
+                                       candidate,
+                                       t(`role_${candidate}`),
+                                    ])
+                                 )}
+                                 value={role}
+                                 disabled={busy === member.userId}
+                                 onChange={(next) => void changeRole(member, next as WorkspaceRole)}
+                              />
+                           ) : (
+                              <SettingsChip className="font-medium">
+                                 {t(`role_${role}`)}
+                              </SettingsChip>
+                           )
+                        }
+                        action={
+                           editable && member.userId !== myId ? (
+                              <Button
+                                 size="sm"
+                                 variant="soft-destructive"
+                                 disabled={busy === member.userId}
+                                 onClick={() => setRemoving(member)}
+                              >
+                                 {t('remove')}
+                              </Button>
+                           ) : undefined
                         }
                      />
                   );
@@ -419,7 +436,14 @@ export default function Members() {
                         return (
                            <SettingsRow
                               key={invitation.id}
-                              title={invitation.email}
+                              title={
+                                 <span
+                                    title={invitation.email}
+                                    className="max-sm:min-w-0 max-sm:max-w-full max-sm:truncate"
+                                 >
+                                    {invitation.email}
+                                 </span>
+                              }
                               muted={expired}
                               description={[
                                  t(roleKey(invitation.role)),
@@ -431,6 +455,7 @@ export default function Members() {
                               ].join(' · ')}
                               trailing={
                                  <Button
+                                    size="sm"
                                     variant="soft-destructive"
                                     onClick={() => setRevoking(invitation)}
                                  >
@@ -455,7 +480,6 @@ export default function Members() {
                </DialogHeader>
                <div className="flex flex-col gap-3">
                   <Input
-                     variant="settings"
                      value={email}
                      type="email"
                      autoComplete="off"

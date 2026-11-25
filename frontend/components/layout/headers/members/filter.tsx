@@ -34,11 +34,7 @@ export function Filter() {
          }}
       >
          <PopoverTrigger asChild>
-            <Button
-               size="xs"
-               variant="outline"
-               className="relative border-muted-foreground/15"
-            >
+            <Button size="xs" variant="outline" className="relative border-muted-foreground/15">
                <ListFilter className="size-4 mr-1" />
                Filter
                {getActiveFiltersCount() > 0 && (
@@ -129,7 +125,9 @@ export function Filter() {
                               className="flex items-center justify-between"
                            >
                               {t(`role_${role}`)}
-                              {filters.role.includes(role) && <CheckIcon size={16} />}
+                              {filters.role.includes(role) && (
+                                 <CheckIcon size={16} className="text-(--primary)" />
+                              )}
                            </CommandItem>
                         ))}
                      </CommandGroup>
@@ -154,13 +152,19 @@ export function Filter() {
                            onSelect={() => setSort('name-asc')}
                            className="flex items-center justify-between"
                         >
-                           A → Z{sort === 'name-asc' && <CheckIcon size={16} />}
+                           A → Z
+                           {sort === 'name-asc' && (
+                              <CheckIcon size={16} className="text-(--primary)" />
+                           )}
                         </CommandItem>
                         <CommandItem
                            onSelect={() => setSort('name-desc')}
                            className="flex items-center justify-between"
                         >
-                           Z → A{sort === 'name-desc' && <CheckIcon size={16} />}
+                           Z → A
+                           {sort === 'name-desc' && (
+                              <CheckIcon size={16} className="text-(--primary)" />
+                           )}
                         </CommandItem>
                      </CommandGroup>
                      <CommandSeparator />
@@ -170,14 +174,18 @@ export function Filter() {
                            className="flex items-center justify-between"
                         >
                            Oldest to Newest
-                           {sort === 'joined-asc' && <CheckIcon size={16} />}
+                           {sort === 'joined-asc' && (
+                              <CheckIcon size={16} className="text-(--primary)" />
+                           )}
                         </CommandItem>
                         <CommandItem
                            onSelect={() => setSort('joined-desc')}
                            className="flex items-center justify-between"
                         >
                            Newest to Oldest
-                           {sort === 'joined-desc' && <CheckIcon size={16} />}
+                           {sort === 'joined-desc' && (
+                              <CheckIcon size={16} className="text-(--primary)" />
+                           )}
                         </CommandItem>
                      </CommandGroup>
                   </CommandList>

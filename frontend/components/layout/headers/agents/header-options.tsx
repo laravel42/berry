@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAgentFilterColumns } from '@/components/common/agents/agent-filter-columns';
 import { ListFilterTrigger, useListFilters } from '@/components/common/filters/list-filters';
@@ -20,7 +20,7 @@ const SCOPES: AgentsScope[] = ['all', 'archived'];
  * page mounts this as a header and the table as its body — they never share a
  * parent that could hold the state between them. Sort is on the table headings.
  */
-export default function HeaderOptions() {
+export default function HeaderOptions({ mobileAction }: { mobileAction?: ReactNode }) {
    const t = useTranslations('agentsChat.list');
    const tHeader = useTranslations('agents.header');
    // The list leaves the Orchestrator out (it works behind the scenes), so the counts do too.
@@ -53,15 +53,11 @@ export default function HeaderOptions() {
    };
 
    return (
-      <div className="mb-1 flex h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-5 py-[2px] [&_button]:!h-[30px] [&_a]:!h-[30px]">
-         <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
-            <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={tHeader('search')}
-               aria-label={tHeader('search')}
-            />
+      <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:gap-y-2 max-sm:py-2 sm:px-5">
+         {/* On a phone the left group dissolves into the row, so an opened
+             search can take the first line (see ToolbarSearch). */}
+         <div className="flex min-w-0 shrink flex-wrap items-center gap-2 max-sm:contents">
+            <ToolbarSearch label={tHeader('search')} value={query} onChange={setQuery} />
             <ListFilterTrigger filter={filter} />
          </div>
 
@@ -81,6 +77,7 @@ export default function HeaderOptions() {
                </TabsList>
             </Tabs>
          </div>
+         {mobileAction}
       </div>
    );
 }

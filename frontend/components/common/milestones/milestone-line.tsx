@@ -33,7 +33,7 @@ export default function GoalLine({
          onClick={() => onSelect(goal.id)}
          className={cn(
             'flex w-full items-start gap-3 border-b border-muted-foreground/5 px-4 py-3 text-left outline-none last:border-b-0 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset',
-            selected ? 'bg-accent' : 'hover:bg-sidebar/50'
+            selected ? 'bg-accent' : 'hover:bg-accent/45'
          )}
       >
          <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted/40">

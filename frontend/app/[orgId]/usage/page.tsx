@@ -5,7 +5,8 @@ import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useState } from 'react';
 
 import { PageKpiHeader } from '@/components/common/page/page-parts';
-import UsageFilters from '@/components/common/usage/usage-filters';
+import { UsageRangeControl, UsageUpdated } from '@/components/common/usage/usage-filters';
+import { UsageProjectFilter } from '@/components/common/usage/usage-project-filter';
 import UsageSpend from '@/components/common/usage/usage-spend';
 import UsageWork from '@/components/common/usage/usage-work';
 import MainLayout from '@/components/layout/main-layout';
@@ -73,24 +74,32 @@ function UsageScreen() {
 
    const header = (
       <>
-         <PageKpiHeader label={t('title')} />
-         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[6px] [&_button]:!h-[30px]">
-            <Tabs value={tab} onValueChange={(value) => open(value as Tab)}>
+         <PageKpiHeader label={t('title')}>
+            <UsageUpdated
+               lastUpdated={state.lastUpdated}
+               loading={state.loading}
+               onRefresh={state.reload}
+            />
+         </PageKpiHeader>
+         <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-1.5 border-b px-2 py-2 sm:gap-x-3 sm:gap-y-1.5 sm:px-4 sm:py-[6px]">
+            <Tabs value={tab} onValueChange={(value) => open(value as Tab)} className="sm:mr-auto">
                <TabsList aria-label={t('tabs.label')}>
                   {TABS.map((name) => (
-                     <TabsTrigger key={name} value={name}>
+                     <TabsTrigger key={name} value={name} className="max-sm:px-1.5">
                         {t(`tabs.${name}`)}
                      </TabsTrigger>
                   ))}
                </TabsList>
             </Tabs>
-            <UsageFilters
-               timeframe="window"
-               query={query}
-               onChange={setQuery}
-               lastUpdated={state.lastUpdated}
-               loading={state.loading}
-               onRefresh={state.reload}
+            <UsageRangeControl
+               days={query.days}
+               onChange={(days) => setQuery({ ...query, days })}
+               className="[&>button]:max-sm:px-1.5"
+            />
+            <UsageProjectFilter
+               projectId={query.projectId ?? null}
+               onChange={(projectId) => setQuery({ ...query, projectId })}
+               className="w-full max-w-none justify-start sm:w-auto sm:max-w-56 sm:justify-center"
             />
          </div>
       </>

@@ -56,8 +56,19 @@ import {
    type PointerEvent as ReactPointerEvent,
    type ReactNode,
 } from 'react';
-import { ArtifactViewer } from './artifact-viewer';
+import dynamic from 'next/dynamic';
+import { ArtifactPaneEmpty } from './artifact-viewer-empty';
 import { FileKindMark } from './file-kind-mark';
+
+/**
+ * The file viewer, with CodeMirror and the markdown renderer inside it, loaded
+ * after the page rather than with it. Until its chunk lands the pane shows the
+ * viewer's own empty state, so the server, the first paint and the viewer agree.
+ */
+const ArtifactViewer = dynamic(() => import('./artifact-viewer').then((m) => m.ArtifactViewer), {
+   ssr: false,
+   loading: () => <ArtifactPaneEmpty />,
+});
 
 /**
  * What the agents on this issue produced, as the tree they wrote.

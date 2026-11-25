@@ -1,6 +1,16 @@
 {
    "loading": "Loading…",
    "retry": "Try again",
+   "emoji": {
+      "insert": "Insert emoji",
+      "more": "More emoji",
+      "quick": "Quick reactions",
+      "loading": "Loading emoji…"
+   },
+   "reactions": {
+      "add": "Add reaction",
+      "failed": "The reaction could not be saved."
+   },
    "collapsible": {
       "showMore": "Show more",
       "showLess": "Show less"

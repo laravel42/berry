@@ -73,12 +73,19 @@ const NO_EXTRAS: SlashExtra[] = [];
  * A task comment passes `agentMention` so choosing an agent writes the token
  * the server starts a run from. Everywhere else the name is plain text.
  */
+export interface PickedMention {
+   kind: 'agent' | 'user';
+   id: string;
+   name: string;
+}
+
 export function useComposerPalette({
    textareaRef,
    value,
    onChange,
    workspaceId,
    agentMention,
+   onPickMention,
    slashExtras = NO_EXTRAS,
    listClassName,
 }: {
@@ -87,6 +94,7 @@ export function useComposerPalette({
    onChange: (value: string) => void;
    workspaceId: string | undefined;
    agentMention?: (agent: Agent) => string;
+   onPickMention?: (mention: PickedMention) => void;
    slashExtras?: SlashExtra[];
    listClassName?: string;
 }) {
@@ -150,6 +158,8 @@ export function useComposerPalette({
                   name: person.name,
                   detail: null,
                   insert: plainName(person.name, '@'),
+                  onChoose: () =>
+                     onPickMention?.({ kind: 'user', id: person.id, name: person.name }),
                })),
             ...(agents ?? [])
                .filter((agent) => matches(agent.name, query))
@@ -161,6 +171,8 @@ export function useComposerPalette({
                   name: agent.name,
                   detail: null,
                   insert: agentMention ? `${agentMention(agent)} ` : plainName(agent.name, '@'),
+                  onChoose: () =>
+                     onPickMention?.({ kind: 'agent', id: agent.id, name: agent.name }),
                })),
          ];
       }
@@ -198,7 +210,7 @@ export function useComposerPalette({
                insert: plainName(command.name, '/'),
             })),
       ];
-   }, [active, agentMention, agents, commands, people, skills, slashExtras, t]);
+   }, [active, agentMention, agents, commands, onPickMention, people, skills, slashExtras, t]);
 
    const sync = (text: string, caret: number) => {
       const token = triggerAt(text, caret);
@@ -221,7 +233,7 @@ export function useComposerPalette({
       const caret = element?.selectionStart ?? value.length;
       const token = triggerAt(value, caret);
       if (!token) return;
-      const written = item.onChoose ? '' : item.insert;
+      const written = item.insert;
       const next = `${value.slice(0, token.start)}${written}${value.slice(caret)}`;
       onChange(next);
       item.onChoose?.();
@@ -310,5 +322,5 @@ export function useComposerPalette({
       </ul>
    ) : null;
 
-   return { list, open, onKeyDown, sync };
+   return { list, open, onKeyDown, sync, people: people ?? [], agents: agents ?? [] };
 }

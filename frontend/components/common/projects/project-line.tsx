@@ -50,7 +50,7 @@ const CONTROL = 'relative z-[1]';
 
 export default function ProjectLine({ project, selected, onToggleSelected }: ProjectLineProps) {
    const { orgId } = useParams<{ orgId: string }>();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const members = useMembersStore((state) => state.members);
    const {
       updateProjectStatus,
@@ -101,7 +101,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                       are lifted over it. */}
                   <Link
                      href={href}
-                     className="min-w-0 flex-1 truncate font-medium outline-none transition-colors before:absolute before:inset-0 before:rounded-sm group-hover:text-foreground focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                     className="min-w-0 flex-1 truncate font-medium [@media(hover:none)]:min-h-6 outline-none transition-colors before:absolute before:inset-0 before:rounded-sm group-hover:text-foreground focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                   >
                      {project.name}
                   </Link>
@@ -121,7 +121,7 @@ export default function ProjectLine({ project, selected, onToggleSelected }: Pro
                            onChange={(member) => updateProjectLead(project.id, member)}
                         >
                            <Button
-                              className="flex h-7 w-full min-w-0 items-center justify-start gap-1 px-2 has-[>svg]:px-2"
+                              className="w-full min-w-0 justify-start gap-1 px-2 has-[>svg]:px-2"
                               size="sm"
                               variant="ghost"
                               role="combobox"

@@ -38,7 +38,7 @@ export const Sessions: Story = {
          'Project health migration'
       );
       await expect(canvas.getByLabelText('Pin')).toBeVisible();
-      await expect(canvas.getByText('No messages yet')).toBeVisible();
+      await expect(canvas.getAllByText('No messages yet')[0]).toBeVisible();
    },
 };
 

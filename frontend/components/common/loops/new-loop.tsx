@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
@@ -73,6 +73,7 @@ export default function NewLoop() {
    const [drafting, setDrafting] = useState(false);
    const [error, setError] = useState<string | null>(null);
    const composer = useRef<HTMLTextAreaElement>(null);
+   const composerCard = useRef<HTMLDivElement>(null);
    const abort = useRef<AbortController | null>(null);
 
    useEffect(() => {
@@ -106,6 +107,18 @@ export default function NewLoop() {
       if (!seed) composer.current?.focus();
       return () => abort.current?.abort();
    }, [seed]);
+
+   // The keyboard shrinks the viewport (interactiveWidget: resizes-content). The
+   // browser scrolls the caret into view, not the buttons under the textarea, so
+   // keep the whole composer card, Draft loop included, on screen while typing.
+   useEffect(() => {
+      const keepCardVisible = () => {
+         if (document.activeElement === composer.current)
+            composerCard.current?.scrollIntoView({ block: 'nearest' });
+      };
+      window.addEventListener('resize', keepCardVisible);
+      return () => window.removeEventListener('resize', keepCardVisible);
+   }, []);
 
    const draft = async () => {
       const text = prompt.trim();
@@ -183,7 +196,7 @@ export default function NewLoop() {
       <MainLayout header={header}>
          <div className="h-full min-h-0 overflow-y-auto">
             <div
-               className="px-5 pt-14 pb-10"
+               className="px-2 pt-14 pb-10 sm:px-5"
                style={{
                   backgroundImage:
                      'radial-gradient(60% 120% at 50% 0%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 70%)',
@@ -191,7 +204,7 @@ export default function NewLoop() {
             >
                <div className="mx-auto flex w-full max-w-3xl flex-col items-center">
                   <span className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-card text-primary shadow-[0_0_0_1px_color-mix(in_oklab,var(--primary)_40%,transparent),0_10px_30px_-14px_var(--primary)]">
-                     <Sparkles className="size-5" aria-hidden />
+                     <SparkIcon className="size-5" />
                   </span>
                   <h2 data-heading="display" className="text-center text-balance">
                      {t('heading')}
@@ -200,7 +213,10 @@ export default function NewLoop() {
                      {t('subheading')}
                   </p>
 
-                  <div className="mt-8 w-full rounded-xl border bg-card shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-[3px] focus-within:ring-ring/40">
+                  <div
+                     ref={composerCard}
+                     className="mt-8 w-full rounded-xl border bg-card shadow-sm transition-shadow focus-within:shadow-md focus-within:ring-[3px] focus-within:ring-ring/40"
+                  >
                      <label htmlFor="loop-composer" className="sr-only">
                         {t('heading')}
                      </label>
@@ -216,7 +232,9 @@ export default function NewLoop() {
                         className="w-full resize-none bg-transparent px-4 pt-4 text-foreground placeholder:text-placeholder focus:outline-none [-webkit-text-fill-color:var(--foreground)]"
                      />
                      <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2.5">
-                        <span className="text-subtle-foreground">{t('composerHint')}</span>
+                        <span className="text-subtle-foreground [@media(hover:none)]:hidden">
+                           {t('composerHint')}
+                        </span>
                         <div className="flex items-center gap-2">
                            <Button
                               type="button"
@@ -238,7 +256,7 @@ export default function NewLoop() {
                               onClick={() => void draft()}
                               disabled={prompt.trim().length < 3 || drafting}
                            >
-                              <Sparkles className="size-4" aria-hidden />
+                              <SparkIcon className="size-4" />
                               {drafting ? t('drafting') : t('draft')}
                            </Button>
                         </div>
@@ -275,7 +293,7 @@ export default function NewLoop() {
             </div>
 
             {templates.length > 0 ? (
-               <div className="mx-auto w-full max-w-5xl px-5 pb-12">
+               <div className="mx-auto w-full max-w-5xl px-2 pb-12 sm:px-5">
                   <h3 data-heading="label" className="mb-3 text-subtle-foreground">
                      {t('templates')}
                   </h3>

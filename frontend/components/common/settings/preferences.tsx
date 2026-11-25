@@ -14,6 +14,7 @@ import {
    type Profile as ProfileRecord,
    type UserSettings,
 } from '@/lib/settings';
+import { THEMES, isThemePreference, type ThemePreference } from '@/lib/theme/theme';
 import { useSessionStore } from '@/store/session-store';
 import { CREATE_FIELDS, useUiPrefsStore } from '@/store/ui-prefs-store';
 import { useLocale, useTranslations } from 'next-intl';
@@ -27,8 +28,8 @@ import { useSettingsResource } from './use-settings-resource';
 /**
  * Personal "Preferences" settings.
  *
- * Language, timezone, full name and reduced motion live on `/me/settings`
- * and `/me`. Theme is Berry dark, always; there is no picker.
+ * Language, timezone, theme, full name and reduced motion live on
+ * `/me/settings` and `/me`.
  * Anything neither endpoint stores is not offered: a switch that accepts a
  * click and forgets it teaches people that the settings page does not work.
  *
@@ -42,6 +43,8 @@ export default function Preferences() {
    const ui = useUiPrefsStore();
    const router = useRouter();
    const setPreferredLocale = useSessionStore((state) => state.setPreferredLocale);
+   const preferredTheme = useSessionStore((state) => state.preferredTheme);
+   const setPreferredTheme = useSessionStore((state) => state.setPreferredTheme);
    const [customizeOpen, setCustomizeOpen] = useState(false);
    const settings = useSettingsResource<UserSettings>(loadUserSettings);
    const profile = useSettingsResource<ProfileRecord>(loadProfile);
@@ -87,6 +90,24 @@ export default function Preferences() {
       router.refresh();
    };
 
+   const savedTheme = settings.value?.theme;
+   const theme: ThemePreference = isThemePreference(savedTheme)
+      ? savedTheme
+      : (preferredTheme ?? 'system');
+   const themeLabels: Record<ThemePreference, string> = {
+      system: t('themeSystem'),
+      light: t('themeLight'),
+      dark: t('themeDark'),
+   };
+
+   const changeTheme = (next: string) => {
+      if (!isThemePreference(next)) return;
+      change({ theme: next });
+      // ThemeSync follows the store: it writes the cookie, paints the class and
+      // refreshes, and with `system` keeps listening to the OS.
+      setPreferredTheme(next);
+   };
+
    return (
       <SettingsShell title={t('title')} description={t('description')}>
          <SettingsSection
@@ -95,17 +116,17 @@ export default function Preferences() {
          >
             <SettingsCard>
                <SettingsRow
+                  wide
                   title={t('name')}
                   trailing={
-                     <span className="flex items-center gap-2">
+                     <span className="flex items-center gap-2 max-sm:flex-row-reverse">
                         <SaveIndicator state={name.state} error={name.error} onRetry={name.retry} />
                         <Input
-                           variant="settings"
                            value={name.value ?? ''}
                            aria-label={t('name')}
                            disabled={profile.loading}
                            placeholder={t('namePlaceholder')}
-                           className="w-[220px]"
+                           className="w-[220px] max-sm:min-w-0 max-sm:flex-1"
                            onChange={(event) => name.change(event.target.value)}
                            onBlur={() =>
                               (name.value ?? '').trim() === '' ? name.revert() : name.flush()
@@ -119,6 +140,7 @@ export default function Preferences() {
                   }
                />
                <SettingsRow
+                  wide
                   title={t('language')}
                   description={t('languageDescription')}
                   trailing={
@@ -132,6 +154,7 @@ export default function Preferences() {
                   }
                />
                <SettingsRow
+                  wide
                   title={t('timezone')}
                   description={t('timezoneDescription')}
                   trailing={
@@ -153,7 +176,6 @@ export default function Preferences() {
                   description={t5('stickyCommentBarDescription')}
                   trailing={
                      <Switch
-                        variant="settings"
                         checked={ui.stickyCommentBar}
                         onCheckedChange={ui.setStickyCommentBar}
                      />
@@ -172,7 +194,6 @@ export default function Preferences() {
                      title={t5(`createField_${field}`)}
                      trailing={
                         <Switch
-                           variant="settings"
                            checked={ui.createFields[field]}
                            onCheckedChange={(shown) => ui.setCreateField(field, shown)}
                         />
@@ -185,10 +206,30 @@ export default function Preferences() {
          <SettingsSection title={t('interface')}>
             <SettingsCard>
                <SettingsRow
+                  wide
+                  title={t('theme')}
+                  description={t('themeDescription')}
+                  trailing={
+                     <SelectMenu
+                        aria-label={t('theme')}
+                        options={[...THEMES]}
+                        labels={themeLabels}
+                        value={theme}
+                        disabled={settings.loading || settings.saving}
+                        onChange={changeTheme}
+                     />
+                  }
+               />
+               <SettingsRow
                   title={t('sidebar')}
                   description={t('sidebarDescription')}
                   trailing={
-                     <Button type="button" variant="soft" onClick={() => setCustomizeOpen(true)}>
+                     <Button
+                        size="sm"
+                        type="button"
+                        variant="soft"
+                        onClick={() => setCustomizeOpen(true)}
+                     >
                         {t('customize')}
                      </Button>
                   }
@@ -198,7 +239,6 @@ export default function Preferences() {
                   description={t('reduceMotionDescription')}
                   trailing={
                      <Switch
-                        variant="settings"
                         checked={settings.value?.reducedMotion ?? false}
                         disabled={settings.loading || settings.saving}
                         onCheckedChange={(reducedMotion) => change({ reducedMotion })}

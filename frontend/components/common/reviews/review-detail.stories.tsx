@@ -8,6 +8,16 @@ const meta = {
    component: ReviewDetail,
    tags: ['ai-generated', 'needs-work'],
    args: { reviewId: 'issue-101', section: 'overview', onBack: fn() },
+   argTypes: {
+      section: {
+         control: 'select',
+         options: ['overview', 'guide', 'diff', 'files', 'preview'],
+      },
+      listTab: {
+         control: 'select',
+         options: ['for-you', 'created'],
+      },
+   },
    parameters: {
       layout: 'fullscreen',
       nextjs: { navigation: { segments: [['orgId', 'berry']] } },

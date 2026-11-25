@@ -77,7 +77,7 @@ function FileRow({ entry }: { entry: FileListEntry }) {
             </span>
          ) : null}
          <ChevronRight
-            className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+            className="size-3.5 shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 transition-opacity [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-visible:opacity-100"
             aria-hidden
          />
       </>

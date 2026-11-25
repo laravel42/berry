@@ -26,13 +26,13 @@ export function PluginConfigForm({
             const selected = value[field.key];
             return (
                <SettingsRow
+                  wide={field.type !== 'boolean'}
                   key={field.key}
                   title={field.required ? `${title} *` : title}
                   description={field.name ? field.label : undefined}
                   trailing={
                      field.type === 'boolean' ? (
                         <Switch
-                           variant="settings"
                            checked={selected === true}
                            disabled={disabled}
                            onCheckedChange={(checked) => set(field.key, checked)}
@@ -48,8 +48,7 @@ export function PluginConfigForm({
                         />
                      ) : (
                         <Input
-                           variant="settings"
-                           className="h-8 w-56"
+                           className="w-56"
                            disabled={disabled}
                            type={field.type === 'number' ? 'number' : 'text'}
                            value={String(selected ?? '')}

@@ -111,7 +111,7 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
       <Popover>
          <PopoverTrigger asChild>
             <Button
-               size="xs"
+               size={iconOnly ? 'icon-sm' : 'sm'}
                variant={iconOnly ? 'track' : 'outline'}
                className={cn('relative', !iconOnly && 'border-muted-foreground/15')}
                aria-label={iconOnly ? 'Display' : undefined}
@@ -137,7 +137,7 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
                   value={grouping}
                   onValueChange={(value) => setGrouping(value as ProjectsGrouping)}
                >
-                  <SelectTrigger aria-label="Grouping" className="h-7 w-36 max-lg:h-11">
+                  <SelectTrigger aria-label="Grouping" className="w-36">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -176,7 +176,7 @@ export function ProjectsDisplayOptions({ iconOnly = false }: { iconOnly?: boolea
                         value={ordering}
                         onValueChange={(value) => setOrdering(value as ProjectsOrdering)}
                      >
-                        <SelectTrigger aria-label="Ordering" className="h-7 w-28 max-lg:h-11">
+                        <SelectTrigger aria-label="Ordering" className="w-28">
                            <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

@@ -7,6 +7,12 @@ const meta = {
    component: ApprovalCard,
    tags: ['ai-generated'],
    args: { approval: pendingApproval },
+   argTypes: {
+      layout: {
+         control: 'select',
+         options: ['card', 'page'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="w-[560px]">

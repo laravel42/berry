@@ -9,6 +9,7 @@ import {
 } from '@/components/common/issues/issue-filter-columns';
 import { IssueFilterBar } from '@/components/common/issues/issue-filter-bar';
 import { IssueTable } from '@/components/common/issues/issue-table';
+import { useIssueListLoad } from '@/components/common/issues/list-states';
 import { useIssueListView } from '@/components/common/issues/use-issue-list-view';
 import { getProjectDetail } from '@/data/project-details';
 import { displayOrderedStatus } from '@/data/status';
@@ -30,9 +31,11 @@ interface ProjectIssuesProps {
 export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
    const project = useProject(projectId);
    const detail = getProjectDetail(projectId);
-   const { issues: allIssues } = useIssuesStore();
+   const allIssues = useIssuesStore((state) => state.issues);
+   const load = useIssueListLoad();
    const { filters } = useFilterStore();
    const view = useIssueListView();
+   const loadingMore = load.loadState === 'loading' && allIssues.length > 0;
 
    const issues = useMemo(
       () => (project ? allIssues.filter((issue) => issue.project?.id === project.id) : []),
@@ -55,13 +58,14 @@ export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
       <div className="w-full h-full flex flex-col overflow-hidden">
          <IssueFilterBar />
          <BatchToolbar visibleIds={displayedIssues.map((issue) => issue.id)} />
-         <div className="flex-1 min-h-0 w-full flex overflow-hidden">
+         <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                {view.mode === 'table' ? (
                   <IssueTable
                      issues={displayedIssues}
                      statuses={displayOrderedStatus}
                      totalIssues={issues}
+                     loadingMore={loadingMore}
                   />
                ) : (
                   <GroupedIssuesView
@@ -69,6 +73,7 @@ export default function ProjectIssues({ projectId }: ProjectIssuesProps) {
                      totalIssues={issues}
                      statuses={displayOrderedStatus}
                      isViewTypeGrid={view.mode === 'grid'}
+                     loadingMore={loadingMore}
                   />
                )}
             </div>

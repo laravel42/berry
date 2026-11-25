@@ -42,6 +42,8 @@
       "reset": "Reset"
    },
    "menu": {
+      "moveTo": "Move to…",
+      "cardActions": "Task actions",
       "dueDate": "Due date",
       "today": "Today",
       "tomorrow": "Tomorrow",

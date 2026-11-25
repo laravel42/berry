@@ -26,6 +26,7 @@ import { useRunsStore } from '@/store/runs-store';
 import { RunTranscriptDialog } from '@/components/common/runs/transcript-dialog';
 import { useSessionStore } from '@/store/session-store';
 import { toast } from 'sonner';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const COLUMNS = ['issue', 'assignee', 'state'] as const;
 
@@ -108,6 +109,7 @@ function DeliveryStrip({ delivery }: { delivery: RunDelivery }) {
 
 export default function RunOverview() {
    const t = useTranslations('runtimes.overview');
+   const common = useTranslations('common');
    const { orgId } = useParams<{ orgId: string }>();
    const router = useRouter();
    const searchParams = useSearchParams();
@@ -116,6 +118,7 @@ export default function RunOverview() {
    const getAgentById = useAgentsStore((state) => state.getAgentById);
    const runs = useRunsStore((state) => state.runs);
    const runsError = useRunsStore((state) => state.error);
+   const runsLoaded = useRunsStore((state) => state.loaded);
    const hydrateRuns = useRunsStore((state) => state.hydrateRuns);
    const upsertRun = useRunsStore((state) => state.upsertRun);
 
@@ -204,6 +207,54 @@ export default function RunOverview() {
       }
    };
 
+   const describeRun = (run: RunRecord) => {
+      const issue = issueById.get(run.issueId);
+      const selected = selectedRunId === run.id;
+      const title = oneLine(issue?.title);
+      const preview = oneLine(run.summary);
+      const primary = title || preview;
+      const secondary = title && preview && preview !== title ? preview : '';
+      const status = isTerminalRunStatus(run.status)
+         ? run.status
+         : streamStatus && selected
+           ? streamStatus
+           : run.status;
+      return {
+         selected,
+         identifier: issue?.identifier,
+         primary,
+         secondary,
+         tooltip: secondary || preview || primary,
+         status,
+         when: runWhen(run),
+         agentName: getAgentById(run.agentId)?.name ?? t('agentFallback'),
+         openRun: () => {
+            setSelectedRunId(run.id);
+            router.replace(`/${orgId ?? WORKSPACE_SLUG}/runs?run=${run.id}`);
+         },
+      };
+   };
+
+   const renderIssueButton = (d: ReturnType<typeof describeRun>) => (
+      <button
+         type="button"
+         onClick={d.openRun}
+         aria-current={d.selected ? 'true' : undefined}
+         title={d.tooltip}
+         className="flex w-full min-w-0 flex-col items-stretch rounded-sm text-left outline-none [@media(hover:none)]:min-h-6 focus-visible:ring-2 focus-visible:ring-ring/50"
+      >
+         <span className="flex min-w-0 items-baseline gap-2">
+            {d.identifier ? (
+               <span className="shrink-0 text-muted-foreground">{d.identifier}</span>
+            ) : null}
+            <span className="min-w-0 truncate">{d.primary}</span>
+         </span>
+         {d.secondary ? (
+            <span className="mt-0.5 truncate text-muted-foreground">{d.secondary}</span>
+         ) : null}
+      </button>
+   );
+
    return (
       <section className="flex h-full w-full flex-col" aria-label={t('label')}>
          {selectedRun ? (
@@ -218,7 +269,6 @@ export default function RunOverview() {
                      <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8"
                         disabled={cancelling}
                         onClick={() => void onCancelSelected()}
                      >
@@ -244,8 +294,49 @@ export default function RunOverview() {
             </div>
          ) : null}
 
-         <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full table-fixed text-left">
+         <div className="min-h-0 flex-1 overflow-auto md:pb-[var(--shell-launcher-room)]">
+            {visibleRuns.length === 0 && !runsLoaded ? (
+               <div className="md:hidden">
+                  <ListSkeleton label={common('loading')} />
+               </div>
+            ) : visibleRuns.length === 0 ? (
+               <p className="px-6 py-12 leading-6 text-muted-foreground md:hidden">{t('empty')}</p>
+            ) : (
+               <ul className="md:hidden">
+                  {visibleRuns.map((run) => {
+                     const d = describeRun(run);
+                     return (
+                        <li
+                           key={run.id}
+                           data-run-card
+                           onClick={d.openRun}
+                           className={cn(
+                              'flex cursor-pointer flex-col gap-1 border-b border-border/60 px-6 py-3 transition-colors hover:bg-accent/45',
+                              d.selected && 'bg-accent/50'
+                           )}
+                        >
+                           {renderIssueButton(d)}
+                           <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 text-muted-foreground">
+                              <span data-f="assignee" className="min-w-0 truncate">
+                                 {d.agentName}
+                              </span>
+                              <span aria-hidden>·</span>
+                              <span data-f="status" className="capitalize">
+                                 {d.status}
+                              </span>
+                              {d.when ? (
+                                 <>
+                                    <span aria-hidden>·</span>
+                                    <span data-f="when">{d.when}</span>
+                                 </>
+                              ) : null}
+                           </div>
+                        </li>
+                     );
+                  })}
+               </ul>
+            )}
+            <table className="hidden w-full table-fixed text-left md:table">
                <caption className="sr-only">{t('caption')}</caption>
                <colgroup>
                   <col />
@@ -270,7 +361,13 @@ export default function RunOverview() {
                   </tr>
                </thead>
                <tbody>
-                  {visibleRuns.length === 0 ? (
+                  {visibleRuns.length === 0 && !runsLoaded ? (
+                     <tr>
+                        <td colSpan={COLUMNS.length} className="p-0">
+                           <ListSkeleton label={common('loading')} />
+                        </td>
+                     </tr>
+                  ) : visibleRuns.length === 0 ? (
                      <tr>
                         <td
                            colSpan={COLUMNS.length}
@@ -281,65 +378,29 @@ export default function RunOverview() {
                      </tr>
                   ) : (
                      visibleRuns.map((run) => {
-                        const issue = issueById.get(run.issueId);
-                        const agent = getAgentById(run.agentId);
-                        const selected = selectedRunId === run.id;
-                        const title = oneLine(issue?.title);
-                        const preview = oneLine(run.summary);
-                        const primary = title || preview;
-                        const secondary = title && preview && preview !== title ? preview : '';
-                        const status = isTerminalRunStatus(run.status)
-                           ? run.status
-                           : streamStatus && selected
-                             ? streamStatus
-                             : run.status;
-                        const when = runWhen(run);
-                        const openRun = () => {
-                           setSelectedRunId(run.id);
-                           router.replace(`/${orgId ?? WORKSPACE_SLUG}/runs?run=${run.id}`);
-                        };
+                        const d = describeRun(run);
                         return (
                            <tr
                               key={run.id}
-                              onClick={openRun}
+                              onClick={d.openRun}
                               className={cn(
-                                 'cursor-pointer border-b border-border/60 transition-colors hover:bg-sidebar/50',
-                                 selected && 'bg-accent/50'
+                                 'cursor-pointer border-b border-border/60 transition-colors hover:bg-accent/45',
+                                 d.selected && 'bg-accent/50'
                               )}
                            >
                               <td className="max-w-0 px-6 py-2.5 sm:px-8">
-                                 <button
-                                    type="button"
-                                    onClick={openRun}
-                                    aria-current={selected ? 'true' : undefined}
-                                    title={secondary || preview || primary}
-                                    className="flex w-full min-w-0 flex-col items-stretch rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                                 >
-                                    <span className="flex min-w-0 items-baseline gap-2">
-                                       {issue?.identifier ? (
-                                          <span className="shrink-0 text-muted-foreground">
-                                             {issue.identifier}
-                                          </span>
-                                       ) : null}
-                                       <span className="min-w-0 truncate">{primary}</span>
-                                    </span>
-                                    {secondary ? (
-                                       <span className="mt-0.5 truncate text-muted-foreground">
-                                          {secondary}
-                                       </span>
-                                    ) : null}
-                                 </button>
+                                 {renderIssueButton(d)}
                               </td>
                               <td className="w-[120px] truncate px-6 py-2.5 text-muted-foreground sm:px-8">
-                                 {agent?.name ?? t('agentFallback')}
+                                 {d.agentName}
                               </td>
                               <td className="w-[200px] px-6 py-2.5 text-muted-foreground sm:px-8">
                                  <span className="inline-flex w-fit items-baseline gap-1.5 whitespace-nowrap">
-                                    <span className="capitalize">{status}</span>
-                                    {when ? (
+                                    <span className="capitalize">{d.status}</span>
+                                    {d.when ? (
                                        <>
                                           <span aria-hidden>·</span>
-                                          <span>{when}</span>
+                                          <span>{d.when}</span>
                                        </>
                                     ) : null}
                                  </span>

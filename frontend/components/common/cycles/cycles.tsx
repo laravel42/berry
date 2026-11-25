@@ -5,11 +5,10 @@ import { CreateCycleDialog } from '@/components/common/cycles/create-cycle-dialo
 import { CycleGroup } from '@/components/common/cycles/cycle-group';
 import { CycleTimeline } from '@/components/common/cycles/cycle-timeline';
 import { EmptyCycles } from '@/components/common/cycles/empty-cycles';
-import { EmptyStateLoading } from '@/components/common/empty-state';
 import { PageKpiHeader } from '@/components/common/page/page-parts';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { useCycleIssues } from '@/hooks/use-cycle-issues';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { formatRange } from '@/lib/cycle-math';
@@ -21,6 +20,7 @@ import { Plus } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** Groups below the active card, in reading order: what is next, then what is done. */
 const GROUPS: Cycle['status'][] = ['upcoming', 'completed'];
@@ -65,34 +65,32 @@ export default function Cycles() {
    const openCreate = canEdit ? () => setCreateOpen(true) : undefined;
 
    const header = (
-      <PageKpiHeader label={t('list.title')}>
+      <>
+         <PageKpiHeader label={t('list.title')}>
+            {canEdit ? (
+               <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" aria-hidden />
+                  {t('list.new')}
+               </Button>
+            ) : null}
+         </PageKpiHeader>
+         {/* The toolbar row the other lists have under their title. */}
          {cycles.length > 0 ? (
-            <Input
-               className={`${searchFieldClass} w-[clamp(160px,22vw,280px)]`}
-               value={query}
-               onChange={(event) => setQuery(event.target.value)}
-               placeholder={t('list.search')}
-               aria-label={t('list.search')}
-               type="search"
-            />
+            <div className="mb-1 flex min-h-[48px] w-full shrink-0 flex-wrap items-center gap-2 border-b px-2 py-[2px] max-sm:gap-x-1 max-sm:py-2 sm:px-5">
+               <ToolbarSearch label={t('list.search')} value={query} onChange={setQuery} />
+            </div>
          ) : null}
-         {canEdit ? (
-            <Button className="shrink-0" onClick={() => setCreateOpen(true)}>
-               <Plus className="size-4" aria-hidden />
-               {t('list.new')}
-            </Button>
-         ) : null}
-      </PageKpiHeader>
+      </>
    );
 
    let body: ReactNode;
    if (!loaded) {
-      body = <EmptyStateLoading label={t('list.loading')} />;
+      body = <ListSkeleton label={t('list.loading')} />;
    } else if (cycles.length === 0) {
       body = <EmptyCycles onCreate={openCreate} />;
    } else {
       body = (
-         <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto p-5">
+         <div className="h-full min-h-0 overflow-x-hidden overflow-y-auto p-5 md:pb-[var(--shell-launcher-room)]">
             <div className="flex w-full min-w-0 flex-col gap-5">
                {/* The calendar shows every cycle; the search narrows the lists below it. */}
                <CycleTimeline cycles={cycles} hrefFor={hrefFor} />

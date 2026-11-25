@@ -4,8 +4,9 @@ import {
    DeleteProjectDialog,
    useProjectDeletion,
 } from '@/components/common/projects/delete-project';
+import { DetailHeaderSkeleton } from '@/components/common/details/detail-skeletons';
 import { useDetailDrawerClose } from '@/components/layout/detail-drawer-context';
-import { Button } from '@/components/ui/button';
+import { Button, trackButtonPressedClass } from '@/components/ui/button';
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -18,9 +19,20 @@ import { DisplayOptions } from '@/components/layout/headers/display-options';
 import { useProject } from '@/hooks/use-project';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { pinTarget, unpinTarget } from '@/lib/pins';
+import { cn } from '@/lib/utils';
 import { usePinsStore } from '@/store/pins-store';
+import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSessionStore } from '@/store/session-store';
-import { ChevronRight, Link as LinkIcon, MoreHorizontal, Pin, PinOff, Trash2 } from 'lucide-react';
+import {
+   BarChart3,
+   ChevronRight,
+   Link as LinkIcon,
+   MoreHorizontal,
+   PanelRight,
+   Pin,
+   PinOff,
+   Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCallback } from 'react';
@@ -40,6 +52,8 @@ export default function Header({
    const project = useProject(projectId);
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const { pins, add, remove } = usePinsStore();
+   const { openPanel, togglePanel } = useRightPanelStore();
+   const propertiesOpen = openPanel !== 'hidden' && openPanel !== 'insights';
 
    const afterDelete = useCallback(() => {
       if (closeDrawer) {
@@ -52,11 +66,7 @@ export default function Header({
    const deletion = useProjectDeletion(afterDelete);
 
    if (!project) {
-      return (
-         <div className="flex h-[52px] w-full items-center border-b px-5 text-muted-foreground">
-            Loading project…
-         </div>
-      );
+      return <DetailHeaderSkeleton />;
    }
 
    const pin = pins.find(
@@ -79,7 +89,7 @@ export default function Header({
 
    return (
       <>
-         <div className="flex h-[52px] w-full items-center justify-between border-b px-5">
+         <div className="flex h-[52px] w-full items-center justify-between border-b px-2 sm:px-5">
             <div className="flex min-w-0 items-center gap-1.5">
                <Link
                   href={`/${orgId}/projects`}
@@ -98,6 +108,32 @@ export default function Header({
                   <>
                      <IssueFilterTrigger iconOnly />
                      <DisplayOptions iconOnly />
+                     {/* The side panel is a column from xl; below that these open it as an overlay. */}
+                     <Button
+                        size="icon-sm"
+                        variant="track"
+                        aria-label="Insights"
+                        title="Insights"
+                        aria-pressed={openPanel === 'insights'}
+                        className={cn(
+                           'xl:hidden',
+                           openPanel === 'insights' && trackButtonPressedClass
+                        )}
+                        onClick={() => togglePanel('insights')}
+                     >
+                        <BarChart3 className="size-4" aria-hidden="true" />
+                     </Button>
+                     <Button
+                        size="icon-sm"
+                        variant="track"
+                        aria-label="Properties"
+                        title="Properties"
+                        aria-pressed={propertiesOpen}
+                        className={cn('xl:hidden', propertiesOpen && trackButtonPressedClass)}
+                        onClick={() => togglePanel('hidden')}
+                     >
+                        <PanelRight className="size-4" aria-hidden="true" />
+                     </Button>
                   </>
                ) : null}
                <DropdownMenu>

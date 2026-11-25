@@ -135,3 +135,65 @@ export const SearchableSelect: Story = {
       );
    },
 };
+
+/**
+ * The rows on a phone: a switch and a button stay on the title's line, a
+ * field (`wide`) takes the row under the label with `action` kept beside
+ * the title, and the danger zone's group is tinted berry.
+ */
+export const RowsOnAPhone: Story = {
+   globals: { viewport: { value: 'mobile1', isRotated: false } },
+   render: () => (
+      <div className="flex max-w-sm flex-col gap-4 p-4">
+         <SettingsCard>
+            <SettingsRow
+               title="Mentions"
+               description="Someone names you in a comment or a description."
+               trailing={<Switch aria-label="Mentions" defaultChecked />}
+            />
+            <SettingsRow
+               icon={<Monitor className="size-[15px]" strokeWidth={1.7} />}
+               title="Unknown device"
+               description="Last used 5m ago"
+               trailing={
+                  <Button size="sm" variant="soft">
+                     Sign out
+                  </Button>
+               }
+            />
+            <SettingsRow
+               title="Daniel Okafor"
+               description="daniel.okafor@berry.test"
+               wide
+               trailing={
+                  <SelectMenu
+                     aria-label="Role for Daniel Okafor"
+                     options={['member', 'admin']}
+                     defaultValue="member"
+                  />
+               }
+               action={
+                  <Button size="sm" variant="soft-destructive">
+                     Remove
+                  </Button>
+               }
+            />
+         </SettingsCard>
+         <SettingsCard tone="danger">
+            <SettingsRow
+               title="Delete workspace"
+               description="Removes it for everyone in it."
+               trailing={
+                  <Button size="sm" variant="soft-destructive">
+                     Delete
+                  </Button>
+               }
+            />
+         </SettingsCard>
+      </div>
+   ),
+   play: async ({ canvas }) => {
+      await expect(canvas.getByRole('button', { name: 'Remove' })).toBeVisible();
+      await expect(canvas.getByRole('button', { name: 'Role for Daniel Okafor' })).toBeVisible();
+   },
+};

@@ -7,15 +7,12 @@ import { useTranslations } from 'next-intl';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
+import { BulkBar } from '@/components/common/bulk-bar';
 import { DepartmentMultiselect } from '@/components/common/agents/agent-catalog';
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { SettingsChip } from '@/components/common/settings/shared';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
+import { PageBackTitle } from '@/components/common/page/page-parts';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -28,7 +25,7 @@ import {
    CommandItem,
    CommandList,
 } from '@/components/ui/command';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { BerryApiError } from '@/lib/api';
 import { isOrchestrator, loadWorkspaceAgents, type Agent } from '@/lib/agents';
@@ -39,6 +36,7 @@ import { canEditProduct } from '@/lib/workspace-role';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
 import { useSkillsCatalogueStore } from '@/store/skills-catalogue-store';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** The action column, always shown: Add. */
 const ACTION_WIDTH = 'w-20';
@@ -60,6 +58,7 @@ function departmentRank(department: string): number {
  */
 function SkillCatalogScreen() {
    const t = useTranslations('areas.skills.catalog');
+   const { orgId } = useParams<{ orgId: string }>();
    const tOrg = useTranslations('organization');
    const role = useSessionStore((state) => state.workspace?.role);
    const canEdit = canEditProduct(role);
@@ -202,14 +201,9 @@ function SkillCatalogScreen() {
    };
 
    const header = (
-      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5 [&_button]:!h-[30px]">
-         <Input
-            className={`${searchFieldClass} w-64 max-sm:w-40`}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('search')}
-            aria-label={t('search')}
-         />
+      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5">
+         <PageBackTitle href={`/${orgId}/skills`} backLabel={t('back')} title={t('title')} />
+         <ToolbarSearch label={t('search')} value={query} onChange={setQuery} />
          <DepartmentMultiselect
             options={departmentOptions}
             value={departments}
@@ -222,7 +216,7 @@ function SkillCatalogScreen() {
    if (error) {
       body = <p className="px-6 py-8 text-muted-foreground">{error}</p>;
    } else if (!skills) {
-      body = <EmptyStateLoading label={t('loading')} />;
+      body = <ListSkeleton label={t('loading')} />;
    } else if (rows.length === 0) {
       body = (
          <EmptyState icon={<EmptyStateMark label={t('empty')} />}>
@@ -311,7 +305,7 @@ function SkillCatalogScreen() {
                ))}
             </div>
             {canEdit && selected.length > 0 ? (
-               <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+               <BulkBar>
                   <AgentPicker
                      targets={targets}
                      labels={[...new Set(selected.flatMap((skill) => skill.labels))]}
@@ -331,7 +325,7 @@ function SkillCatalogScreen() {
                   >
                      {t('bulk.clear')}
                   </Button>
-               </div>
+               </BulkBar>
             ) : null}
          </div>
       );
@@ -429,7 +423,7 @@ function SkillCatalogLine({
          className={cn(
             'flex w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3',
             'last:border-b-0',
-            selected && 'bg-sidebar/60'
+            selected && 'bg-accent'
          )}
       >
          {canEdit ? (
@@ -441,8 +435,10 @@ function SkillCatalogLine({
             />
          ) : null}
          <div className="min-w-0 flex-1 overflow-hidden">
-            <div className="flex min-w-0 items-center gap-2">
-               <span className="truncate font-medium leading-none">{skill.name}</span>
+            {/* The department chips wrap under the name rather than squeeze it
+                to a few letters on a narrow row. */}
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+               <span className="max-w-full truncate font-medium leading-none">{skill.name}</span>
                {skill.labels.map((label) => (
                   <SettingsChip key={label}>{label}</SettingsChip>
                ))}
@@ -455,7 +451,7 @@ function SkillCatalogLine({
             {canEdit ? (
                <AgentPicker targets={targets} labels={skill.labels} onPick={onAdd}>
                   <Button
-                     size="xxs"
+                     size="sm"
                      variant="soft"
                      disabled={adding}
                      aria-label={t('row.add', { name: skill.name })}

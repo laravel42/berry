@@ -33,14 +33,19 @@ type ProjectGridProps = {
 function ProjectDragPreview({ project }: { project: Project }) {
    const lead = useResolvedProjectLead(project.lead);
    return (
-      <div className="flex w-full flex-col overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-chalk shadow-lg">
+      <div className="flex w-full flex-col overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg">
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
             <project.priority.icon className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
                {project.health.name}
             </span>
          </div>
-         <div className="mb-2 line-clamp-2 min-h-[2lh]" role="heading" aria-level={4}>
+         <div
+            data-card-title
+            className="mb-2 line-clamp-2 min-h-[2lh]"
+            role="heading"
+            aria-level={4}
+         >
             {project.name}
          </div>
          <div className="flex min-h-[1.25rem] items-center gap-2">
@@ -50,7 +55,7 @@ function ProjectDragPreview({ project }: { project: Project }) {
             </span>
             {lead ? (
                <span className="ml-auto flex min-w-0 items-center gap-1.5">
-                  <ActorAvatar user={lead} size="sm" className="size-4" />
+                  <ActorAvatar user={lead} size="sm" />
                   <span className="truncate">{lead.name}</span>
                </span>
             ) : (
@@ -157,7 +162,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
             <ContextMenuTrigger asChild>
                <div
                   className={cn(
-                     'group relative flex w-full cursor-grab flex-col rounded-lg bg-[var(--board-card)] px-3.5 py-2 text-chalk transition-colors active:cursor-grabbing',
+                     'group relative flex w-full cursor-grab flex-col rounded-lg bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] transition-colors active:cursor-grabbing',
                      'border border-[var(--board-card-line)] shadow-sm',
                      'hover:border-[var(--board-card-hover-line)]',
                      columnStatus === undefined && 'cursor-default',
@@ -196,6 +201,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                             larger than the task titles. Two lines are reserved
                             so a short name still fills the same card. */}
                         <div
+                           data-card-title
                            className="mb-2 line-clamp-2 min-h-[2lh]"
                            role="heading"
                            aria-level={4}
@@ -227,7 +233,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                                        aria-label={`Lead: ${lead.name}`}
                                        className="flex min-w-0 items-center gap-1.5 rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                                     >
-                                       <ActorAvatar user={lead} size="sm" className="size-4" />
+                                       <ActorAvatar user={lead} size="sm" />
                                        <span className="truncate">{lead.name}</span>
                                     </button>
                                  ) : (
@@ -246,7 +252,7 @@ export function ProjectGrid({ project, columnStatus }: ProjectGridProps) {
                   </div>
                </div>
             </ContextMenuTrigger>
-            <ProjectContextMenuContent project={project} />
+            <ProjectContextMenuContent project={project} onBoard={columnStatus !== undefined} />
          </ContextMenu>
       </div>
    );

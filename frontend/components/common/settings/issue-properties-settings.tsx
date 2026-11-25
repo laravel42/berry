@@ -162,7 +162,7 @@ export default function IssuePropertiesSettings() {
                <Trash2 />
             </SettingsIconButton>
          ) : (
-            <Button variant="quiet" onClick={() => void restore(property)}>
+            <Button size="sm" variant="quiet" onClick={() => void restore(property)}>
                {t('restore')}
             </Button>
          )}
@@ -176,7 +176,6 @@ export default function IssuePropertiesSettings() {
                <div className="flex flex-col gap-2 px-4 py-3.5">
                   <div className="flex flex-wrap items-center gap-2">
                      <Input
-                        variant="settings"
                         placeholder={t('namePlaceholder')}
                         aria-label={t('namePlaceholder')}
                         value={name}
@@ -197,6 +196,7 @@ export default function IssuePropertiesSettings() {
                         onChange={(value) => setKind(value as PropertyKind)}
                      />
                      <Button
+                        size="sm"
                         onClick={() => void create()}
                         disabled={creating || full || !name.trim() || (isSelect && !options.trim())}
                      >
@@ -205,7 +205,6 @@ export default function IssuePropertiesSettings() {
                   </div>
                   {isSelect ? (
                      <Input
-                        variant="settings"
                         placeholder={t('optionsPlaceholder')}
                         aria-label={t('optionsPlaceholder')}
                         value={options}
@@ -239,11 +238,7 @@ export default function IssuePropertiesSettings() {
             </SettingsCard>
             {archived.length > 0 ? (
                <label className="flex w-fit cursor-pointer items-center gap-2 pt-1">
-                  <Switch
-                     variant="settings"
-                     checked={showArchived}
-                     onCheckedChange={setShowArchived}
-                  />
+                  <Switch checked={showArchived} onCheckedChange={setShowArchived} />
                   <span>{t('showArchived', { count: archived.length })}</span>
                </label>
             ) : null}

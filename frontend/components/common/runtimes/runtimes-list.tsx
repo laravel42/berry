@@ -19,7 +19,8 @@ import {
    DialogHeader,
    DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Header from '@/components/layout/headers/settings/header';
 import MainLayout from '@/components/layout/main-layout';
@@ -204,26 +205,23 @@ export default function RuntimesList() {
          header={
             <>
                <Header />
-               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] [&_button]:!h-[30px]">
-                  <Input
-                     className={`${searchFieldClass} w-64 max-sm:w-40`}
-                     value={query}
-                     onChange={(event) => setQuery(event.target.value)}
-                     placeholder={t('catalogSearch')}
-                     aria-label={t('catalogSearch')}
-                  />
+               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-2 py-[8px] sm:px-4">
+                  <ToolbarSearch label={t('catalogSearch')} value={query} onChange={setQuery} />
                   <Tabs value={filter} onValueChange={(value) => setFilter(value as CatalogFilter)}>
                      <TabsList aria-label={t('catalogTitle')}>
                         {FILTERS.map((value) => (
-                           <TabsTrigger key={value} value={value}>
+                           <TabsTrigger key={value} value={value} className="max-sm:px-2">
                               {value === 'all'
                                  ? t('filterAll')
                                  : value === 'connected'
                                    ? t('filterConnected')
                                    : t('filterAvailable')}
-                              <span className="tabular-nums text-muted-foreground">
-                                 {catalog.value ? filterCount[value] : '–'}
-                              </span>
+                              {/* No count until the catalogue has loaded. */}
+                              {catalog.value ? (
+                                 <span className="tabular-nums text-muted-foreground">
+                                    {filterCount[value]}
+                                 </span>
+                              ) : null}
                            </TabsTrigger>
                         ))}
                      </TabsList>
@@ -232,7 +230,7 @@ export default function RuntimesList() {
             </>
          }
       >
-         <div className="px-5 py-5">
+         <div className="px-2 py-5 sm:px-5">
             {catalog.error ? (
                <SettingsCard>
                   <SettingsEmpty title={catalog.error} />
@@ -303,7 +301,6 @@ export default function RuntimesList() {
                      <label className="flex flex-col gap-1" htmlFor="runtime-server-address">
                         <span>{t('serverLabel')}</span>
                         <Input
-                           variant="settings"
                            id="runtime-server-address"
                            type="url"
                            inputMode="url"
@@ -323,7 +320,6 @@ export default function RuntimesList() {
                            : t('tokenLabel')}
                      </span>
                      <Input
-                        variant="settings"
                         id="runtime-api-token"
                         type="password"
                         autoComplete="off"

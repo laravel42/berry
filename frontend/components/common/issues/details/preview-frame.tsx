@@ -141,10 +141,10 @@ async function inlinePreview(href: string): Promise<string | null> {
             signal: AbortSignal.timeout(8_000),
          });
          if (!js.ok) return null;
-         const module = /\btype\s*=\s*["']module["']/i.test(attrs) ? ' type="module"' : '';
+         const moduleAttr = /\btype\s*=\s*["']module["']/i.test(attrs) ? ' type="module"' : '';
          out = out.replace(
             script[0],
-            `<script${module} src="${dataUrl('text/javascript', await js.text())}"></script>`
+            `<script${moduleAttr} src="${dataUrl('text/javascript', await js.text())}"></script>`
          );
       }
       return out;

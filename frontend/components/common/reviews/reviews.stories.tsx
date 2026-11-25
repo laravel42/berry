@@ -8,6 +8,16 @@ import Reviews from './reviews';
 const meta = {
    component: Reviews,
    tags: ['ai-generated', 'needs-work'],
+   argTypes: {
+      listTab: {
+         control: 'select',
+         options: ['for-you', 'created'],
+      },
+      section: {
+         control: 'select',
+         options: ['overview', 'guide', 'diff', 'files', 'preview'],
+      },
+   },
    parameters: {
       layout: 'fullscreen',
       nextjs: { navigation: { pathname: '/berry/reviews', segments: [['orgId', 'berry']] } },

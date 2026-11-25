@@ -58,7 +58,7 @@ export const Default: Story = {
    },
 };
 
-/** At `lg` the rail folds to a 36px column holding its expand control. */
+/** At `md` the rail folds to a 36px column holding its expand control. */
 export const RailCollapsed: Story = {
    beforeEach: () => {
       useShellStore.setState({ railOpen: false });
@@ -73,15 +73,15 @@ export const Settings: Story = {
 };
 
 /**
- * Below `lg` the bar's menu button opens the rail over the page. The button
- * is `lg:hidden` (a viewport media query), so there is no play here: the test
+ * Below `md` the bar's menu button opens the rail over the page. The button
+ * is `md:hidden` (a viewport media query), so there is no play here: the test
  * browser is desktop-sized. Pick a mobile viewport in Storybook to try it.
  */
 export const MobileMenu: Story = {
    globals: { viewport: { value: 'mobile2', isRotated: false } },
 };
 
-/** At `lg` the rail is a column; the expand control restores it when folded. */
+/** At `md` the rail is a column; the expand control restores it when folded. */
 export const CollapseAndExpandRail: Story = {
    play: async ({ canvas, userEvent }) => {
       useShellStore.setState({ railOpen: false });

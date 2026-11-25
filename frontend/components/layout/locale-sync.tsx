@@ -23,6 +23,9 @@ export function LocaleSync() {
       // the browser refuses the cookie. Refreshing again would loop forever.
       if (readLocaleCookie() === preferred) return;
       writeLocaleCookie(preferred);
+      // The root layout sets <html lang> from the locale it rendered. If that
+      // already matches, there is nothing for the server to re-render.
+      if (document.documentElement.lang === preferred) return;
       router.refresh();
    }, [preferred, rendered, router]);
 

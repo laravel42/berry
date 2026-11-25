@@ -25,7 +25,11 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
    const [open, setOpen] = useState<boolean>(false);
    const [value, setValue] = useState<string | undefined>(project?.id);
 
-   const { filterByProject } = useIssuesStore();
+   // The counts are read during render, so subscribe to the issues themselves:
+   // the store's `filterByProject` is a stable function and would not re-render.
+   const issues = useIssuesStore((state) => state.issues);
+   const filterByProject = (projectId: string) =>
+      issues.filter((issue) => issue.project?.id === projectId);
    const projects = useProjectsStore((state) => state.projects);
 
    useEffect(() => {
@@ -90,7 +94,9 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
                               <FolderIcon className="size-4" />
                               No Project
                            </div>
-                           {value === undefined && <CheckIcon size={16} className="ml-auto" />}
+                           {value === undefined && (
+                              <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                           )}
                         </CommandItem>
                         {projects.map((project) => (
                            <CommandItem
@@ -103,7 +109,9 @@ export function ProjectSelector({ project, onChange }: ProjectSelectorProps) {
                                  <project.icon className="size-4" />
                                  {project.name}
                               </div>
-                              {value === project.id && <CheckIcon size={16} className="ml-auto" />}
+                              {value === project.id && (
+                                 <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                              )}
                               <span className="text-muted-foreground">
                                  {filterByProject(project.id).length}
                               </span>

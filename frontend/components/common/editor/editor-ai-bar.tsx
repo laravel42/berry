@@ -8,7 +8,8 @@ import {
    DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
-import { ArrowUp, Loader2, Sparkles } from 'lucide-react';
+import { SparkIcon } from '@/components/ui/spark-icon';
+import { ArrowUp, Loader2 } from 'lucide-react';
 
 export const EDITOR_AI_PRESETS = [
    {
@@ -60,7 +61,12 @@ export function EditorAiBar({
    const canSubmit = !busy && prompt.trim().length > 0;
 
    return (
-      <div className={cn('pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-3', className)}>
+      <div
+         className={cn(
+            'pointer-events-none absolute inset-x-0 bottom-3 z-10 flex justify-center px-3',
+            className
+         )}
+      >
          <div className="ai-prompt-pill pointer-events-auto shadow-[0_8px_30px_rgba(15,15,20,0.12)]">
             <div className="bg-popover flex h-11 w-full items-center gap-1 rounded-full px-1.5">
                <DropdownMenu>
@@ -73,7 +79,7 @@ export function EditorAiBar({
                         aria-label="AI presets"
                         disabled={busy}
                      >
-                        <Sparkles className="size-4" />
+                        <SparkIcon className="size-4" />
                      </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="min-w-44">
@@ -113,12 +119,11 @@ export function EditorAiBar({
                      if (!canSubmit) return;
                      onSubmit();
                   }}
-                  className={cn(
-                     'size-8 shrink-0 rounded-full',
-                     canSubmit
-                        ? 'bg-foreground text-background hover:bg-foreground/90'
-                        : 'bg-muted text-muted-foreground'
-                  )}
+                  // The default berry gradient with a white glyph, dimmed when
+                  // there is nothing to send. The `bg-*` that used to be here
+                  // sat under the gradient unseen, and its text colour left
+                  // a dark glyph on berry in dark mode and a grey one disabled.
+                  className="size-8 shrink-0 rounded-full disabled:opacity-40"
                >
                   {pending ? (
                      <Loader2 className="size-3.5 animate-spin" />

@@ -3,18 +3,17 @@
 import { IssueFilterTrigger } from '@/components/common/issues/issue-filter-trigger';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button, trackButtonPressedClass } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { issuesCreatedBy } from '@/data/issues';
 import { User } from '@/data/users';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { useRightPanelStore } from '@/store/right-panel-store';
 import { useSearchStore } from '@/store/search-store';
-import { BarChart3, ChevronRight, PanelRight, SearchIcon, Star } from 'lucide-react';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
+import { BarChart3, ChevronRight, PanelRight, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { parseAsString, useQueryState } from 'nuqs';
-import { useEffect, useRef } from 'react';
 import { DisplayOptions } from '../display-options';
 
 const PROFILE_TABS = [
@@ -50,73 +49,35 @@ function ProfileTabs() {
    );
 }
 
+/**
+ * The member's task search: the shared toolbar search (a field from `sm` up,
+ * an icon that opens it on a phone). The search store is open while a query
+ * is applied, which is what the task list reads.
+ */
 function HeaderSearch() {
-   const { isSearchOpen, toggleSearch, closeSearch, setSearchQuery, searchQuery } =
-      useSearchStore();
-   const searchInputRef = useRef<HTMLInputElement>(null);
-   const searchContainerRef = useRef<HTMLDivElement>(null);
+   const searchQuery = useSearchStore((state) => state.searchQuery);
+   const setSearchQuery = useSearchStore((state) => state.setSearchQuery);
+   const openSearch = useSearchStore((state) => state.openSearch);
+   const closeSearch = useSearchStore((state) => state.closeSearch);
 
-   useEffect(() => {
-      if (isSearchOpen && searchInputRef.current) {
-         searchInputRef.current.focus();
-      }
-   }, [isSearchOpen]);
-
-   useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-         if (
-            searchContainerRef.current &&
-            !searchContainerRef.current.contains(event.target as Node) &&
-            isSearchOpen &&
-            searchQuery.trim() === ''
-         ) {
-            closeSearch();
-         }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-   }, [isSearchOpen, closeSearch, searchQuery]);
-
-   if (isSearchOpen) {
-      return (
-         <div ref={searchContainerRef} className="relative flex items-center w-64">
-            <SearchIcon className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-               type="search"
-               ref={searchInputRef}
-               value={searchQuery}
-               onChange={(event) => setSearchQuery(event.target.value)}
-               placeholder="Search tasks..."
-               className="pl-8 h-7"
-               onKeyDown={(event) => {
-                  if (event.key === 'Escape') {
-                     if (searchQuery.trim() === '') closeSearch();
-                     else setSearchQuery('');
-                  }
-               }}
-            />
-         </div>
-      );
-   }
    return (
-      <>
-         <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSearch}
-            className="h-8 w-8"
-            aria-label="Search"
-         >
-            <SearchIcon className="h-4 w-4" />
-         </Button>
-      </>
+      <ToolbarSearch
+         label="Search tasks"
+         value={searchQuery}
+         onChange={(next) => {
+            setSearchQuery(next);
+            if (next.trim() === '') closeSearch();
+            else openSearch();
+         }}
+         className="w-56"
+      />
    );
 }
 
 export default function Header({ member }: { member: User }) {
    const { orgId } = useParams<{ orgId: string }>();
    const [activeTab] = useQueryState('tab', parseAsString.withDefault('assigned'));
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const { openPanel, togglePanel } = useRightPanelStore();
    const count =
       activeTab === 'created'
@@ -125,7 +86,7 @@ export default function Header({ member }: { member: User }) {
 
    return (
       <>
-         <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
+         <div className="flex min-h-[52px] w-full flex-wrap items-center justify-between gap-y-1.5 border-b px-2 py-1.5 sm:px-5">
             <div className="flex items-center gap-2 min-w-0">
                <div className="flex items-center gap-1.5 min-w-0">
                   <Link
@@ -145,11 +106,12 @@ export default function Header({ member }: { member: User }) {
                   </Button>
                </div>
             </div>
-            <div className="flex items-center gap-2">
+            {/* On a phone an opened search takes a line of its own. */}
+            <div className="flex items-center gap-2 max-sm:contents">
                <HeaderSearch />
             </div>
          </div>
-         <div className="flex h-[52px] w-full items-center justify-between border-b px-5 py-1.5">
+         <div className="flex h-[52px] w-full items-center justify-between border-b px-2 py-1.5 sm:px-5">
             <div className="flex items-center gap-3">
                <ProfileTabs />
                <span className="text-muted-foreground hidden sm:inline">
@@ -159,7 +121,7 @@ export default function Header({ member }: { member: User }) {
             <div className="flex items-center gap-1">
                <IssueFilterTrigger iconOnly />
                <Button
-                  size="xs"
+                  size="icon-sm"
                   variant="track"
                   aria-label={'Insights'}
                   title={'Insights'}
@@ -170,7 +132,7 @@ export default function Header({ member }: { member: User }) {
                   <BarChart3 className="size-4" aria-hidden="true" />
                </Button>
                <Button
-                  size="xs"
+                  size="icon-sm"
                   variant="track"
                   aria-label={'Profile'}
                   title={'Profile'}

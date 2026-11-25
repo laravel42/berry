@@ -5,7 +5,7 @@ import { ApprovalCard } from '@/components/common/approvals/approval-card';
 import { DescriptionTextarea } from '@/components/common/editor/description-textarea';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueLine } from '@/components/common/issues/issue-line';
-import { Pill, SectionHeading } from '@/components/common/pill';
+import { SectionHeading } from '@/components/common/pill';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useMilestone } from '@/hooks/use-milestone';
 import { APPROVAL_STATUS, GOAL_STATUS, statusLook, uiStatusFromApi } from '@/lib/catalog';

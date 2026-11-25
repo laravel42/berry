@@ -4,23 +4,22 @@ import { Issue } from '@/data/issues';
 import { useDisplaySettingsStore } from '@/store/display-settings-store';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { useRef, type Ref } from 'react';
+import { memo, useRef, type Ref } from 'react';
 import { useDrag } from 'react-dnd';
 import { ActorLiveMark, useIssueLiveRun } from './actor-avatar';
 import { AutoGateMark } from './auto-gate-mark';
 import { AssigneeUser } from './assignee-user';
-import { IssueDragType } from './issue-grid';
+import { IssueDragType } from './issue-dnd';
 import { LabelBadge } from './label-badge';
 import { SelectionCheckbox } from './selection-checkbox';
 import { IssuePriorityPicker, IssueStatusPicker } from './issue-pickers';
-import { motion } from 'motion/react';
 
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu';
 import { cn } from '@/lib/utils';
+import { isSameValue } from '@/lib/same-value';
 import { IssueContextMenu } from './issue-context-menu';
-import { WORKSPACE_SLUG } from '@/lib/config';
 import { useCyclesStore } from '@/store/cycles-store';
+import { useIssueHref } from './use-issue-href';
 
 function CycleBadge({ cycleId }: { cycleId: string }) {
    const name = useCyclesStore((state) => state.getCycleById(cycleId)?.name);
@@ -59,7 +58,6 @@ const CONTROL = 'relative z-[1]';
 
 function IssueLineView({
    issue,
-   layoutId = false,
    order = [],
    rowRef,
    isDragging,
@@ -67,17 +65,16 @@ function IssueLineView({
    rowRef: Ref<HTMLDivElement>;
    isDragging: boolean;
 }) {
-   const { orgId } = useParams<{ orgId: string }>();
+   const issueHref = useIssueHref();
    const { displayProperties } = useDisplaySettingsStore();
    const liveRun = useIssueLiveRun(issue);
 
    return (
       <ContextMenu>
          <ContextMenuTrigger asChild>
-            <motion.div
+            <div
                ref={rowRef}
                style={{ opacity: isDragging ? 0.45 : 1 }}
-               {...(layoutId && { layoutId: `issue-line-${issue.identifier}` })}
                className={cn(
                   'group relative flex min-h-10 w-full items-center justify-start border-b border-border/45 px-4 transition-colors sm:px-6',
                   'hover:bg-accent/45 focus-within:bg-accent/45',
@@ -86,14 +83,21 @@ function IssueLineView({
                   issue.status.id === 'blocked' && 'bg-status-warning/[0.035]'
                )}
             >
-               <div className={cn('flex items-center gap-0.5', CONTROL)}>
+               <div className={cn('flex items-center gap-0 sm:gap-0.5', CONTROL)}>
                   {order.length > 0 ? (
-                     <SelectionCheckbox issueId={issue.id} order={order} className="mr-1.5" />
+                     <SelectionCheckbox
+                        issueId={issue.id}
+                        order={order}
+                        className="sm:mr-1.5 sm:[@media(hover:none)]:mr-px"
+                     />
                   ) : null}
                   {displayProperties.priority && <IssuePriorityPicker issue={issue} />}
                </div>
                {displayProperties.id && (
-                  <span className="mr-1 hidden w-[72px] shrink-0 truncate text-subtle-foreground sm:inline-block">
+                  <span
+                     data-identifier
+                     className="mr-1 hidden w-[72px] shrink-0 truncate text-subtle-foreground sm:inline-block"
+                  >
                      {issue.identifier}
                   </span>
                )}
@@ -107,12 +111,13 @@ function IssueLineView({
                    what the hover highlight has been promising. The controls
                    above are lifted over it. */}
                <Link
-                  href={`/${orgId ?? WORKSPACE_SLUG}/issue/${issue.identifier}`}
+                  href={issueHref(issue.identifier)}
+                  prefetch={false}
                   draggable={false}
                   onClick={(event) => {
                      if (isDragging) event.preventDefault();
                   }}
-                  className="mr-1 ml-1 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden outline-none before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
+                  className="mr-1 ml-1 flex min-w-0 flex-1 items-center justify-start gap-1.5 overflow-hidden outline-none [@media(hover:none)]:min-h-6 before:absolute before:inset-0 before:rounded-sm focus-visible:before:ring-[3px] focus-visible:before:ring-ring/50"
                >
                   {liveRun ? (
                      <ActorLiveMark run={liveRun} fallbackName={issue.assignee?.name} />
@@ -143,16 +148,11 @@ function IssueLineView({
                   ) : null}
                   {displayProperties.assignee && (
                      <span className={cn('flex max-w-[14rem] min-w-0 items-center', CONTROL)}>
-                        <AssigneeUser
-                           user={issue.assignee}
-                           issueId={issue.id}
-                           monogram={false}
-                           showName
-                        />
+                        <AssigneeUser user={issue.assignee} issueId={issue.id} monogram={false} />
                      </span>
                   )}
                </div>
-            </motion.div>
+            </div>
          </ContextMenuTrigger>
          <IssueContextMenu issueId={issue.id} />
       </ContextMenu>
@@ -185,12 +185,7 @@ function DraggableIssueLine({ issue, layoutId = false, order = [] }: IssueLinePr
    );
 }
 
-export function IssueLine({
-   issue,
-   layoutId = false,
-   order = [],
-   draggable = false,
-}: IssueLineProps) {
+function IssueLineRow({ issue, layoutId = false, order = [], draggable = false }: IssueLineProps) {
    if (draggable) {
       return <DraggableIssueLine issue={issue} layoutId={layoutId} order={order} />;
    }
@@ -204,3 +199,19 @@ export function IssueLine({
       />
    );
 }
+
+/**
+ * The store keeps an unchanged issue as the same object, so a row only renders
+ * when its own task does. `order` is rebuilt by the list on every render, so
+ * it is compared by its ids rather than by the array.
+ */
+function sameIssueLineProps(previous: IssueLineProps, next: IssueLineProps): boolean {
+   return (
+      previous.issue === next.issue &&
+      previous.layoutId === next.layoutId &&
+      previous.draggable === next.draggable &&
+      isSameValue(previous.order, next.order)
+   );
+}
+
+export const IssueLine = memo(IssueLineRow, sameIssueLineProps);

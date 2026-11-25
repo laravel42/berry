@@ -113,7 +113,7 @@ function VideoPlaceholder({ title, duration }: { title: string; duration?: strin
 
 function IssueRef({ identifier, note }: { identifier: string; note?: string }) {
    const { orgId } = useParams<{ orgId: string }>();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const issue = issues.find((candidate) => candidate.identifier === identifier);
 
    return (
@@ -195,12 +195,12 @@ export function ContentBlocks({ blocks }: { blocks: ContentBlock[] }) {
                               <span
                                  className={cn(
                                     'mt-1 size-4 rounded border flex items-center justify-center shrink-0',
-                                    item.checked
-                                       ? 'border-foreground bg-foreground'
-                                       : 'border-input'
+                                    item.checked ? 'border-primary bg-primary' : 'border-input'
                                  )}
                               >
-                                 {item.checked && <Check className="size-3 text-background" />}
+                                 {item.checked && (
+                                    <Check className="size-3 text-primary-foreground" />
+                                 )}
                               </span>
                               <span
                                  className={cn(
@@ -265,14 +265,14 @@ export { ImagePlaceholder, VideoPlaceholder };
 /** Small helper used by lists of referenced issues in the side panel. */
 export function IssueRefRow({ identifier }: { identifier: string }) {
    const { orgId } = useParams<{ orgId: string }>();
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
    const issue = issues.find((candidate) => candidate.identifier === identifier);
    if (!issue) return null;
 
    return (
       <Link
          href={`/${orgId ?? WORKSPACE_SLUG}/issue/${identifier}`}
-         className="flex items-center gap-2 py-1 hover:bg-sidebar/50 rounded px-1.5 -mx-1.5 min-w-0"
+         className="flex items-center gap-2 py-1 hover:bg-accent/45 rounded px-1.5 -mx-1.5 min-w-0"
       >
          <issue.status.icon />
          <span className="truncate">{issue.title}</span>

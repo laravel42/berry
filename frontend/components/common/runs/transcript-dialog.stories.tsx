@@ -61,8 +61,8 @@ export const StepDetails: Story = {
       await expect(
          dialog.getByText(/· frontend\/components\/inbox\/inbox\.tsx · 812 B/)
       ).toBeVisible();
-      // Measured by the runtime when it says so…
-      await expect(dialog.getByText('0.3 s')).toBeVisible();
+      // Measured by the runtime when it says so (under a second shows in ms)…
+      await expect(dialog.getByText('310 ms')).toBeVisible();
       // …and from the step's own timestamps when it does not: the lint ran 31 s.
       await expect(dialog.getByText('31.0 s')).toBeVisible();
    },
@@ -70,11 +70,14 @@ export const StepDetails: Story = {
 
 export const FilterCommands: Story = {
    play: async ({ canvasElement, userEvent }) => {
-      const dialog = within(await within(canvasElement.ownerDocument.body).findByRole('dialog'));
+      const body = within(canvasElement.ownerDocument.body);
+      const dialog = within(await body.findByRole('dialog'));
       await dialog.findAllByText('pnpm lint');
-      const commands = dialog.getByRole('button', { name: 'Commands', pressed: false });
+      // Kinds are chosen from the filter menu, not individual toggle buttons.
+      await userEvent.click(dialog.getByRole('button', { name: 'Everything' }));
+      const commands = body.getByRole('menuitemcheckbox', { name: 'Commands', checked: false });
       await userEvent.click(commands);
-      await expect(commands).toHaveAttribute('aria-pressed', 'true');
+      await expect(commands).toHaveAttribute('aria-checked', 'true');
       await expect(dialog.queryByText('read_file')).toBeNull();
    },
 };

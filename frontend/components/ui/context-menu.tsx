@@ -6,6 +6,24 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
+const NARROW = '(max-width: 639px)';
+
+function subscribeNarrow(onChange: () => void) {
+   const query = window.matchMedia(NARROW);
+   query.addEventListener('change', onChange);
+   return () => query.removeEventListener('change', onChange);
+}
+
+// On a phone a submenu has no room beside its parent, so it overlaps the
+// parent's right edge instead of shrinking to a few unreadable pixels.
+function useNarrowViewport() {
+   return React.useSyncExternalStore(
+      subscribeNarrow,
+      () => window.matchMedia(NARROW).matches,
+      () => false
+   );
+}
+
 function ContextMenu({ ...props }: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
    return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />;
 }
@@ -60,13 +78,18 @@ function ContextMenuSubTrigger({
 
 function ContextMenuSubContent({
    className,
+   collisionPadding = 8,
+   sideOffset,
    ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+   const narrow = useNarrowViewport();
    return (
       <ContextMenuPrimitive.SubContent
          data-slot="context-menu-sub-content"
+         collisionPadding={collisionPadding}
+         sideOffset={sideOffset ?? (narrow ? -80 : 0)}
          className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg',
+            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-w-[min(calc(100vw-1rem),var(--radix-context-menu-content-available-width))] min-w-[min(8rem,var(--radix-context-menu-content-available-width))] origin-(--radix-context-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg',
             className
          )}
          {...props}
@@ -76,14 +99,16 @@ function ContextMenuSubContent({
 
 function ContextMenuContent({
    className,
+   collisionPadding = 8,
    ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
    return (
       <ContextMenuPrimitive.Portal>
          <ContextMenuPrimitive.Content
             data-slot="context-menu-content"
+            collisionPadding={collisionPadding}
             className={cn(
-               'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-context-menu-content-available-height) min-w-[8rem] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md',
+               'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-context-menu-content-available-height) max-w-[min(calc(100vw-1rem),var(--radix-context-menu-content-available-width))] min-w-[min(8rem,var(--radix-context-menu-content-available-width))] origin-(--radix-context-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md',
                className
             )}
             {...props}
@@ -133,7 +158,7 @@ function ContextMenuCheckboxItem({
       >
          <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
             <ContextMenuPrimitive.ItemIndicator>
-               <CheckIcon className="size-4" />
+               <CheckIcon className="text-(--primary) size-4" />
             </ContextMenuPrimitive.ItemIndicator>
          </span>
          {children}
@@ -199,7 +224,10 @@ function ContextMenuShortcut({ className, ...props }: React.ComponentProps<'span
    return (
       <span
          data-slot="context-menu-shortcut"
-         className={cn('text-muted-foreground ml-auto tracking-widest', className)}
+         className={cn(
+            'text-muted-foreground ml-auto tracking-widest [@media(hover:none)]:hidden',
+            className
+         )}
          {...props}
       />
    );

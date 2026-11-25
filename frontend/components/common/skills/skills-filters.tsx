@@ -14,7 +14,7 @@ import {
    type ListFilterController,
 } from '@/components/common/filters/list-filters';
 import { createColumnConfigHelper } from '@/components/data-table-filter/core/filters';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { isOrchestrator, type Agent } from '@/lib/agents';
 import { isOrchestratorSkillLabel, isSkillInUse, type Skill } from '@/lib/skills';
@@ -113,6 +113,8 @@ interface Props {
    onQueryChange: (query: string) => void;
    /** Trailing primary action (e.g. New skill), after the list controls. */
    action?: ReactNode;
+   /** Full-width secondary action shown below the filter row on phones (`sm:hidden`). */
+   mobileAction?: ReactNode;
    scope?: SkillScope;
    onScopeChange?: (scope: SkillScope) => void;
    counts?: Record<SkillScope, number | null>;
@@ -124,6 +126,7 @@ export default function SkillsFilters({
    query,
    onQueryChange,
    action,
+   mobileAction,
    scope = 'all',
    onScopeChange,
    counts = { all: 0, archived: null },
@@ -135,15 +138,11 @@ export default function SkillsFilters({
    };
 
    return (
-      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] [&_button]:!h-[30px]">
-         <div className="flex min-w-0 shrink flex-wrap items-center gap-2">
-            <Input
-               className={`${searchFieldClass} w-64 max-sm:w-40`}
-               value={query}
-               onChange={(event) => onQueryChange(event.target.value)}
-               placeholder={t('search')}
-               aria-label={t('search')}
-            />
+      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-2 py-[8px] max-sm:gap-x-1 max-sm:gap-y-2 sm:px-5">
+         {/* On a phone the left group dissolves into the row, so an opened
+             search can take the first line (see ToolbarSearch). */}
+         <div className="flex min-w-0 shrink flex-wrap items-center gap-2 max-sm:contents">
+            <ToolbarSearch label={t('search')} value={query} onChange={onQueryChange} />
             <ListFilterTrigger filter={filter} />
             {action}
          </div>
@@ -163,6 +162,7 @@ export default function SkillsFilters({
                </TabsList>
             </Tabs>
          </div>
+         {mobileAction}
       </div>
    );
 }

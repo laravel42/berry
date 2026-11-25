@@ -14,6 +14,12 @@ const meta = {
       onDirtyChange: fn(),
       onForbidden: fn(),
    },
+   argTypes: {
+      section: {
+         control: 'select',
+         options: ['instructions', 'skills'],
+      },
+   },
    beforeEach: ({ msw }) => {
       msw.use(...storyHandlers);
    },

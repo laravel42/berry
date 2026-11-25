@@ -37,7 +37,7 @@ export const Preferences: Story = {
    parameters: { nextjs: { navigation: workspaceRoute('/elian/settings/preferences') } },
 };
 
-/** Below `lg` the rail is an overlay and carries its close control on the back row. */
+/** Below `md` the rail is an overlay and carries its close control on the back row. */
 export const WithCloseControl: Story = {
    args: {
       trailing: (

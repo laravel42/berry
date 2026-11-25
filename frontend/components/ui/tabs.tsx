@@ -4,23 +4,79 @@ import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 
 import { cn } from '@/lib/utils';
+import { SegmentIndicator, useSegmentGroupId } from './segment-indicator';
 
-function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Root>) {
+/**
+ * Two tab shapes under the "Ledger" redesign, named by the plan (§4 #32):
+ *
+ * - `pill` — a segmented control on a filled track, the selected tab a raised
+ *   pill. Agent detail, filters, the create-agent modal. The default.
+ * - `underline` — flat tabs with a bar under the current one, for a surface
+ *   that already sits inside a bordered header (autopilot detail, reviews).
+ *   The page draws the header's own `border-b`; the trigger draws only the
+ *   active bar, so the two do not double up.
+ *
+ * The variant is set once on `Tabs` and read by `TabsList`/`TabsTrigger`
+ * through context, so a caller cannot put a pill trigger in an underline list.
+ *
+ * On `pill` the raised fill is one `SegmentIndicator` that slides to the tab
+ * chosen. `Tabs` keeps the current value (controlled or not) in context so
+ * each trigger knows whether the fill is its own to draw.
+ */
+type TabsVariant = 'pill' | 'underline';
+
+const TabsVariantContext = React.createContext<TabsVariant>('pill');
+const TabsValueContext = React.createContext<{ value: string | undefined; groupId: string }>({
+   value: undefined,
+   groupId: '',
+});
+
+function Tabs({
+   className,
+   variant = 'pill',
+   value: valueProp,
+   defaultValue,
+   onValueChange,
+   ...props
+}: React.ComponentProps<typeof TabsPrimitive.Root> & { variant?: TabsVariant }) {
+   const groupId = useSegmentGroupId();
+   const [uncontrolled, setUncontrolled] = React.useState(defaultValue);
+   const value = valueProp ?? uncontrolled;
+   const handleChange = React.useCallback(
+      (next: string) => {
+         setUncontrolled(next);
+         onValueChange?.(next);
+      },
+      [onValueChange]
+   );
+   const current = React.useMemo(() => ({ value, groupId }), [value, groupId]);
    return (
-      <TabsPrimitive.Root
-         data-slot="tabs"
-         className={cn('flex flex-col gap-2', className)}
-         {...props}
-      />
+      <TabsVariantContext.Provider value={variant}>
+         <TabsValueContext.Provider value={current}>
+            <TabsPrimitive.Root
+               data-slot="tabs"
+               className={cn('flex flex-col gap-2', className)}
+               value={value}
+               onValueChange={handleChange}
+               {...props}
+            />
+         </TabsValueContext.Provider>
+      </TabsVariantContext.Provider>
    );
 }
 
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
+   const variant = React.useContext(TabsVariantContext);
    return (
       <TabsPrimitive.List
          data-slot="tabs-list"
+         data-variant={variant}
          className={cn(
-            'inline-flex h-7 w-fit items-center justify-center rounded-[7px] bg-segment-track p-0.5 text-muted-foreground',
+            'inline-flex w-fit items-center text-muted-foreground',
+            variant === 'pill'
+               ? // Dark: a hairline edge, so the box reads against the canvas.
+                 'h-(--field-h) justify-center rounded-[8px] bg-segment-track p-[3px] dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]'
+               : 'h-10 gap-1 bg-transparent p-0',
             className
          )}
          {...props}
@@ -28,16 +84,54 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
    );
 }
 
-function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+function TabsTrigger({
+   className,
+   children,
+   ...props
+}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+   const variant = React.useContext(TabsVariantContext);
+   const { value, groupId } = React.useContext(TabsValueContext);
+   const selected = variant === 'pill' && value === props.value;
    return (
       <TabsPrimitive.Trigger
          data-slot="tabs-trigger"
          className={cn(
-            "data-[state=active]:bg-segment-selected data-[state=active]:text-foreground inline-flex h-6 items-center justify-center gap-1.5 rounded-[5px] px-3 font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:ring-primary/40 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+            "inline-flex items-center justify-center gap-1.5 whitespace-nowrap font-medium transition-[color,box-shadow] focus-visible:ring-2 focus-visible:ring-foreground/20 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+            variant === 'pill'
+               ? 'relative isolate h-full rounded-[5px] px-3 transition-colors hover:text-foreground data-[state=active]:text-foreground'
+               : 'h-10 rounded-none border-b-2 border-transparent px-3 py-2 data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none',
             className
          )}
          {...props}
-      />
+      >
+         {withIndicator(
+            children,
+            props.asChild,
+            selected ? <SegmentIndicator layoutId={groupId} /> : null
+         )}
+      </TabsPrimitive.Trigger>
+   );
+}
+
+/**
+ * Puts the indicator beside the label. With `asChild` the trigger must keep a
+ * single child for Radix's `Slot`, so the indicator goes inside that child
+ * (a `Link`, say) instead of next to it.
+ */
+function withIndicator(
+   children: React.ReactNode,
+   asChild: boolean | undefined,
+   indicator: React.ReactNode
+): React.ReactNode {
+   if (!indicator) return children;
+   if (asChild && React.isValidElement<{ children?: React.ReactNode }>(children)) {
+      return React.cloneElement(children, undefined, indicator, children.props.children);
+   }
+   return (
+      <>
+         {indicator}
+         {children}
+      </>
    );
 }
 

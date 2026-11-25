@@ -6,6 +6,12 @@ const meta = {
    component: ProjectDateSelector,
    tags: ['ai-generated', 'needs-work'],
    args: { label: 'Target', onChange: fn() },
+   argTypes: {
+      layout: {
+         control: 'select',
+         options: ['chip', 'row'],
+      },
+   },
 } satisfies Meta<typeof ProjectDateSelector>;
 
 export default meta;

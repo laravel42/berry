@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { IssueArtifacts } from '@/components/common/issues/details/issue-artifacts';
@@ -186,14 +187,14 @@ export function ReviewDetail({
       <div className="flex h-full flex-col overflow-hidden">
          <div className="flex min-h-10 min-w-0 shrink-0 items-center gap-2 border-b px-4 py-2">
             {onBack && (
-               <button
-                  type="button"
+               <Button
+                  variant="ghost"
                   onClick={onBack}
-                  className="-ml-1 inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none lg:hidden"
+                  className="-ml-2 shrink-0 px-0 text-muted-foreground lg:hidden"
                   aria-label={t('detail.backToList')}
                >
                   <ArrowLeft className="size-4" aria-hidden />
-               </button>
+               </Button>
             )}
             <ReviewDeliveryLine item={item} onDecided={decided} className="min-w-0 flex-1" />
          </div>
@@ -203,7 +204,7 @@ export function ReviewDetail({
             className="flex min-h-0 flex-1 flex-col gap-0"
          >
             <div className="flex shrink-0 items-center border-b px-4 py-[6px]">
-               <TabsList className="h-8">
+               <TabsList>
                   <TabsTrigger value="overview">{t('sections.overview')}</TabsTrigger>
                   {item.issue.autoGate && (
                      <TabsTrigger value="guide">

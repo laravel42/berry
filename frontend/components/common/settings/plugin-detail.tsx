@@ -173,7 +173,9 @@ export default function PluginDetail({
    const frame = (children: ReactNode) =>
       embedded ? (
          <div className="settings-surface min-h-0 flex-1 overflow-y-auto">
-            <div className="flex flex-col gap-6 px-6 py-6 pb-16">{children}</div>
+            <div className="flex flex-col gap-6 px-6 pt-6 pb-8 md:pb-[var(--shell-launcher-room)]">
+               {children}
+            </div>
          </div>
       ) : (
          <SettingsShell title={current.name} description={description}>
@@ -190,7 +192,6 @@ export default function PluginDetail({
                   description="A disabled plugin receives no calls and its tokens stop working."
                   trailing={
                      <Switch
-                        variant="settings"
                         checked={current.enabled}
                         disabled={plugin.saving}
                         onCheckedChange={(v) => void toggle(v)}
@@ -221,16 +222,16 @@ export default function PluginDetail({
                         <SettingsCard>
                            {setupSecrets.map((secret) => (
                               <SettingsRow
+                                 wide
                                  key={secret.name}
                                  title={secret.title ?? secret.name}
                                  description={secret.set ? 'Set' : secret.description || 'Not set'}
                                  trailing={
                                     <span className="flex items-center gap-2">
                                        <Input
-                                          variant="settings"
                                           type="password"
                                           autoComplete="off"
-                                          className="h-8 w-44"
+                                          className="w-44 max-sm:min-w-0 max-sm:flex-1"
                                           placeholder={secret.set ? 'Replace…' : 'Value'}
                                           value={secretDrafts[secret.name] ?? ''}
                                           onChange={(event) =>
@@ -241,6 +242,7 @@ export default function PluginDetail({
                                           }
                                        />
                                        <Button
+                                          size="sm"
                                           variant="quiet"
                                           onClick={() => void saveSecret(secret.name)}
                                        >
@@ -254,6 +256,7 @@ export default function PluginDetail({
                      ) : null}
                      {current.configFields.length > 0 ? (
                         <Button
+                           size="sm"
                            variant="quiet"
                            disabled={plugin.saving}
                            onClick={() => void saveConfig()}
@@ -273,7 +276,7 @@ export default function PluginDetail({
                               : 'Not connected. Sign in to list tools and let agents call them.'
                         }
                         trailing={
-                           <Button disabled={connecting} onClick={() => void connect()}>
+                           <Button size="sm" disabled={connecting} onClick={() => void connect()}>
                               {connecting ? 'Connecting…' : connected ? 'Reconnect' : 'Connect'}
                            </Button>
                         }
@@ -289,16 +292,16 @@ export default function PluginDetail({
                <SettingsCard>
                   {current.secrets.map((secret) => (
                      <SettingsRow
+                        wide
                         key={secret.name}
                         title={secret.title ?? secret.name}
                         description={secret.set ? 'Set' : secret.description || 'Not set'}
                         trailing={
                            <span className="flex items-center gap-2">
                               <Input
-                                 variant="settings"
                                  type="password"
                                  autoComplete="off"
-                                 className="h-8 w-44"
+                                 className="w-44 max-sm:min-w-0 max-sm:flex-1"
                                  placeholder={secret.set ? 'Replace…' : 'Value'}
                                  value={secretDrafts[secret.name] ?? ''}
                                  onChange={(event) =>
@@ -308,11 +311,16 @@ export default function PluginDetail({
                                     }))
                                  }
                               />
-                              <Button variant="quiet" onClick={() => void saveSecret(secret.name)}>
+                              <Button
+                                 size="sm"
+                                 variant="quiet"
+                                 onClick={() => void saveSecret(secret.name)}
+                              >
                                  Save
                               </Button>
                               {secret.set ? (
                                  <Button
+                                    size="sm"
                                     variant="quiet"
                                     onClick={() => void clearSecret(secret.name)}
                                  >
@@ -379,7 +387,6 @@ export default function PluginDetail({
                         description={toolSummary(tool.description) || undefined}
                         trailing={
                            <Switch
-                              variant="settings"
                               checked={tool.approved}
                               disabled={plugin.saving}
                               onCheckedChange={(v) => void approve(tool.name, v)}
@@ -436,7 +443,7 @@ export default function PluginDetail({
             title="Recent calls"
             description={invocations.error ?? undefined}
             action={
-               <Button variant="quiet" onClick={() => invocations.reload()}>
+               <Button size="sm" variant="quiet" onClick={() => invocations.reload()}>
                   Refresh
                </Button>
             }
@@ -472,6 +479,7 @@ export default function PluginDetail({
                   description="Deletes its settings, secrets, storage and history."
                   trailing={
                      <Button
+                        size="sm"
                         variant="quiet"
                         className="text-status-danger hover:text-status-danger"
                         onClick={() => setConfirmingUninstall(true)}

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { BerryMark, ShellIcon, shellNavRow } from './shell-icon';
+import { BerryMark, ShellIcon, ShellNavIcon, shellNavRow } from './shell-icon';
 
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
 const CHAT_ICON = '<path d="M4 5h16v11H9l-5 4z" />';
@@ -33,11 +33,15 @@ export const InNavRows: Story = {
             <span className="font-display">Berry</span>
          </div>
          <span className={shellNavRow(true)}>
-            <ShellIcon {...args} />
+            <ShellNavIcon on>
+               <ShellIcon {...args} size={13} />
+            </ShellNavIcon>
             Inbox
          </span>
          <span className={shellNavRow(false)}>
-            <ShellIcon path={CHAT_ICON} />
+            <ShellNavIcon on={false}>
+               <ShellIcon path={CHAT_ICON} size={13} />
+            </ShellNavIcon>
             Agent
          </span>
       </div>

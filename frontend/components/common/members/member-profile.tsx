@@ -2,8 +2,9 @@
 
 import { applyIssueFilters } from '@/components/common/issues/issue-filter-columns';
 import { GroupedIssuesView } from '@/components/common/issues/grouped-issues-view';
-import { InsightsPanel } from '@/components/common/issues/insights-panel';
+import { InsightsPanel } from '@/components/common/issues/insights-panel-lazy';
 import { IssueFilterBar } from '@/components/common/issues/issue-filter-bar';
+import { useIssueListLoad } from '@/components/common/issues/list-states';
 import { SearchIssues } from '@/components/common/issues/search-issues';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -93,7 +94,9 @@ function useClientTimes(member: User) {
  * priority / project breakdowns.
  */
 export default function MemberProfile({ member }: { member: User }) {
-   const { issues } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
+   const load = useIssueListLoad();
+   const loadingMore = load.loadState === 'loading' && issues.length > 0;
    const workspaceLabels = useLabelsStore((state) => state.labels);
    const workspaceProjects = useProjectsStore((state) => state.projects);
    const [activeTab] = useQueryState('tab', parseAsString.withDefault('assigned'));
@@ -101,7 +104,15 @@ export default function MemberProfile({ member }: { member: User }) {
    const { isSearchOpen, searchQuery } = useSearchStore();
    const { viewType } = useViewStore();
    const { filters } = useFilterStore();
-   const { openPanel } = useRightPanelStore();
+   const { openPanel, openPanelOfType } = useRightPanelStore();
+
+   // The profile panel is open by default (openPanel null). Below lg it is an
+   // overlay, so start it closed there or it covers the issue list on arrival.
+   useEffect(() => {
+      if (window.matchMedia('(max-width: 1023px)').matches) {
+         if (useRightPanelStore.getState().openPanel === null) openPanelOfType('hidden');
+      }
+   }, [openPanelOfType]);
 
    const isSearching = isSearchOpen && searchQuery.trim() !== '';
    const isViewTypeGrid = viewType === 'grid';
@@ -187,7 +198,7 @@ export default function MemberProfile({ member }: { member: User }) {
    return (
       <div className="w-full h-full flex flex-col overflow-hidden">
          <IssueFilterBar />
-         <div className="flex-1 min-h-0 w-full flex overflow-hidden">
+         <div className="relative flex-1 min-h-0 w-full flex overflow-hidden">
             {/* Issues */}
             <div className="flex-1 min-w-0 h-full overflow-hidden">
                <GroupedIssuesView
@@ -195,19 +206,20 @@ export default function MemberProfile({ member }: { member: User }) {
                   totalIssues={scopedIssues}
                   statuses={displayOrderedStatus}
                   isViewTypeGrid={isViewTypeGrid}
+                  loadingMore={loadingMore}
                />
             </div>
 
             {openPanel === 'insights' && (
-               <aside className="hidden lg:flex w-[420px] shrink-0 border-l h-full overflow-hidden bg-container">
+               <aside className="absolute inset-0 z-20 flex w-full shrink-0 h-full overflow-hidden bg-container lg:static lg:z-auto lg:w-[420px] lg:border-l">
                   <InsightsPanel issues={displayedIssues} />
                </aside>
             )}
 
             {/* Profile panel */}
             {openPanel !== 'hidden' && openPanel !== 'insights' && (
-               <aside className="hidden lg:flex flex-col w-[340px] shrink-0 border-l h-full overflow-y-auto bg-container">
-                  <div className="px-5 pt-5 pb-4 border-b">
+               <aside className="absolute inset-0 z-20 flex flex-col w-full shrink-0 h-full overflow-y-auto bg-container lg:static lg:z-auto lg:w-[340px] lg:border-l">
+                  <div className="border-b px-2 pt-5 pb-4 sm:px-5">
                      <div className="flex items-center gap-3">
                         <div className="relative">
                            <Avatar className="size-9">
@@ -229,7 +241,7 @@ export default function MemberProfile({ member }: { member: User }) {
                      </div>
                   </div>
 
-                  <div className="px-5 py-4 border-b flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-2.5 border-b px-2 py-4 sm:px-5">
                      <div className="flex items-start justify-between gap-4">
                         <span className="text-muted-foreground shrink-0">Email</span>
                         <span className="truncate">{member.email}</span>
@@ -267,9 +279,9 @@ export default function MemberProfile({ member }: { member: User }) {
                      </div>
                   </div>
 
-                  <div className="px-5 py-4">
+                  <div className="px-2 py-4 sm:px-5">
                      <Tabs defaultValue="labels">
-                        <TabsList className="h-8 bg-transparent gap-1 p-0">
+                        <TabsList className="bg-transparent gap-1 p-0">
                            <TabsTrigger value="labels" className="px-2.5 rounded-full">
                               Labels
                            </TabsTrigger>

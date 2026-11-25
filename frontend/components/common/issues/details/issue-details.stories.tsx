@@ -47,14 +47,15 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const AgentAtWork: Story = {
-   play: async ({ canvas }) => {
+   play: async ({ canvas, userEvent }) => {
       await expect(
          canvas.getByRole('heading', { level: 1, name: 'Persist project health and updates' })
       ).toBeInTheDocument();
-      // Comments and runs arrive after the task itself, in one list: the
-      // running run is an entry with Cancel. No Files or Execution log section.
+      // Comments and runs arrive after the task itself, in one list; the
+      // running run itself lives in the console, folded until opened, with Stop.
       await expect(await canvas.findByText(/the endpoint change is next/)).toBeInTheDocument();
-      await expect(await canvas.findByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+      await userEvent.click(await canvas.findByRole('button', { name: /Console/ }));
+      await expect(await canvas.findByRole('button', { name: 'Stop' })).toBeInTheDocument();
       await expect(canvas.queryByText(/^Files/)).not.toBeInTheDocument();
       await expect(canvas.queryByText('Execution log')).not.toBeInTheDocument();
    },
@@ -69,8 +70,10 @@ export const InReview: Story = {
          )
       );
    },
-   play: async ({ canvas }) => {
-      // The delivered run is an Activity entry; the decision is on the Reviews page.
+   play: async ({ canvas, userEvent }) => {
+      // The delivered run sits in the console, folded until opened; its
+      // review decision is on the Reviews page, not this feed.
+      await userEvent.click(await canvas.findByRole('button', { name: 'Console' }));
       await expect(await canvas.findByText('succeeded')).toBeInTheDocument();
       await expect(canvas.queryByText('Execution log')).not.toBeInTheDocument();
    },

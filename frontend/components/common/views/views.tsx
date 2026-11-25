@@ -30,11 +30,12 @@ import {
 import { cn } from '@/lib/utils';
 import { View } from '@/data/views';
 import { PinToggle } from '@/components/common/issues/details/issue-pin-button';
+import { SegmentedControl } from '@/components/common/segmented-control';
 import { deleteSavedView, loadWorkspaceViews } from '@/lib/views';
 import { useSessionStore } from '@/store/session-store';
 import { useViewsStore } from '@/store/views-store';
 import { useViewsDisplayStore, ViewsOrdering } from '@/store/views-display-store';
-import { ArrowDown, MoreHorizontal, Plus, SlidersHorizontal } from 'lucide-react';
+import { ArrowDown, MoreHorizontal, SlidersHorizontal } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -42,6 +43,8 @@ import { parseAsStringLiteral, useQueryState } from 'nuqs';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { SaveViewDialog } from './save-view-dialog';
+import { ManageViewsButton } from './saved-views-bar';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 const TABS = ['issues', 'projects'] as const;
 
@@ -70,8 +73,13 @@ function DisplayOptions() {
    return (
       <Popover>
          <PopoverTrigger asChild>
-            <Button size="xs" variant="ghost" aria-label="Display options">
-               <SlidersHorizontal className="size-4" />
+            <Button
+               size="icon-sm"
+               variant="ghost"
+               aria-label="Display options"
+               title="Display options"
+            >
+               <SlidersHorizontal className="size-4" aria-hidden />
             </Button>
          </PopoverTrigger>
          <PopoverContent align="end" className="w-72 p-3 flex flex-col gap-3">
@@ -81,7 +89,7 @@ function DisplayOptions() {
                   value={ordering}
                   onValueChange={(value) => setOrdering(value as ViewsOrdering)}
                >
-                  <SelectTrigger className="w-32 h-7">
+                  <SelectTrigger className="w-32">
                      <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -136,10 +144,10 @@ function ViewRow({
    const { displayProperties } = useViewsDisplayStore();
 
    return (
-      <div className="flex items-center gap-1 pr-4 border-b border-border/50 hover:bg-sidebar/50 transition-colors">
+      <div className="flex items-center gap-1 pr-4 border-b border-border/50 hover:bg-accent/45 transition-colors">
          <Link
             href={`/${orgId}/view/${view.id}`}
-            className="flex flex-1 min-w-0 items-center gap-3 px-6 py-2.5"
+            className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2.5 sm:px-6"
          >
             <span className="inline-flex size-6 items-center justify-center rounded bg-muted/50 shrink-0">
                {view.icon}
@@ -159,12 +167,14 @@ function ViewRow({
                </span>
             )}
             {displayProperties.owner && (
-               <span className="flex items-center gap-1.5 w-32 shrink-0 justify-end">
+               <span className="flex items-center gap-1.5 w-32 max-sm:w-auto shrink-0 justify-end">
                   <Avatar className="size-4">
                      <AvatarImage src={view.owner.avatarUrl} alt={view.owner.name} />
                      <AvatarFallback>{view.owner.name[0]}</AvatarFallback>
                   </Avatar>
-                  <span className="text-muted-foreground truncate max-w-24">{view.owner.name}</span>
+                  <span className="text-muted-foreground truncate max-w-24 max-sm:sr-only">
+                     {view.owner.name}
+                  </span>
                </span>
             )}
          </Link>
@@ -201,6 +211,7 @@ function ViewRow({
 /** "Views" page: the workspace's saved issue / project views. */
 export default function Views() {
    const t = useTranslations('issueLists');
+   const common = useTranslations('common');
    const { orgId } = useParams<{ orgId: string }>();
    const [tab, setTab] = useQueryState('tab', parseAsStringLiteral(TABS).withDefault('issues'));
    const { ordering } = useViewsDisplayStore();
@@ -208,8 +219,8 @@ export default function Views() {
    const workspaceId = useSessionStore((state) => state.workspace?.id ?? '');
    const user = useSessionStore((state) => state.user);
    const hydrateViews = useViewsStore((state) => state.hydrateViews);
+   const viewsLoaded = useViewsStore((state) => state.loaded);
    const [editing, setEditing] = useState<View | undefined>();
-   const [creating, setCreating] = useState(false);
    const [deleting, setDeleting] = useState<View | undefined>();
 
    useEffect(() => {
@@ -237,35 +248,25 @@ export default function Views() {
 
    return (
       <div className="w-full h-full overflow-y-auto">
-         <div className="flex items-center justify-between px-6 pt-3 pb-2">
-            <div className="flex items-center gap-1.5">
-               {TABS.map((candidate) => (
-                  <button
-                     key={candidate}
-                     onClick={() => setTab(candidate)}
-                     className={cn(
-                        'px-2.5 py-1 rounded-md border font-medium capitalize transition-colors',
-                        tab === candidate
-                           ? 'bg-accent border-transparent'
-                           : 'text-muted-foreground hover:bg-accent/50'
-                     )}
-                  >
-                     {candidate}
-                  </button>
-               ))}
-            </div>
+         <div className="flex items-center justify-between gap-2 px-2 pt-3 pb-2 sm:px-6">
+            <SegmentedControl
+               aria-label="View type"
+               options={TABS.map((value) => ({
+                  value,
+                  label: <span className="capitalize">{value}</span>,
+               }))}
+               value={tab}
+               onValueChange={(next) => void setTab(next)}
+            />
             <div className="flex items-center gap-1">
-               <Button size="xs" variant="ghost" onClick={() => setCreating(true)}>
-                  <Plus className="mr-1 size-3.5" />
-                  {t('views.newView')}
-               </Button>
+               <ManageViewsButton iconOnly />
                <DisplayOptions />
             </div>
          </div>
 
          <div
             data-heading="label"
-            className="flex h-9 items-center gap-1 border-b px-5 text-subtle-foreground"
+            className="flex h-9 items-center gap-1 border-b px-2 text-subtle-foreground sm:px-5"
          >
             {t('views.name')}
             <ArrowDown className="size-3" />
@@ -280,13 +281,13 @@ export default function Views() {
                onDelete={() => setDeleting(view)}
             />
          ))}
-         {list.length === 0 && (
+         {list.length === 0 && !viewsLoaded && <ListSkeleton label={common('loading')} />}
+         {list.length === 0 && viewsLoaded && (
             <div className="flex items-center justify-center py-16 text-muted-foreground">
                {t('states.empty')}
             </div>
          )}
 
-         <SaveViewDialog open={creating} onOpenChange={setCreating} />
          <SaveViewDialog
             open={editing !== undefined}
             onOpenChange={(open) => {

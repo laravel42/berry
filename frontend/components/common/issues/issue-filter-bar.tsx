@@ -1,6 +1,6 @@
 'use client';
 
-import { ActiveFilters } from '@/components/data-table-filter/components/active-filters';
+import { LazyActiveFilters } from '@/components/common/filters/list-filters-lazy';
 import { useDataTableFilters } from '@/components/data-table-filter/hooks/use-data-table-filters';
 import { IssueFilterBarActions } from '@/components/common/issues/issue-filter-bar-actions';
 import { useFilterStore } from '@/store/filter-store';
@@ -17,7 +17,15 @@ export function IssueFilterBar({
    /** When false, Clear / save live elsewhere (e.g. the Tasks header). */
    showActions?: boolean;
 }) {
-   const { issues } = useIssuesStore();
+   // Reading only the count keeps the issues and the filter columns out of the
+   // render path while no filter is applied.
+   const { filters } = useFilterStore();
+   if (filters.length === 0) return null;
+   return <IssueFilterChips showActions={showActions} />;
+}
+
+function IssueFilterChips({ showActions }: { showActions: boolean }) {
+   const issues = useIssuesStore((state) => state.issues);
    const { filters, setFilters } = useFilterStore();
    const issueFilterColumns = useIssueFilterColumns();
 
@@ -34,12 +42,10 @@ export function IssueFilterBar({
       onFiltersChange: setFilters,
    });
 
-   if (filters.length === 0) return null;
-
    return (
       <div className="flex w-full items-start gap-2 border-b border-border/60 bg-container px-6 py-2">
          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <ActiveFilters
+            <LazyActiveFilters
                columns={columns}
                filters={filters}
                actions={actions}

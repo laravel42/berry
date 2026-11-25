@@ -1,7 +1,8 @@
-import { FloatingChat } from '@/components/common/chat/floating-chat';
+import { FloatingChatLazy } from '@/components/common/chat/floating-chat-lazy';
+import { PendingDetailDrawer } from '@/components/layout/pending-detail-drawer';
 import { BerryShell } from '@/components/layout/shell/berry-shell';
 import { WorkspaceAccess } from '@/components/common/workspace-access';
-import { CreateWorkspaceDialog } from '@/components/common/workspaces/create-workspace-dialog';
+import { CreateWorkspaceDialogLazy } from '@/components/common/workspaces/create-workspace-dialog-lazy';
 
 /**
  * Workspace layout: the shell frames every workspace route.
@@ -29,13 +30,15 @@ export default function OrgLayout({
          <WorkspaceAccess>
             {children}
             {drawer}
+            {/* The drawer, sketched in, between a click and its route landing. */}
+            <PendingDetailDrawer />
          </WorkspaceAccess>
          {/* Chat from anywhere except the chat page, which is this window's
              full-size counterpart. Outside the access gate on purpose: it is
              shell, not a page, and it hides itself when there is no workspace. */}
-         <FloatingChat />
+         <FloatingChatLazy />
          {/* Opened from the workspace menu, which unmounts as it closes. */}
-         <CreateWorkspaceDialog />
+         <CreateWorkspaceDialogLazy />
       </BerryShell>
    );
 }

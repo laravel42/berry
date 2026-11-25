@@ -62,6 +62,7 @@ export const LinkRepository: Story = {
 
 /** A connection listing does not offer an App install. */
 export const PublicOnly: Story = {
+   args: { project: projectInbox },
    beforeEach: ({ msw }) => {
       msw.use(
          http.get('*/api/v1/integrations/github/repositories', () =>
@@ -89,6 +90,7 @@ export const PublicOnly: Story = {
 
 /** A failed load is shown as a failure, not as an empty list. */
 export const LoadFails: Story = {
+   args: { project: projectInbox },
    beforeEach: ({ msw }) => {
       msw.use(
          http.get('*/api/v1/integrations/github/repositories', () =>

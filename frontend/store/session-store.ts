@@ -1,14 +1,25 @@
 import { create } from 'zustand';
 import type { User } from '@/data/users';
-import { BerryApiError } from '@/lib/api';
+import { BerryApiError, resetSharedRequests } from '@/lib/api';
 import { devLogin, fetchBootstrap, logoutSession, type BootstrapWorkspace } from '@/lib/auth';
 import { AUTO_LOGIN_EMAIL } from '@/lib/config';
 import { listBoards, selectBoardId } from '@/lib/boards';
 import { toUiUser } from '@/lib/catalog';
 import { isLocale, type Locale } from '@/lib/i18n/locales';
+import { isThemePreference, type ThemePreference } from '@/lib/theme/theme';
 import { selectWorkspace } from '@/lib/workspaces';
 
 export type SessionStatus = 'booting' | 'anonymous' | 'ready';
+
+// Server clock minus client clock, in ms, from the last bootstrap. Event
+// streams ask the server for "everything since" a moment, and that moment must
+// be on the server's clock, not on one that may be minutes off.
+let serverClockOffsetMs = 0;
+
+/** The server's current time, estimated from the offset bootstrap reported. */
+export function serverNow(): Date {
+   return new Date(Date.now() + serverClockOffsetMs);
+}
 
 export interface SessionWorkspace {
    id: string;
@@ -30,8 +41,17 @@ interface SessionState {
    preferredLocale: Locale | null;
    /** Settings calls this after saving, so LocaleSync does not revert the choice. */
    setPreferredLocale: (locale: Locale) => void;
+   /** The account's theme preference, from bootstrap; null when anonymous. */
+   preferredTheme: ThemePreference | null;
+   /** Settings calls this after saving, so ThemeSync does not revert the choice. */
+   setPreferredTheme: (theme: ThemePreference) => void;
    error: string | null;
-   hydrateFromStorage: () => Promise<void>;
+   /**
+    * `hasSession` is whether the page was served with a session cookie. Only
+    * `false` changes anything: bootstrap is asked first and the board list only
+    * if it answers, so an anonymous visit does not request `/boards` for nothing.
+    */
+   hydrateFromStorage: (hasSession?: boolean) => Promise<void>;
    signOut: () => Promise<void>;
    /** Drops to anonymous locally, without a server round trip (sign-out fallback). */
    markAnonymous: () => void;
@@ -74,12 +94,30 @@ const toSessionWorkspace = (workspace: BootstrapWorkspace): SessionWorkspace => 
    role: workspace.role,
 });
 
-async function loadReadyState(): Promise<
-   Pick<SessionState, 'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale'>
+async function loadReadyState(
+   hasSession = true
+): Promise<
+   Pick<
+      SessionState,
+      'user' | 'workspace' | 'workspaces' | 'boardId' | 'preferredLocale' | 'preferredTheme'
+   >
 > {
-   const bootstrap = await fetchBootstrap();
+   // Both at once: the board list is per account and needs nothing from
+   // bootstrap. A bootstrap failure still rejects here as before (callers
+   // tell anonymous from unreachable by it); listBoards never rejects.
+   // Without a session cookie bootstrap goes first, so an anonymous visitor
+   // (a 401 here) never asks for boards. With a cookie nothing is serialised.
+   let bootstrap: Awaited<ReturnType<typeof fetchBootstrap>>;
+   let boards: Awaited<ReturnType<typeof listBoards>>;
+   if (hasSession) {
+      [bootstrap, boards] = await Promise.all([fetchBootstrap(), listBoards()]);
+   } else {
+      bootstrap = await fetchBootstrap();
+      boards = await listBoards();
+   }
+   const serverAt = bootstrap.serverTime ? Date.parse(bootstrap.serverTime) : Number.NaN;
+   serverClockOffsetMs = Number.isNaN(serverAt) ? 0 : serverAt - Date.now();
    const workspace = pickWorkspace(bootstrap.workspaces, bootstrap.currentWorkspaceId);
-   const boards = await listBoards();
    return {
       user: toUiUser({
          id: bootstrap.user.id,
@@ -94,6 +132,9 @@ async function loadReadyState(): Promise<
       preferredLocale: isLocale(bootstrap.user.settings.locale)
          ? bootstrap.user.settings.locale
          : null,
+      preferredTheme: isThemePreference(bootstrap.user.settings.theme)
+         ? bootstrap.user.settings.theme
+         : null,
    };
 }
 
@@ -104,6 +145,7 @@ const ANONYMOUS = {
    workspaces: [] as SessionWorkspace[],
    boardId: null,
    preferredLocale: null,
+   preferredTheme: null,
    error: null,
 };
 
@@ -114,11 +156,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
    workspaces: [],
    boardId: null,
    preferredLocale: null,
+   preferredTheme: null,
    error: null,
 
    setPreferredLocale: (locale) => set({ preferredLocale: locale }),
 
-   hydrateFromStorage: async () => {
+   setPreferredTheme: (theme) => set({ preferredTheme: theme }),
+
+   hydrateFromStorage: async (hasSession = true) => {
       // The session is a cookie the browser sends on its own, so "is anyone
       // signed in" is simply whether bootstrap answers. A 401 is the normal
       // anonymous answer, not an error worth showing. Any other failure
@@ -126,7 +171,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // that bounced people to /sign-in whenever the server briefly refused
       // connections.
       try {
-         const ready = await loadReadyState();
+         const ready = await loadReadyState(hasSession);
+         resetSharedRequests();
          set({ status: 'ready', error: null, ...ready });
          return;
       } catch (error) {
@@ -146,6 +192,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
          try {
             await devLogin(AUTO_LOGIN_EMAIL);
             const ready = await loadReadyState();
+            resetSharedRequests();
             set({ status: 'ready', error: null, ...ready });
             return;
          } catch {
@@ -153,15 +200,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
          }
       }
 
+      resetSharedRequests();
       set({ ...ANONYMOUS });
    },
 
    signOut: async () => {
       await logoutSession();
+      resetSharedRequests();
       set({ ...ANONYMOUS });
    },
 
-   markAnonymous: () => set({ ...ANONYMOUS }),
+   markAnonymous: () => {
+      resetSharedRequests();
+      set({ ...ANONYMOUS });
+   },
 
    refreshWorkspaces: async () => {
       const ready = await loadReadyState();
@@ -185,3 +237,21 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       return target;
    },
 }));
+
+// The board is remembered in a cookie so the root layout can start the first page
+// of its tasks from the HTML, before bootstrap and boards have answered. Nothing
+// else reads it, and a stale value only wastes that one preload.
+const BOARD_COOKIE = 'berry_board';
+
+function writeBoardCookie(boardId: string | null): void {
+   if (typeof document === 'undefined') return;
+   document.cookie = boardId
+      ? `${BOARD_COOKIE}=${encodeURIComponent(boardId)}; path=/; max-age=31536000; samesite=lax`
+      : `${BOARD_COOKIE}=; path=/; max-age=0; samesite=lax`;
+}
+
+useSessionStore.subscribe((state, previous) => {
+   const next = state.status === 'ready' ? state.boardId : null;
+   const before = previous.status === 'ready' ? previous.boardId : null;
+   if (next !== before || state.status !== previous.status) writeBoardCookie(next);
+});

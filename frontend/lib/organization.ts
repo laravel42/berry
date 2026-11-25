@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { apiFetch } from './api';
+import { newIdempotencyKey } from './api-schemas';
 
 /**
  * Zod 3 mirror of the server's stored role contract document (snake_case, as
@@ -239,6 +240,6 @@ export async function decideProposal(
    await apiFetch(`/api/v1/approvals/${encodeURIComponent(approvalId)}/${decision}`, {
       method: 'POST',
       body: JSON.stringify(note ? { note } : {}),
-      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      headers: { 'Idempotency-Key': newIdempotencyKey() },
    });
 }

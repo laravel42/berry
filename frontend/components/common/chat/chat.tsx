@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { MoreHorizontal, Pin } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -42,9 +43,14 @@ import { useVoiceAgentsAvailable } from '@/hooks/use-voice-agents';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
 import { ChatComposer } from './chat-composer';
-import { VoiceSessionModal } from './voice-session-modal';
 import { ChatDelegatedWork, ChatQueue } from './chat-tasks-panel';
 import { ChatThread as ThreadView } from './chat-thread';
+
+// LiveKit and its styles load with the voice session, not with the chat route.
+const VoiceSessionModal = dynamic(
+   () => import('./voice-session-modal').then((m) => m.VoiceSessionModal),
+   { ssr: false }
+);
 
 const PAGE = 50;
 
@@ -101,7 +107,14 @@ export function Chat() {
    const [title, setTitle] = useState('');
    const [deleting, setDeleting] = useState(false);
    const [voiceOpen, setVoiceOpen] = useState(false);
+   // The voice session mounts on its first open, so its chunk is fetched only
+   // then, and stays mounted afterwards so closing it behaves as before.
+   const [voiceMounted, setVoiceMounted] = useState(false);
    const voiceAvailable = useVoiceAgentsAvailable();
+   const openVoice = () => {
+      setVoiceMounted(true);
+      setVoiceOpen(true);
+   };
 
    const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const pendingRenames = useRef(new Map<string, PendingRename>());
@@ -542,7 +555,10 @@ export function Chat() {
             : null;
 
    return (
-      <div className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]">
+      <div
+         data-chat-surface
+         className="flex h-full min-h-0 flex-col bg-[var(--shell-canvas)] text-[var(--shell-text)]"
+      >
          <h1 className="sr-only">{t('title')}</h1>
          <section className="flex min-h-0 min-w-0 flex-1 flex-col">
             {/* The rail already says Agent; a renamed topic is the only title. */}
@@ -565,7 +581,7 @@ export function Chat() {
                               commitRename(active.id, title);
                            }
                         }}
-                        className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] outline-none focus-visible:border-ring"
+                        className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] [--input-color:var(--shell-text)] [--placeholder-color:var(--shell-text-dim)] outline-none focus-visible:border-ring"
                      />
                   ) : agentName && !topicIsAgentName ? (
                      // The conversation's own name, one step back from the
@@ -577,7 +593,7 @@ export function Chat() {
                            setRenaming(true);
                         }}
                         title={t('rename')}
-                        className="min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+                        className="h-(--field-h) min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
                      >
                         {active.topic}
                      </button>
@@ -597,7 +613,7 @@ export function Chat() {
                         <button
                            type="button"
                            aria-label={t('headerMenu')}
-                           className="flex size-8 flex-none items-center justify-center rounded text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)] max-lg:size-11"
+                           className="flex size-(--field-h) flex-none items-center justify-center rounded-full text-[var(--shell-text-dim)] transition-colors hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
                         >
                            <MoreHorizontal className="size-4" />
                         </button>
@@ -700,11 +716,9 @@ export function Chat() {
                {...(activeId ? { conversationId: activeId } : {})}
                {...(activeAgent ? { agent: activeAgent } : {})}
                answering={stage !== null}
-               onVoice={
-                  voiceAvailable && workspaceId && activeAgent ? () => setVoiceOpen(true) : null
-               }
+               onVoice={voiceAvailable && workspaceId && activeAgent ? openVoice : null}
             />
-            {workspaceId && activeAgent ? (
+            {workspaceId && activeAgent && voiceMounted ? (
                <VoiceSessionModal
                   open={voiceOpen}
                   onOpenChange={setVoiceOpen}

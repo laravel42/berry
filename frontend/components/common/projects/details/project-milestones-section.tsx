@@ -270,7 +270,7 @@ export function ProjectGoalsSection({
                         >
                            {canEdit ? (
                               <span
-                                 className="cursor-grab touch-none text-muted-foreground opacity-0 group-hover:opacity-100"
+                                 className="cursor-grab touch-none text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100"
                                  onPointerDown={onGripPointerDown(index)}
                                  onPointerMove={onGripPointerMove}
                                  onPointerUp={onGripPointerUp}
@@ -321,8 +321,8 @@ export function ProjectGoalsSection({
                               <Button
                                  type="button"
                                  variant="ghost"
-                                 size="icon"
-                                 className="size-6 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive"
+                                 size="icon-sm"
+                                 className="shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 hover:text-destructive"
                                  aria-label={`Delete ${milestone.title}`}
                                  disabled={busy}
                                  onClick={() => void remove(milestone)}

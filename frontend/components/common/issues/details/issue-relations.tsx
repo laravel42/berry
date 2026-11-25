@@ -128,7 +128,9 @@ export function IssueMilestoneSection({ issue }: { issue: Issue }) {
                                     {percent}%
                                  </span>
                               ) : null}
-                              {current?.id === milestone.id && <CheckIcon className="size-4" />}
+                              {current?.id === milestone.id && (
+                                 <CheckIcon className="text-(--primary) size-4" />
+                              )}
                            </CommandItem>
                         );
                      })}
@@ -144,7 +146,7 @@ export function IssueMilestoneSection({ issue }: { issue: Issue }) {
          {current && href ? (
             <Link
                href={href}
-               className="-mx-1.5 flex min-w-0 items-center gap-2 rounded px-1.5 py-1 hover:bg-sidebar/50"
+               className="-mx-1.5 flex min-w-0 items-center gap-2 rounded px-1.5 py-1 hover:bg-accent/45"
             >
                {known ? (
                   <BerryMark
@@ -187,7 +189,7 @@ function DependencyRow({
       <li className="group -mx-1.5 flex min-w-0 items-center gap-1.5">
          <Link
             href={`/${orgId}/issue/${dependency.identifier}`}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 hover:bg-sidebar/50"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1.5 py-1 hover:bg-accent/45"
          >
             {StatusIcon ? (
                <StatusIcon />
@@ -200,7 +202,7 @@ function DependencyRow({
          <Button
             variant="ghost"
             size="icon"
-            className="size-6 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+            className="size-6 shrink-0 text-muted-foreground [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100"
             aria-label={`Remove ${dependency.identifier}`}
             disabled={removing}
             onClick={onRemove}

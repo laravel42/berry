@@ -33,9 +33,10 @@ export const NoConversationOpen: Story = {
    play: async ({ canvas }) => {
       await expect(canvas.queryByRole('heading', { name: 'Orchestrator' })).toBeNull();
       await expect(canvas.queryByRole('button', { name: 'New chat' })).toBeNull();
-      await expect(
-         await canvas.findByRole('textbox', { name: 'Message Orchestrator…' })
-      ).toBeEnabled();
+      await canvas.findByRole('textbox', { name: 'Plan, search, build anything' });
+      await waitFor(() =>
+         expect(canvas.getByRole('textbox', { name: 'Plan, search, build anything' })).toBeEnabled()
+      );
    },
 };
 
@@ -52,11 +53,11 @@ export const OpenConversation: Story = {
    },
    play: async ({ canvas, userEvent }) => {
       await expect(
-         await canvas.findByRole('textbox', { name: 'Message Backend Engineer…' })
+         await canvas.findByRole('textbox', { name: 'Plan, search, build anything' })
       ).toBeVisible();
       await expect(canvas.queryByRole('heading', { name: 'Backend Engineer' })).toBeNull();
       await expect(await canvas.findByText('Suggested next')).toBeVisible();
-      const composer = canvas.getByRole('textbox', { name: 'Message Backend Engineer…' });
+      const composer = canvas.getByRole('textbox', { name: 'Plan, search, build anything' });
       await userEvent.type(composer, 'Open the pull request please{Enter}');
       // Sent as a task (POST …/messages, MSW): the box empties at once.
       await waitFor(() => expect(composer).toHaveValue(''));

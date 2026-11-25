@@ -9,6 +9,12 @@ const priority = (id: string): Priority => priorities.find((entry) => entry.id =
 const meta = {
    component: PriorityPicker,
    args: { priority: priority('high'), onChange: fn(), variant: 'icon' },
+   argTypes: {
+      variant: {
+         control: 'select',
+         options: ['icon', 'chip', 'row'],
+      },
+   },
    // The parent owns the value, as every call site does.
    render: function Render(args) {
       const [value, setValue] = useState(args.priority);

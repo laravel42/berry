@@ -26,7 +26,7 @@ export default function Header() {
             line={t('statement.line', { count: pending })}
             sub={t('statement.sub')}
          />
-         <div className="flex h-[44px] w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b px-5">
+         <div className="flex h-[44px] w-full flex-wrap items-center justify-end gap-x-4 gap-y-2 border-b px-2 sm:px-5">
             <div className="flex items-center gap-2">
                <Switch
                   id="approvals-mine"

@@ -50,9 +50,9 @@ consume semantic state names rather than raw colors.
 | `danger` | `#E0645A` | Error |
 | `urgent` | `#D9584F` | Urgent priority |
 
-Berry Dark is the only shipped theme: `app/layout.tsx` sets `className="dark"` on
-`<html>`. Light tokens still live on `:root` so a future inversion has a home; they
-are not a product theme and there is no appearance switch. The inherited
+Both themes ship. `app/layout.tsx` puts `dark` on `<html>` only when the preference
+resolves that way, read server-side from a cookie, so `:root`'s light tokens are a
+product theme rather than a home for a future inversion. The inherited
 `pure-light`, `magic-blue`, `classic-dark`, and custom theme variants are not Berry
 themes. The shell (rail and top bar) is dark chrome and sets its own text colour;
 `MainLayout` resets `text-foreground` at the page boundary so a page never inherits
@@ -77,6 +77,18 @@ A status never carries a colour of its own. `data/status.tsx` gives each one a *
 group bar - reads the matching `--status-*` token, so a column cannot disagree with the
 mark beside it in either theme. In review and Blocked are warning, Done is success, In
 progress is info, and Backlog, Todo and Cancelled are neutral.
+
+The isotipo is the authority for the mark's two tones, and the semantic tokens point at
+the palette rather than restating it. `--berry` and `--ring` had both drifted to a
+hardcoded per-theme pair (`#c41e4b` / `#e85075`) while `--brand-berry`, `app/icon.svg` and
+the `berry` row above all said `#c74a5e`; they now read `var(--brand-berry)`, so there is
+one brand red and no second place to change it.
+
+`--lockup-ink` is the isotipo's other tone -- `#161616` on light, `#f0edea` on dark -- and
+it colours the mark's brackets and the lockup's word. It is deliberately not `--foreground`:
+the asset's ink is warmer, and the lockup can be exactly the brand without repainting every
+word of body copy. `public/isotipo.svg`, `isotipo_light.svg`, `logotipo.svg` and
+`logotipo_light.svg` are the source files, and all four reduce to these two tokens.
 
 Berry is never an error color. Destructive/error states use the separate `status-danger`
 token. The one exception is Delete: every Delete button, and the confirm button of every
@@ -142,9 +154,54 @@ The frontend uses Tailwind's 4 px spacing base. Its working compact scale is:
 | `space-8` | 32 px | Large section separation |
 | `space-10` | 40 px | Empty/loading state breathing room |
 
-Controls are 30 px tall (`--control-height`) with 7 px radius. List rows are 40 px.
-Page toolbars are 52 px; sub-toolbars 44 px. Group headers are 36 px. Default
-icons are 16 px in navigation and 14–15 px in toolbars.
+Controls take their height from two tokens, and the size prop picks one. A height is never
+set in a `className` (`h-[30px]`, `!h-…`, `min-h-11`), so a change to a token reaches every
+control. `--field-h` is 32 px (44 px and 40 px were tried on 2026-11-18 and set back):
+
+| Height | Token | What takes it |
+| --- | --- | --- |
+| 32 px | `--field-h` | `Input` (and `variant="search"`, `variant="inline"`), `SelectTrigger` and `selectTriggerClass`, settings' `SelectMenu`, `Button size="sm"`, `Button size="icon-sm"`, `TabsList`, `SegmentedControl` and `segmentTrackClass`, a list's group header |
+| 44 px | `--ctl-h` | `Button` at its default size, `Input size="lg"` |
+
+Controls that share a line are one height. A field and the buttons beside it (a settings
+row, a toolbar, an add-row) take `--field-h`, and so do a list row's pickers and icon
+actions (`PickerIconButton`, a row menu, a delete). A button that stands on its own takes
+`--ctl-h`: a page's primary action, a dialog footer. A field beside one of those takes
+`size="lg"`. `variant="track"` is a colour only: an icon on the track takes
+`size="icon-sm"`, a label `size="sm"`. `xs`/`xxs` stay for dense inline spots that are not
+on a line of fields.
+
+Every control is a pill. Settings has no controls of its own: its fields, selects, search,
+switches and checkboxes are the ones every other page uses. The selects that are not a
+Radix `Select` (a `DropdownMenu` or `Popover` trigger) take `selectTriggerClass` from
+`components/ui/select.tsx`.
+
+List rows are 40 px. Page toolbars are 52 px; sub-toolbars 44 px. Group headers take
+`--field-h`. Default icons are 16 px in navigation and 14–15 px in toolbars.
+
+A meta line set in the mono face (when a page's numbers arrived, a counter) takes
+`text-2xs`, 14 px: JetBrains Mono reads larger than Inter at one size.
+
+A form too long for one column of rows (an agent's Instructions, its Role and Permissions)
+uses `SectionTabs` (`components/common/section-tabs.tsx`): the sections as tabs on the
+left, the chosen one on the right as its title, caption and control at full width. Below
+`md` the tabs become a row that scrolls sideways. A detail page scrolls as one box: its
+header scrolls away, its tab strip sticks to the top, and a tab never scrolls on its own.
+
+### Floating controls and bottom bars
+
+Everything that floats in the bottom-right corner joins one stack
+(`store/floating-stack-store.ts`), so nothing lands on anything else: a page's controls
+(a task's Restart and Console) take the lowest place and the Agents launcher stands above
+them. A bar pinned to a page's bottom edge, `UnsavedChangesBar` or a list's `BulkBar`, is
+the stack's floor (`useFloatingFloor`): while it shows, every floating control stands
+above it, so none covers its buttons.
+
+Corner controls remain visible in place rather than tucking off the edge after idle time.
+
+`UnsavedChangesBar` has no rule on top: a warning tint rises from its bottom edge and
+fades into the card, the inverse of the tint a detail header falls from. Discard and Save
+stand on their own, so they take the button height (`--ctl-h`).
 
 Layout constants currently embedded in components should move to named tokens when those
 components are revised:
@@ -199,6 +256,26 @@ Keep their Radix behavior, semantic slots, focus rings, disabled treatment, inva
 portal behavior, and keyboard support. Visual changes should happen through semantic tokens
 and CVA variants, not through feature-local forks.
 
+Two additions to `Popover` are worth knowing, because they are what a popover needs to be
+*feedback* rather than a menu:
+
+- `PopoverArrow` ties the popover to what it is about. A menu needs no arrow — the user just
+  clicked the thing it belongs to. A popover that appears on its own does, or it reads as a
+  card that happens to be nearby.
+- `pointerThrough` lets clicks pass through content that holds nothing interactive, so it
+  cannot stand in front of the form it describes. Radix positions the content inside a
+  wrapper it owns and keeps that wrapper clickable, so this pairs with a `:has()` rule in
+  `app/globals.css`; a class on the content alone does not do it.
+
+Anchor such a popover with `PopoverAnchor` rather than `PopoverTrigger`, and prevent
+`onOpenAutoFocus`: a field is not a button, and feedback must never take the focus it is
+pointing at. `PasswordField` is the worked example.
+
+The Berry bracket is also the product's checkmark. `BerryMark` with `state="empty"` draws
+`[ ]` and `state="solid"` draws `[*]`, so a satisfied condition is marked by a **shape**
+appearing rather than by a colour changing — which is what the accessibility contract below
+requires. State the condition in words alongside it; the dot is never the only signal.
+
 ### Product components and patterns
 
 | Area | Current modules | Reuse decision |
@@ -223,10 +300,25 @@ and CVA variants, not through feature-local forks.
 Above the primitives, `frontend/components/README.md` catalogues the shared product
 components: the property pickers (`OptionPicker`, `PriorityPicker`, `StatusPicker`,
 `LeadPicker`), `EmptyState`, `SegmentedControl`, `StatusBadge`, `ConfirmAction`,
-`PageTitleBar`, the detail section labels and `StatTile`. Reach for one of these before
+`PageTitleBar`, the detail section labels, `StatTile` and the emoji picker
+(`EmojiPicker`, `EmojiPickerPopover`, `EmojiInsertButton`). Reach for one of these before
 writing a feature-local copy of the same pattern, and add new shared components there with
 their purpose, props, accessibility notes and what they replaced. Each has a Storybook file
 whose `play` functions are its tests.
+
+#### Chips under a title
+
+Every chip in a header row is one height, `--chip-h` (26px). Each one takes it from `Badge` or
+`CHIP_GEOMETRY`, never from a padding of its own. The agent's header uses three pieces:
+- **What it is doing:** `AgentWorkloadMark` sits beside the name, raised the way an exponent sits
+  beside a number, in the mono face of a meta line. It is laid out next to the heading, not inside
+  it. Working is the one state that moves: its dot, in the agent's colour, keeps sending a ring
+  outward. Queued holds the dot still, and Idle greys it.
+- **Its tier:** `TierChip variant="chip"` paints the tier as the tier picker paints its chosen
+  option (`TIER_OPTION_STYLE` in `lib/agents.ts`, shared by both). The default `compact`
+  variant stays for dense rows and tables.
+- **What stops it:** `Badge variant="warning"` with a short label ("No runtime"). The whole
+  sentence shows on hover, and a click opens the place where it is fixed.
 
 Cross-cutting patterns already present include a command palette, create-issue dialog,
 responsive off-canvas sidebar, stacked headers, list/grid/board/timeline views, filter builder,
@@ -307,6 +399,23 @@ Usage is read from shapes before words. The parts live in `frontend/components/c
 Avoiding likeness is a system-level task: changing a logo or accent color alone is
 insufficient. At least navigation hierarchy, workspace framing, row/card anatomy, status
 language, agent representation, and review interactions should express Berry's model.
+
+## Settings rows
+
+Every settings row is a `SettingsRow` (`components/common/settings/shared.tsx`): a title and
+its description on the left, the control on the right. On a wide screen the control is
+centred on the row. On a phone it depends on the kind of control:
+
+- A switch, a button or a chip stays on the right, centred on the title's line, and the
+  description runs under the title beside it.
+- A field (an input, a select, or a field with its button) is marked `wide`. On a phone it
+  goes under the label and stretches across the row. A button that belongs to the row
+  rather than the field goes in `action` and stays on the title's line, as a member's
+  Remove does beside their role.
+
+Buttons in a row carry the verb alone ("Leave", "Delete", "Sign out"): the title already
+names what it acts on. The danger zone's rows sit in `SettingsCard tone="danger"`, the
+group's grey with a berry cast (`--settings-group-danger`).
 
 ## Confirming irreversible actions
 

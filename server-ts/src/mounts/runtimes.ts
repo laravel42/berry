@@ -79,7 +79,34 @@ type RuntimeControl = (
    signal?: AbortSignal
 ) => Promise<RuntimeControlResponse>;
 
-async function probeWorkstationCliPresence(
+/**
+ * How long one probe answers for. Each probe spawns every CLI's `--version`,
+ * which takes seconds on Windows, and every page that reads the catalog
+ * (AI providers, Model tiers, the agent pickers) waited on it each time.
+ * Installing a CLI shows up within this window.
+ */
+const CLI_PRESENCE_TTL_MS = 60_000;
+
+const presenceProbes = new WeakMap<
+   RuntimeControl,
+   { at: number; probe: Promise<Map<AiRuntimeId, WorkstationCliPresence>> }
+>();
+
+/** The last probe while it is fresh, shared by requests that arrive while it runs. */
+function probeWorkstationCliPresence(
+   control: RuntimeControl | undefined
+): Promise<Map<AiRuntimeId, WorkstationCliPresence>> {
+   if (!control) return probeWorkstationCliPresenceNow(control);
+   const cached = presenceProbes.get(control);
+   if (cached && Date.now() - cached.at < CLI_PRESENCE_TTL_MS) return cached.probe;
+   const probe = probeWorkstationCliPresenceNow(control);
+   presenceProbes.set(control, { at: Date.now(), probe });
+   // A probe that throws is not kept: the next request tries again.
+   probe.catch(() => presenceProbes.delete(control));
+   return probe;
+}
+
+async function probeWorkstationCliPresenceNow(
    control: RuntimeControl | undefined
 ): Promise<Map<AiRuntimeId, WorkstationCliPresence>> {
    const ids = (Object.keys(WORKSTATION_CLI_LOGINS) as string[]).filter(isAiRuntimeId);

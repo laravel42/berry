@@ -118,18 +118,26 @@ export async function setCommentResolved(
 // ------------------------------------------------------------ mentions
 
 /**
- * A mention is an explicit token the composer writes — `@[Name](agent:<id>)` —
- * never a guess from "@name" text, so it cannot start a
- * run nobody asked for and it survives a rename.
+ * A mention is an explicit token the composer writes — `@[Name](agent:<id>)` or
+ * `@[Name](user:<id>)` — never a guess from "@name" text for agent triggers, so
+ * it cannot start a run nobody asked for and it survives a rename.
  */
-const MENTION = /@\[([^\]\n]{1,100})\]\((agent):([0-9a-fA-F-]{36})\)/g;
+const MENTION = /@\[([^\]\n]{1,100})\]\((agent|user):([0-9a-fA-F-]{36})\)/g;
 
-export function mentionToken(kind: 'agent', id: string, name: string): string {
+export type MentionKind = 'agent' | 'user';
+
+export interface MentionDirectoryEntry {
+   kind: MentionKind;
+   id: string;
+   name: string;
+}
+
+export function mentionToken(kind: MentionKind, id: string, name: string): string {
    return `@[${name.replace(/[\]\n]/g, '').slice(0, 100)}](${kind}:${id})`;
 }
 
 export type MentionPart =
-   { text: string } | { mention: { kind: 'agent'; id: string; name: string } };
+   { text: string } | { mention: { kind: MentionKind; id: string; name: string }; raw: string };
 
 export function splitMentions(body: string): MentionPart[] {
    const parts: MentionPart[] = [];
@@ -138,12 +146,76 @@ export function splitMentions(body: string): MentionPart[] {
       const index = match.index ?? 0;
       if (index > last) parts.push({ text: body.slice(last, index) });
       parts.push({
-         mention: { kind: 'agent', id: match[3] ?? '', name: match[1] ?? '' },
+         mention: {
+            kind: match[2] === 'user' ? 'user' : 'agent',
+            id: match[3] ?? '',
+            name: match[1] ?? '',
+         },
+         raw: match[0],
       });
       last = index + match[0].length;
    }
    if (last < body.length) parts.push({ text: body.slice(last) });
    return parts;
+}
+
+function escapeRegex(value: string): string {
+   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const WORD_CHAR = /[\p{L}\p{N}_]/u;
+const AFTER_BOUNDARY = /[\s.,!?;:)\]]/;
+
+/**
+ * Splits a body into plain text and mentions: explicit `@[Name](kind:id)` tokens
+ * first, plus plain `@Name` spans matching known workspace members or agents
+ * (longest name first, boundary-checked so email addresses are ignored).
+ */
+export function splitMentionsWithDirectory(
+   body: string,
+   directory: ReadonlyArray<MentionDirectoryEntry>
+): MentionPart[] {
+   const initial = splitMentions(body);
+   const byLower = new Map<string, MentionDirectoryEntry>();
+   for (const entry of directory) {
+      const cleaned = entry.name.replace(/[\n\r]/g, ' ').trim();
+      if (!cleaned) continue;
+      const key = cleaned.toLowerCase();
+      if (!byLower.has(key)) byLower.set(key, { ...entry, name: cleaned });
+   }
+   if (byLower.size === 0) return initial;
+
+   const names = [...byLower.values()]
+      .sort((left, right) => right.name.length - left.name.length)
+      .map((entry) => escapeRegex(entry.name));
+   const pattern = new RegExp(`@(?:${names.join('|')})`, 'gi');
+
+   const result: MentionPart[] = [];
+   for (const part of initial) {
+      if ('mention' in part) {
+         result.push(part);
+         continue;
+      }
+      const segment = part.text;
+      let cursor = 0;
+      for (const match of segment.matchAll(pattern)) {
+         const start = match.index ?? 0;
+         const raw = match[0];
+         const end = start + raw.length;
+         const prevChar = start > 0 ? (segment[start - 1] ?? '') : '';
+         const nextChar = end < segment.length ? (segment[end] ?? '') : '';
+         if (prevChar && WORD_CHAR.test(prevChar)) continue;
+         if (nextChar && !AFTER_BOUNDARY.test(nextChar)) continue;
+
+         const entry = byLower.get(raw.slice(1).toLowerCase());
+         if (!entry) continue;
+         if (start > cursor) result.push({ text: segment.slice(cursor, start) });
+         result.push({ mention: entry, raw });
+         cursor = end;
+      }
+      if (cursor < segment.length) result.push({ text: segment.slice(cursor) });
+   }
+   return result;
 }
 
 const triggerPlanSchema = z.object({

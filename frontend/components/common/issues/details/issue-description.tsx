@@ -13,11 +13,12 @@ import { keepPluginMentions, stripPluginMentions } from '@/lib/plugins';
 import { cn } from '@/lib/utils';
 import { useIssuesStore } from '@/store/issues-store';
 import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
+import { ChatMarkdown } from '@/components/common/chat/chat-markdown';
 import { Button } from '@/components/ui/button';
 import { Check, Copy, ImageIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { ImageViewer, type ViewerImage } from './image-viewer';
 
@@ -32,16 +33,24 @@ import { ImageViewer, type ViewerImage } from './image-viewer';
  * all of them, since the second screenshot is usually the point.
  *
  * Markdown is edited with TipTap (same editor as project create) and committed
- * on blur so keystrokes do not PATCH the issue.
+ * on blur so keystrokes do not PATCH the issue. Until someone focuses or
+ * clicks the text it is drawn read-only: the editor is ~560 KB of script that
+ * most visits to a task never need.
  */
 export function IssueDescription({
    issueId,
    issueRef,
    description,
+   mobileLeadingActions,
+   mobileTrailingActions,
 }: {
    issueId: string;
    issueRef: string;
    description: string;
+   /** Optional mobile-only (< md) controls placed left of the copy button. */
+   mobileLeadingActions?: ReactNode;
+   /** Optional mobile-only (< md) controls placed right of the copy button. */
+   mobileTrailingActions?: ReactNode;
 }) {
    const t = useTranslations('issueDetail.description');
    const updateIssueDescription = useIssuesStore((state) => state.updateIssueDescription);
@@ -50,22 +59,73 @@ export function IssueDescription({
    const [dragging, setDragging] = useState(false);
    const [viewerAt, setViewerAt] = useState<number | null>(null);
    const [copied, setCopied] = useState(false);
+   const [editing, setEditing] = useState(false);
+   const [draft, setDraft] = useState<string | null>(null);
+   const surface = useRef<HTMLDivElement>(null);
 
-   // What a person reads: the text without the plugin links the editor hides.
-   const readable = stripPluginMentions(description).trim();
+   // Reset local edit state when navigating to another task in the drawer.
+   useEffect(() => {
+      setEditing(false);
+      setDraft(null);
+   }, [issueId]);
+
+   // Clear live draft once the persisted description catches up.
+   useEffect(() => {
+      setDraft(null);
+   }, [description]);
+
+   // The editor arrives a moment after the click that asked for it; once its
+   // text field exists, put the caret there so the click was not wasted.
+   useEffect(() => {
+      if (!editing) return;
+      let frame = 0;
+      const startedAt = performance.now();
+      const focusWhenReady = () => {
+         const field = surface.current?.querySelector<HTMLElement>(
+            '.ProseMirror[contenteditable="true"]'
+         );
+         if (field) {
+            field.focus();
+            return;
+         }
+         if (performance.now() - startedAt < 5000) frame = requestAnimationFrame(focusWhenReady);
+      };
+      frame = requestAnimationFrame(focusWhenReady);
+      return () => cancelAnimationFrame(frame);
+   }, [editing]);
+
+   // What a person reads: the live draft while editing, or the saved text
+   // without the plugin links the editor hides.
+   const savedReadable = stripPluginMentions(description).trim();
+   const readable = stripPluginMentions(draft ?? description).trim();
 
    const copyDescription = () => {
       if (!readable) {
          toast.message(t('nothingToCopy'));
          return;
       }
-      void navigator.clipboard.writeText(readable).then(
-         () => {
-            setCopied(true);
-            window.setTimeout(() => setCopied(false), 1200);
-         },
-         () => toast.error(t('copyFailed'))
-      );
+      const markCopied = () => {
+         setCopied(true);
+         window.setTimeout(() => setCopied(false), 1200);
+      };
+      const copyFallback = () => {
+         const area = document.createElement('textarea');
+         area.value = readable;
+         area.setAttribute('readonly', '');
+         area.style.position = 'fixed';
+         area.style.opacity = '0';
+         document.body.appendChild(area);
+         area.select();
+         const ok = document.execCommand('copy');
+         document.body.removeChild(area);
+         if (ok) markCopied();
+         else toast.error(t('copyFailed'));
+      };
+      if (navigator.clipboard?.writeText) {
+         void navigator.clipboard.writeText(readable).then(markCopied, copyFallback);
+         return;
+      }
+      copyFallback();
    };
    const urls = useRef<string[]>([]);
 
@@ -174,39 +234,105 @@ export function IssueDescription({
             )}
          >
             <CollapsibleDescription>
-               <TiptapAiEditor
-                  value={stripPluginMentions(description)}
-                  onChange={() => undefined}
-                  onBlur={(markdown) => {
-                     const next = keepPluginMentions(markdown, description);
-                     if (next.trim() === description.trim()) return;
-                     updateIssueDescription(issueId, next);
-                  }}
-                  placeholder={dragging ? t('dropHere') : 'Add description…'}
-                  aria-label="Task description"
-                  className="min-h-24 [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold [&_.ProseMirror>:last-child]:!mb-0"
-                  aiAssist={false}
-                  formatting
-               />
+               <div ref={surface}>
+                  {editing ? (
+                     <TiptapAiEditor
+                        value={stripPluginMentions(description)}
+                        onChange={(markdown) => setDraft(markdown)}
+                        onBlur={(markdown) => {
+                           const next = keepPluginMentions(markdown, description);
+                           if (next.trim() === description.trim()) return;
+                           updateIssueDescription(issueId, next);
+                        }}
+                        placeholder={dragging ? t('dropHere') : 'Add description…'}
+                        aria-label="Task description"
+                        className="min-h-24 [&_.ProseMirror]:min-h-0 [&_.ProseMirror]:!font-thin [&_.ProseMirror_*]:!font-thin [&_.ProseMirror_strong]:!font-bold [&_.ProseMirror_b]:!font-bold [&_.ProseMirror_strong_*]:!font-bold [&_.ProseMirror_b_*]:!font-bold [&_.ProseMirror>:last-child]:!mb-0"
+                        aiAssist={false}
+                        formatting
+                     />
+                  ) : (
+                     <div
+                        role="textbox"
+                        aria-readonly="true"
+                        aria-label="Task description"
+                        tabIndex={0}
+                        onFocus={() => setEditing(true)}
+                        onClick={(event) => {
+                           if (!(event.target as HTMLElement).closest('a')) setEditing(true);
+                        }}
+                        className="tiptap-ai-editor formatting-editor min-h-24 cursor-text"
+                     >
+                        <div className="ProseMirror min-h-0 !font-thin [&_*]:!font-thin [&_strong]:!font-bold [&_b]:!font-bold [&_strong_*]:!font-bold [&_b_*]:!font-bold [&>:last-child]:!mb-0">
+                           {savedReadable ? (
+                              <ChatMarkdown body={stripPluginMentions(description)} tone="page" />
+                           ) : (
+                              <p className="text-muted-foreground">
+                                 {dragging ? t('dropHere') : 'Add description…'}
+                              </p>
+                           )}
+                        </div>
+                     </div>
+                  )}
+               </div>
             </CollapsibleDescription>
          </div>
-         <div className="-mt-0.5 flex justify-end">
-            <Button
-               type="button"
-               variant="ghost"
-               size="icon"
-               className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
-               aria-label={t('copy')}
-               title={t('copy')}
-               disabled={!readable}
-               onClick={copyDescription}
-            >
-               {copied ? (
-                  <Check className="size-3.5" aria-hidden />
-               ) : (
-                  <Copy className="size-3.5" aria-hidden />
+         <div
+            data-description-actions
+            className={cn(
+               mobileLeadingActions || mobileTrailingActions
+                  ? 'mt-2 flex min-h-11 items-center justify-between gap-2 border-b border-border/60 pb-2 md:-mt-0.5 md:min-h-0 md:justify-end md:border-b-0 md:pb-0'
+                  : '-mt-0.5 flex justify-end'
+            )}
+         >
+            {mobileLeadingActions ? (
+               <div className="flex items-center gap-1 md:hidden">{mobileLeadingActions}</div>
+            ) : null}
+            <div
+               className={cn(
+                  'flex items-center',
+                  (mobileLeadingActions || mobileTrailingActions) &&
+                     '-mr-1.5 gap-1 md:mr-0 md:gap-0'
                )}
-            </Button>
+            >
+               <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                     'text-muted-foreground hover:text-foreground',
+                     mobileLeadingActions || mobileTrailingActions
+                        ? 'size-9 md:size-6 md:hover:bg-card'
+                        : 'size-6 hover:bg-card'
+                  )}
+                  aria-label={t('copy')}
+                  title={t('copy')}
+                  disabled={!readable}
+                  onClick={copyDescription}
+               >
+                  {copied ? (
+                     <Check
+                        className={cn(
+                           mobileLeadingActions || mobileTrailingActions
+                              ? 'size-[18px] md:size-3.5'
+                              : 'size-3.5'
+                        )}
+                        aria-hidden
+                     />
+                  ) : (
+                     <Copy
+                        className={cn(
+                           mobileLeadingActions || mobileTrailingActions
+                              ? 'size-[18px] md:size-3.5'
+                              : 'size-3.5'
+                        )}
+                        aria-hidden
+                     />
+                  )}
+               </Button>
+               {mobileTrailingActions ? (
+                  <div className="flex items-center md:hidden">{mobileTrailingActions}</div>
+               ) : null}
+            </div>
          </div>
 
          {images.length > 0 ? (

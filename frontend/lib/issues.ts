@@ -6,6 +6,7 @@ import { useProjectsStore } from '@/store/projects-store';
 import { Box } from 'lucide-react';
 import { z } from 'zod';
 import { apiFetch, BerryApiError } from './api';
+import { BOARD_ISSUES_PAGE_SIZE, boardIssuesFirstPagePath } from './issue-urls';
 import { actorRefSchema, connectionSchema, newIdempotencyKey } from './api-schemas';
 import type { User } from '@/data/users';
 import {
@@ -31,7 +32,7 @@ export function assigneeToApi(user: User | null): { type: 'user' | 'agent'; id: 
  * Failed or malformed responses return [] so the board/list UI stays bootable.
  */
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = BOARD_ISSUES_PAGE_SIZE;
 const MAX_PAGES = 20;
 
 /**
@@ -279,22 +280,25 @@ export function parseApiIssue(json: unknown): Issue | undefined {
 
 const inFlight = new Map<string, Promise<Issue[]>>();
 
-async function fetchAllBoardIssues(boardId: string): Promise<Issue[]> {
+async function fetchAllBoardIssues(
+   boardId: string,
+   onPage?: (issues: Issue[]) => void
+): Promise<Issue[]> {
    const collected: Issue[] = [];
 
    try {
       let after: string | undefined;
 
       for (let page = 0; page < MAX_PAGES; page += 1) {
-         const params = new URLSearchParams({
-            boardId,
-            first: String(PAGE_SIZE),
-         });
+         const pageStart = collected.length;
+         let path = boardIssuesFirstPagePath(boardId);
          if (after) {
+            const params = new URLSearchParams({ boardId, first: String(PAGE_SIZE) });
             params.set('after', after);
+            path = `/api/v1/issues?${params.toString()}`;
          }
 
-         const json: unknown = await apiFetch(`/api/v1/issues?${params.toString()}`);
+         const json: unknown = await apiFetch(path);
          const parsed = issueConnectionSchema.safeParse(json);
          if (!parsed.success) {
             return collected;
@@ -304,6 +308,18 @@ async function fetchAllBoardIssues(boardId: string): Promise<Issue[]> {
             const mapped = toUiIssue(node);
             if (mapped) {
                collected.push(mapped);
+            }
+         }
+
+         // Every page is reported as it lands: the first is the first paint,
+         // the rest are for the caller to batch. The caller still gets the
+         // full list in one piece when the fetch resolves.
+         if (onPage && collected.length > pageStart) {
+            try {
+               onPage(collected.slice(pageStart));
+            } catch {
+               // A failing listener must not cut the list short: the caller
+               // still resolves with every page.
             }
          }
 
@@ -320,12 +336,22 @@ async function fetchAllBoardIssues(boardId: string): Promise<Issue[]> {
    }
 }
 
-/** One in-flight list fetch per board; empty when no board is selected. */
-export function loadBoardIssues(boardId: string): Promise<Issue[]> {
+/**
+ * One in-flight list fetch per board; empty when no board is selected.
+ *
+ * `onPage` receives each page's issues as they land, so a first paint need
+ * not wait for the last page; the resolved list holds all of them. Only the
+ * call that starts the fetch gets pages: a call that joins one already in
+ * flight gets just the whole list at the end.
+ */
+export function loadBoardIssues(
+   boardId: string,
+   options: { onPage?: (issues: Issue[]) => void } = {}
+): Promise<Issue[]> {
    if (!boardId) return Promise.resolve([]);
    const existing = inFlight.get(boardId);
    if (existing) return existing;
-   const promise = fetchAllBoardIssues(boardId).finally(() => {
+   const promise = fetchAllBoardIssues(boardId, options.onPage).finally(() => {
       if (inFlight.get(boardId) === promise) {
          inFlight.delete(boardId);
       }

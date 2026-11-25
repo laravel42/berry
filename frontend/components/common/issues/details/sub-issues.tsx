@@ -231,7 +231,7 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
       <Popover open={open} onOpenChange={setOpen}>
          <PopoverTrigger asChild>
             <Button
-               size="xs"
+               size="sm"
                variant="secondary"
                aria-label={t('attachTitle')}
                title={t('attachTitle')}
@@ -245,7 +245,6 @@ function AttachExisting({ parentRef, onAttached }: { parentRef: string; onAttach
                autoFocus
                value={query}
                placeholder={t('attachPlaceholder')}
-               className="h-8"
                onChange={(event) => setQuery(event.target.value)}
             />
             <div className="mt-2 max-h-56 overflow-y-auto">
@@ -330,6 +329,8 @@ export function SubIssues({ issue }: { issue: Issue }) {
          .finally(() => setAdding(false));
    };
 
+   const canAdd = Boolean(title.trim()) && !adding;
+
    const replaceChild = (next: Issue) =>
       setChildren((current) => current.map((child) => (child.id === next.id ? next : child)));
 
@@ -402,18 +403,13 @@ export function SubIssues({ issue }: { issue: Issue }) {
 
                <div className="flex flex-wrap items-center gap-2">
                   <Input
-                     className="h-8 min-w-[180px] flex-1"
+                     className="min-w-full flex-1 sm:min-w-[180px]"
                      placeholder={t('addPlaceholder')}
                      value={title}
                      onChange={(event) => setTitle(event.target.value)}
                      onKeyDown={(event) => event.key === 'Enter' && add()}
                   />
-                  <Button
-                     size="xs"
-                     variant="secondary"
-                     disabled={!title.trim() || adding}
-                     onClick={add}
-                  >
+                  <Button size="sm" disabled={!canAdd} onClick={add}>
                      <Plus className="mr-1 size-3.5" aria-hidden />
                      {t('add')}
                   </Button>

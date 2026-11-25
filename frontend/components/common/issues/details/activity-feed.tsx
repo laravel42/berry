@@ -4,8 +4,9 @@ import { useShortcut } from '@/components/layout/shortcut-provider';
 import { BerryMark } from '@/components/brand/berry-mark';
 import { colorForAgent } from '@/lib/agent-color';
 import { AgentMarkdown } from '@/components/common/agent-markdown';
+import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import { ActorAvatar, ActorName } from '@/components/common/issues/actor-avatar';
-import { ArtifactViewer } from '@/components/common/issues/details/artifact-viewer';
+import { AttachmentStrip } from '@/components/common/issues/details/attachment-strip';
 import { AttachedFileList } from '@/components/common/issues/details/file-list';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,10 +23,13 @@ import { describeActivity, loadIssueActivity } from '@/lib/activity';
 import { BerryApiError } from '@/lib/api';
 import {
    assignAttachmentToComment,
+   deleteAttachment,
    isHandoffPath,
    loadIssueArtifacts,
    loadIssueAttachments,
+   onCommentFilesRemoved,
    onIssueAttachment,
+   previewKind,
    publishCommentFilesRemoved,
    uploadIssueAttachment,
    type ApiAttachment,
@@ -39,15 +43,18 @@ import {
    previewCommentTriggers,
    setCommentResolved,
    splitMentions,
+   splitMentionsWithDirectory,
    type ApiComment,
+   type MentionDirectoryEntry,
    type TriggerPlan,
 } from '@/lib/comments';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { type AutoReview, type RunRecord } from '@/lib/runs';
 import { subscribeShellEvent } from '@/lib/shell-events';
 import { cn } from '@/lib/utils';
-import { useComposerPalette } from '@/components/common/composer-palette';
+import { useComposerPalette, type PickedMention } from '@/components/common/composer-palette';
 import { useAgentsStore } from '@/store/agents-store';
+import { useMembersStore } from '@/store/members-store';
 import { useSessionStore } from '@/store/session-store';
 import { useCommentDraftStore } from '@/store/comment-draft-store';
 import { useIssueRuns, useIssueRunsStore } from '@/store/issue-runs-store';
@@ -69,12 +76,14 @@ import {
    Unlock,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { CommentActions } from './comment-actions';
 import { ReactionBar } from './issue-reactions';
 import { IssueReviewCard, reviewTimestamp, useSettledAutoReviews } from './issue-reviews';
+import { useReportUnsavedEdits } from '@/store/unsaved-edits-store';
 
 /**
  * What has happened to this task, and the place to add to it.
@@ -105,11 +114,13 @@ type EventItem = Extract<ActivityItem, { kind: 'event' }>;
 const ISSUE_KEY = /\b([A-Z][A-Z0-9]{1,5}-\d+)\b/g;
 
 /**
- * Tokens the decorator must leave alone: fenced and inline code, links the
- * writer already made, and bare URLs. A task key inside a URL is part of the
- * URL, and a mention inside a code span is an example, not a mention.
+ * Tokens the decorator must leave alone: fenced and inline code, real Markdown
+ * links (`https://`, `mailto:`, `/`, `#`), and bare URLs. Notice mention tokens
+ * (`@[Name](agent|user:<uuid>)`) intentionally do NOT match the link branch so
+ * `splitMentionsWithDirectory` turns them into mention links.
  */
-const PROTECTED = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/[^\s<)]+)/g;
+const PROTECTED =
+   /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\((?:https?:\/\/|mailto:|\/|#)[^)\n]+\)|https?:\/\/[^\s<)]+)/g;
 
 /**
  * The body with its mentions and task keys turned into Markdown links, so the
@@ -117,16 +128,26 @@ const PROTECTED = /(```[\s\S]*?```|`[^`\n]+`|\[[^\]\n]+\]\([^)\n]+\)|https?:\/\/
  * links `http(s)://`; until the origin is known (first paint) they are plain
  * names, which is still readable — never the raw `@[name](agent:id)` token.
  */
-function decorateBody(body: string, origin: string, org: string): string {
+function decorateBody(
+   body: string,
+   origin: string,
+   org: string,
+   directory: ReadonlyArray<MentionDirectoryEntry>
+): string {
    const linkTo = (label: string, path: string) =>
       origin ? `[${label}](${origin}/${org}${path})` : label;
    const transform = (text: string) =>
-      splitMentions(text)
-         .map((part) =>
-            'text' in part
-               ? part.text.replace(ISSUE_KEY, (key) => linkTo(key, `/issue/${key}`))
-               : linkTo(`@${part.mention.name}`, `/agents/${part.mention.id}`)
-         )
+      splitMentionsWithDirectory(text, directory)
+         .map((part) => {
+            if ('text' in part) {
+               return part.text.replace(ISSUE_KEY, (key) => linkTo(key, `/issue/${key}`));
+            }
+            const href =
+               part.mention.kind === 'agent'
+                  ? `/chat?agent=${encodeURIComponent(part.mention.id)}`
+                  : `/profiles/${encodeURIComponent(part.mention.id)}`;
+            return linkTo(`@${part.mention.name}`, href);
+         })
          .join('');
    return body
       .split(PROTECTED)
@@ -156,22 +177,37 @@ function CommentBody({
 }) {
    const { orgId } = useParams<{ orgId: string }>();
    const org = orgId ?? WORKSPACE_SLUG;
+   const members = useMembersStore((state) => state.members);
+   const agents = useAgentsStore((state) => state.agents);
+   const directory = useMemo<MentionDirectoryEntry[]>(
+      () => [
+         ...members.map((member) => ({ kind: 'user' as const, id: member.id, name: member.name })),
+         ...agents.map((agent) => ({ kind: 'agent' as const, id: agent.id, name: agent.name })),
+      ],
+      [members, agents]
+   );
    const [origin, setOrigin] = useState('');
    useEffect(() => setOrigin(window.location.origin), []);
-   const decorated = useMemo(() => decorateBody(body, origin, org), [body, origin, org]);
+   const decorated = useMemo(
+      () => decorateBody(body, origin, org, directory),
+      [body, origin, org, directory]
+   );
    return (
       <AgentMarkdown
          body={decorated}
          compact
          clamp={clamp}
-         className={thin ? 'font-thin [&_*]:font-thin' : undefined}
+         className={cn(thin && 'font-thin [&_*]:font-thin', className)}
       />
    );
 }
 
 function EventRow({ item }: { item: EventItem }) {
    return (
-      <div data-activity-event className="flex items-center gap-2.5 py-1 text-muted-foreground">
+      <div
+         data-activity-event
+         className="flex max-w-full min-w-0 items-center gap-2.5 py-1 text-muted-foreground"
+      >
          <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-accent p-0.5">
             {item.actor.role === 'Application' ? (
                <BerryMark
@@ -236,20 +272,8 @@ function EventGroup({ items }: { items: EventItem[] }) {
 }
 
 function CommentFiles({ files }: { files: ApiAttachment[] }) {
-   const { orgId } = useParams<{ orgId: string }>();
-   const org = orgId ?? WORKSPACE_SLUG;
    if (files.length === 0) return null;
-   return (
-      <AttachedFileList
-         entries={files.map((file) => ({
-            id: file.id,
-            name: file.fileName,
-            path: file.fileName,
-            sizeBytes: file.sizeBytes,
-            href: `/${org}/attachments/${file.id}/preview`,
-         }))}
-      />
-   );
+   return <AttachmentStrip files={files} />;
 }
 
 /** A handoff note Berry used to post beside the run's report. */
@@ -422,7 +446,7 @@ function CommentCard({
                <ReactionBar target="comment" id={comment.id} />
                <Button
                   variant="ghost"
-                  size="xxs"
+                  size="sm"
                   className="text-muted-foreground"
                   onClick={() => setReplying((value) => !value)}
                >
@@ -431,7 +455,7 @@ function CommentCard({
                {!comment.parentId ? (
                   <Button
                      variant="ghost"
-                     size="xxs"
+                     size="sm"
                      className="text-muted-foreground"
                      onClick={() => (comment.resolvedAt ? resolve(false, '') : setResolving(true))}
                   >
@@ -441,7 +465,7 @@ function CommentCard({
                {replies.length > 0 ? (
                   <Button
                      variant="ghost"
-                     size="xxs"
+                     size="sm"
                      className="text-muted-foreground"
                      aria-expanded={!collapsed}
                      onClick={() => setCollapsed((value) => !value)}
@@ -458,7 +482,7 @@ function CommentCard({
          </div>
 
          {replies.length > 0 && !collapsed ? (
-            <div className="mt-2 flex flex-col gap-2 border-l border-border/60 pl-3">
+            <div className="mt-2 flex flex-col gap-2 pl-3">
                {replies.map((reply) => (
                   <CommentCard
                      key={reply.id}
@@ -625,6 +649,14 @@ export function useIssueActivity(issueRef: string, issueId?: string) {
 
 // ------------------------------------------------------------------ listing
 
+/**
+ * The file viewer, with CodeMirror and the markdown renderer inside it: its
+ * chunk is fetched when a file is first opened, not with the task page.
+ */
+const ArtifactViewer = dynamic(() =>
+   import('@/components/common/issues/details/artifact-viewer').then((m) => m.ArtifactViewer)
+);
+
 export function ActivityFeedList({
    comments,
    events,
@@ -682,13 +714,29 @@ export function ActivityFeedList({
    }, [issueRef]);
 
    useEffect(() => {
-      return onIssueAttachment((ref, attachment) => {
+      const stopAdded = onIssueAttachment((ref, attachment) => {
          if (ref !== issueRef) return;
          setAttachments((current) => [
             attachment,
             ...current.filter((entry) => entry.id !== attachment.id),
          ]);
       });
+      const stopRemoved = onCommentFilesRemoved((commentIds, attachmentIds) => {
+         if (commentIds.length === 0 && attachmentIds.length === 0) return;
+         const droppedComments = new Set(commentIds);
+         const droppedFiles = new Set(attachmentIds);
+         setAttachments((current) =>
+            current.filter(
+               (entry) =>
+                  !droppedFiles.has(entry.id) &&
+                  (!entry.commentId || !droppedComments.has(entry.commentId))
+            )
+         );
+      });
+      return () => {
+         stopAdded();
+         stopRemoved();
+      };
    }, [issueRef]);
 
    const repliesByParent = useMemo(() => {
@@ -783,7 +831,7 @@ export function ActivityFeedList({
    return (
       // Set apart from the sub-tasks above: activity is a different kind of
       // block (what happened), not more of the task's structure.
-      <div className="mt-6">
+      <div className="mt-6 pb-14 sm:pb-0">
          <h2 data-heading="label" className="mb-2 pb-[7px] text-muted-foreground">
             {t('title')}
          </h2>
@@ -856,16 +904,19 @@ export function ActivityFeedList({
                )
             )}
          </div>
-         <ArtifactViewer
-            issueRef={issueRef}
-            artifacts={openArtifact?.files ?? []}
-            index={openArtifact?.index ?? null}
-            onIndexChange={(index) =>
-               setOpenArtifact((current) =>
-                  current && index !== null ? { ...current, index } : null
-               )
-            }
-         />
+         {/* Mounted only while a file is open, so its chunk waits for the first one. */}
+         {openArtifact ? (
+            <ArtifactViewer
+               issueRef={issueRef}
+               artifacts={openArtifact.files}
+               index={openArtifact.index}
+               onIndexChange={(index) =>
+                  setOpenArtifact((current) =>
+                     current && index !== null ? { ...current, index } : null
+                  )
+               }
+            />
+         ) : null}
       </div>
    );
 }
@@ -878,9 +929,20 @@ function withoutMentions(body: string, agentIds: Set<string>): string {
       .map((part) =>
          'text' in part
             ? part.text
-            : agentIds.has(part.mention.id)
+            : part.mention.kind === 'agent' && agentIds.has(part.mention.id)
               ? `@${part.mention.name}`
-              : `@[${part.mention.name}](${part.mention.kind}:${part.mention.id})`
+              : mentionToken(part.mention.kind, part.mention.id, part.mention.name)
+      )
+      .join('');
+}
+
+/** Converts clean `@Name` mentions in the draft to explicit server mention tokens. */
+function serializeMentions(body: string, directory: ReadonlyArray<MentionDirectoryEntry>): string {
+   return splitMentionsWithDirectory(body, directory)
+      .map((part) =>
+         'text' in part
+            ? part.text
+            : mentionToken(part.mention.kind, part.mention.id, part.mention.name)
       )
       .join('');
 }
@@ -912,15 +974,31 @@ export function ActivityCommentComposer({
       },
       [isReply, issueRef, setStoredDraft]
    );
+   // A reply is not kept per task the way the root draft is, so moving away loses it.
+   useReportUnsavedEdits(`reply:${parentId ?? ''}`, isReply && replyDraft.trim() !== '');
 
    const textareaRef = useRef<HTMLTextAreaElement>(null);
+   const backdropRef = useRef<HTMLDivElement>(null);
    const workspaceId = useSessionStore((state) => state.workspace?.id);
+   const storeMembers = useMembersStore((state) => state.members);
+   const storeAgents = useAgentsStore((state) => state.agents);
+   const [pickedMentions, setPickedMentions] = useState<PickedMention[]>([]);
    const [plan, setPlan] = useState<TriggerPlan | null>(null);
    const [skipped, setSkipped] = useState<string[]>([]);
    const [note, setNote] = useState(false);
    const [sending, setSending] = useState(false);
    const [uploading, setUploading] = useState(0);
    const [attached, setAttached] = useState<ApiAttachment[]>([]);
+   const [localThumbs, setLocalThumbs] = useState<Map<string, string>>(() => new Map());
+   const localThumbsRef = useRef<Map<string, string>>(localThumbs);
+   useEffect(() => {
+      localThumbsRef.current = localThumbs;
+   }, [localThumbs]);
+   useEffect(() => {
+      return () => {
+         for (const url of localThumbsRef.current.values()) URL.revokeObjectURL(url);
+      };
+   }, []);
    const [focused, setFocused] = useState(false);
    const filePicker = useRef<HTMLInputElement>(null);
    const slashExtras = useMemo(
@@ -934,24 +1012,88 @@ export function ActivityCommentComposer({
       ],
       [t]
    );
+   const handlePickMention = useCallback((mention: PickedMention) => {
+      setPickedMentions((current) => [
+         mention,
+         ...current.filter((entry) => !(entry.kind === mention.kind && entry.id === mention.id)),
+      ]);
+   }, []);
    const palette = useComposerPalette({
       textareaRef,
       value: draft,
       onChange: setDraft,
       workspaceId,
-      agentMention: (agent) => mentionToken('agent', agent.id, agent.name),
+      onPickMention: handlePickMention,
       slashExtras,
    });
 
+   // Highlighting matches every known person or agent in the workspace (plus
+   // anything picked from the palette), while server serialization only turns
+   // explicitly picked agents into trigger tokens so bare "@name" never starts
+   // an unintended run.
+   const highlightDirectory = useMemo<MentionDirectoryEntry[]>(
+      () => [
+         ...pickedMentions,
+         ...palette.people.map((person) => ({
+            kind: 'user' as const,
+            id: person.id,
+            name: person.name,
+         })),
+         ...storeMembers.map((member) => ({
+            kind: 'user' as const,
+            id: member.id,
+            name: member.name,
+         })),
+         ...palette.agents.map((agent) => ({
+            kind: 'agent' as const,
+            id: agent.id,
+            name: agent.name,
+         })),
+         ...storeAgents.map((agent) => ({
+            kind: 'agent' as const,
+            id: agent.id,
+            name: agent.name,
+         })),
+      ],
+      [pickedMentions, palette.people, storeMembers, palette.agents, storeAgents]
+   );
+
+   const wireDirectory = useMemo<MentionDirectoryEntry[]>(
+      () => [
+         ...pickedMentions,
+         ...palette.people.map((person) => ({
+            kind: 'user' as const,
+            id: person.id,
+            name: person.name,
+         })),
+         ...storeMembers.map((member) => ({
+            kind: 'user' as const,
+            id: member.id,
+            name: member.name,
+         })),
+      ],
+      [pickedMentions, palette.people, storeMembers]
+   );
+
+   const highlightParts = useMemo(
+      () => (draft ? splitMentionsWithDirectory(draft, highlightDirectory) : []),
+      [draft, highlightDirectory]
+   );
+
+   const serializedDraft = useMemo(
+      () => (draft ? serializeMentions(draft, wireDirectory) : ''),
+      [draft, wireDirectory]
+   );
+
    // Debounced: the preview is advice, and a request per keystroke is not.
    useEffect(() => {
-      if (note || !issueRef || !draft.trim()) {
+      if (note || !issueRef || !serializedDraft.trim()) {
          setPlan(null);
          return;
       }
       let cancelled = false;
       const timer = setTimeout(() => {
-         previewCommentTriggers(issueRef, draft).then(
+         previewCommentTriggers(issueRef, serializedDraft).then(
             (next) => {
                if (!cancelled) setPlan(next);
             },
@@ -964,7 +1106,7 @@ export function ActivityCommentComposer({
          cancelled = true;
          clearTimeout(timer);
       };
-   }, [issueRef, draft, note]);
+   }, [issueRef, serializedDraft, note]);
 
    // Grow with the message, up to the same max the className allows.
    useEffect(() => {
@@ -972,6 +1114,7 @@ export function ActivityCommentComposer({
       if (!element) return;
       element.style.height = '0px';
       element.style.height = `${Math.min(element.scrollHeight, 160)}px`;
+      if (backdropRef.current) backdropRef.current.scrollTop = element.scrollTop;
    }, [draft]);
 
    const upload = async (files: FileList | null) => {
@@ -981,6 +1124,16 @@ export function ActivityCommentComposer({
       for (const file of list) {
          try {
             const saved = await uploadIssueAttachment(issueRef, file);
+            if (previewKind(saved) === 'image') {
+               const thumbUrl = URL.createObjectURL(file);
+               setLocalThumbs((current) => {
+                  const next = new Map(current);
+                  const prior = next.get(saved.id);
+                  if (prior) URL.revokeObjectURL(prior);
+                  next.set(saved.id, thumbUrl);
+                  return next;
+               });
+            }
             setAttached((current) => [saved, ...current.filter((entry) => entry.id !== saved.id)]);
          } catch (cause) {
             toast.error(cause instanceof BerryApiError ? cause.message : t('uploadFailed'));
@@ -990,14 +1143,27 @@ export function ActivityCommentComposer({
       if (filePicker.current) filePicker.current.value = '';
    };
 
+   const removeAttached = useCallback((file: ApiAttachment) => {
+      setAttached((current) => current.filter((entry) => entry.id !== file.id));
+      setLocalThumbs((current) => {
+         const url = current.get(file.id);
+         if (!url) return current;
+         URL.revokeObjectURL(url);
+         const next = new Map(current);
+         next.delete(file.id);
+         return next;
+      });
+      void deleteAttachment(file.id).catch(() => undefined);
+   }, []);
+
    const send = () => {
-      const text = draft.trim();
+      const text = serializedDraft.trim();
       if (!text || sending) return;
       if (uploading > 0) {
          toast.error(t('uploadsPending'));
          return;
       }
-      // A note starts nothing, so every mention in it is demoted; otherwise
+      // A note starts nothing, so every agent mention in it is demoted; otherwise
       // only the agents the writer clicked off are.
       const removed = note
          ? new Set((plan?.targets ?? []).map((target) => target.agentId))
@@ -1018,10 +1184,23 @@ export function ActivityCommentComposer({
                   )
                )
             );
-            setAttached(pending.filter((_, index) => !linked[index]));
+            const remaining = pending.filter((_, index) => !linked[index]);
+            const remainingIds = new Set(remaining.map((file) => file.id));
+            setLocalThumbs((current) => {
+               const next = new Map(current);
+               for (const [id, url] of current) {
+                  if (!remainingIds.has(id)) {
+                     URL.revokeObjectURL(url);
+                     next.delete(id);
+                  }
+               }
+               return next;
+            });
+            setAttached(remaining);
             onPosted(comment);
             if (isReply) setReplyDraft('');
             else clearStoredDraft(issueRef);
+            setPickedMentions([]);
             setSkipped([]);
             setNote(false);
             const planned = plan?.targets.length ?? 0;
@@ -1048,24 +1227,57 @@ export function ActivityCommentComposer({
    const canSend = Boolean(draft.trim()) && !sending && uploading === 0;
    const sendLabel = sending ? t('sending') : t('send');
 
+   const showTriggers = Boolean(plan && (plan.targets.length > 0 || plan.refused.length > 0));
+
    return (
-      <div className={cn('flex flex-col', className)}>
-         <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/15 px-2.5 py-1.5">
-            <div className="flex items-end gap-2">
-               <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="mb-0.5 size-8 flex-none"
-                  aria-label={t('attach')}
-                  onClick={() => filePicker.current?.click()}
-               >
-                  {uploading > 0 ? (
-                     <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                     <Paperclip className="size-4" />
-                  )}
-               </Button>
+      <div className={cn('relative flex flex-col', className)}>
+         {/* "Draft saved" rides on the box's top edge, right side, like a
+             legend: it takes no line of its own, so the box neither jumps when
+             it appears nor keeps an empty line under it for it. */}
+         {!isReply && draft.trim() ? (
+            <span
+               data-field-legend
+               className="pointer-events-none absolute -top-2 right-3 z-10 bg-container px-1 text-subtle-foreground"
+            >
+               {t('draft')}
+            </span>
+         ) : null}
+         <div
+            className={cn(
+               'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
+               focused ? 'border-primary' : 'border-border'
+            )}
+         >
+            {attached.length > 0 ? (
+               <AttachmentStrip
+                  files={attached}
+                  localThumbs={localThumbs}
+                  onRemove={removeAttached}
+                  className="pb-1"
+               />
+            ) : null}
+            <div className="flex items-end gap-2.5">
+               <div className="flex h-(--field-h) shrink-0 items-center gap-2">
+                  <button
+                     type="button"
+                     className="inline-flex size-6 flex-none cursor-pointer items-center justify-center rounded-md text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                     aria-label={t('attach')}
+                     onClick={() => filePicker.current?.click()}
+                  >
+                     {uploading > 0 ? (
+                        <Loader2 className="size-[18px] animate-spin" />
+                     ) : (
+                        <Paperclip className="size-[18px]" />
+                     )}
+                  </button>
+                  <EmojiInsertButton
+                     textareaRef={textareaRef}
+                     value={draft}
+                     onChange={setDraft}
+                     side="top"
+                     compact
+                  />
+               </div>
                <input
                   ref={filePicker}
                   type="file"
@@ -1076,6 +1288,24 @@ export function ActivityCommentComposer({
                />
                <div className="relative min-w-0 flex-1">
                   {palette.list}
+                  {draft ? (
+                     <div
+                        ref={backdropRef}
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 max-h-40 min-h-(--field-h) overflow-hidden whitespace-pre-wrap break-words py-[calc((var(--field-h)-1.25rem)/2)] leading-5 text-foreground no-scrollbar"
+                     >
+                        {highlightParts.map((part, index) =>
+                           'text' in part ? (
+                              <span key={index}>{part.text}</span>
+                           ) : (
+                              <span key={index} className="text-berry">
+                                 {part.raw}
+                              </span>
+                           )
+                        )}
+                        {draft.endsWith('\n') ? '\u200b' : null}
+                     </div>
+                  ) : null}
                   <textarea
                      ref={textareaRef}
                      value={draft}
@@ -1085,6 +1315,11 @@ export function ActivityCommentComposer({
                      onChange={(event) => {
                         setDraft(event.target.value);
                         palette.sync(event.target.value, event.target.selectionStart ?? 0);
+                     }}
+                     onScroll={(event) => {
+                        if (backdropRef.current) {
+                           backdropRef.current.scrollTop = event.currentTarget.scrollTop;
+                        }
                      }}
                      onKeyUp={(event) => {
                         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -1107,91 +1342,81 @@ export function ActivityCommentComposer({
                      onBlur={() => setFocused(false)}
                      onPointerDown={(event) => event.stopPropagation()}
                      placeholder={t('placeholder')}
-                     className="max-h-40 min-h-8 w-full resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                     className="relative block max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-[calc((var(--field-h)-1.25rem)/2)] leading-5 outline-none placeholder:text-muted-foreground [--input-color:transparent] [--caret-color:var(--foreground)] no-scrollbar"
                   />
                </div>
                <Button
-                  size="icon"
-                  // Secondary: on a task in review the decision bar holds the
-                  // page's one primary action, and a comment is not it.
-                  className="mb-0.5 size-8 flex-none bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
+                  size="icon-sm"
+                  variant={canSend ? 'default' : 'secondary'}
+                  className={cn('flex-none', !canSend && 'border border-transparent')}
                   aria-label={sendLabel}
                   title={sendLabel}
                   onClick={send}
                   disabled={!canSend}
                >
-                  <SendHorizonal className="size-3.5" aria-hidden />
+                  <SendHorizonal className="ml-[2px] size-4" strokeWidth={2.4} aria-hidden />
                </Button>
             </div>
-
-            {attached.length > 0 ? (
-               <ul className="flex flex-wrap gap-1.5">
-                  {attached.map((file) => (
-                     <li
-                        key={file.id}
-                        className="max-w-full truncate rounded-full border border-border/60 px-2 py-0.5 text-muted-foreground"
-                     >
-                        {file.fileName}
-                     </li>
-                  ))}
-               </ul>
-            ) : null}
-
-            {note ? (
-               <p className="text-muted-foreground">
-                  {t('note')} · {t('noteHint')}
-               </p>
-            ) : plan && (plan.targets.length > 0 || plan.refused.length > 0) ? (
-               <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-muted-foreground">{t('triggerTitle')}</span>
-                  {plan.targets.map((target) => {
-                     const off = skipped.includes(target.agentId);
-                     return (
-                        <button
-                           key={target.agentId}
-                           type="button"
-                           aria-pressed={!off}
-                           title={off ? t('restore') : t('skip')}
-                           onClick={() =>
-                              setSkipped((current) =>
-                                 off
-                                    ? current.filter((id) => id !== target.agentId)
-                                    : [...current, target.agentId]
-                              )
-                           }
-                           className={cn(
-                              'rounded-full border px-2 py-0.5',
-                              off
-                                 ? 'border-border/60 text-muted-foreground line-through'
-                                 : 'border-status-info text-status-info'
-                           )}
-                        >
-                           {target.agentName}
-                           {off ? ` · ${t('skipped')}` : ''}
-                        </button>
-                     );
-                  })}
-                  {plan.refused.map((entry) => (
-                     <span
-                        key={entry.agentId}
-                        title={t('blockedReason')}
-                        className="rounded-full border border-status-danger/50 px-2 py-0.5 text-status-danger"
-                     >
-                        {entry.agentName} · {t('blockedReason')}
-                     </span>
-                  ))}
-               </div>
-            ) : null}
-
-            {!isReply && draft.trim() ? (
-               <span className="text-muted-foreground">{t('draft')}</span>
-            ) : null}
          </div>
+
+         {/* The note and the agents a comment will wake sit under the box,
+             only while there is one to show. */}
+         {note || showTriggers ? (
+            <div className="flex flex-col gap-1 pt-1 pl-1">
+               {note ? (
+                  <p className="text-muted-foreground">
+                     {t('note')} · {t('noteHint')}
+                  </p>
+               ) : plan && showTriggers ? (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                     <span className="text-muted-foreground">{t('triggerTitle')}</span>
+                     {plan.targets.map((target) => {
+                        const off = skipped.includes(target.agentId);
+                        return (
+                           <button
+                              key={target.agentId}
+                              type="button"
+                              aria-pressed={!off}
+                              title={off ? t('restore') : t('skip')}
+                              onClick={() =>
+                                 setSkipped((current) =>
+                                    off
+                                       ? current.filter((id) => id !== target.agentId)
+                                       : [...current, target.agentId]
+                                 )
+                              }
+                              className={cn(
+                                 'rounded-full border px-2 py-0.5',
+                                 off
+                                    ? 'border-border/60 text-muted-foreground line-through'
+                                    : 'border-status-info text-status-info'
+                              )}
+                           >
+                              {target.agentName}
+                              {off ? ` · ${t('skipped')}` : ''}
+                           </button>
+                        );
+                     })}
+                     {plan.refused.map((entry) => (
+                        <span
+                           key={entry.agentId}
+                           title={t('blockedReason')}
+                           className="rounded-full border border-status-danger/50 px-2 py-0.5 text-status-danger"
+                        >
+                           {entry.agentName} · {t('blockedReason')}
+                        </span>
+                     ))}
+                  </div>
+               ) : null}
+            </div>
+         ) : null}
       </div>
    );
 }
 
 /** Every agent id named in the text. */
 function collectMentionIds(body: string): string[] {
-   return splitMentions(body).flatMap((part) => ('text' in part ? [] : [part.mention.id]));
+   return splitMentions(body).flatMap((part) =>
+      'mention' in part && part.mention.kind === 'agent' ? [part.mention.id] : []
+   );
 }

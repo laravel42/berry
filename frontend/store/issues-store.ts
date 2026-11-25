@@ -15,6 +15,7 @@ import {
 } from '@/lib/issues';
 import { apiPriorityFromUi, apiStatusFromUi } from '@/lib/catalog';
 import { WORKSPACE_SLUG } from '@/lib/config';
+import { isSameValue } from '@/lib/same-value';
 import Link from 'next/link';
 import { createElement } from 'react';
 import { toast } from 'sonner';
@@ -40,6 +41,12 @@ interface IssuesState {
 
    // Actions
    hydrateIssues: (issues: Issue[]) => void;
+   /**
+    * Insert new issues and replace those with the same id, never removing any.
+    * A partial list (one page, one event) must not read as a deletion: the
+    * task page leaves when its issue vanishes from the store.
+    */
+   mergeIssues: (issues: Issue[]) => void;
    addIssue: (issue: Issue) => void;
    updateIssue: (id: string, updatedIssue: Partial<Issue>) => void;
    deleteIssue: (id: string) => void;
@@ -142,9 +149,47 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
 
    // Actions
    hydrateIssues: (incoming: Issue[]) => {
+      // A full refresh mostly hands back what is already here. Keeping the
+      // objects that did not change, and not notifying when none did, spares
+      // every row a render it has nothing to show for.
+      const current = get().issues;
+      const byId = new Map(current.map((issue) => [issue.id, issue]));
+      let changed = incoming.length !== current.length;
+      const next = incoming.map((issue, index) => {
+         const known = byId.get(issue.id);
+         const kept = known && isSameValue(known, issue) ? known : issue;
+         if (kept !== current[index]) changed = true;
+         return kept;
+      });
+      if (!changed) return;
       set({
-         issues: incoming,
-         issuesByStatus: groupIssuesByStatus(incoming),
+         issues: next,
+         issuesByStatus: groupIssuesByStatus(next),
+      });
+   },
+
+   mergeIssues: (incoming: Issue[]) => {
+      if (incoming.length === 0) return;
+      const current = get().issues;
+      const byId = new Map(incoming.map((issue) => [issue.id, issue]));
+      const known = new Set(current.map((issue) => issue.id));
+      let changed = false;
+      const merged = current.map((issue) => {
+         const fresh = byId.get(issue.id);
+         if (!fresh || isSameValue(issue, fresh)) return issue;
+         changed = true;
+         return fresh;
+      });
+      for (const issue of byId.values()) {
+         if (!known.has(issue.id)) {
+            merged.push(issue);
+            changed = true;
+         }
+      }
+      if (!changed) return;
+      set({
+         issues: merged,
+         issuesByStatus: groupIssuesByStatus(merged),
       });
    },
 

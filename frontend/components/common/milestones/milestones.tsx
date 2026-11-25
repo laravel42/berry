@@ -2,7 +2,6 @@
 
 import {
    EmptyState,
-   EmptyStateLoading,
    EmptyStateMark,
    EmptyStateText,
    EmptyStateTitle,
@@ -19,6 +18,7 @@ import { SplitIndex, useSelectFirst } from '@/components/common/page/split-index
 import Header from '@/components/layout/headers/milestones/header';
 import GoalLine from './milestone-line';
 import GoalOverview from './milestone-overview';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 function EmptyGoals() {
    const t = useTranslations('milestones.empty');
@@ -75,7 +75,7 @@ export default function Milestones() {
          <Header />
          <div className="min-h-0 flex-1 overflow-y-auto">
             {!loaded && !error ? (
-               <EmptyStateLoading label={t('loading')} />
+               <ListSkeleton label={t('loading')} />
             ) : error ? (
                <div className="px-4 py-10 text-muted-foreground" role="alert">
                   {error}

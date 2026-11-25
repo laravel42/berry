@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { apiFetch } from './api';
+import { newIdempotencyKey } from './api-schemas';
 
 /**
  * The settings pages, as the server serves them.
@@ -175,7 +176,7 @@ export async function createToken(
 
    const json: unknown = await apiFetch('/api/v1/tokens', {
       method: 'POST',
-      headers: { 'idempotency-key': crypto.randomUUID() },
+      headers: { 'idempotency-key': newIdempotencyKey() },
       body: JSON.stringify(body),
    });
    const parsed = parse(

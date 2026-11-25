@@ -18,6 +18,12 @@ const meta = {
       'placeholder': 'Add description…',
       'aria-label': 'Description',
    },
+   argTypes: {
+      'data-heading': {
+         control: 'select',
+         options: ['h1', 'h2', 'h3'],
+      },
+   },
    decorators: [
       (Story) => (
          <div className="w-[560px]">

@@ -2,6 +2,7 @@
 
 import { BerryLoading, BerryMark } from '@/components/brand/berry-mark';
 import { Button } from '@/components/ui/button';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BerryApiError } from '@/lib/api';
 import {
@@ -21,7 +22,7 @@ import {
    textFromRunEvent,
 } from '@/lib/runs';
 import { cn } from '@/lib/utils';
-import { ExternalLink, Hammer, PanelBottom, RotateCw, Sparkles, Square } from 'lucide-react';
+import { ExternalLink, Hammer, PanelBottom, RotateCw, Square } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -404,22 +405,19 @@ export function EnvironmentPreview({
                      {(env?.state === 'failed' || env?.state === 'unavailable') &&
                         env.failure !== 'credentials' &&
                         env.failure !== 'infrastructure' && (
-                           <span className="ai-animated-border rounded-md">
-                              <Button
-                                 type="button"
-                                 variant="ghost"
-                                 size="xs"
-                                 className="bg-background hover:bg-accent"
-                                 disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
-                                 onClick={fixWithAi}
-                                 title={t('fixHint')}
-                              >
-                                 <Sparkles className="size-3.5" aria-hidden />
-                                 {fix?.phase === 'working' || fix?.phase === 'asking'
-                                    ? t('fixingShort')
-                                    : t('fix')}
-                              </Button>
-                           </span>
+                           <Button
+                              type="button"
+                              variant="ai"
+                              size="md"
+                              disabled={fix?.phase === 'asking' || fix?.phase === 'working'}
+                              onClick={fixWithAi}
+                              title={t('fixHint')}
+                           >
+                              <SparkIcon className="size-3.5" />
+                              {fix?.phase === 'working' || fix?.phase === 'asking'
+                                 ? t('fixingShort')
+                                 : t('fix')}
+                           </Button>
                         )}
                   </div>
                )}

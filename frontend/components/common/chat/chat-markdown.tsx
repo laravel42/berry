@@ -1,6 +1,7 @@
 'use client';
 
 import { Fragment, type ReactNode } from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
 /**
@@ -54,17 +55,31 @@ function inline(text: string, keyPrefix: string): ReactNode[] {
       } else if (token.startsWith('[')) {
          const label = token.slice(1, token.indexOf(']'));
          const href = match[6] ?? '';
-         nodes.push(
-            <a
-               key={key}
-               href={href}
-               target="_blank"
-               rel="noreferrer noopener"
-               className="underline underline-offset-2"
-            >
-               {label}
-            </a>
-         );
+         const isMention = label.startsWith('@');
+         const mentionClass =
+            'font-medium text-berry no-underline hover:underline underline-offset-2';
+         const linkClass = isMention ? mentionClass : 'underline underline-offset-2';
+         const origin = typeof window !== 'undefined' ? window.location.origin : '';
+         const isInternal = Boolean(origin && href.startsWith(`${origin}/`));
+         if (isInternal) {
+            nodes.push(
+               <Link key={key} href={href.slice(origin.length)} className={linkClass}>
+                  {label}
+               </Link>
+            );
+         } else {
+            nodes.push(
+               <a
+                  key={key}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className={linkClass}
+               >
+                  {label}
+               </a>
+            );
+         }
       } else {
          nodes.push(
             <a

@@ -37,7 +37,17 @@ const nextConfig: NextConfig = {
    // host Electron and Docker use. A Cloudflare tunnel is another origin;
    // without it Next answers the upgrade `Unauthorized` (Cloudflare 502).
    // `*` is one hostname label, so a quick-tunnel name matches.
-   allowedDevOrigins: ['127.0.0.1', 'local.berry.pm', '*.trycloudflare.com'],
+   // BERRY_DEV_ORIGINS (comma-separated hostnames) adds more, to open
+   // `next dev` from a phone on the local network; it only affects development.
+   allowedDevOrigins: [
+      '127.0.0.1',
+      'local.berry.pm',
+      '*.trycloudflare.com',
+      ...(process.env.BERRY_DEV_ORIGINS ?? '')
+         .split(',')
+         .map((origin) => origin.trim())
+         .filter((origin) => origin !== ''),
+   ],
    /**
     * A self-contained server, so the app can be deployed without the workspace.
     *

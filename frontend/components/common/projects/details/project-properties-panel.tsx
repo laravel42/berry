@@ -22,11 +22,29 @@ import { useMembersStore } from '@/store/members-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { cn } from '@/lib/utils';
 import { format, parseISO } from 'date-fns';
-import { ProjectProgressChart } from './project-progress-chart';
+import dynamic from 'next/dynamic';
 import { LeadPicker, leadCandidates } from '../lead-picker';
 import { DetailSectionLabel } from './detail-section-label';
 import { ProjectDetailsSection } from './project-details-section';
 import { ProjectGoalsSection } from './project-milestones-section';
+
+/**
+ * The Progress chart, with Recharts inside it, loaded after the page rather
+ * than with it. Until it lands, the placeholder holds the chart's 130px and
+ * the one-line date row under it, so the card does not grow when it arrives.
+ */
+const ProjectProgressChart = dynamic(
+   () => import('./project-progress-chart').then((m) => m.ProjectProgressChart),
+   {
+      ssr: false,
+      loading: () => (
+         <div aria-hidden>
+            <div className="h-[130px]" />
+            <div className="mt-0.5 h-lh" />
+         </div>
+      ),
+   }
+);
 
 interface ProjectPropertiesPanelProps {
    project: Project;
@@ -159,7 +177,7 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
                            type="button"
                            variant="ghost"
                            size="sm"
-                           className="w-full min-w-0 justify-start gap-2 px-0"
+                           className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
                            aria-label={project.lead ? `Lead: ${project.lead.name}` : 'Project lead'}
                         >
                            {project.lead ? (
@@ -435,7 +453,7 @@ export function ProjectPropertiesPanel({
                />
             </div>
             <Tabs defaultValue="assignees">
-               <TabsList className="h-8 bg-transparent gap-1 p-0">
+               <TabsList className="bg-transparent gap-1 p-0">
                   <TabsTrigger value="assignees" className="px-2.5 rounded-full">
                      Assignees
                   </TabsTrigger>

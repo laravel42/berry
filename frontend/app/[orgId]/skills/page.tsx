@@ -205,12 +205,15 @@ function SkillsScreen() {
       router.replace(`?${next.toString()}`, { scroll: false });
    };
 
+   const catalogButtonClass =
+      'border border-[#ccc]/40 !bg-black !text-[#cdcdcd] shadow-xs hover:!bg-[#1a1a1a] hover:!text-[#cdcdcd]';
+
    const header = (
       <>
          <PageKpiHeader label={t('title')}>
             <Button
                variant="soft"
-               className="shrink-0 border border-[#ccc]/40 !bg-black !text-[#cdcdcd] shadow-xs hover:!bg-[#1a1a1a] hover:!text-[#cdcdcd]"
+               className={`shrink-0 max-sm:hidden ${catalogButtonClass}`}
                asChild
             >
                <Link href={`/${orgId}/skill-catalog`}>
@@ -229,6 +232,19 @@ function SkillsScreen() {
             filter={filter}
             query={query}
             onQueryChange={setQuery}
+            mobileAction={
+               <Button
+                  variant="soft"
+                  size="sm"
+                  className={`w-full sm:hidden ${catalogButtonClass}`}
+                  asChild
+               >
+                  <Link href={`/${orgId}/skill-catalog`}>
+                     <LibraryBig className="size-4" aria-hidden />
+                     {t('catalogButton')}
+                  </Link>
+               </Button>
+            }
             scope={scope}
             onScopeChange={(next) => {
                setScope(next);

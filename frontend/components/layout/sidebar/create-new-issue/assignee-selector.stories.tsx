@@ -10,6 +10,12 @@ const meta = {
    component: AssigneeSelector,
    tags: ['ai-generated', 'needs-work'],
    args: { assignee: null, onChange: fn() },
+   argTypes: {
+      scope: {
+         control: 'select',
+         options: ['all', 'agents'],
+      },
+   },
    beforeEach: () => {
       useIssuesStore.getState().hydrateIssues(issues);
       useMembersStore.setState({ members: [me, teammate] });

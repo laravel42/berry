@@ -79,7 +79,7 @@ export function AgentCommandItems({ options, value, onSelect, query }: AgentComm
                      className="size-3.5"
                   />
                   <span className="min-w-0 truncate text-foreground">{option.label}</span>
-                  {on ? <CheckIcon className="ml-auto size-3.5 shrink-0" /> : null}
+                  {on ? <CheckIcon className="text-(--primary) ml-auto size-3.5 shrink-0" /> : null}
                </CommandItem>
             );
          })}

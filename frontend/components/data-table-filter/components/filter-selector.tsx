@@ -13,7 +13,12 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { ArrowRightIcon, ChevronRightIcon, FilterIcon } from 'lucide-react'
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  ChevronRightIcon,
+  FilterIcon,
+} from 'lucide-react'
 import {
   isValidElement,
   memo,
@@ -89,7 +94,7 @@ function __FilterSelector<TData>({
     >
       <PopoverTrigger asChild>
         <Button
-          size="xs"
+          size={iconOnly ? 'icon-sm' : 'sm'}
           variant="track"
           aria-label={t('filter', locale)}
           title={iconOnly ? t('filter', locale) : undefined}
@@ -111,12 +116,24 @@ function __FilterSelector<TData>({
           The value panel is absolutely positioned to the right of the field
           list. Putting it in normal flow used to widen the popover and shift
           every CommandItem under the cursor, so hover never settled on some
-          fields and their submenu never opened.
+          fields and their submenu never opened. Below sm there is no room to
+          the right, so the panel replaces the field list and a Back button
+          returns to it.
         */}
         <div className="relative max-h-[min(24rem,var(--radix-popover-content-available-height))]">
           {property && column && activeFilter ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-1.5 border-b border-border px-3 py-2 text-muted-foreground sm:hidden"
+              onClick={() => setProperty(undefined)}
+            >
+              <ArrowLeftIcon className="size-4" />
+              {t('back', locale)}
+            </button>
+          ) : null}
+          {property && column && activeFilter ? (
             <div
-              className="absolute top-0 left-full z-10 ml-px flex max-h-[min(24rem,var(--radix-popover-content-available-height))] min-w-[11rem] max-w-[16rem] overflow-y-auto rounded-md border border-border bg-popover shadow-md"
+              className="absolute top-0 left-full z-10 ml-px flex max-sm:static max-sm:ml-0 max-sm:max-w-none max-sm:rounded-none max-sm:border-0 max-sm:shadow-none max-h-[min(24rem,var(--radix-popover-content-available-height))] min-w-[11rem] max-w-[16rem] overflow-y-auto rounded-md border border-border bg-popover shadow-md"
               onMouseDown={(event) => event.stopPropagation()}
               onPointerDown={(event) => event.stopPropagation()}
             >
@@ -130,7 +147,10 @@ function __FilterSelector<TData>({
               />
             </div>
           ) : null}
-          <Command loop className="min-w-[8.5rem]">
+          <Command
+            loop
+            className={cn('min-w-[8.5rem]', property && 'max-sm:hidden')}
+          >
             <CommandEmpty>{t('noresults', locale)}</CommandEmpty>
             <CommandList className="max-h-fit">
               <CommandGroup>
@@ -287,7 +307,7 @@ function __QuickSearchFilters<TData>({
                   <div className="flex items-center gap-1.5 group">
                     <Checkbox
                       checked={checked}
-                      className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 mr-1 border-input data-[state=checked]:border-violet-500 data-[state=checked]:bg-violet-500 data-[state=checked]:text-white"
+                      className="opacity-0 data-[state=checked]:opacity-100 group-data-[selected=true]:opacity-100 mr-1 [@media(hover:none)]:-mr-px border-input"
                     />
                     <div className="flex items-center w-4 justify-center">
                       {v.icon &&

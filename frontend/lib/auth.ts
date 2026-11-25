@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 import { apiFetch } from './api';
-import { authClient } from './auth-client';
+
+/** The Better Auth client, loaded on first use: no page needs it to start. */
+const loadAuthClient = () => import('./auth-client').then((module) => module.authClient());
 
 const userSchema = z.object({
    id: z.string(),
@@ -36,6 +38,8 @@ const bootstrapSchema = z.object({
    }),
    workspaces: z.array(workspaceSchema),
    currentWorkspaceId: z.string().nullable(),
+   /** The server's clock (RFC 3339 UTC) when it answered; older servers omit it. */
+   serverTime: z.string().optional(),
 });
 
 const configSchema = z.object({
@@ -85,7 +89,8 @@ export async function signInWithGitHub(): Promise<void> {
       return;
    }
    const origin = signInOrigin || window.location.origin;
-   const { error } = await authClient().signIn.social({
+   const client = await loadAuthClient();
+   const { error } = await client.signIn.social({
       provider: 'github',
       callbackURL: `${origin}/`,
       errorCallbackURL: `${origin}/sign-in`,
@@ -111,8 +116,11 @@ export async function devLogin(email: string): Promise<LoginUser> {
    return parsed.data.user;
 }
 
+/** Shared with the root layout, which preloads this exact URL. */
+export const BOOTSTRAP_PATH = '/api/v1/me/bootstrap';
+
 export async function fetchBootstrap(): Promise<BootstrapPayload> {
-   const json: unknown = await apiFetch('/api/v1/me/bootstrap');
+   const json: unknown = await apiFetch(BOOTSTRAP_PATH);
    const parsed = bootstrapSchema.safeParse(json);
    if (!parsed.success) {
       throw new Error('Bootstrap response was not recognized');
@@ -147,7 +155,8 @@ export async function registerWithEmail(input: {
    email: string;
    password: string;
 }): Promise<void> {
-   const { error } = await authClient().signUp.email({
+   const client = await loadAuthClient();
+   const { error } = await client.signUp.email({
       name: input.name.trim(),
       email: input.email.trim(),
       password: input.password,
@@ -163,7 +172,8 @@ export async function registerWithEmail(input: {
  * `?step=twofa` and this resolves without a session until the code is verified.
  */
 export async function signInWithEmail(email: string, password: string): Promise<void> {
-   const { error } = await authClient().signIn.email({
+   const client = await loadAuthClient();
+   const { error } = await client.signIn.email({
       email: email.trim(),
       password,
       callbackURL: `${window.location.origin}/`,
@@ -175,7 +185,8 @@ export async function signInWithEmail(email: string, password: string): Promise<
 
 export async function requestMagicLink(email: string): Promise<void> {
    const origin = window.location.origin;
-   const { error } = await authClient().signIn.magicLink({
+   const client = await loadAuthClient();
+   const { error } = await client.signIn.magicLink({
       email: email.trim(),
       callbackURL: `${origin}/`,
       errorCallbackURL: `${origin}/sign-in?error=magic_link`,
@@ -187,7 +198,8 @@ export async function requestMagicLink(email: string): Promise<void> {
 
 export async function requestPasswordReset(email: string): Promise<void> {
    const origin = window.location.origin;
-   const { error } = await authClient().requestPasswordReset({
+   const client = await loadAuthClient();
+   const { error } = await client.requestPasswordReset({
       email: email.trim(),
       redirectTo: `${origin}/reset-password`,
    });
@@ -197,7 +209,8 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
-   const { error } = await authClient().resetPassword({
+   const client = await loadAuthClient();
+   const { error } = await client.resetPassword({
       token,
       newPassword,
    });
@@ -207,7 +220,8 @@ export async function resetPassword(token: string, newPassword: string): Promise
 }
 
 export async function verifyTwoFactorTotp(code: string, trustDevice: boolean): Promise<void> {
-   const { error } = await authClient().twoFactor.verifyTotp({
+   const client = await loadAuthClient();
+   const { error } = await client.twoFactor.verifyTotp({
       code: code.trim(),
       trustDevice,
    });
@@ -217,7 +231,8 @@ export async function verifyTwoFactorTotp(code: string, trustDevice: boolean): P
 }
 
 export async function verifyTwoFactorBackup(code: string): Promise<void> {
-   const { error } = await authClient().twoFactor.verifyBackupCode({
+   const client = await loadAuthClient();
+   const { error } = await client.twoFactor.verifyBackupCode({
       code: code.trim(),
    });
    if (error) {
@@ -255,7 +270,8 @@ export async function fetchVoiceAgentsAvailable(): Promise<boolean> {
 
 /** Ends the session on the server; the cookie is cleared by the response. */
 export async function logoutSession(): Promise<void> {
-   const { error } = await authClient().signOut();
+   const client = await loadAuthClient();
+   const { error } = await client.signOut();
    if (error && error.status !== 401) {
       throw new Error(error.message || 'Sign-out failed');
    }

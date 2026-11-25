@@ -24,6 +24,10 @@
 /.next-desktop/
 # Production standalone copy for `bun run package:desktop`.
 /.next-desktop-bundle/
+# Test server for phones and tunnels, so it does not share .next with `next dev`.
+/.next-tunnel/
+# Production builds served for review (`next start`), one directory per build.
+/.next-prod*/
 /out/
 
 # production

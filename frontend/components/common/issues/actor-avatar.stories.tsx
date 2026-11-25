@@ -21,6 +21,12 @@ const meta = {
    component: ActorAvatar,
    tags: ['ai-generated'],
    args: { user: person },
+   argTypes: {
+      size: {
+         control: 'select',
+         options: ['sm', 'md'],
+      },
+   },
 } satisfies Meta<typeof ActorAvatar>;
 
 export default meta;

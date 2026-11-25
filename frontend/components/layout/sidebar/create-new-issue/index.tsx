@@ -1,7 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { useRunConfirm } from '@/components/common/issues/run-confirm-dialog';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
 import { StatusPicker, type StatusOption } from '@/components/common/pickers/status-picker';
@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import { Issue } from '@/data/issues';
 import type { LabelInterface } from '@/data/labels';
 import { priorities } from '@/data/priorities';
@@ -51,7 +52,7 @@ import { useSessionStore } from '@/store/session-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { RiEditLine } from '@remixicon/react';
 import { format } from 'date-fns';
-import { CheckIcon, ChevronRight, Loader2, Plus, Sparkles, TagIcon, X } from 'lucide-react';
+import { CheckIcon, ChevronRight, Loader2, Plus, TagIcon, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -355,7 +356,7 @@ export function CreateNewIssue() {
          </DialogTrigger>
          <DialogContent
             showCloseButton={false}
-            className="top-[10vh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[880px]"
+            className="top-[10dvh] w-full translate-y-0 p-0 shadow-xl sm:max-w-[880px]"
          >
             <DialogHeader className="px-4 pt-4 pb-0">
                <DialogTitle className="sr-only">{t('title')}</DialogTitle>
@@ -389,7 +390,7 @@ export function CreateNewIssue() {
                </div>
             </DialogHeader>
 
-            <div className="max-h-[52vh] w-full overflow-y-auto px-4 pb-0">
+            <div className="max-h-[min(52dvh,calc(90dvh-7rem))] w-full overflow-y-auto px-4 pb-0">
                <Input
                   data-heading="h1"
                   data-create-title
@@ -398,9 +399,19 @@ export function CreateNewIssue() {
                   placeholder={t('titlePlaceholder')}
                   value={draft.title}
                   onChange={(event) => setDraft({ title: event.target.value })}
+                  autoComplete="off"
+                  enterKeyHint="next"
+                  onKeyDown={(event) => {
+                     // Enter moves on to the description, which is what "next" promises.
+                     if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+                     event.preventDefault();
+                     document
+                        .querySelector<HTMLElement>('[data-create-description] .ProseMirror')
+                        ?.focus();
+                  }}
                />
 
-               <div className="mt-4 flex flex-wrap items-center gap-1.5">
+               <div className="mt-4 flex flex-wrap items-center gap-1.5 [&_button]:font-medium">
                   {createFields.status ? (
                      <StatusPicker
                         variant="chip"
@@ -489,7 +500,7 @@ export function CreateNewIssue() {
                               />
                               <span className="min-w-0 truncate">{label.name}</span>
                               {draft.labelIds.includes(label.id) ? (
-                                 <CheckIcon className="ml-auto size-3.5" />
+                                 <CheckIcon className="text-(--primary) ml-auto size-3.5" />
                               ) : null}
                            </button>
                         ))}
@@ -514,7 +525,6 @@ export function CreateNewIssue() {
                               <Input
                                  autoFocus
                                  aria-label={definition.name}
-                                 className="h-7"
                                  type={
                                     definition.kind === 'number'
                                        ? 'number'
@@ -592,27 +602,21 @@ export function CreateNewIssue() {
 
             <div className="flex w-full items-center justify-between gap-3 border-t px-4 py-2.5">
                <div className="flex min-w-0 items-center gap-3">
-                  <span
-                     className="ai-animated-border h-7"
-                     aria-disabled={improveDisabled || undefined}
+                  <Button
+                     type="button"
+                     variant="ai"
+                     size="md"
+                     disabled={improveDisabled}
+                     aria-busy={improving || undefined}
+                     onClick={() => void improveDescription()}
                   >
-                     <Button
-                        type="button"
-                        variant="outline"
-                        size="xxs"
-                        className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground disabled:opacity-100 disabled:bg-background disabled:text-muted-foreground"
-                        disabled={improveDisabled}
-                        aria-busy={improving || undefined}
-                        onClick={() => void improveDescription()}
-                     >
-                        {improving ? (
-                           <Loader2 className="size-3.5 animate-spin" aria-hidden />
-                        ) : (
-                           <Sparkles className="size-3.5" aria-hidden />
-                        )}
-                        {improving ? t('improving') : t('improve')}
-                     </Button>
-                  </span>
+                     {improving ? (
+                        <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                     ) : (
+                        <SparkIcon className="size-3.5" />
+                     )}
+                     {improving ? t('improving') : t('improve')}
+                  </Button>
                   {draft.assignee?.type === 'agent' ? (
                      <CreatePluginSelect
                         workspaceId={workspaceId}

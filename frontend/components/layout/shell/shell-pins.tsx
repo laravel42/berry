@@ -141,11 +141,11 @@ export function ShellPins({ orgId }: { orgId: string }) {
       <div>
          <div
             data-heading="label"
-            className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] lg:pt-[18px] lg:pb-[7px]"
+            className="px-6 pt-3 pb-1 text-[var(--shell-text-dim)] md:pt-[18px] md:pb-[7px]"
          >
             {t('pinned')}
          </div>
-         <ul ref={listRef} className="flex flex-col gap-0 px-3 lg:gap-1">
+         <ul ref={listRef} className="flex flex-col gap-0 px-3 md:gap-1">
             {shown.map((pin, index) => {
                // The status mark comes from the task the board already loaded.
                // A pin carries a title, not a status, and asking the server for
@@ -164,7 +164,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                      data-pin-row
                      className={[
                         // A tap target on the overlay rail; sized to its text as a column.
-                        'group/pin flex min-h-11 items-center gap-1 rounded pr-1 lg:min-h-0',
+                        'group/pin flex min-h-11 items-center gap-1 rounded pr-1 md:min-h-0',
                         dragIndex === index
                            ? 'bg-[var(--shell-hover)]'
                            : 'hover:bg-[var(--shell-hover)]',
@@ -176,11 +176,12 @@ export function ShellPins({ orgId }: { orgId: string }) {
                         onPointerUp={onGripUp}
                         onPointerCancel={cancelDrag}
                         aria-label={t('reorder', { title: pin.title })}
-                        className="flex size-4 flex-none cursor-grab touch-none items-center justify-center text-[var(--shell-text-faint)] opacity-0 transition-opacity group-hover/pin:opacity-100 active:cursor-grabbing [&_svg]:pointer-events-none"
+                        className="relative flex size-4 flex-none cursor-grab touch-none items-center justify-center text-[var(--shell-text-faint)] transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/pin:opacity-100 active:cursor-grabbing [&_svg]:pointer-events-none [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-1 [@media(hover:none)]:after:content-['']"
                      >
                         <GripVertical className="size-3" />
                      </span>
                      <Link
+                        prefetch={false}
                         data-shell-nav
                         href={hrefFor(orgId, pin)}
                         className="flex min-w-0 flex-1 items-center gap-2 truncate rounded py-1.5 text-[var(--shell-text-muted)] hover:text-[var(--shell-text)]"
@@ -207,7 +208,7 @@ export function ShellPins({ orgId }: { orgId: string }) {
                         type="button"
                         onClick={() => void unpin(pin)}
                         aria-label={t('unpin', { title: pin.title })}
-                        className="flex size-5 flex-none items-center justify-center rounded text-[var(--shell-text-faint)] opacity-0 transition-opacity group-hover/pin:opacity-100 hover:text-[var(--shell-text)] focus-visible:opacity-100"
+                        className="relative flex size-5 flex-none items-center justify-center rounded text-[var(--shell-text-faint)] transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/pin:opacity-100 hover:text-[var(--shell-text)] focus-visible:opacity-100 [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-0.5 [@media(hover:none)]:after:content-['']"
                      >
                         <X className="size-3" />
                      </button>

@@ -1,5 +1,3 @@
-'use client';
-
 import { createAuthClient } from 'better-auth/react';
 import { magicLinkClient, twoFactorClient } from 'better-auth/client/plugins';
 
@@ -34,6 +32,10 @@ let client: AuthClient | null = null;
  * imports it can still be prerendered: there is no origin to point at on the
  * server. Same-origin by default (Next rewrites /api/* to the server); the
  * explicit API URL only in cross-origin development.
+ *
+ * There is deliberately no 'use client' directive: this is not a component, and
+ * the directive would make the dynamic import in lib/auth.ts a client reference
+ * of the root layout, putting the Better Auth chunk in every page's initial JS.
  */
 export function authClient(): AuthClient {
    if (typeof window === 'undefined') {

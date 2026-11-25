@@ -14,8 +14,8 @@ import { useEventStreamStore } from '@/store/event-stream-store';
 import { useMilestonesStore } from '@/store/milestones-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useProjectsStore } from '@/store/projects-store';
-import { useSessionStore } from '@/store/session-store';
-import { useEffect } from 'react';
+import { serverNow, useSessionStore } from '@/store/session-store';
+import { useEffect, useRef } from 'react';
 
 /** How long to wait for a burst to settle before refetching. */
 const REFRESH_DEBOUNCE_MS = 400;
@@ -23,6 +23,17 @@ const REFRESH_DEBOUNCE_MS = 400;
 /** Reconnect delays: first retry quickly, then back off to the cap. */
 const RECONNECT_MIN_MS = 3000;
 const RECONNECT_MAX_MS = 30_000;
+
+/** How long to wait for an idle moment before opening the stream anyway. */
+const IDLE_TIMEOUT_MS = 3000;
+
+/** How far back from "now" a fresh cursor reaches; repeats are harmless. */
+const SINCE_MARGIN_MS = 5000;
+
+/** A server-time cursor, RFC 3339, `SINCE_MARGIN_MS` before the server's now. */
+function sinceCursor(): string {
+   return new Date(serverNow().getTime() - SINCE_MARGIN_MS).toISOString();
+}
 
 type Family = 'milestones' | 'cycles' | 'approvals' | 'inbox' | 'projects';
 
@@ -64,8 +75,18 @@ export function useWorkspaceEventStream(): void {
    const setConnected = useEventStreamStore((state) => state.setConnected);
    const setLastEventId = useEventStreamStore((state) => state.setLastEventId);
 
+   // Taken when the workspace starts loading, before the stream opens in idle.
+   const startedAt = useRef<{ workspaceId: string; since: string } | null>(null);
+   useEffect(() => {
+      if (status === 'ready' && workspaceId) {
+         startedAt.current = { workspaceId, since: sinceCursor() };
+      }
+   }, [status, workspaceId]);
+
    useEffect(() => {
       if (status !== 'ready' || !workspaceId) return;
+      const started = startedAt.current;
+      let since = started && started.workspaceId === workspaceId ? started.since : sinceCursor();
 
       useEventStreamStore.getState().setScope(`${user?.id ?? 'anonymous'}:${workspaceId}`);
       const controller = new AbortController();
@@ -121,6 +142,8 @@ export function useWorkspaceEventStream(): void {
             const after = useEventStreamStore.getState().lastEventId ?? undefined;
             const events = streamWorkspaceEvents(workspaceId, {
                after,
+               // Never without a cursor: with no last id, replay from `since`.
+               since,
                signal: controller.signal,
             });
             for await (const event of events) {
@@ -138,10 +161,13 @@ export function useWorkspaceEventStream(): void {
                ['CURSOR_EXPIRED', 'INVALID_CURSOR'].includes(error.code)
             ) {
                setLastEventId(null);
+               since = serverNow().toISOString();
             }
          }
          if (cancelled) return;
          setConnected(false);
+         // With no event seen yet, the next connection starts from here.
+         since = sinceCursor();
          // Whatever happened while the stream was down is not in the stores.
          scheduleRefresh(['milestones', 'cycles', 'approvals', 'inbox', 'projects']);
          reconnectTimer = setTimeout(() => {
@@ -150,11 +176,22 @@ export function useWorkspaceEventStream(): void {
          reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
       };
 
-      void consume();
+      let idleHandle: number | undefined;
+      let idleTimer: ReturnType<typeof setTimeout> | undefined;
+      const open = () => {
+         if (!cancelled) void consume();
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+         idleHandle = window.requestIdleCallback(open, { timeout: IDLE_TIMEOUT_MS });
+      } else {
+         idleTimer = setTimeout(open, IDLE_TIMEOUT_MS);
+      }
 
       return () => {
          cancelled = true;
          controller.abort();
+         if (idleHandle !== undefined) window.cancelIdleCallback(idleHandle);
+         if (idleTimer) clearTimeout(idleTimer);
          setConnected(false);
          if (refreshTimer) clearTimeout(refreshTimer);
          if (reconnectTimer) clearTimeout(reconnectTimer);

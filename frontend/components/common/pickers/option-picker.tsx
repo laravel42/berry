@@ -11,7 +11,14 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { CheckIcon } from 'lucide-react';
-import { useRef, useState, type ComponentProps, type ReactElement, type ReactNode } from 'react';
+import {
+   useRef,
+   useState,
+   type ComponentProps,
+   type ReactElement,
+   type ReactNode,
+   type RefObject,
+} from 'react';
 
 export interface PickerOption {
    value: string;
@@ -32,7 +39,11 @@ const MENU_WIDTH: Record<PickerMenuWidth, string> = {
 };
 
 interface OptionPickerProps {
-   options: readonly PickerOption[];
+   /**
+    * The choices. Pass a function to build them lazily: it runs only while the
+    * menu is open, so a closed picker in a long list creates no option elements.
+    */
+   options: readonly PickerOption[] | (() => readonly PickerOption[]);
    /** The chosen option's `value`; `undefined` when nothing is chosen yet. */
    value: string | undefined;
    /** Called with the chosen `value`, also when it is the current one. The menu closes. */
@@ -92,45 +103,72 @@ export function OptionPicker({
                commandRef.current?.querySelector<HTMLElement>('[cmdk-list]')?.focus();
             }}
          >
-            {/* Keyboard highlight starts on the current choice. */}
-            <Command ref={commandRef} defaultValue={value}>
-               <CommandList>
-                  <CommandEmpty>{emptyLabel}</CommandEmpty>
-                  <CommandGroup>
-                     {options.map((option) => (
-                        <CommandItem
-                           key={option.value}
-                           value={option.value}
-                           onSelect={() => choose(option.value)}
-                           className="flex items-center justify-between"
-                        >
-                           <div className="flex items-center gap-2">
-                              {option.icon}
-                              {option.label}
-                           </div>
-                           {value === option.value ? (
-                              <CheckIcon size={16} className="ml-auto" />
-                           ) : null}
-                           {countFor ? (
-                              <span className="text-muted-foreground">
-                                 {countFor(option.value)}
-                              </span>
-                           ) : null}
-                        </CommandItem>
-                     ))}
-                  </CommandGroup>
-               </CommandList>
-            </Command>
+            <OptionList
+               options={options}
+               value={value}
+               emptyLabel={emptyLabel}
+               countFor={countFor}
+               commandRef={commandRef}
+               onChoose={choose}
+            />
          </PopoverContent>
       </Popover>
+   );
+}
+
+/** The menu body. Mounted by `PopoverContent` only while the menu is open. */
+function OptionList({
+   options,
+   value,
+   emptyLabel,
+   countFor,
+   commandRef,
+   onChoose,
+}: {
+   options: OptionPickerProps['options'];
+   value: string | undefined;
+   emptyLabel: string;
+   countFor?: (value: string) => number;
+   commandRef: RefObject<HTMLDivElement | null>;
+   onChoose: (value: string) => void;
+}) {
+   const items = typeof options === 'function' ? options() : options;
+   return (
+      /* Keyboard highlight starts on the current choice. */
+      <Command ref={commandRef} defaultValue={value}>
+         <CommandList>
+            <CommandEmpty>{emptyLabel}</CommandEmpty>
+            <CommandGroup>
+               {items.map((option) => (
+                  <CommandItem
+                     key={option.value}
+                     value={option.value}
+                     onSelect={() => onChoose(option.value)}
+                     className="flex items-center justify-between"
+                  >
+                     <div className="flex items-center gap-2">
+                        {option.icon}
+                        {option.label}
+                     </div>
+                     {value === option.value ? (
+                        <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                     ) : null}
+                     {countFor ? (
+                        <span className="text-muted-foreground">{countFor(option.value)}</span>
+                     ) : null}
+                  </CommandItem>
+               ))}
+            </CommandGroup>
+         </CommandList>
+      </Command>
    );
 }
 
 type PickerButtonProps = Omit<ComponentProps<typeof Button>, 'variant' | 'size' | 'role'>;
 
 /**
- * A 28px ghost square holding only a glyph, for dense rows and property
- * panels. It has no visible text, so `aria-label` is required: name the
+ * A ghost square at the field height holding only a glyph, for rows and
+ * property panels, so it lines up with the other controls on its line. It has no visible text, so `aria-label` is required: name the
  * property and its current value ("Priority: Urgent").
  */
 export function PickerIconButton({
@@ -138,13 +176,7 @@ export function PickerIconButton({
    ...props
 }: PickerButtonProps & { 'aria-label': string }) {
    return (
-      <Button
-         role="combobox"
-         size="icon"
-         variant="ghost"
-         className={cn('flex size-7 items-center justify-center', className)}
-         {...props}
-      />
+      <Button role="combobox" size="icon-sm" variant="ghost" className={className} {...props} />
    );
 }
 
@@ -171,7 +203,7 @@ export function PickerRowButton({ className, ...props }: PickerButtonProps) {
          type="button"
          size="sm"
          variant="ghost"
-         className={cn('w-full min-w-0 justify-start gap-2 px-0', className)}
+         className={cn('w-full min-w-0 justify-start gap-2 px-0 font-medium', className)}
          {...props}
       />
    );

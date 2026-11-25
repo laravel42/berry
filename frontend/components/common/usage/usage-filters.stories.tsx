@@ -4,7 +4,7 @@ import { expect, fn, waitFor, within } from 'storybook/test';
 import { makeProject } from '@/components/common/projects/stories-fixtures';
 import { useProjectsStore } from '@/store/projects-store';
 
-import UsageFilters from './usage-filters';
+import UsageFilters, { UsageUpdated } from './usage-filters';
 
 const projects = [
    makeProject({ id: 'project-1', name: 'Berry' }),
@@ -19,9 +19,12 @@ const meta = {
       timeframe: 'window',
       query: { days: 30, timezone: 'UTC', projectId: null },
       onChange: fn(),
-      onRefresh: fn(),
-      lastUpdated: new Date('2026-09-18T11:58:00Z'),
-      loading: false,
+   },
+   argTypes: {
+      timeframe: {
+         control: 'select',
+         options: ['window', 'live'],
+      },
    },
    beforeEach: () => {
       useProjectsStore.setState({ projects });
@@ -74,8 +77,9 @@ export const ProjectSelected: Story = {
    },
 };
 
+/** The title row's stamp before the first read: no time, and Refresh held back. */
 export const NeverLoaded: Story = {
-   args: { lastUpdated: null, loading: true },
+   render: () => <UsageUpdated lastUpdated={null} loading onRefresh={fn()} />,
    play: async ({ canvas }) => {
       await expect(canvas.getByText('Not loaded yet')).toBeVisible();
       await expect(canvas.getByRole('button', { name: 'Refresh' })).toBeDisabled();

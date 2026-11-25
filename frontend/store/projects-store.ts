@@ -9,6 +9,8 @@ import { apiHealthFromUi, patchWorkspaceProject, type ProjectPatchBody } from '@
 
 interface ProjectsState {
    projects: Project[];
+   /** False until the first fetch has answered, so an empty list is not mistaken for an empty workspace. */
+   loaded: boolean;
    hydrateProjects: (projects: Project[]) => void;
    addProject: (project: Project) => void;
    updateProject: (id: string, patch: Partial<Project>) => void;
@@ -39,8 +41,9 @@ function persistPatch(
 
 export const useProjectsStore = create<ProjectsState>((set, get) => ({
    projects: [],
+   loaded: false,
 
-   hydrateProjects: (projects) => set({ projects }),
+   hydrateProjects: (projects) => set({ projects, loaded: true }),
 
    deleteProject: (id) =>
       set((state) => ({ projects: state.projects.filter((project) => project.id !== id) })),

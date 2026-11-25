@@ -153,16 +153,19 @@ export function KeyboardShortcuts() {
 
    return (
       <SettingsShell compact title={t('title')} description={t('description')}>
-         <div className="flex items-center gap-2.5">
+         <div className="flex flex-wrap items-center gap-2.5">
             <SettingsSearch
+               // As tall as Restore defaults beside it, so the row is level.
+               className="h-auto self-stretch"
                value={search}
                onChange={setSearch}
-               aria-label={t('searchLabel')}
                placeholder={t('searchPlaceholder')}
             />
             <AlertDialog>
                <AlertDialogTrigger asChild>
-                  <Button variant="soft">{t('restoreAll')}</Button>
+                  <Button size="sm" variant="soft">
+                     {t('restoreAll')}
+                  </Button>
                </AlertDialogTrigger>
                <AlertDialogContent>
                   <AlertDialogHeader>
@@ -201,7 +204,7 @@ export function KeyboardShortcuts() {
                               className="group flex min-h-[42px] items-center gap-2 py-1.5 pr-3 pl-4 transition-colors hover:bg-settings-row-hover"
                            >
                               <div className="min-w-0 flex-1">
-                                 <div className="text-[var(--brand-body)]">{label(shortcut)}</div>
+                                 <div className="text-foreground">{label(shortcut)}</div>
                                  {isRecording ? (
                                     <div
                                        data-settings-type="caption"
@@ -211,16 +214,17 @@ export function KeyboardShortcuts() {
                                     </div>
                                  ) : null}
                               </div>
-                              <button
-                                 type="button"
+                              <Button
+                                 variant="quiet"
+                                 size="sm"
                                  onClick={() => {
                                     setProblem(null);
                                     setRecording(isRecording ? null : shortcut.id);
                                  }}
                                  aria-label={t('record', { action: label(shortcut) })}
                                  className={cn(
-                                    'flex min-h-[26px] cursor-pointer items-center gap-1 rounded-[7px] px-1 outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                                    isRecording && 'ring-1 ring-settings-field-focus'
+                                    'gap-1 px-1 font-normal',
+                                    isRecording && 'ring-1 ring-primary'
                                  )}
                               >
                                  {isRecording ? (
@@ -244,7 +248,7 @@ export function KeyboardShortcuts() {
                                        {shortcut.id in overrides ? t('disabled') : t('unbound')}
                                     </span>
                                  )}
-                              </button>
+                              </Button>
                               <span className="hidden group-focus-within:flex group-hover:flex">
                                  <SettingsIconButton
                                     label={t('disableAction', { action: label(shortcut) })}

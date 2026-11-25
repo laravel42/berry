@@ -685,8 +685,8 @@ export function seedIssuesWorkspace({
    useMembersStore.setState({ members: storyMembers });
    useAgentsStore.setState({ agents: storyAgents, archived: null, error: null });
    useLabelsStore.setState({ labels: storyLabels });
-   useProjectsStore.setState({ projects: storyProjects });
-   useRunsStore.setState({ runs, error: null });
+   useProjectsStore.setState({ projects: storyProjects, loaded: true });
+   useRunsStore.setState({ runs, error: null, loaded: true });
    usePinsStore.setState({ pins: [], loaded: true });
    useIssueSelectionStore.setState({ selected: [], anchor: null });
    useRightPanelStore.setState({ openPanel: null });

@@ -557,7 +557,7 @@ export function PreviewPanel({
             />
          )}
          <div
-            className="flex h-[44px] shrink-0 select-none items-center gap-2 border-b px-5"
+            className="flex h-[44px] shrink-0 select-none items-center gap-2 border-b px-2 sm:px-5"
             onDoubleClick={() => !collapsed && setMaximized((current) => !current)}
          >
             <Tabs
@@ -571,7 +571,7 @@ export function PreviewPanel({
                   if (prefs.minimized) remember({ minimized: false });
                }}
             >
-               <TabsList className="h-8" aria-label={t('label')}>
+               <TabsList aria-label={t('label')}>
                   {tabs.map((entry) => (
                      <TabsTrigger key={entry.id} value={entry.id} className="gap-1.5">
                         {entry.label}
@@ -856,7 +856,7 @@ export function PreviewPanel({
                            </button>
                            <button
                               type="button"
-                              className="absolute right-1 top-1/2 hidden -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground group-hover:block"
+                              className="absolute right-1 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground [@media(hover:hover)]:hidden [@media(hover:hover)]:group-hover:block [@media(hover:none)]:after:absolute [@media(hover:none)]:after:-inset-[5px] [@media(hover:none)]:after:content-['']"
                               aria-label={t('closeShell')}
                               title={t('closeShell')}
                               onClick={() => closeShell(candidate.id)}

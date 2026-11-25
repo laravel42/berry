@@ -9,7 +9,7 @@ export function SearchIssues() {
    const [searchResults, setSearchResults] = useState<
       ReturnType<typeof useIssuesStore.getState>['issues']
    >([]);
-   const { searchIssues } = useIssuesStore();
+   const searchIssues = useIssuesStore((state) => state.searchIssues);
    const { searchQuery, isSearchOpen } = useSearchStore();
 
    useEffect(() => {

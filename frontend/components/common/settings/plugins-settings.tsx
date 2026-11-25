@@ -10,7 +10,8 @@ import {
    DialogHeader,
    DialogTitle,
 } from '@/components/ui/dialog';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { Input } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
    installPlugin,
@@ -240,14 +241,8 @@ export default function PluginsSettings() {
          header={
             <>
                <PageKpiHeader label="Connect" />
-               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px] [&_button]:!h-[30px]">
-                  <Input
-                     className={`${searchFieldClass} w-64 max-sm:w-40`}
-                     value={query}
-                     onChange={(event) => setQuery(event.target.value)}
-                     placeholder="Search plugins"
-                     aria-label="Search plugins"
-                  />
+               <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b px-4 py-[8px]">
+                  <ToolbarSearch label="Search plugins" value={query} onChange={setQuery} />
                   <Tabs value={filter} onValueChange={(value) => setFilter(value as PluginFilter)}>
                      <TabsList aria-label="Plugin catalog">
                         {PLUGIN_FILTERS.map((value) => (
@@ -278,11 +273,11 @@ export default function PluginsSettings() {
             </div>
          ) : null}
          {installedCards.length > 0 ? (
-            <div className="grid grid-cols-1 items-start gap-3 px-5 pt-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 items-start gap-3 px-2 pt-5 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
                {installedCards}
             </div>
          ) : null}
-         <div className={cn('px-5', groups.length > 0 ? 'empty:hidden' : 'py-5')}>
+         <div className={cn('space-y-4 px-2 sm:px-5', groups.length > 0 ? 'empty:hidden' : 'py-5')}>
             {plugins.error ? (
                <SettingsCard>
                   <SettingsEmpty title={plugins.error} />
@@ -332,6 +327,7 @@ export default function PluginsSettings() {
                      {signingSecret}
                   </code>
                   <Button
+                     size="sm"
                      variant="soft"
                      className="w-fit"
                      onClick={() => {
@@ -372,15 +368,15 @@ export default function PluginsSettings() {
                         <SettingsCard>
                            {pluginOauthSetupSecrets(preview.secrets).map((secret) => (
                               <SettingsRow
+                                 wide
                                  key={secret.name}
                                  title={secret.title ?? secret.name}
                                  description={secret.description || undefined}
                                  trailing={
                                     <Input
-                                       variant="settings"
                                        type="password"
                                        autoComplete="off"
-                                       className="h-8 w-56"
+                                       className="w-56"
                                        disabled={busy}
                                        value={secretDrafts[secret.name] ?? ''}
                                        onChange={(event) =>
@@ -424,7 +420,7 @@ export default function PluginsSettings() {
                open={openPlugin !== null}
                onClose={closePlugin}
                header={
-                  <div className="flex h-[52px] w-full items-center gap-1 border-b px-5">
+                  <div className="flex h-[52px] w-full items-center gap-1 border-b px-2 sm:px-5">
                      <button
                         type="button"
                         onClick={closePlugin}
@@ -487,7 +483,7 @@ function PluginCategoryGroup({
             </div>
          </div>
          <CollapsibleContent>
-            <div className="grid grid-cols-1 items-start gap-3 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 items-start gap-3 px-2 py-4 sm:grid-cols-2 sm:px-5 lg:grid-cols-3">
                {children}
             </div>
          </CollapsibleContent>

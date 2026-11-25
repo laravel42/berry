@@ -37,13 +37,18 @@ export function slugFromBoardName(name: string): string {
    return slug;
 }
 
+/** First page of the board list; the root layout preloads this exact URL. */
+export const BOARDS_FIRST_PAGE_PATH = '/api/v1/boards?first=100';
+
 async function fetchBoardPage(
    after?: string
 ): Promise<{ boards: BoardSummary[]; nextCursor?: string }> {
    const params = new URLSearchParams({ first: '100' });
    if (after) params.set('after', after);
 
-   const json: unknown = await apiFetch(`/api/v1/boards?${params.toString()}`);
+   const json: unknown = await apiFetch(
+      after ? `/api/v1/boards?${params.toString()}` : BOARDS_FIRST_PAGE_PATH
+   );
    const parsed = boardConnectionSchema.safeParse(json);
    if (!parsed.success) return { boards: [] };
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { Calendar } from '@/components/ui/calendar-lazy';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -85,7 +85,7 @@ export function ProjectDateSelector({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className={cn('w-full min-w-0 justify-start gap-2 px-0', className)}
+                  className={cn('w-full min-w-0 justify-start gap-2 px-0 font-medium', className)}
                   aria-expanded={open}
                   aria-label={ariaLabel}
                >
@@ -111,19 +111,21 @@ export function ProjectDateSelector({
       return (
          <Popover open={open} onOpenChange={setOpen} modal>
             <PopoverTrigger asChild>
-               <button
+               <Button
                   id={id}
-                  type="button"
+                  variant="ghost"
+                  size="sm"
                   className={cn(
-                     'hidden shrink-0 cursor-pointer tabular-nums text-muted-foreground hover:text-foreground sm:inline',
-                     !date && 'opacity-0 group-hover:opacity-100',
+                     'hidden shrink-0 px-2 font-normal tabular-nums text-muted-foreground sm:inline-flex',
+                     !date &&
+                        '[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100',
                      className
                   )}
                   aria-expanded={open}
                   aria-label={ariaLabel}
                >
                   {date ? format(date, 'MMM d') : emptyLabel}
-               </button>
+               </Button>
             </PopoverTrigger>
             {popover}
          </Popover>

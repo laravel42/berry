@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Roster: Story = {
    play: async ({ canvas }) => {
       await expect(await canvas.findByText('Backend Engineer')).toBeVisible();
-      await expect(canvas.getByText('claude-opus-5 · 4 of 5 permissions')).toBeVisible();
+      await expect(canvas.getByText('BerryLow · 4 of 5 permissions')).toBeVisible();
       // The risky grant is called out in the summary line.
       await expect(canvas.getByText(/can merge without review/)).toBeVisible();
    },
@@ -30,7 +30,7 @@ export const OpensAgentSettings: Story = {
    play: async ({ canvas }) => {
       const card = await canvas.findByRole('link', { name: /Orchestrator/ });
       await expect(card).toHaveAttribute('href', '/berry/agents/agent-orch?view=role');
-      await expect(card).toHaveTextContent('no model set · 1 of 5 permissions');
+      await expect(card).toHaveTextContent('BerryLow · 1 of 5 permissions');
    },
 };
 

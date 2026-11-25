@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseRequest } from './events.ts';
+import { parseRequest, sinceCursor } from './events.ts';
 import { decodeEnvelope, BOARD_TOPICS, WORKSPACE_TOPICS } from '../realtime/replay.ts';
 import type { ApiError } from '../http/errors.ts';
 
@@ -51,6 +51,40 @@ test('a cursor comes from the header or the query, never both', () => {
    // Two cursors is a client asking to resume from two places, and choosing
    // one skips whatever the other named.
    assert.throws(() => parse(`?boardId=${BOARD}&after=${id}`, { 'Last-Event-ID': id }), status(400));
+});
+
+test('since is a third cursor, exclusive with the other two', () => {
+   assert.equal(parse(`?boardId=${BOARD}&since=2026-01-02T03:04:05.678Z`).since, '2026-01-02T03:04:05.678Z');
+   assert.equal(parse(`?boardId=${BOARD}&since=2026-01-02T05:04:05%2B02:00`).since, '2026-01-02T03:04:05.000Z');
+   assert.equal(parse(`?boardId=${BOARD}`).since, null);
+
+   const id = '11111111-1111-4111-8111-111111111199';
+   assert.throws(() => parse(`?boardId=${BOARD}&since=2026-01-02T03:04:05Z&after=${id}`), status(400));
+   assert.throws(() => parse(`?boardId=${BOARD}&since=2026-01-02T03:04:05Z`, { 'Last-Event-ID': id }), status(400));
+});
+
+test('a since that is not RFC 3339 is a validation failure', () => {
+   for (const bad of ['nope', '2026-01-02', '2026-01-02 03:04:05Z', '2026-13-45T03:04:05Z', '2026-01-02T03:04:05', '']) {
+      assert.throws(() => parse(`?boardId=${BOARD}&since=${encodeURIComponent(bad)}`), status(422), bad);
+   }
+});
+
+test('since becomes a cursor that includes events stamped exactly at it', () => {
+   const now = new Date('2026-01-02T12:00:00.000Z');
+   const cutoff = '2026-01-01T12:00:00.000Z';
+   assert.deepEqual(sinceCursor('2026-01-02T03:04:05.678Z', now, cutoff), {
+      occurredAt: '2026-01-02T03:04:05.678Z',
+      id: '00000000-0000-0000-0000-000000000000',
+   });
+   // The cutoff itself is still inside retention, like the replay's >=.
+   assert.equal(sinceCursor(cutoff, now, cutoff).occurredAt, cutoff);
+   // A future instant is now.
+   assert.equal(sinceCursor('2030-01-01T00:00:00.000Z', now, cutoff).occurredAt, now.toISOString());
+   // Older than retention is the same 409 an expired event id gets.
+   assert.throws(() => sinceCursor('2025-12-31T00:00:00.000Z', now, cutoff), (error: unknown) => {
+      const e = error as ApiError & { code?: string };
+      return e.status === 409;
+   });
 });
 
 test('an oversized cursor is refused before it reaches the database', () => {

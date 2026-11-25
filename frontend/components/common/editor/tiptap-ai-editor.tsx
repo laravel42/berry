@@ -99,6 +99,8 @@ export function TiptapAiEditor({
    const focusedRef = useRef(false);
    const blockMenuOpen = useRef(false);
    const setLinkRef = useRef<() => void>(() => {});
+   const onChangeRef = useRef(onChange);
+   onChangeRef.current = onChange;
    const onBlurRef = useRef(onBlur);
    onBlurRef.current = onBlur;
    /** The editor, for handlers passed in before it exists. */
@@ -155,7 +157,7 @@ export function TiptapAiEditor({
          // nothing) and when a plugin such as TrailingNode appends a fix-up to
          // a focus or selection transaction.
          if (!transaction.docChanged) return;
-         onChange(readMarkdown(current));
+         onChangeRef.current(readMarkdown(current));
       },
       onSelectionUpdate: () => {
          setFormatRevision((current) => current + 1);
@@ -404,7 +406,7 @@ function BlockTypeSelect({
          <FormatHint label="Font type" shortcut={headingShortcut()}>
             <SelectTrigger
                aria-label="Font type"
-               className="mr-1 h-7 w-auto gap-1 px-2 py-0 shadow-none"
+               className="mr-1 w-auto gap-1 px-2 py-0 shadow-none"
                onClick={(event) => event.preventDefault()}
             >
                <SelectValue />

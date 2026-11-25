@@ -1,6 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
+import { CHIP_GEOMETRY } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { StatusLook } from '@/lib/catalog';
 
@@ -9,7 +10,8 @@ export function StatusBadge({ look, className }: { look: StatusLook; className?:
    return (
       <span
          className={cn(
-            'inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-border/60 bg-background px-2 py-0.5 text-muted-foreground',
+            CHIP_GEOMETRY,
+            'border border-border/60 bg-background text-muted-foreground',
             className
          )}
       >

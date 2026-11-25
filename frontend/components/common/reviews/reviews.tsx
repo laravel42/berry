@@ -1,12 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
 import { PageStatement } from '@/components/common/page/page-parts';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -35,6 +30,7 @@ import {
 import type { ReviewOutcome } from './review-decision-bar';
 import { ReviewDetail, type ReviewSection } from './review-detail';
 import { DiffStat, PeerVerdictChip, PrIcon, shownPeerApproval } from './review-shared';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** How a task at the gate reads in the list: what the last decision on it was. */
 export function reviewStatusOf(item: ReviewItem): 'open' | 'merged' | 'closed' {
@@ -112,8 +108,11 @@ function ReviewRow({
                muted={status === 'open' && !item.delivery.committed}
                className="pt-px"
             />
-            <span data-review-row className="min-w-0 flex-1">
-               <span className="line-clamp-3 leading-5 break-all">
+            <span
+               data-review-row
+               className="min-w-0 flex-1 max-md:[font-size:14px] max-md:[line-height:1.25rem]"
+            >
+               <span className="line-clamp-3 leading-5 break-words">
                   <span className="font-bold text-muted-foreground">{item.issue.identifier}</span>
                   <span className="text-muted-foreground"> · </span>
                   <span className={branch ? 'font-mono' : undefined}>{label}</span>
@@ -146,7 +145,7 @@ function ReviewGroup({ label, children }: { label: string; children: ReactNode }
             type="button"
             onClick={() => setOpen((value) => !value)}
             aria-expanded={open}
-            className="flex w-full cursor-pointer select-none items-center gap-1.5 border-b border-border/40 bg-muted/50 px-4 py-1.5 transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none"
+            className="flex h-(--field-h) w-full cursor-pointer select-none items-center gap-1.5 border-b border-border/40 bg-muted/50 px-4 transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset focus-visible:outline-none"
          >
             <span data-heading="label">{label}</span>
             <svg
@@ -430,7 +429,7 @@ export default function Reviews({
                />
             </div>
             {showScope ? (
-               <div className="flex h-[44px] shrink-0 items-center px-5">
+               <div className="flex h-[44px] shrink-0 items-center px-2 sm:px-5">
                   <Tabs value={listTab} className="items-center gap-0">
                      <TabsList>
                         <TabsTrigger value="for-you" asChild>
@@ -444,7 +443,7 @@ export default function Reviews({
                </div>
             ) : null}
             <div className="flex-1 overflow-y-auto">
-               {items === null && !error && <EmptyStateLoading label={t('loading')} />}
+               {items === null && !error && <ListSkeleton label={t('loading')} />}
                {error && (
                   <div className="px-4 py-6 text-muted-foreground" role="alert">
                      {error}

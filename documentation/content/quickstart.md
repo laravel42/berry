@@ -28,6 +28,10 @@ bun run dev:server
 ```sh
 bun run dev:frontend
 ```
+Or start both together in one terminal:
+```sh
+bun run dev:all
+```
 The standard local ports are 4000 for the API and 3000 for the web app. Open the web app, sign in, and select or create a workspace.
 
 ## Verify the installation

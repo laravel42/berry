@@ -4,7 +4,7 @@ import { BerryMark } from '@/components/brand/berry-mark';
 import { isAgentUser } from '@/components/common/issues/actor-avatar';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Skeleton } from '@/components/ui/skeleton';
+import { IssueDetailSkeleton } from '@/components/common/details/detail-skeletons';
 import { getIssueDetail } from '@/data/issue-details';
 import { useDetailDrawerClose, useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -14,6 +14,7 @@ import { forgetIssue, rememberIssue } from '@/lib/recent-issues';
 import { cn } from '@/lib/utils';
 import { useIssueViewStore } from '@/store/issue-view-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useRunConsoleStore } from '@/store/run-console-store';
 import { useUiPrefsStore } from '@/store/ui-prefs-store';
 import { useTranslations } from 'next-intl';
 import { SlidersHorizontal } from 'lucide-react';
@@ -23,8 +24,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityCommentComposer, ActivityFeedList, useIssueActivity } from './activity-feed';
 import { FindInIssue } from './find-in-issue';
 import { IssueDescription } from './issue-description';
+import { IssueHeaderMenu } from './issue-header-menu';
+import { IssueStepControls } from './issue-nav-controls';
 import { IssuePropertiesPanel } from './issue-properties-panel';
-import { IssueQuickActions } from './issue-quick-actions';
 import { IssueTitle } from './issue-title';
 import { RunConsole } from './run-console';
 import { SubIssues } from './sub-issues';
@@ -50,7 +52,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    const orgId = params?.orgId;
    const org = orgId ?? WORKSPACE_SLUG;
    const issueId = issueRef ?? params?.issueId ?? '';
-   const { issues, addIssue } = useIssuesStore();
+   const issues = useIssuesStore((state) => state.issues);
+   const addIssue = useIssuesStore((state) => state.addIssue);
+   const consoleFor = useRunConsoleStore((state) => state.openIssueId);
    const inDrawer = useInDetailDrawer();
    const closeDrawer = useDetailDrawerClose();
    const router = useRouter();
@@ -192,16 +196,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
    }, [scrollKey]);
 
    if (fetching && !issue) {
-      return (
-         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-6 py-8 sm:px-8" aria-busy="true">
-            <span className="sr-only">{t('loading')}</span>
-            <Skeleton className="h-8 w-2/3" />
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-28 w-full" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-20 w-full" />
-         </div>
-      );
+      // The same sketch the drawer's loading route shows, so the hand-over
+      // from route to data does not change the picture.
+      return <IssueDetailSkeleton label={t('loading')} />;
    }
 
    if (!issue) {
@@ -246,7 +243,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                >
                   <div
                      data-detail-body
-                     className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-6 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5"
+                     className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-2 pt-3 pb-4 sm:px-8 sm:pt-4 sm:pb-5"
                   >
                      <div className="flex flex-col gap-3">
                         <IssueTitle issue={issue} />
@@ -268,10 +265,9 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                               overlayClassName="lg:hidden"
                               aria-describedby={undefined}
                            >
-                              <div className="flex items-center justify-between gap-2 pr-8">
-                                 <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
-                                 <IssueQuickActions issueRef={issue.identifier} />
-                              </div>
+                              {/* Quick actions live in the properties panel below,
+                                  as one section among the others. */}
+                              <SheetTitle className="sr-only">{tProperties('title')}</SheetTitle>
                               <div className="min-h-0 flex-1">
                                  <IssuePropertiesPanel
                                     issue={issue}
@@ -284,6 +280,26 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                            issueId={issue.id}
                            issueRef={issue.identifier}
                            description={issue.description}
+                           mobileLeadingActions={
+                              !issueRef && consoleFor !== issue.id ? (
+                                 <IssueStepControls
+                                    issueRef={issue.identifier}
+                                    orgId={org}
+                                    comfortable
+                                 />
+                              ) : undefined
+                           }
+                           mobileTrailingActions={
+                              !issueRef && consoleFor !== issue.id ? (
+                                 <IssueHeaderMenu
+                                    issue={issue}
+                                    onDeleted={afterDelete}
+                                    triggerClassName="size-9 text-muted-foreground hover:text-foreground"
+                                    iconClassName="size-[18px]"
+                                    lazySubscription
+                                 />
+                              ) : undefined
+                           }
                         />
                      </div>
 
@@ -314,7 +330,7 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
 
                {stickyCommentBar && !agentManaged ? (
                   <div className="relative z-10 shrink-0 border-t border-border/60 bg-container">
-                     <div className="mx-auto w-full max-w-3xl px-6 py-3 sm:px-8">
+                     <div className="mx-auto w-full max-w-3xl px-2 py-3 sm:px-8">
                         <ActivityCommentComposer
                            issueRef={issue.identifier}
                            onPosted={activity.addComment}
@@ -329,9 +345,6 @@ export default function IssueDetails({ issueRef }: { issueRef?: string } = {}) {
                   data-detail-sidebar
                   className="hidden h-full min-w-0 w-[292px] shrink-0 flex-col overflow-hidden border-l bg-muted/15 px-5 pt-3 pb-3.5 lg:flex"
                >
-                  <div className="mb-3 flex justify-end">
-                     <IssueQuickActions issueRef={issue.identifier} />
-                  </div>
                   <IssuePropertiesPanel issue={issue} detail={detail ?? getIssueDetail(issue)} />
                </aside>
             ) : null}

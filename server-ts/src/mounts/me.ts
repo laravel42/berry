@@ -37,6 +37,7 @@ export interface MeOptions {
    identity: IdentityRepository;
    /** The account settings that are not the profile: sessions, channels, alerts. */
    nested?: Hono<{ Variables: AuthVariables }> | undefined;
+   clock?: () => Date;
 }
 
 export function meMounts(options: MeOptions): Mount[] {
@@ -45,6 +46,7 @@ export function meMounts(options: MeOptions): Mount[] {
    if (options.nested) route.route('/', options.nested);
 
    const { identity } = options;
+   const clock = options.clock ?? (() => new Date());
 
    route.get('/', async (context) =>
       json(serializeProfile(await profileOf(identity, context.get('user').id)))
@@ -139,6 +141,8 @@ export function meMounts(options: MeOptions): Mount[] {
          user: serializeProfile(result.profile),
          workspaces: result.workspaces.map(serializeWorkspace),
          currentWorkspaceId: result.currentWorkspaceId,
+         // The server's clock, for `GET /api/v1/events?since=`.
+         serverTime: clock().toISOString(),
       });
    });
 

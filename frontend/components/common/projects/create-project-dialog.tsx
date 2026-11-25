@@ -1,7 +1,7 @@
 'use client';
 
 import { BerryMark } from '@/components/brand/berry-mark';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { ActorAvatar } from '@/components/common/issues/actor-avatar';
 import { PickerChipButton } from '@/components/common/pickers/option-picker';
 import { PriorityPicker } from '@/components/common/pickers/priority-picker';
@@ -20,6 +20,7 @@ import {
 } from '@/components/common/projects/members-picker';
 import { RepositoryPickers } from '@/components/common/projects/repository-selector';
 import { Button } from '@/components/ui/button';
+import { SparkIcon } from '@/components/ui/spark-icon';
 import {
    Dialog,
    DialogContent,
@@ -49,7 +50,7 @@ import { useMilestonesStore } from '@/store/milestones-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useSessionStore } from '@/store/session-store';
 import { format, isValid, parseISO } from 'date-fns';
-import { Check, ChevronRight, Sparkles, User as UserIcon, X } from 'lucide-react';
+import { Check, ChevronRight, User as UserIcon, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -229,7 +230,11 @@ export function CreateProjectDialog() {
                assistant ? 'sm:max-w-[63rem]' : 'sm:max-w-[52rem]'
             )}
          >
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            {/* On a phone the assistant takes the whole dialog: the form steps
+             aside until Hide brings it back, keeping what was drafted. */}
+            <div
+               className={cn('flex min-h-0 min-w-0 flex-1 flex-col', assistant && 'max-sm:hidden')}
+            >
                <DialogHeader className="px-6 pt-5 pb-0">
                   <DialogTitle className="sr-only">New project</DialogTitle>
                   <DialogDescription className="sr-only">
@@ -284,7 +289,7 @@ export function CreateProjectDialog() {
                         onChange={(event) => setForm({ ...form, name: event.target.value })}
                      />
 
-                     <div className="mt-4 flex flex-wrap items-center gap-1.5">
+                     <div className="mt-4 flex flex-wrap items-center gap-1.5 [&_button]:font-medium">
                         <StatusPicker
                            variant="chip"
                            status={form.status}
@@ -305,7 +310,7 @@ export function CreateProjectDialog() {
                            <PickerChipButton>
                               {form.lead ? (
                                  <>
-                                    <ActorAvatar user={form.lead} size="sm" className="size-4" />
+                                    <ActorAvatar user={form.lead} size="sm" />
                                     <span>{form.lead.name}</span>
                                  </>
                               ) : (
@@ -379,21 +384,21 @@ export function CreateProjectDialog() {
                      </div>
                   </div>
 
-                  <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3">
+                  {/* A phone is too narrow for both buttons on one row: they stack
+                   full width, the primary on top as in every other dialog. */}
+                  <DialogFooter className="flex-row items-center justify-end gap-2 border-t px-6 py-3 max-sm:flex-col-reverse max-sm:items-stretch">
                      {/* Open, the assistant panel is the agent; the button would only repeat it. */}
                      {assistant ? null : (
-                        <span className="ai-animated-border mr-auto h-7">
-                           <Button
-                              type="button"
-                              variant="outline"
-                              size="xxs"
-                              className="!h-full min-h-0 border-0 bg-background shadow-none hover:bg-background hover:text-foreground"
-                              onClick={() => setAssistant(true)}
-                           >
-                              <Sparkles className="size-3.5" aria-hidden="true" />
-                              Create with agent
-                           </Button>
-                        </span>
+                        <Button
+                           type="button"
+                           variant="ai"
+                           size="md"
+                           className="mr-auto max-sm:mr-0"
+                           onClick={() => setAssistant(true)}
+                        >
+                           <SparkIcon className="size-3.5" />
+                           Create with agent
+                        </Button>
                      )}
                      <Button
                         type="submit"

@@ -1,7 +1,8 @@
 'use client';
 
+import { BoardColumn, BoardColumnBody, BoardColumnHeader, columnTone } from '../board-column';
 import type { Issue } from '@/data/issues';
-import { statusTone, type Status, type StatusTone } from '@/data/status';
+import type { Status, StatusTone } from '@/data/status';
 import { useIssuesStore } from '@/store/issues-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { cn } from '@/lib/utils';
@@ -9,12 +10,15 @@ import { useVirtualRows } from '@/lib/use-virtual-rows';
 import { ChevronDown, Plus } from 'lucide-react';
 import { FC, ReactNode, useRef } from 'react';
 import { useDrop } from 'react-dnd';
-import { AnimatePresence, motion } from 'motion/react';
 import { Button } from '../../ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { IssueDragType, IssueGrid } from './issue-grid';
+import dynamic from 'next/dynamic';
+import { IssueDragType } from './issue-dnd';
+import type { IssueGrid as IssueGridComponent } from './issue-grid';
 import { IssueLine } from './issue-line';
+import { IssueListMoreLoader } from './list-states';
 import { useIssueListView } from './use-issue-list-view';
+import { useTranslations } from 'next-intl';
 
 /**
  * Generic descriptor of an issue group. Groups are usually statuses but the
@@ -46,27 +50,20 @@ interface GroupIssuesProps {
     * view that knows what the grouping means.
     */
    onDropIssue?: (issue: Issue) => void;
+   /** True while background task pages are still arriving after the first paint. */
+   loadingMore?: boolean;
 }
 
 /** Beyond this many cards a column renders only the ones in view. */
 const VIRTUALIZE_ABOVE = 40;
-const ESTIMATED_CARD_HEIGHT = 104;
+/** Rendered card height (~166px) plus the 6px vertical gap between cards. */
+const ESTIMATED_CARD_HEIGHT = 172;
 
 /**
- * Header tint per tone: a wash of the status's own `--status-*` token over
- * the container (tokens in globals.css), so the column agrees with the glyph
- * in both themes. The board column takes the fuller wash, the list group bar
- * the lighter one. A group that is not a status (assignee, priority, ...)
- * has no tone of its own and stays neutral.
+ * The list group bar takes the lighter wash of the same semantic tone the
+ * board column takes (`COLUMN_TINT`, in `board-column.tsx`), so a status reads
+ * the same in both layouts.
  */
-const COLUMN_TINT: Record<StatusTone, string> = {
-   neutral: 'bg-column-tint-neutral',
-   info: 'bg-column-tint-info',
-   warning: 'bg-column-tint-warning',
-   success: 'bg-column-tint-success',
-   danger: 'bg-column-tint-danger',
-};
-
 const GROUP_TINT: Record<StatusTone, string> = {
    neutral: 'bg-group-tint-neutral',
    info: 'bg-group-tint-info',
@@ -75,24 +72,23 @@ const GROUP_TINT: Record<StatusTone, string> = {
    danger: 'bg-group-tint-danger',
 };
 
-function groupTone(group: IssueGroupDescriptor): StatusTone {
-   return group.status ? statusTone(group.status) : 'neutral';
-}
-
-const BOARD_COLUMN_BODY_BG = 'var(--board-column-body)';
-
 function GroupHeaderBar({
    group,
    count,
    isViewTypeGrid,
    showChevron,
    canCollapse,
+   collapsed,
+   onToggle,
 }: {
    group: IssueGroupDescriptor;
    count: number;
    isViewTypeGrid: boolean;
    showChevron: boolean;
    canCollapse: boolean;
+   /** Set by the virtualized list, which owns the collapsed state itself. */
+   collapsed?: boolean;
+   onToggle?: () => void;
 }) {
    const { openModal } = useCreateIssueStore();
 
@@ -103,20 +99,24 @@ function GroupHeaderBar({
                aria-hidden
                className={cn(
                   'size-3.5 shrink-0 transition-transform duration-200 group-data-[state=closed]/issue-group:-rotate-90',
-                  canCollapse ? 'text-muted-foreground' : 'text-muted-foreground/35'
+                  canCollapse ? 'text-muted-foreground' : 'text-muted-foreground/35',
+                  collapsed && '-rotate-90'
                )}
             />
          ) : null}
          {group.icon}
-         <span className="font-medium">{group.name}</span>
-         <span className="text-muted-foreground">{count}</span>
+         {/* A group header names a column of the board, so it takes the title
+             face (JetBrains Mono) like every other heading. It is a `span` and
+             not an `h*`: the header is a button that collapses the group, and
+             the base layer's heading rules go by element. */}
+         <span className="font-mono font-medium">{group.name}</span>
+         <span className="font-mono text-muted-foreground tabular-nums">{count}</span>
       </>
    );
 
    const createButton = (
       <Button
-         className={cn(isViewTypeGrid ? 'size-5' : 'size-6')}
-         size="icon"
+         size="icon-sm"
          variant="ghost"
          aria-label={`Create task in ${group.name}`}
          onClick={(event) => {
@@ -124,34 +124,43 @@ function GroupHeaderBar({
             openModal(group.status);
          }}
       >
-         <Plus className={cn(isViewTypeGrid ? 'size-3.5' : 'size-4')} />
+         <Plus className="size-4" />
       </Button>
    );
 
-   const tone = groupTone(group);
+   const tone = columnTone(group.status);
 
    if (isViewTypeGrid) {
       return (
-         <div
-            data-column-tint={tone}
-            className={cn(
-               'flex h-full w-full items-center justify-between gap-2 rounded-lg px-2.5 py-1',
-               COLUMN_TINT[tone]
-            )}
-         >
-            <div className="flex min-w-0 items-center gap-2">{label}</div>
-            <div className="flex shrink-0 items-center">{createButton}</div>
-         </div>
+         <BoardColumnHeader tone={tone} action={createButton}>
+            {label}
+         </BoardColumnHeader>
       );
    }
 
    return (
-      <div className="sticky top-0 z-10 h-9 w-full bg-container">
+      <div className={cn('h-(--field-h) w-full bg-container', !onToggle && 'sticky top-0 z-10')}>
          <div
             data-column-tint={tone}
-            className={cn('flex h-full w-full items-center justify-between px-6', GROUP_TINT[tone])}
+            className={cn(
+               'flex h-full w-full items-center justify-between px-4 sm:px-6',
+               GROUP_TINT[tone]
+            )}
          >
-            {showChevron ? (
+            {showChevron && onToggle ? (
+               <button
+                  type="button"
+                  disabled={!canCollapse}
+                  aria-expanded={!collapsed}
+                  onClick={onToggle}
+                  className={cn(
+                     'flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
+                     canCollapse ? 'cursor-pointer' : 'cursor-default'
+                  )}
+               >
+                  {label}
+               </button>
+            ) : showChevron ? (
                <CollapsibleTrigger asChild>
                   <button
                      type="button"
@@ -173,7 +182,42 @@ function GroupHeaderBar({
    );
 }
 
+/**
+ * The bar of a list group inside the virtualized list. It collapses through
+ * `onToggle` instead of a Collapsible, since the group's rows are not its
+ * children there.
+ */
+export function ListGroupHeader({
+   group,
+   count,
+   collapsed,
+   onToggle,
+}: {
+   group: IssueGroupDescriptor;
+   count: number;
+   collapsed: boolean;
+   onToggle: () => void;
+}) {
+   return (
+      <GroupHeaderBar
+         group={group}
+         count={count}
+         isViewTypeGrid={false}
+         showChevron
+         canCollapse={count > 0}
+         collapsed={collapsed}
+         onToggle={onToggle}
+      />
+   );
+}
+
 /** The rows of a list group, and the drop target that moves a task into it. */
+/** Board cards load with the board, not with the list that shares this file. */
+const IssueGrid = dynamic(() => import('./issue-grid').then((module) => module.IssueGrid), {
+   ssr: false,
+   loading: () => null,
+}) as typeof IssueGridComponent;
+
 const IssueLineList: FC<{
    issues: Issue[];
    onDropIssue?: (issue: Issue) => void;
@@ -204,7 +248,13 @@ const IssueLineList: FC<{
    );
 };
 
-export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesProps) {
+export function GroupIssues({
+   group,
+   issues,
+   count,
+   onDropIssue,
+   loadingMore = false,
+}: GroupIssuesProps) {
    // The URL's `layout` wins over the stored preference, as it does for the
    // view around this group; a shared `?layout=grid` link shows the board.
    const { mode } = useIssueListView();
@@ -224,12 +274,15 @@ export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesPr
 
    if (isViewTypeGrid) {
       return (
-         <div className="bg-container flex h-full w-[278px] shrink-0 flex-col overflow-hidden rounded-lg">
-            <div className="sticky top-0 z-10 h-9 w-full shrink-0 rounded-t-lg bg-container">
-               {header}
-            </div>
-            <IssueGridList issues={issues} status={group.status} onDropIssue={onDropIssue} />
-         </div>
+         <BoardColumn header={header}>
+            <IssueGridList
+               issues={issues}
+               status={group.status}
+               columnId={group.id}
+               onDropIssue={onDropIssue}
+               loadingMore={loadingMore}
+            />
+         </BoardColumn>
       );
    }
 
@@ -246,8 +299,11 @@ export function GroupIssues({ group, issues, count, onDropIssue }: GroupIssuesPr
 const IssueGridList: FC<{
    issues: Issue[];
    status?: Status;
+   columnId: string;
    onDropIssue?: (issue: Issue) => void;
-}> = ({ issues, status, onDropIssue }) => {
+   loadingMore?: boolean;
+}> = ({ issues, status, columnId, onDropIssue, loadingMore = false }) => {
+   const tTasks = useTranslations('tasks');
    const ref = useRef<HTMLDivElement>(null);
    const moveIssue = useIssuesStore((state) => state.moveIssue);
    const columnIssueIds = issues.map((issue) => issue.id);
@@ -276,33 +332,27 @@ const IssueGridList: FC<{
    drop(ref);
 
    const visible = windowed ? issues.slice(virtual.start, virtual.end) : issues;
+   const bottomSpacerHeight = Math.max(
+      0,
+      virtual.totalHeight - virtual.end * ESTIMATED_CARD_HEIGHT
+   );
 
    return (
-      <div
+      <BoardColumnBody
          ref={(node) => {
             ref.current = node;
             virtual.ref.current = node;
          }}
-         className={cn(
-            'relative flex min-h-0 flex-1 flex-col space-y-1.5 mt-2.5 overflow-y-auto rounded-lg p-1.5 transition-shadow no-scrollbar',
-            isOverColumn && issues.length > 0 && 'ring-2 ring-inset ring-primary/35'
-         )}
-         style={{ backgroundColor: BOARD_COLUMN_BODY_BG }}
+         isOver={isOverColumn}
+         isOverEmpty={isOverEmpty}
+         isEmpty={issues.length === 0}
       >
-         <AnimatePresence>
-            {isOverEmpty && issues.length === 0 && (
-               <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.1 }}
-                  className="pointer-events-none flex flex-1 items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4"
-               >
-                  <p className="font-medium text-muted-foreground">Drop to move here</p>
-               </motion.div>
-            )}
-         </AnimatePresence>
-         {windowed ? <div style={{ height: virtual.offset }} aria-hidden /> : null}
+         {/* `shrink-0` is essential inside the flex-col BoardColumnBody; without
+             it flexbox shrinks spacers to 0px and breaks scrolling past the
+             initial window. */}
+         {windowed && virtual.offset > 0 ? (
+            <div className="shrink-0" style={{ height: virtual.offset }} aria-hidden />
+         ) : null}
          {visible.map((issue, index) => (
             <IssueGrid
                key={issue.id}
@@ -310,17 +360,14 @@ const IssueGridList: FC<{
                index={(windowed ? virtual.start : 0) + index}
                columnIssueIds={columnIssueIds}
                columnStatus={status}
+               columnId={columnId}
                onDropIssue={onDropIssue}
             />
          ))}
-         {windowed ? (
-            <div
-               style={{
-                  height: Math.max(0, virtual.totalHeight - virtual.end * ESTIMATED_CARD_HEIGHT),
-               }}
-               aria-hidden
-            />
+         {windowed && bottomSpacerHeight > 0 ? (
+            <div className="shrink-0" style={{ height: bottomSpacerHeight }} aria-hidden />
          ) : null}
-      </div>
+         {loadingMore ? <IssueListMoreLoader mode="grid" label={tTasks('loadingMore')} /> : null}
+      </BoardColumnBody>
    );
 };

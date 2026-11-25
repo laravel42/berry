@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { AgentMarkdown } from '@/components/common/agent-markdown';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { EmptyStateLoading } from '@/components/common/empty-state';
 import { SkillLabelMultiselect } from '@/components/common/skills/skill-label-multiselect';
 import { UnsavedChangesBar } from '@/components/common/unsaved-changes-bar';
@@ -413,8 +413,12 @@ export default function SkillDetail({ skillId, canEdit, onChanged }: Props) {
                   </div>
                   {editable ? (
                      <div
+                        /* The attribute is the hook the editor rule in
+                           globals.css selects on, which is why it keeps the
+                           name it was written with. The `[font-weight:100]`
+                           beside it is gone: 400 is the floor. */
                         data-font-weight="100"
-                        className="min-h-0 flex-1 overflow-y-auto px-4 py-3 [font-weight:100]"
+                        className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
                      >
                         <TiptapAiEditor
                            value={body}

@@ -1,12 +1,32 @@
 import * as React from 'react';
 
 /**
- * Below this the shell's rail is an overlay rather than a column: Tailwind's
- * `lg`, which the layout classes in `berry-shell.tsx` and `shell-rail.tsx`
- * use for the same switch. Keep the two in step — CSS decides how the shell
+ * Below this the shell's rail is an overlay rather than a column and the
+ * phone tab bar takes over: Tailwind's `md`, which the layout classes in
+ * `berry-shell.tsx` and `shell-rail.tsx` use for the same switch. A tablet
+ * gets the desktop shell. Keep the two in step — CSS decides how the shell
  * is drawn on first paint, and this hook decides how it behaves after.
  */
+export const SHELL_BREAKPOINT = 768;
+
+/** Below this the page layouts go single-column: Tailwind's `lg`. */
 export const MOBILE_BREAKPOINT = 1024;
+
+function useBelow(breakpoint: number) {
+   const [below, setBelow] = React.useState<boolean | undefined>(undefined);
+
+   React.useEffect(() => {
+      const mql = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+      const onChange = () => {
+         setBelow(window.innerWidth < breakpoint);
+      };
+      mql.addEventListener('change', onChange);
+      setBelow(window.innerWidth < breakpoint);
+      return () => mql.removeEventListener('change', onChange);
+   }, [breakpoint]);
+
+   return !!below;
+}
 
 /**
  * True below `MOBILE_BREAKPOINT`, after mount. The server has no viewport,
@@ -14,17 +34,13 @@ export const MOBILE_BREAKPOINT = 1024;
  * the server belongs in `lg:` classes, not here.
  */
 export function useIsMobile() {
-   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
+   return useBelow(MOBILE_BREAKPOINT);
+}
 
-   React.useEffect(() => {
-      const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`);
-      const onChange = () => {
-         setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-      };
-      mql.addEventListener('change', onChange);
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
-      return () => mql.removeEventListener('change', onChange);
-   }, []);
-
-   return !!isMobile;
+/**
+ * True below `SHELL_BREAKPOINT`: the rail is an overlay and the tab bar is
+ * showing. Same after-mount rule as `useIsMobile`.
+ */
+export function useIsShellOverlay() {
+   return useBelow(SHELL_BREAKPOINT);
 }

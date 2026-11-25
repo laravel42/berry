@@ -48,7 +48,7 @@ export function IssueCycleProperty({ issue }: { issue: Issue }) {
                aria-haspopup="listbox"
                aria-expanded={open}
                aria-label={t('cycle')}
-               className="w-full min-w-0 justify-start gap-2 px-0"
+               className="w-full min-w-0 justify-start gap-2 px-0 font-medium"
             >
                <span className="flex size-5 shrink-0 items-center justify-center p-0.5 text-muted-foreground">
                   <CalendarRange className="size-4" aria-hidden />
@@ -71,7 +71,9 @@ export function IssueCycleProperty({ issue }: { issue: Issue }) {
                      >
                         <CalendarRange className="size-4 text-muted-foreground" aria-hidden />
                         <span className="min-w-0 flex-1 truncate">{t('noCycle')}</span>
-                        {!selected ? <CheckIcon className="size-4 shrink-0" /> : null}
+                        {!selected ? (
+                           <CheckIcon className="text-(--primary) size-4 shrink-0" />
+                        ) : null}
                      </CommandItem>
                      {cycles.map((cycle) => (
                         <CommandItem
@@ -83,7 +85,7 @@ export function IssueCycleProperty({ issue }: { issue: Issue }) {
                            <CalendarRange className="size-4 shrink-0 text-muted-foreground" />
                            <span className="min-w-0 flex-1 truncate">{cycle.name}</span>
                            {selected?.id === cycle.id ? (
-                              <CheckIcon className="size-4 shrink-0" />
+                              <CheckIcon className="text-(--primary) size-4 shrink-0" />
                            ) : null}
                         </CommandItem>
                      ))}

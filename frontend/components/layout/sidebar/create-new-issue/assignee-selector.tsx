@@ -70,7 +70,13 @@ export function AssigneeSelector({
    const [open, setOpen] = useState<boolean>(false);
    const [value, setValue] = useState<string | null>(assignee?.id || null);
 
-   const { filterByAssignee } = useIssuesStore();
+   // The counts are read during render, so subscribe to the issues themselves:
+   // the store's `filterByAssignee` is a stable function and would not re-render.
+   const issues = useIssuesStore((state) => state.issues);
+   const filterByAssignee = (userId: string | null) =>
+      userId === null
+         ? issues.filter((issue) => issue.assignee === null)
+         : issues.filter((issue) => issue.assignee?.id === userId);
    const members = useMembersStore((state) => state.members);
    const agents = useAgentsStore((state) => state.agents);
 
@@ -137,7 +143,7 @@ export function AssigneeSelector({
                ) : null}
             </div>
             {value === person.id ? (
-               <CheckIcon size={16} className="ml-auto shrink-0 text-foreground" />
+               <CheckIcon size={16} className="ml-auto shrink-0 text-(--primary)" />
             ) : null}
             {scope === 'all' ? (
                <span className="shrink-0 text-muted-foreground">
@@ -201,7 +207,9 @@ export function AssigneeSelector({
                                  <UserCircle className="size-5" aria-hidden />
                                  {t('none')}
                               </div>
-                              {value === null && <CheckIcon size={16} className="ml-auto" />}
+                              {value === null && (
+                                 <CheckIcon size={16} className="text-(--primary) ml-auto" />
+                              )}
                               <span className="text-muted-foreground">
                                  {filterByAssignee(null).length}
                               </span>

@@ -4,7 +4,7 @@ import * as React from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+import { Calendar } from '@/components/ui/calendar-lazy';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface DatePickerProps {
@@ -33,7 +33,7 @@ export function DatePicker({ date, onDateChange }: DatePickerProps) {
          <PopoverTrigger asChild>
             <Button
                variant="ghost"
-               className="h-7 w-full min-w-0 justify-start px-2 text-left font-normal has-[>svg]:px-2"
+               className="w-full min-w-0 justify-start px-2 text-left font-normal has-[>svg]:px-2"
                size="sm"
             >
                <CalendarIcon className="h-4 w-4 shrink-0 md:mr-0.5" />

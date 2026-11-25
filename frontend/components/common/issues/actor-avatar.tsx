@@ -107,15 +107,29 @@ const BOX = {
    md: 'size-5',
 } as const;
 
+/** A person's avatar never drops below size-5, so the initials fallback stays legible. */
+const HUMAN_BOX = {
+   sm: 'size-5',
+   md: 'size-5',
+} as const;
+
 interface ActorAvatarProps {
    user: User;
    size?: keyof typeof BOX;
    /** Show the agent's monogram beside the bracket. */
    monogram?: boolean;
+   /** Set the native `title` attribute. Disable when wrapped in a styled Tooltip to avoid double tooltips. */
+   showTitle?: boolean;
    className?: string;
 }
 
-export function ActorAvatar({ user, size = 'md', monogram = false, className }: ActorAvatarProps) {
+export function ActorAvatar({
+   user,
+   size = 'md',
+   monogram = false,
+   showTitle = true,
+   className,
+}: ActorAvatarProps) {
    const t = useTranslations('issueLists.actor');
    const mark = useAgentMonogram(user.name);
 
@@ -124,7 +138,7 @@ export function ActorAvatar({ user, size = 'md', monogram = false, className }: 
       return (
          <span
             className={cn('inline-flex shrink-0 items-center gap-1 text-actor-agent', className)}
-            title={user.name}
+            title={showTitle ? user.name : undefined}
          >
             <span
                className={cn(
@@ -152,11 +166,15 @@ export function ActorAvatar({ user, size = 'md', monogram = false, className }: 
 
    return (
       <Avatar
-         className={cn(BOX[size], 'shrink-0 ring-1 ring-actor-human/60', className)}
-         title={user.name}
+         className={cn(HUMAN_BOX[size], 'shrink-0 ring-1 ring-actor-human/60', className)}
+         title={showTitle ? user.name : undefined}
       >
          <AvatarImage src={user.avatarUrl || undefined} alt="" />
-         <AvatarFallback className="bg-actor-human/10 font-medium text-actor-human" aria-hidden>
+         <AvatarFallback
+            className="bg-actor-human/10 font-medium text-actor-human"
+            data-actor-initials
+            aria-hidden
+         >
             {initials(user.name)}
          </AvatarFallback>
          <span className="sr-only">

@@ -104,7 +104,6 @@ export default function AccountNotifications() {
                      description={row.description}
                      trailing={
                         <Switch
-                           variant="settings"
                            checked={switches.value?.[row.key] ?? true}
                            disabled={switches.loading || switches.saving || !workspaceId}
                            onCheckedChange={(enabled) => toggle(row.key, enabled)}

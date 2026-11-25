@@ -16,10 +16,7 @@ export function DiffView({ diff }: { diff: FileDiff }) {
    return (
       <div className="overflow-hidden rounded-lg border bg-container">
          <div
-            className={cn(
-               'flex items-center gap-2 bg-sidebar/50 px-3 py-2',
-               !collapsed && 'border-b'
-            )}
+            className={cn('flex items-center gap-2 bg-muted px-3 py-2', !collapsed && 'border-b')}
          >
             <FileCode2 className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             <span className="font-medium">{diff.name}</span>
@@ -52,7 +49,7 @@ export function DiffView({ diff }: { diff: FileDiff }) {
                      return (
                         <div
                            key={index}
-                           className="flex items-center justify-center gap-1.5 border-y border-border/40 bg-sidebar/40 py-1.5 text-muted-foreground"
+                           className="flex items-center justify-center gap-1.5 border-y border-border/40 bg-muted py-1.5 text-muted-foreground"
                         >
                            <ArrowDownToLine className="size-3" aria-hidden />
                            {line.count} unchanged lines

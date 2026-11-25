@@ -148,10 +148,14 @@ export default function ApiTokens() {
                      </span>
                   </div>
                   <div className="flex items-center gap-2">
-                     <code className="flex h-[30px] min-w-0 flex-1 items-center overflow-hidden rounded-[7px] bg-settings-field-sunken px-2.5 font-mono text-ellipsis whitespace-nowrap text-foreground">
-                        {secret}
-                     </code>
-                     <Button variant="soft" onClick={copySecret}>
+                     <Input
+                        readOnly
+                        value={secret}
+                        aria-label={t('secretTitle')}
+                        onFocus={(event) => event.currentTarget.select()}
+                        className="flex-1 font-mono"
+                     />
+                     <Button size="sm" variant="soft" onClick={copySecret}>
                         {copied ? t('copiedLabel') : t('copy')}
                      </Button>
                   </div>
@@ -169,6 +173,7 @@ export default function ApiTokens() {
                      description={describe(token)}
                      trailing={
                         <Button
+                           size="sm"
                            variant="soft-destructive"
                            disabled={tokens.saving}
                            onClick={() => setRevoking(token)}
@@ -184,10 +189,10 @@ export default function ApiTokens() {
          <SettingsSection title={t('newTitle')} description={t('newDescription')}>
             <SettingsCard>
                <SettingsRow
+                  wide
                   title={t('name')}
                   trailing={
                      <Input
-                        variant="settings"
                         value={name}
                         aria-label={t('name')}
                         placeholder={t('namePlaceholder')}
@@ -200,6 +205,7 @@ export default function ApiTokens() {
                   }
                />
                <SettingsRow
+                  wide
                   title={t('expiry')}
                   description={t('expiryDescription')}
                   trailing={
@@ -218,7 +224,6 @@ export default function ApiTokens() {
                   <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-x-4 gap-y-2.5">
                      <label className="flex cursor-pointer items-center gap-2">
                         <Checkbox
-                           variant="settings"
                            checked={scopes === null}
                            onCheckedChange={(checked) => setScopes(checked === true ? null : [])}
                         />
@@ -235,7 +240,6 @@ export default function ApiTokens() {
                            {/* Full access includes every scope, so they read as ticked
                                (and fixed) until Full is cleared. */}
                            <Checkbox
-                              variant="settings"
                               disabled={scopes === null}
                               checked={scopes === null || scopes.includes(scope)}
                               onCheckedChange={(checked) =>

@@ -130,6 +130,7 @@ export default function AccountConnections() {
                               .join(' · ')}
                            trailing={
                               <Button
+                                 size="sm"
                                  variant="soft-destructive"
                                  disabled={channels.saving}
                                  onClick={() => setRemoving(identity)}
@@ -142,6 +143,7 @@ export default function AccountConnections() {
                   })
                )}
                <SettingsRow
+                  wide
                   title="Add an address"
                   className="[&>div]:flex-wrap"
                   trailing={
@@ -161,16 +163,16 @@ export default function AccountConnections() {
                            }
                         />
                         <Input
-                           variant="settings"
                            value={address}
                            placeholder={channel === 'EMAIL' ? 'you@example.com' : '+1 555 0100'}
-                           className="w-[200px]"
+                           className="w-[200px] max-sm:min-w-0 max-sm:flex-1"
                            onChange={(event) => setAddress(event.target.value)}
                            onKeyDown={(event) => {
                               if (event.key === 'Enter') void add();
                            }}
                         />
                         <Button
+                           size="sm"
                            variant="soft"
                            disabled={adding || address.trim() === ''}
                            onClick={() => void add()}

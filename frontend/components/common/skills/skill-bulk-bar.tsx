@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
+import { BulkBar } from '@/components/common/bulk-bar';
 import { AgentPicker } from '@/components/common/agents/agent-multiselect';
 import { ConfirmAction } from '@/components/common/confirm-action';
 import { Button } from '@/components/ui/button';
@@ -118,7 +119,7 @@ export default function SkillBulkBar({
       );
 
    return (
-      <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+      <BulkBar>
          <span className="font-bold">{t('bulk.selected', { count: selected.length })}</span>
 
          {progress ? (
@@ -181,6 +182,6 @@ export default function SkillBulkBar({
             // and the bar shows the walk's progress.
             onConfirm={remove}
          />
-      </div>
+      </BulkBar>
    );
 }

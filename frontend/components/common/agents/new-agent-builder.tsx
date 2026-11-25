@@ -242,7 +242,7 @@ export default function NewAgentBuilder({ sessionId }: NewAgentBuilderProps) {
                            type="button"
                            onClick={() => setSelected(turn.draftId)}
                            className={cn(
-                              'w-full truncate rounded-md px-2 py-1 text-left hover:bg-sidebar/50',
+                              'w-full truncate rounded-md px-2 py-1 text-left hover:bg-accent/45',
                               shown?.draftId === turn.draftId && 'bg-muted/50'
                            )}
                         >

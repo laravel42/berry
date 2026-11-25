@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-import { useNotificationsStore } from '@/store/notifications-store';
 import { selectOpenReviewCount, useReviewsStore } from '@/store/reviews-store';
 import { useSidebarPrefsStore } from '@/store/sidebar-prefs-store';
 import { ShellBadge, badgeText } from './shell-badge';
-import { ShellIcon, shellNavRow } from './shell-icon';
+import { ShellIcon, ShellNavIcon, shellNavRow } from './shell-icon';
 import { ShellSectionFold } from './shell-section-fold';
+import { useInboxUnread } from './use-inbox-unread';
 import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 
 const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
@@ -38,14 +38,9 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
    const [mounted, setMounted] = useState(false);
    useEffect(() => setMounted(true), []);
    const pathname = usePathname() ?? '';
-   const notifications = useNotificationsStore((state) => state.notifications);
-   const serverUnreadCount = useNotificationsStore((state) => state.serverUnreadCount);
    const openReviews = useReviewsStore(selectOpenReviewCount) ?? 0;
 
-   // The loaded list is what Inbox shows, so it is what the badge counts;
-   // the server figure stands in until the first load arrives.
-   const local = notifications.filter((item) => !item.read).length;
-   const inboxUnread = notifications.length > 0 ? local : (serverUnreadCount ?? 0);
+   const inboxUnread = useInboxUnread();
 
    // Personal's entry is the assigned tab of the tasks page; the page with
    // every task is Work's Tasks, and only one of the two lights at a time.
@@ -60,45 +55,56 @@ export function ShellPersonal({ orgId }: { orgId: string }) {
          open={mounted ? (personalOpen ?? true) : true}
          onOpenChange={setPersonalOpen}
       >
-         <ul className="flex flex-col gap-0 px-3 lg:gap-1">
+         <ul className="flex flex-col gap-0 px-3 md:gap-1">
             <li>
                <Link
+                  prefetch={false}
                   data-shell-nav
                   href={`/${orgId}/inbox`}
                   aria-current={onInbox ? 'page' : undefined}
                   className={shellNavRow(onInbox)}
                >
-                  <ShellIcon path={INBOX_ICON} />
+                  <ShellNavIcon on={onInbox}>
+                     <ShellIcon path={INBOX_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('inbox')}
                   <ShellBadge
                      count={inboxUnread}
                      label={t('inboxUnread', { count: badgeText(inboxUnread) })}
+                     hot
                   />
                </Link>
             </li>
             <li>
                <Link
+                  prefetch={false}
                   data-shell-nav
                   href={`/${orgId}${MY_TASKS_HREF}`}
                   aria-current={onIssues ? 'page' : undefined}
                   className={shellNavRow(onIssues)}
                >
-                  <ShellIcon path={TASKS_ICON} />
+                  <ShellNavIcon on={onIssues}>
+                     <ShellIcon path={TASKS_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('myIssues')}
                </Link>
             </li>
             <li>
                <Link
+                  prefetch={false}
                   data-shell-nav
                   href={`/${orgId}/reviews`}
                   aria-current={onReviews ? 'page' : undefined}
                   className={shellNavRow(onReviews)}
                >
-                  <ShellIcon path={REVIEWS_ICON} />
+                  <ShellNavIcon on={onReviews}>
+                     <ShellIcon path={REVIEWS_ICON} size={13} />
+                  </ShellNavIcon>
                   {t('reviews')}
                   <ShellBadge
                      count={openReviews}
                      label={t('reviewsWaiting', { count: openReviews })}
+                     hot
                   />
                </Link>
             </li>

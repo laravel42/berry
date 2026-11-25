@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
@@ -18,9 +19,17 @@ import { cn } from '@/lib/utils';
 import { useSessionStore } from '@/store/session-store';
 
 import { UsageBreakdownTable } from './usage-breakdown-table';
-import { UsageDailyChart } from './usage-daily-chart';
 import { UsageTiles } from './usage-tiles';
 import { useUsage } from './use-usage';
+
+/**
+ * The usage chart, with Recharts inside it, loaded after the page rather than
+ * with it. The placeholder holds the chart's fixed `h-48` box.
+ */
+const UsageDailyChart = dynamic(
+   () => import('./usage-daily-chart').then((m) => m.UsageDailyChart),
+   { ssr: false, loading: () => <div aria-hidden className="h-48 w-full" /> }
+);
 
 /** Half a year of days, drawn as weeks. */
 const HEATMAP_WEEKS = 26;

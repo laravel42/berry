@@ -44,6 +44,14 @@ export interface SchedulerOptions {
     * slot stays due rather than being marked failed.
     */
    retryPending?: RetryPendingFn;
+   /**
+    * Take a per-slot advisory lock on a reserved connection before firing.
+    * Off for an embedded PGlite database: one process owns that directory
+    * (`berry.lock`), so there is no second worker to keep out, and its pool
+    * has one connection, which the reservation would hold while the firing
+    * queries the pool and waits on itself forever.
+    */
+   slotLocks?: boolean;
 }
 
 export class AutopilotScheduler {
@@ -55,6 +63,7 @@ export class AutopilotScheduler {
    readonly #clock: () => Date;
    readonly #canFire: (workspaceId: string) => Promise<boolean>;
    readonly #retryPending: RetryPendingFn | null;
+   readonly #slotLocks: boolean;
 
    #running = false;
    #loop: Promise<void> | null = null;
@@ -69,6 +78,7 @@ export class AutopilotScheduler {
       this.#clock = options.clock ?? (() => new Date());
       this.#canFire = options.canFire ?? (async () => true);
       this.#retryPending = options.retryPending ?? null;
+      this.#slotLocks = options.slotLocks ?? true;
    }
 
    start(): void {
@@ -148,6 +158,8 @@ export class AutopilotScheduler {
          return false;
       }
 
+      if (!this.#slotLocks) return this.#fireSlot(row, triggerId, slot, slotAt, next, now);
+
       const slotKey = `berry:autopilot-slot:${triggerId}:${slotAt}`;
       const conn = await this.#sql.reserve();
       let locked = false;
@@ -158,44 +170,55 @@ export class AutopilotScheduler {
          const [lock] = await conn`SELECT pg_try_advisory_lock(hashtextextended(${slotKey}, 0)) AS acquired`;
          locked = lock?.acquired === true;
          if (!locked) return false;
-
-         const [current] = await this.#sql`
-            SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId} AND enabled`;
-         if (!current?.next_fire_at || Date.parse(String(current.next_fire_at)) !== slot.getTime()) return false;
-
-         const existing = await this.#existingRun(triggerId, slotAt);
-         if (existing && existing.status === 'pending' && (existing.queuedRunId || existing.runId)) {
-            await this.#reconcileQueued(row, existing, now);
-            await this.#advance(row, triggerId, slot, slotAt, next, existing.id, 'enqueued');
-            return true;
-         }
-         if (existing && existing.status !== 'pending') {
-            await this.#advance(row, triggerId, slot, slotAt, next, existing.id, existing.status);
-            return true;
-         }
-
-         let outcome: FireOutcome;
-         if (existing) {
-            if (!this.#retryPending) {
-               throw new Error('A pending scheduled run has no agent run, and no retry is configured.');
-            }
-            outcome = await this.#retryPending({ autopilotRunId: existing.id });
-         } else {
-            outcome = await this.#fire({
-               autopilotId: row.autopilot_id as string,
-               source: 'cron',
-               triggerId,
-               slot,
-            });
-         }
-         await this.#advance(row, triggerId, slot, slotAt, next, outcome.autopilotRunId, outcome.status);
-         return true;
+         return await this.#fireSlot(row, triggerId, slot, slotAt, next, now);
       } finally {
          if (locked) {
             await conn`SELECT pg_advisory_unlock(hashtextextended(${slotKey}, 0))`.catch(() => undefined);
          }
          await conn.release();
       }
+   }
+
+   /** Fires one due slot, once it is this worker's to fire. */
+   async #fireSlot(
+      row: Record<string, unknown>,
+      triggerId: string,
+      slot: Date,
+      slotAt: string,
+      next: Date | null,
+      now: Date
+   ): Promise<boolean> {
+      const [current] = await this.#sql`
+         SELECT next_fire_at FROM autopilot_triggers WHERE id = ${triggerId} AND enabled`;
+      if (!current?.next_fire_at || Date.parse(String(current.next_fire_at)) !== slot.getTime()) return false;
+
+      const existing = await this.#existingRun(triggerId, slotAt);
+      if (existing && existing.status === 'pending' && (existing.queuedRunId || existing.runId)) {
+         await this.#reconcileQueued(row, existing, now);
+         await this.#advance(row, triggerId, slot, slotAt, next, existing.id, 'enqueued');
+         return true;
+      }
+      if (existing && existing.status !== 'pending') {
+         await this.#advance(row, triggerId, slot, slotAt, next, existing.id, existing.status);
+         return true;
+      }
+
+      let outcome: FireOutcome;
+      if (existing) {
+         if (!this.#retryPending) {
+            throw new Error('A pending scheduled run has no agent run, and no retry is configured.');
+         }
+         outcome = await this.#retryPending({ autopilotRunId: existing.id });
+      } else {
+         outcome = await this.#fire({
+            autopilotId: row.autopilot_id as string,
+            source: 'cron',
+            triggerId,
+            slot,
+         });
+      }
+      await this.#advance(row, triggerId, slot, slotAt, next, outcome.autopilotRunId, outcome.status);
+      return true;
    }
 
    async #existingRun(triggerId: string, slotAt: string): Promise<{

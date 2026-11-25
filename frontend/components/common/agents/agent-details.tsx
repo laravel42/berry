@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAgentCoverage } from '@/hooks/use-agent-coverage';
 import { agentHasRuntime } from '@/lib/runtimes';
 import { useParams, usePathname, useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { Archive, Lock, ShieldCheck, TriangleAlert } from 'lucide-react';
@@ -22,6 +22,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BerryApiError } from '@/lib/api';
 import {
@@ -41,7 +42,7 @@ import { AgentModelChip } from './agent-model-chip';
 import AgentOverviewTab from './agent-overview-tab';
 import { AgentRoleTab } from './agent-role-tab';
 import AgentSettingsTab from './agent-settings-tab';
-import { AgentWorkloadChip } from './agent-workload-chip';
+import { AgentWorkloadMark } from './agent-workload-mark';
 
 const TABS = ['settings', 'instructions', 'role', 'skills', 'mcp', 'overview'] as const;
 type DetailTab = (typeof TABS)[number];
@@ -92,6 +93,20 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
          ? 'instructions'
          : (searchParams?.get('view') ?? null);
    const view: DetailTab = isTab(requestedView) ? requestedView : 'settings';
+
+   // On a phone the tab row scrolls; keep the open tab in view.
+   const tabsScroller = useRef<HTMLDivElement>(null);
+   const hasAgent = agent !== null;
+   useEffect(() => {
+      const scroller = tabsScroller.current;
+      const active = scroller?.querySelector<HTMLElement>('[role="tab"][data-state="active"]');
+      if (!scroller || !active) return;
+      const left =
+         active.getBoundingClientRect().left -
+         scroller.getBoundingClientRect().left +
+         scroller.scrollLeft;
+      scroller.scrollTo({ left: Math.max(0, left - 32) });
+   }, [view, hasAgent]);
 
    const avatarSrc = useAgentAvatarSrc(agent?.avatarUrl);
 
@@ -223,9 +238,12 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
    ];
 
    return (
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      // One scroller for the whole agent: the header scrolls away, the tab
+      // strip sticks to the top, and a tab's save bar to the bottom. A tab
+      // never scrolls on its own, so a long form is never a short window.
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-y-auto">
          <div
-            className="relative px-8 pt-7 pb-5"
+            className="relative shrink-0 px-8 pt-7 pb-5"
             style={{
                // The agent's own hue, faded out, so each drawer reads as that agent.
                backgroundImage: `radial-gradient(120% 140% at 0% 0%, color-mix(in oklab, ${tint} 18%, transparent), transparent 60%)`,
@@ -246,15 +264,29 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   )}
                </span>
                <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
-                  <h1 className="truncate leading-tight">{agent.name}</h1>
+                  {/* What the agent is doing rides beside its name, raised
+                      like an exponent; the chips below are all one height. */}
+                  <div className="flex min-w-0 items-start gap-2">
+                     <h1 className="min-w-0 leading-tight text-balance break-words">
+                        {agent.name}
+                     </h1>
+                     <AgentWorkloadMark roster={roster} tint={tint} className="-mt-1.5" />
+                  </div>
                   <div className="flex flex-wrap items-center gap-1.5">
-                     <AgentWorkloadChip roster={roster} />
-                     <AgentModelChip agent={agent} />
+                     <AgentModelChip agent={agent} variant="chip" />
                      {needsRuntime ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-status-warning/40 bg-status-warning/10 px-2 py-0.5 leading-none text-status-warning">
-                           <TriangleAlert className="size-3" aria-hidden />
-                           {t('bannerNoRuntime')}
-                        </span>
+                        // Short in the chip; the whole sentence on hover, and a
+                        // click opens General, where the runtime is chosen.
+                        <Badge asChild variant="warning">
+                           <button
+                              type="button"
+                              title={t('bannerNoRuntime')}
+                              onClick={() => requestTab('settings')}
+                           >
+                              <TriangleAlert aria-hidden />
+                              {t('chipNoRuntime')}
+                           </button>
+                        </Badge>
                      ) : null}
                   </div>
                   {agent.description ? (
@@ -288,9 +320,12 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
          <Tabs
             value={view}
             onValueChange={(value) => requestTab(value as DetailTab)}
-            className="flex min-h-0 flex-1 flex-col gap-0"
+            className="flex flex-1 flex-col gap-0"
          >
-            <div className="no-scrollbar overflow-x-auto border-b px-8">
+            <div
+               ref={tabsScroller}
+               className="no-scrollbar sticky top-0 z-20 shrink-0 overflow-x-auto border-b bg-container px-8 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-24px),transparent)]"
+            >
                <TabsList
                   aria-label={agent.name}
                   className="h-auto gap-5 rounded-none bg-transparent p-0"
@@ -311,9 +346,9 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
             {/* Rendered outside TabsContent so a tab's own state is dropped
                 when it closes: a half-loaded task page that comes back on
                 return would be showing a moment that has since passed. */}
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col">
                {view === 'overview' ? (
-                  <div className="min-h-0 flex-1 overflow-auto">
+                  <div className="flex-1">
                      <AgentOverviewTab
                         agent={agent}
                         roster={roster}
@@ -394,9 +429,11 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   <AlertDialogTitle>{t('unsavedTitle')}</AlertDialogTitle>
                   <AlertDialogDescription>{t('unsavedBody')}</AlertDialogDescription>
                </AlertDialogHeader>
+               {/* Staying is the safe choice, so Keep editing carries the
+                   emphasis and sits last; leaving is the outlined one. */}
                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('unsavedStay')}</AlertDialogCancel>
                   <AlertDialogAction
+                     variant="outline"
                      onClick={() => {
                         const next = pendingTab;
                         setPendingTab(null);
@@ -407,6 +444,7 @@ export default function AgentDetails({ agentId }: { agentId: string }) {
                   >
                      {t('unsavedLeave')}
                   </AlertDialogAction>
+                  <AlertDialogCancel variant="default">{t('unsavedStay')}</AlertDialogCancel>
                </AlertDialogFooter>
             </AlertDialogContent>
          </AlertDialog>

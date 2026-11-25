@@ -100,13 +100,20 @@ export function IssueQuickActions({ issueRef }: { issueRef: string }) {
                const outcome = outcomes[action.id];
                return (
                   <li key={action.id} className="flex flex-col gap-0.5">
-                     <div className="flex min-w-0 items-center gap-2">
+                     {/* Run shows on hover or keyboard focus, and while this
+                         action runs. Touch screens have no hover, so it stays. */}
+                     <div className="group/qa flex min-w-0 items-center gap-2">
                         <span className="min-w-0 flex-1 truncate">{action.name}</span>
                         <Button
                            variant="ghost"
                            size="xs"
                            disabled={running !== null}
                            onClick={() => run(action)}
+                           className={
+                              running === action.id
+                                 ? undefined
+                                 : 'transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover/qa:opacity-100 [@media(hover:hover)]:focus-visible:opacity-100'
+                           }
                         >
                            <Zap className="mr-1 size-3.5" />
                            {t('run')}

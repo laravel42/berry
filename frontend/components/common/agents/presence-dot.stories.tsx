@@ -6,6 +6,12 @@ const meta = {
    component: PresenceDot,
    tags: ['ai-generated', 'needs-work'],
    args: { tone: 'online', label: 'Online' },
+   argTypes: {
+      tone: {
+         control: 'select',
+         options: ['online', 'busy', 'offline', 'unknown'],
+      },
+   },
 } satisfies Meta<typeof PresenceDot>;
 
 export default meta;

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { usePathname } from 'next/navigation';
-import { Maximize2, MessageCirclePlus, X } from 'lucide-react';
+import { Info, Maximize2, MessageCirclePlus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
 import { BerryApiError } from '@/lib/api';
@@ -21,6 +21,9 @@ import {
    type ChatThread,
 } from '@/lib/chat';
 import { useShortcut } from '@/components/layout/shortcut-provider';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { formatCombo } from '@/lib/shortcuts';
+import { useShortcutBindings } from '@/store/shortcuts-store';
 import { subscribeWorkspaceEvents } from '@/lib/events';
 import { useSessionStore } from '@/store/session-store';
 import { useShellStore } from '@/store/shell-store';
@@ -37,6 +40,39 @@ const SIZE = { width: 380, height: 520 };
 /** The header's controls: small beside the title, a full tap target on a phone. */
 const headerControl =
    'flex flex-none items-center justify-center rounded-md text-[var(--shell-text)] transition-colors hover:bg-[var(--shell-line)] data-[state=open]:bg-[var(--shell-line)] focus-visible:outline-2 focus-visible:outline-[var(--ring)] max-sm:size-11 sm:p-1';
+
+/**
+ * An info mark beside minimise that names the keys opening this window from
+ * anywhere. It used to be the Agents button's tooltip; here it is where the
+ * window is. Nothing shows when the shortcut is switched off. The keys are
+ * filled in after mount: `mod` reads differently per platform.
+ */
+function ShortcutInfo() {
+   const t = useTranslations('shell');
+   const combo = useShortcutBindings()['chat.toggleFloating'];
+   const [keys, setKeys] = useState<string | null>(null);
+   useEffect(() => {
+      setKeys(combo ? formatCombo(combo) : null);
+   }, [combo]);
+   if (!keys) return null;
+   const hint = t('chat.shortcutHint', { keys });
+   return (
+      <Tooltip>
+         <TooltipTrigger asChild>
+            <button
+               type="button"
+               aria-label={hint}
+               className={`[@media(hover:none)]:hidden ${headerControl}`}
+            >
+               <Info className="size-3.5" aria-hidden />
+            </button>
+         </TooltipTrigger>
+         <TooltipContent side="bottom" className="z-[60]">
+            {hint}
+         </TooltipContent>
+      </Tooltip>
+   );
+}
 
 /**
  * Chat without leaving the page.
@@ -60,6 +96,11 @@ export function FloatingChat() {
    const state = useShellStore((store) => store.chatWindow);
    const setState = useShellStore((store) => store.setChatWindow);
    const toggleChat = useShellStore((store) => store.toggleChat);
+   // Below `sm` the window is a full-screen sheet: it slides in when it
+   // opens and out before close takes effect. `leaving` is the slide-out in flight.
+   const [phone, setPhone] = useState(false);
+   const [leaving, setLeaving] = useState<'closed' | null>(null);
+   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
    const [agents, setAgents] = useState<Agent[]>([]);
    const [agentsLoaded, setAgentsLoaded] = useState(false);
    const [active, setActive] = useState<ChatThread | null>(null);
@@ -100,6 +141,38 @@ export function FloatingChat() {
    const floatingEnabled = useUiPrefsStore((store) => store.floatingChat);
    const hidden = pathname.includes('/chat') || !floatingEnabled;
 
+   useEffect(() => {
+      const query = window.matchMedia('(max-width: 639px)');
+      const sync = () => setPhone(query.matches);
+      sync();
+      query.addEventListener('change', sync);
+      return () => query.removeEventListener('change', sync);
+   }, []);
+
+   // Whatever moved the window (a button, a shortcut) ends a slide-out.
+   useEffect(() => {
+      setLeaving(null);
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+   }, [state]);
+
+   const finishLeave = (target: 'closed') => {
+      if (leaveTimer.current) clearTimeout(leaveTimer.current);
+      setLeaving(null);
+      setState(target);
+   };
+   // On a phone the sheet slides down first and the store changes when the
+   // animation ends; the timeout means it can never get stuck. From `sm` up,
+   // and with reduced motion, the change is immediate.
+   const leave = (target: 'closed') => {
+      const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!phone || still) {
+         setState(target);
+         return;
+      }
+      if (leaving) return;
+      setLeaving(target);
+      leaveTimer.current = setTimeout(() => finishLeave(target), 350);
+   };
    // The shell's registry owns the combination, so it is rebindable in
    // settings and appears there with everything else. This claims the action.
    useShortcut('chat.toggleFloating', toggleChat);
@@ -289,16 +362,31 @@ export function FloatingChat() {
 
    return (
       <div
-         // Below `sm` the window fills the screen under the strip: a 380px
-         // panel on a phone is the whole screen anyway, and keeping the strip
-         // keeps the button that closes it.
+         // Below `sm` the window is a full-screen sheet: from under the strip
+         // to the bottom edge, over the tab bar, padded by the safe areas so
+         // the header clears the status bar and the composer the home
+         // indicator. It slides up on opening and down before it minimises or
+         // closes (`leave`). From `sm` up it floats above the launcher band.
          data-step-body="prose"
+         data-chat-surface
+         onAnimationEnd={(event) => {
+            if (leaving && event.target === event.currentTarget) finishLeave(leaving);
+         }}
          className={[
-            'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg',
-            // Bottom ~3.1rem: the Agents launcher sits under the panel.
-            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[calc(4rem-15px)] sm:rounded-lg',
+            'fixed z-40 flex flex-col overflow-hidden border border-[var(--shell-line)] bg-[var(--shell-canvas)] text-[var(--shell-text)] shadow-lg max-sm:border-0 max-sm:pt-[env(safe-area-inset-top)] max-sm:pb-[env(safe-area-inset-bottom)]',
+            leaving
+               ? 'max-sm:animate-out max-sm:slide-out-to-bottom-full max-sm:fill-mode-forwards max-sm:duration-300 max-sm:ease-in motion-reduce:max-sm:animate-none'
+               : 'max-sm:animate-in max-sm:slide-in-from-bottom-full max-sm:duration-300 max-sm:ease-out motion-reduce:max-sm:animate-none',
+            // The bottom edge clears the Agents launcher, which is what
+            // opens this window: `--shell-launcher-clear` is that control's
+            // corner plus its height plus a gap, so the button stays visible
+            // under the panel instead of sitting on top of it. The menu
+            // button sits lower than the launcher, so it clears too. It is
+            // set again at `sm` because `sm:inset-auto` resets it there. Below
+            // `sm` the sheet goes to the bottom edge instead.
+            'inset-x-0 top-[var(--shell-strip)] bottom-0 sm:inset-auto sm:right-[calc(var(--app-inset-r)+0.75rem+4px)] sm:bottom-[var(--shell-launcher-clear)] sm:rounded-lg',
             expanded
-               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[calc(4rem-15px)]'
+               ? 'sm:inset-4 sm:top-[calc(var(--shell-strip)_+_1rem)] sm:bottom-[var(--shell-launcher-clear)]'
                : 'sm:h-[var(--chat-h)] sm:w-[var(--chat-w)]',
          ].join(' ')}
          style={sizeVars}
@@ -328,6 +416,7 @@ export function FloatingChat() {
                className={headerControl}
             />
             <div className="ml-auto flex items-center gap-2">
+               <ShortcutInfo />
                <button
                   type="button"
                   aria-label={t('newChat')}
@@ -352,7 +441,7 @@ export function FloatingChat() {
                <button
                   type="button"
                   aria-label={t('close')}
-                  onClick={() => setState('closed')}
+                  onClick={() => leave('closed')}
                   className={headerControl}
                >
                   <X className="size-4" />

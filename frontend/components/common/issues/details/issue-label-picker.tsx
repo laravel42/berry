@@ -107,7 +107,9 @@ export function IssueLabelPicker({ issueRef }: { issueRef: string }) {
                                        style={{ backgroundColor: label.color }}
                                     />
                                     <span className="min-w-0 truncate">{label.name}</span>
-                                    {on ? <CheckIcon className="ml-auto size-3.5" /> : null}
+                                    {on ? (
+                                       <CheckIcon className="text-(--primary) ml-auto size-3.5" />
+                                    ) : null}
                                  </CommandItem>
                               );
                            })}
@@ -130,7 +132,7 @@ export function IssueLabelPicker({ issueRef }: { issueRef: string }) {
                      onClick={() => toggle(label.id)}
                      title={label.name}
                      data-label-chip
-                     className="inline-flex min-w-0 items-center gap-1 rounded-full border px-1.5 py-px"
+                     className="inline-flex min-w-0 items-center gap-1 rounded-full border px-2 py-0.5"
                      style={{ borderColor: label.color, color: label.color }}
                   >
                      <span className="max-w-[110px] truncate">{label.name}</span>

@@ -13,7 +13,7 @@ export default function AgentDetailHeader({ agentName }: AgentDetailHeaderProps)
    const { orgId } = useParams<{ orgId: string }>();
 
    return (
-      <div className="flex h-[52px] w-full items-center gap-2 border-b px-5 py-1.5">
+      <div className="flex h-[52px] w-full items-center gap-2 border-b px-2 py-1.5 sm:px-5">
          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1">
             <Link
                href={`/${orgId}/agents`}

@@ -13,7 +13,7 @@ export function DebouncedInput({
   value: string | number
   onChange: (value: string | number) => void
   debounceMs?: number
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'>) {
+} & Omit<React.ComponentProps<typeof Input>, 'onChange' | 'value'>) {
   const [value, setValue] = useState(initialValue)
 
   // Sync with initialValue when it changes

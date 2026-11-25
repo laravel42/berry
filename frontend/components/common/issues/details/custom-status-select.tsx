@@ -43,7 +43,7 @@ export function CustomStatusSelect({ issue }: { issue: Issue }) {
                .catch((cause: unknown) => toast.error(describePatchFailure(cause)))
          }
       >
-         <SelectTrigger className="h-7">
+         <SelectTrigger>
             <SelectValue placeholder="Named status" />
          </SelectTrigger>
          <SelectContent>

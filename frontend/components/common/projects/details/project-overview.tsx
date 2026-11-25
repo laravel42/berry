@@ -1,7 +1,7 @@
 'use client';
 
 import { CollapsibleDescription } from '@/components/common/editor/collapsible-description';
-import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor';
+import { TiptapAiEditor } from '@/components/common/editor/tiptap-ai-editor-lazy';
 import { Button } from '@/components/ui/button';
 import { useInDetailDrawer } from '@/components/layout/detail-drawer-context';
 import { useShortcut } from '@/components/layout/shortcut-provider';
@@ -10,8 +10,10 @@ import { getProjectDetail } from '@/data/project-details';
 import { useIssuesStore } from '@/store/issues-store';
 import { useProjectsStore } from '@/store/projects-store';
 import { useComposerPalette } from '@/components/common/composer-palette';
+import { EmojiInsertButton } from '@/components/common/emoji-picker';
 import { useProjectUpdatesStore } from '@/store/project-updates-store';
 import { useSessionStore } from '@/store/session-store';
+import { ProjectOverviewSkeleton } from '@/components/common/details/detail-skeletons';
 import { cn } from '@/lib/utils';
 import { Check, Copy, SendHorizonal } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
@@ -32,7 +34,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const inDrawer = useInDetailDrawer();
    const project = useProject(projectId);
    const detail = getProjectDetail(projectId);
-   const { issues: allIssues } = useIssuesStore();
+   const allIssues = useIssuesStore((state) => state.issues);
    const updateProjectDescription = useProjectsStore((state) => state.updateProjectDescription);
    const { postUpdate } = useProjectUpdatesStore();
    const workspaceId = useSessionStore((state) => state.workspace?.id);
@@ -71,24 +73,30 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    }, [draft]);
 
    const description = project?.description ?? '';
+   const [descriptionDraft, setDescriptionDraft] = useState<string | null>(null);
+
+   useEffect(() => {
+      setDescriptionDraft(null);
+   }, [projectId, description]);
+
+   const liveDescription = (descriptionDraft ?? description).trim();
 
    const copyDescription = useCallback(() => {
-      const text = description.trim();
-      if (!text) {
+      if (!liveDescription) {
          toast.message('Nothing to copy');
          return;
       }
-      void navigator.clipboard.writeText(text).then(
+      void navigator.clipboard.writeText(liveDescription).then(
          () => {
             setCopiedDescription(true);
             window.setTimeout(() => setCopiedDescription(false), 1200);
          },
          () => toast.error('Could not copy description')
       );
-   }, [description]);
+   }, [liveDescription]);
 
    if (!project) {
-      return <div className="p-6 text-muted-foreground">Loading project…</div>;
+      return <ProjectOverviewSkeleton />;
    }
 
    return (
@@ -109,7 +117,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   <CollapsibleDescription>
                      <TiptapAiEditor
                         value={description}
-                        onChange={() => undefined}
+                        onChange={(markdown) => setDescriptionDraft(markdown)}
                         onBlur={(markdown) => {
                            if (markdown.trim() === description.trim()) return;
                            updateProjectDescription(project.id, markdown);
@@ -128,7 +136,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                         className="size-6 text-muted-foreground hover:bg-card hover:text-foreground"
                         aria-label="Copy description"
                         title="Copy description"
-                        disabled={!description.trim()}
+                        disabled={!liveDescription}
                         onClick={copyDescription}
                      >
                         {copiedDescription ? (
@@ -156,8 +164,19 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                   {/* Posts a project update. The bar matches the task comment
                       composer; a mention here is text in the update. */}
                   <div className="flex flex-col">
-                     <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-muted/15 px-2.5 py-1.5">
+                     <div
+                        className={cn(
+                           'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
+                           focused ? 'border-primary' : 'border-border'
+                        )}
+                     >
                         <div className="flex items-end gap-2">
+                           <EmojiInsertButton
+                              textareaRef={updateRef}
+                              value={draft}
+                              onChange={setDraft}
+                              side="top"
+                           />
                            <div className="relative min-w-0 flex-1">
                               {palette.list}
                               <textarea
@@ -194,19 +213,27 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                                  placeholder="Post an update…"
                                  aria-label="Project update"
                                  aria-autocomplete="list"
-                                 className="max-h-40 min-h-8 w-full resize-none overflow-y-auto bg-transparent py-1.5 leading-5 text-foreground outline-none placeholder:text-muted-foreground"
+                                 className="max-h-40 min-h-(--field-h) w-full resize-none overflow-y-auto bg-transparent py-[calc((var(--field-h)-1.25rem)/2)] leading-5 text-foreground outline-none placeholder:text-muted-foreground"
                               />
                            </div>
                            <Button
                               type="button"
-                              size="icon"
-                              className="mb-0.5 size-8 flex-none bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-40"
+                              size="icon-sm"
+                              variant={draft.trim() ? 'default' : 'secondary'}
+                              className={cn(
+                                 'flex-none',
+                                 !draft.trim() && 'border border-transparent'
+                              )}
                               aria-label="post update"
                               title="post update"
                               onClick={submitComment}
                               disabled={!draft.trim()}
                            >
-                              <SendHorizonal className="size-3.5" aria-hidden />
+                              <SendHorizonal
+                                 className="ml-[2px] size-4"
+                                 strokeWidth={2.4}
+                                 aria-hidden
+                              />
                            </Button>
                         </div>
                      </div>

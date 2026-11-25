@@ -1,3 +1,27 @@
+/* Berry's one stylesheet: the design tokens, then the base layer.
+
+   The palette, the two type faces and the pilled geometry below are the
+   "Ledger" redesign. This file is its implementation; the reasoning, the
+   measured contrast ratios behind every value, and the decisions still open
+   live in docs/redesign/ledger-plan.md and are not repeated here.
+
+   Three things a reader will not infer from the values alone:
+   - `--shell-*` has no `.dark` counterpart: it is the dark ramp. In the light
+     theme the rail (`[data-shell-chrome]`) and chat (`[data-chat-surface]`,
+     the page and the floating window) each take the light ramp by scoping.
+     The board, fields and segmented controls follow
+     the theme (`--board-*`, `--segment-*` have `.dark` values).
+   - `--ctl-h` (44px) is the target floor for a BUTTON standing on its own.
+     `--field-h` is the height of a field and of every control that shares
+     its line (Button `sm`/`icon-sm`, a select, a search, tabs, a segmented
+     control); it is 32px, under that floor on purpose, so a line of
+     controls reads lighter than a standalone button.
+     `--ctl-h-lg` is the sign-in primary action.
+   - State is monochromatic deliberately. The accent is spent on the primary
+     action and on the one state that needs a person; a green "done" or a blue
+     "running" must not come back, because the old six-hue set collapsed to a
+     single grey in greyscale and for most colour vision differences. */
+
 @import 'tailwindcss';
 
 @plugin "tailwindcss-animate";
@@ -5,19 +29,59 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-   --font-sans: var(--font-jetbrains-mono);
+   /* Two faces, split by job. Inter reads the interface: rows, labels, prose,
+      every control. JetBrains Mono titles it, and is also what machine text
+      is set in (`font-mono`, `[data-identifier]`, `[data-figure]`, the code
+      editor, the run console, the transcript) -- one face covering both is
+      deliberate, because a title here names a thing the system holds.
+
+      Both are shipped in app/fonts and bound in app/layout.tsx rather than
+      fetched: next/font/google breaks under Turbopack once the font URL
+      carries its own query string, and a self-hosted file costs no
+      third-party request and no swap flash.
+
+      The lockup is on NEITHER. It is the brand asset's own outlines
+      (components/brand/berry-mark.tsx), so no face reaches it and changing
+      one here cannot move it. */
+   --font-sans:
+      var(--font-inter), -apple-system, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
    --font-mono: var(--font-jetbrains-mono);
    --font-display: var(--font-jetbrains-mono);
-   --font-weight-normal: 300;
-   /* The body size. 13px with 1.2 line spacing, per the house style; every
-      other step below keeps its own measure. */
-   --text-xs: 0.8125rem;
+   /* --- Weight scale ----------------------------------------------------
+      The whole interface is set lighter than Tailwind's defaults: body text
+      (`font-normal`) and `font-medium` sit at 200, the light steps at 300,
+      and emphasis comes down to 400 (`font-semibold`) and 600 (`font-bold`).
+      Both faces are variable over 100-900 (app/layout.tsx), so every step is
+      a real weight, not a synthesised one.
+
+      Declarations written as numbers (`font-weight: 600` in this file, or an
+      arbitrary `[font-weight:...]`) bypass this scale and keep their value. */
+   --font-weight-thin: 300;
+   --font-weight-extralight: 300;
+   --font-weight-light: 300;
+   --font-weight-normal: 200;
+   --font-weight-medium: 200;
+   --font-weight-semibold: 400;
+   --font-weight-bold: 600;
+   /* The body size, 16px: `body` applies `text-xs`, so this step is what the
+      interface reads at, and every step below keeps its own measure.
+      The three steps above it moved with it rather than being left where they
+      were: `sm` carries h3/h4, `base` carries h2 and `lg` carries h1, so a
+      body size raised past them would have left a heading smaller than the
+      paragraph under it. `xl` and up are unchanged, which does compress the
+      top of the ladder — `lg` to `xl` is now 20px to 22px. */
+   /* A meta line set in the mono face (when a page's numbers arrived, a
+      counter): JetBrains Mono reads larger than Inter at one size, so it
+      takes a step under the body to sit as quietly. */
+   --text-2xs: 0.875rem;
+   --text-2xs--line-height: 1.4;
+   --text-xs: 1rem;
    --text-xs--line-height: 1.45;
-   --text-sm: 0.8125rem;
+   --text-sm: 1rem;
    --text-sm--line-height: 1.45;
-   --text-base: 0.9375rem;
+   --text-base: 1.125rem;
    --text-base--line-height: 1.4;
-   --text-lg: 1.0625rem;
+   --text-lg: 1.25rem;
    --text-lg--line-height: 1.35;
    --text-xl: 1.375rem;
    --text-xl--line-height: 1.3;
@@ -60,6 +124,18 @@
    --toolbar-height: 52px;
    --subtoolbar-height: 44px;
    --radius-control: 7px;
+   --ctl-h: 44px;
+   --ctl-h-lg: 48px;
+   --ctl-px: 14px;
+   /* Fields and the controls on their line: 32px, and a pill. See the note
+      at the top of this file. */
+   --field-h: 2rem;
+   /* Chips sit well under the control floor on purpose — a board row can carry
+      twenty of them, and `.pill` in the kit is 26px with 10px of side padding.
+      Stated once because three components draw a chip today (`ui/badge`,
+      `common/status-badge`, `common/meta-badge`) and they were already three
+      different heights. */
+   --chip-h: 26px;
 
    /* --- Application shell (Berry Prototype.dc.html) -------------------------
       The shell is dark in both themes. It is chrome, not content: the tab
@@ -81,8 +157,23 @@
    --shell-text-dim: #76747b;
    --shell-text-faint: #55545a;
    --shell-accent: var(--berry);
-   --segment-track: #222226;
-   --segment-selected: #303035;
+   /* Fields, the filter track and segmented controls. Light here, dark in
+      `.dark`; the rail sets its own in `[data-shell-chrome]`. */
+   --segment-track: #ececef;
+   --segment-selected: #ffffff;
+   --segment-hover: #e2e2e6;
+
+   /* The rail's nav glyphs. The kit puts every one in a 22px box (`.navi .ib`)
+      and flips that box to the button gradient on the row you are on
+      (`.navi.on .ib`), so the current destination is marked by a filled shape
+      rather than by the accent: invariant 3 spends berry on the primary action
+      and on work that needs a person, and "where I am" is neither. These are
+      the kit's DARK `--btn-*` values, because the rail takes the dark ramp in
+      both themes like everything else under `--shell-*`. */
+   --shell-nav-icon-a: #ffffff;
+   --shell-nav-icon-b: #c6c6cb;
+   --shell-nav-icon-line: #ffffff;
+   --shell-nav-icon-ink: #010101;
 
    /* Detail drawers never exceed this, regardless of viewport. Past roughly
       this width a drawer stops reading as a panel over the workspace and
@@ -91,74 +182,91 @@
       this token rather than each passing their own number. */
    --drawer-max-width: 1024px;
 
-   --background: #f4f2ec;
-   --foreground: var(--brand-void);
-   /* Solid ink, not a faded --foreground: a 40% mix sat at 2.5:1 on this card. */
-   --placeholder: var(--brand-slate);
-   --container: #fdfcf8;
-   --card: #fdfcf8;
-   --card-foreground: var(--brand-void);
+   --background: #fafafa;
+   --foreground: #010101;
+   --placeholder: #6a6a6e;
+   --container: #ffffff;
+   --card: #ffffff;
+   --card-foreground: #010101;
    --popover: #ffffff;
-   --popover-foreground: var(--brand-void);
-   --primary: var(--brand-berry);
-   --primary-hover: var(--brand-berry-hover);
+   --popover-foreground: #010101;
+   --pri-a: #c9325c;
+   --pri-b: #9e1138;
+   --primary: var(--pri-a);
+   --primary-hover: #d14868;
+   --primary-text: #a8123f;
    /* `.btn-primary`: a light neutral fill with dark ink, in both themes. */
    --button-primary: #cdcdcd;
    --button-primary-hover: #c2c2c2;
    --button-primary-foreground: #222226;
-   /* Berry as text. */
-   --primary-text: var(--berry);
    --primary-foreground: #ffffff;
-   --secondary: #e9e6de;
-   --secondary-foreground: var(--brand-void);
-   --muted: #ece9e2;
-   --muted-foreground: #5d5a5a;
-   --subtle-foreground: var(--brand-slate);
-   --accent: #e7e4dc;
-   --accent-foreground: var(--brand-void);
-   --destructive: oklch(0.54 0.17 28);
+   /* --berry is declared once, with the brand palette above, and
+      --brand-berry points at it. Redeclaring it here as var(--brand-berry)
+      made the two a cycle, which invalidates both: every text-primary and
+      bg-berry fell back to the ink colour. */
+   /* The isotipo's other tone: the colour of its brackets, and so of the
+      lockup's word beside them. Warmer than --foreground, and kept separate
+      from it so the lockup can be exactly the brand asset without repainting
+      every word of body copy. */
+   --lockup-ink: #161616;
+   /* The isotipo's berry, and the lockup's final period. The asset paints it
+      #c74a5e on BOTH colourways: only the ink flips. It is NOT --berry
+      (#b84355), which is the product's interactive brand colour and a step
+      darker, so the mark drawn with --berry read duller than the asset it is
+      supposed to be. Declared per theme beside --lockup-ink, not once, so the
+      pair that comes off the asset stays in one place. */
+   --lockup-berry: #c74a5e;
+   --secondary: #f5f5f5;
+   --secondary-foreground: #010101;
+   --muted: #f0f0f0;
+   --muted-foreground: #4d4d4d;
+   --subtle-foreground: #6a6a6e;
+   --accent: #f0f0f0;
+   --accent-foreground: #010101;
+   --destructive: #a01c16;
    --destructive-foreground: #ffffff;
-   --border: #d7d4cc;
-   --input: #cac6bd;
-   --ring: var(--brand-azure);
-   --status-success: #347b5a;
-   --status-warning: #9b6715;
-   --status-danger: oklch(0.54 0.17 28);
-   /* 5.2:1 on the light card surface; #397caf sat at 4.4:1 as running text. */
-   --status-info: #31709f;
-   --status-neutral: var(--brand-slate);
-   --actor-human: #9b6715;
-   --actor-agent: #31709f;
-   --review-pending: #9b6715;
-   --review-approved: #347b5a;
-   --review-changes: oklch(0.54 0.17 28);
+   --border: #e6e6e6;
+   --input: #d4d4d4;
+   --ring: var(--brand-berry);
+   --status-success: #2e2e2e;
+   --status-warning: #a8123f;
+   --status-danger: #1f1f1f;
+   --status-info: #56565a;
+   --status-neutral: #6a6a6e;
+   --actor-human: #a8123f;
+   --actor-agent: #4d4d4d;
+   --review-pending: #a8123f;
+   --review-approved: #2e2e2e;
+   --review-changes: #1f1f1f;
+   --status-success-soft: #ececec;
+   --status-warning-soft: #fdeff3;
+   --status-danger-soft: #ffffff;
+   --status-info-soft: #f2f2f2;
+   --actor-agent-soft: #f2f2f2;
+   --gate: #a8123f;
+   --gate-foreground: #ffffff;
+   --avatar-agent: #3d3d3d;
+   --avatar-person: #6a6a6e;
+   --avatar-foreground: #ffffff;
+   --diff-add: #177034;
+   --diff-del: #a01c16;
+   --mine: #f3e2ea;
+   --mine-border: #e6ceda;
    --chart-1: var(--brand-berry);
    --chart-2: var(--brand-azure);
    --chart-3: var(--brand-verdant);
    --chart-4: var(--brand-amber);
    --chart-5: var(--brand-slate);
    --radius: 10px;
-   /* Flat and theme-independent, like the shell: the board's cards are dark in
-      both themes, and the column previously resolved 80% zinc over the page,
-      which put mid-grey behind dark cards in light mode. Stated once here with
-      no `.dark` counterpart, so the two cannot drift. A step above the page
-      (#19191c) so each column reads as a lane; the card tokens below are
-      mixed from it, so cards keep the same contrast against their column. */
-   --board-column-body: #232326;
-   /* A card at rest: clearly under the column, 40% of the way to the void, so the
-      lane and its cards never read as one surface; the brighter edge frames
-      it. The column goes first so an unsupported `color-mix` degrades to the
-      column itself. */
-   --board-card: color-mix(in oklab, var(--board-column-body) 60%, var(--brand-void));
-   /* Edge of a card sitting in a board column: the column lifted a step, so it
-      reads as a seam rather than a line of its own. White goes last on
-      purpose -- where `color-mix` is unsupported the declaration degrades to
-      its first colour, and an edge that matches the column disappears, where
-      one that fell back to white would blaze. */
-   --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
-   /* A hovered card changes only its edge: the fill stays, the border
-      brightens. */
-   --board-card-hover-line: color-mix(in oklab, var(--board-column-body) 84%, #ffffff);
+   /* The board follows the theme: a light column with white cards here, and a
+      lifted dark column with framed cards in `.dark`. Cards and drag previews
+      read `--board-card*`, never the brand ramp directly. */
+   --board-column-body: #f4f4f5;
+   --board-card: #ffffff;
+   --board-card-hover: #fafafa;
+   --board-card-foreground: var(--foreground);
+   --board-card-line: #e4e4e7;
+   --board-card-hover-line: #d4d4d8;
    /* Board column and list group header tints. A status column takes a wash
       of its own semantic tone over the container, so the header agrees with
       the glyph beside it: In review and Blocked wear warning, Done wears
@@ -192,17 +300,20 @@
       light block keeps a home for each name. */
    --settings-panel: var(--container);
    --settings-panel-line: var(--border);
-   --settings-group: var(--card);
-   --settings-row-hover: var(--accent);
+   --settings-group: #f4f4f5;
+   --settings-row-hover: #ebebee;
    --settings-divider: var(--border);
    --settings-field: var(--card);
    --settings-field-line: var(--input);
    --settings-field-focus: var(--brand-slate);
    --settings-field-sunken: var(--muted);
    --settings-placeholder: var(--placeholder);
-   --settings-control: var(--secondary);
-   --settings-control-hover: var(--accent);
-   --settings-chip: var(--secondary);
+   /* Not --secondary/--accent: --secondary (#f5f5f5) is all but the group's
+      own grey, so pills and keys read as loose text. These sit a step under
+      the group and the hovered row, as the dark values do. */
+   --settings-control: #e4e4e7;
+   --settings-control-hover: #d9d9de;
+   --settings-chip: #e6e6e9;
    --settings-segment: var(--muted);
    --settings-segment-on: var(--card);
    --settings-switch-off: var(--input);
@@ -211,6 +322,14 @@
    --settings-accent: var(--berry);
    --settings-accent-hover: var(--berry-hover);
    --settings-danger-hover: color-mix(in oklab, var(--brand-danger) 18%, var(--card));
+   /* The danger zone's group: the group's grey with a berry cast, and its
+      hairlines a step deeper in the same tint. */
+   --settings-group-danger: color-mix(in oklab, var(--settings-accent) 7%, var(--settings-group));
+   --settings-danger-divider: color-mix(
+      in oklab,
+      var(--settings-accent) 18%,
+      var(--settings-group)
+   );
    --settings-badge-warning: color-mix(in oklab, var(--status-warning) 14%, transparent);
    --settings-badge-success: color-mix(in oklab, var(--status-success) 14%, transparent);
    --settings-tier-violet: var(--brand-iris);
@@ -219,40 +338,79 @@
 .dark {
    color-scheme: dark;
 
-   --background: #111113;
-   --foreground: #f2f0ed;
-   --container: #19191c;
-   --card: #202024;
-   --card-foreground: #f2f0ed;
-   --popover: #19191c;
-   --popover-foreground: #f2f0ed;
-   --primary: var(--brand-berry);
-   --primary-hover: var(--brand-berry-hover);
+   --segment-track: #222226;
+   --segment-selected: #303035;
+   --segment-hover: var(--brand-hairline);
+   --board-column-body: #232326;
+   /* A card at rest: clearly under the column, 40% of the way to the void, so the
+      lane and its cards never read as one surface; the brighter edge frames
+      it. The column goes first so an unsupported `color-mix` degrades to the
+      column itself. */
+   --board-card: color-mix(in oklab, var(--board-column-body) 60%, var(--brand-void));
+   --board-card-hover: var(--brand-base);
+   --board-card-foreground: var(--brand-chalk);
+   /* Edge of a card sitting in a board column: the column lifted a step, so it
+      reads as a seam rather than a line of its own. White goes last on
+      purpose -- where `color-mix` is unsupported the declaration degrades to
+      its first colour, and an edge that matches the column disappears, where
+      one that fell back to white would blaze. */
+   --board-card-line: color-mix(in oklab, var(--board-column-body) 97%, #ffffff);
+   /* A hovered card changes only its edge: the fill stays, the border
+      brightens. */
+   --board-card-hover-line: color-mix(in oklab, var(--board-column-body) 84%, #ffffff);
+
+   --background: #0a0a0b;
+   --foreground: #f6f6f7;
+   --container: #121214;
+   --card: #121214;
+   --card-foreground: #f6f6f7;
+   --popover: #121214;
+   --popover-foreground: #f6f6f7;
+   --primary: var(--pri-a);
+   --primary-hover: #d14868;
    --primary-foreground: #ffffff;
-   --placeholder: #6a6970;
-   --secondary: #26262b;
-   --secondary-foreground: #f2f0ed;
-   --muted: #202024;
-   --muted-foreground: #a9a7ad;
-   --subtle-foreground: #76747b;
-   --accent: #1f1f23;
-   --accent-foreground: #f2f0ed;
-   --destructive: var(--brand-danger);
-   --destructive-foreground: #ffffff;
-   --border: #242428;
-   --input: #2e2e33;
+   --placeholder: #8a8a93;
+   --primary-text: #f0738f;
+   --lockup-ink: #f0edea;
+   /* Same berry on both colourways; see the light block. */
+   --lockup-berry: #c74a5e;
+   --secondary: #1a1a1d;
+   --secondary-foreground: #f6f6f7;
+   --muted: #17171a;
+   --muted-foreground: #a8a8ae;
+   --subtle-foreground: #8a8a93;
+   --accent: #17171a;
+   --accent-foreground: #f6f6f7;
+   --destructive: #ff8a8a;
+   --destructive-foreground: #1a0a10;
+   --border: #262629;
+   --input: #333338;
    --ring: var(--brand-berry);
-   --status-success: var(--brand-verdant);
-   --status-warning: var(--brand-amber);
-   --status-danger: var(--brand-danger);
-   --status-info: var(--brand-azure);
-   --status-neutral: #8e8c93;
+   --status-success: #e4e4e8;
+   --status-warning: #f0738f;
+   --status-danger: #f2f2f4;
+   --status-info: #a8a8ae;
+   --status-neutral: #8a8a93;
    --brand-iris: #c4b4e8;
-   --actor-human: var(--brand-amber);
-   --actor-agent: var(--brand-azure);
-   --review-pending: var(--brand-amber);
-   --review-approved: var(--brand-verdant);
-   --review-changes: var(--brand-danger);
+   --actor-human: #f0738f;
+   --actor-agent: #a8a8ae;
+   --review-pending: #f0738f;
+   --review-approved: #e4e4e8;
+   --review-changes: #f2f2f4;
+   --status-success-soft: #26262a;
+   --status-warning-soft: #2a1018;
+   --status-danger-soft: #121214;
+   --status-info-soft: #1e1e22;
+   --actor-agent-soft: #1e1e22;
+   --gate: #f0738f;
+   --gate-foreground: #1a0a10;
+   --avatar-agent: #c8c8ce;
+   --avatar-person: #8a8a93;
+   --avatar-foreground: #0a0a0b;
+   --diff-add: #5bd98a;
+   --diff-del: #ff8a8a;
+   --mine: #2a1a22;
+   --mine-border: #3c2630;
    --sidebar: #111113;
    --sidebar-foreground: #f2f0ed;
    --sidebar-primary: var(--brand-berry);
@@ -286,6 +444,12 @@
    --settings-accent: #c74a5e;
    --settings-accent-hover: #d55a6e;
    --settings-danger-hover: #3a2226;
+   --settings-group-danger: color-mix(in oklab, var(--settings-accent) 10%, var(--settings-group));
+   --settings-danger-divider: color-mix(
+      in oklab,
+      var(--settings-accent) 24%,
+      var(--settings-group)
+   );
    --settings-badge-warning: rgba(217, 165, 74, 0.14);
    --settings-badge-success: rgba(95, 176, 138, 0.14);
    --settings-tier-violet: #a48ad8;
@@ -329,10 +493,12 @@
    --color-ash: var(--brand-ash);
    --color-slate: var(--brand-slate);
    --color-hairline: var(--brand-hairline);
+   --color-berry: var(--berry);
+   --color-lockup-ink: var(--lockup-ink);
+   --color-lockup-berry: var(--lockup-berry);
    --color-button-primary: var(--button-primary);
    --color-button-primary-hover: var(--button-primary-hover);
    --color-button-primary-foreground: var(--button-primary-foreground);
-   --color-berry: var(--berry);
    --color-berry-hover: var(--berry-hover);
    --color-amber: var(--brand-amber);
    --color-verdant: var(--brand-verdant);
@@ -353,6 +519,9 @@
    --radius-md: calc(var(--radius) - 2px);
    --radius-lg: var(--radius);
    --radius-xl: calc(var(--radius) + 4px);
+   /* Ledger shape: controls are pilled, cards take R20. */
+   --radius-pill: 999px;
+   --radius-card: 20px;
    --color-sidebar: var(--sidebar);
    --color-sidebar-foreground: var(--sidebar-foreground);
    --color-sidebar-primary: var(--sidebar-primary);
@@ -384,6 +553,8 @@
    --color-settings-accent: var(--settings-accent);
    --color-settings-accent-hover: var(--settings-accent-hover);
    --color-settings-danger-hover: var(--settings-danger-hover);
+   --color-settings-group-danger: var(--settings-group-danger);
+   --color-settings-danger-divider: var(--settings-danger-divider);
    --color-settings-badge-warning: var(--settings-badge-warning);
    --color-settings-badge-success: var(--settings-badge-success);
    --color-container: var(--container);
@@ -398,6 +569,23 @@
    --color-group-tint-warning: var(--group-tint-warning);
    --color-group-tint-success: var(--group-tint-success);
    --color-group-tint-danger: var(--group-tint-danger);
+   /* Ledger additions. */
+   --color-status-success-soft: var(--status-success-soft);
+   --color-status-warning-soft: var(--status-warning-soft);
+   --color-status-danger-soft: var(--status-danger-soft);
+   --color-status-info-soft: var(--status-info-soft);
+   --color-actor-agent-soft: var(--actor-agent-soft);
+   --color-gate: var(--gate);
+   --color-gate-foreground: var(--gate-foreground);
+   --color-avatar-agent: var(--avatar-agent);
+   --color-avatar-person: var(--avatar-person);
+   --color-avatar-foreground: var(--avatar-foreground);
+   --color-diff-add: var(--diff-add);
+   --color-diff-del: var(--diff-del);
+   --color-mine: var(--mine);
+   --color-mine-border: var(--mine-border);
+   --color-pri-a: var(--pri-a);
+   --color-pri-b: var(--pri-b);
 }
 
 /* Settings pages take the handoff's accent for their one primary action. */
@@ -469,12 +657,11 @@
       than merely the default. */
    body {
       @apply text-foreground font-sans text-xs;
-      --font-sans: var(--font-jetbrains-mono);
-      --font-mono: var(--font-jetbrains-mono);
-      --font-display: var(--font-jetbrains-mono);
-      /* 400, not the 300 that `font-normal` resolves to. Titles are 600. */
-      font-weight: 400;
-      min-height: 100vh;
+      /* The scale's body step (see Weight scale in @theme). */
+      font-weight: var(--font-weight-normal);
+      /* dvh, not vh: on phones 100vh is the large viewport (toolbars retracted),
+         which made the page taller than the screen. Same value on desktop. */
+      min-height: 100dvh;
    }
 
    /* Written against the tokens rather than with `@apply`, because `text-base`
@@ -528,9 +715,42 @@
       line-height: var(--text-3xl--line-height);
    }
 
+   /* Avatar initials, 14px: the one lettering the body size must not reach.
+      The fallback span fills a circle as small as 20px, so at the 16px body
+      size two capitals touch its edges — and unlike a label it cannot wrap or
+      truncate to cope. Line height is 1 for the same reason: the glyphs are
+      centred by the flex box around them, not by a leading. */
+   [data-slot='avatar-fallback'] {
+      font-size: 0.875rem;
+      line-height: 1;
+   }
+
+   /* A person's initials in ActorAvatar, 11px: that circle is 20px across,
+      so two capitals at 14px crowd its ring. */
+   [data-slot='avatar-fallback'][data-actor-initials] {
+      font-size: 0.6875rem;
+   }
+
    /* Titles stay on the interface face. Write the words as they should read;
       do not capitalize here — that rewrites identifiers (BER-286, API).
-      Section labels are 11.5 / 700 in sentence case. */
+      Section labels are the body size at 600/700, in sentence case. */
+
+   /* Titles are set in the mono face, the body in Inter. One face names
+      things and the other reads them, which is also why a title needs no
+      colour or rule to separate it from the rows under it.
+
+      Listed by the same selectors the sizes above use, so a heading cannot
+      take a step on the scale without taking the face with it. The lockup is
+      absent on purpose: it is drawn, not set, so no rule here reaches it. */
+   h1,
+   h2,
+   h3,
+   h4,
+   [data-heading],
+   [data-detail-title],
+   [data-create-title] {
+      font-family: var(--font-mono);
+   }
 
    /* Headings carry weight over the 400 body so a page title, a dialog title
       and a section title read as a different role from the row text beside
@@ -599,19 +819,49 @@
       line-height: 1rem;
    }
 
-   /* A task label chip. The same step under the body, so a row of them sits
-      quieter than the property names beside them. */
+   /* A task label chip. One step under the body (14px vs 16px) at a semibold
+      weight so coloured pills breathe inside their border and stay legible. */
    [data-label-chip] {
+      font-size: var(--text-2xs);
+      line-height: 1.125rem;
+      font-weight: 600;
+   }
+
+   /* Board cards: tighter title and smaller metadata so titles and dates read
+      cleanly inside 266px Kanban columns. */
+   [data-card-title] {
+      font-size: var(--text-2xs);
+      line-height: 1.35;
+   }
+
+   [data-card-date],
+   [data-board-card] [data-identifier] {
       font-size: 0.75rem;
       line-height: 1rem;
    }
 
-   /* Section labels inside a page ("Sub-tasks", "Files", "Activity"): tracked
-      caps one step below the body, so they read as labels for a group and
-      not as the rail's section headings, which are a shell element. */
-   [data-heading='label'] {
-      font-size: 0.71875rem;
+   /* A note riding on a field's top edge, like a legend ("Draft saved" on a
+      comment box). A step under the body, so it reads as a remark about the
+      box rather than as part of what is written in it. */
+   [data-field-legend] {
+      font-size: var(--text-2xs);
       line-height: 1rem;
+   }
+
+   /* Section labels ("Sub-tasks", "Files", "Activity", and the folds that
+      open a rail or sidebar section).
+
+      The body size, not a step under it. These were 11.5px, which was a
+      readable caption when the body was 13px and is a caption no longer at
+      16px: a label the same colour as nothing else on the surface, three
+      steps smaller than the rows it heads, stopped reading as a heading and
+      started reading as fine print. Weight and the dim tone are what separate
+      a label from its rows now. The detail column and sidebar used to carry
+      their own override of this line for exactly that reason; it is gone,
+      because the base value is the one they wanted. */
+   [data-heading='label'] {
+      font-size: var(--text-xs);
+      line-height: var(--text-xs--line-height);
       font-weight: 600;
       letter-spacing: 0;
       text-transform: none;
@@ -623,6 +873,15 @@
    [data-step-body='prose'] {
       font-size: 0.75rem;
       line-height: 1rem;
+   }
+
+   /* A chat message, the agent's reply and the person's bubble alike: the body
+      size, so a reply reads as the page's own text. Replies used to share the
+      transcript's 12px `[data-step-body='prose']`, a size below the bubble
+      beside them. */
+   [data-chat-reply] {
+      font-size: 1rem;
+      line-height: 1.5rem;
    }
 
    /* Review list rows, the run summary, and the diff pane. Identifier,
@@ -642,27 +901,40 @@
       line-height: inherit;
    }
 
-   /* The one size set outside the scale above. The wordmark is a logo lockup,
-      not running text: the word is drawn to sit against the mark beside it, so
-      it has to scale with the mark and not with the surrounding UI. Kept here
-      rather than inline in the component so the exception stays visible next
-      to the rule it departs from. */
-   /* Wordmark type size is set on the element to match berry.pm (23px at md).
-      The attributes stay so stories and tests can still target the lockup. */
-   [data-wordmark] {
-      font-family: var(--font-dm-serif-display), 'DM Serif Display', serif;
-      font-weight: 400;
-   }
+   /* The wordmark used to be the one size set outside the scale above, because
+      the word was live text in DM Serif Display that had to scale with the
+      mark rather than with the UI. It is the brand asset's own outlines now
+      (components/brand/berry-mark.tsx), so there is no type to size and no
+      exception to document: `[data-wordmark]` stays on the element only so
+      stories and tests can still target the lockup.
 
-   /* The second exception: a headline figure. A page opens with the one number
+      The exception below is a headline figure. A page opens with the one number
       it is about, and a Usage panel is read from its figure, so that number is
       set at poster size and the other text stays on the scale. Named sizes
-      here rather than utilities in the components, for the same reason as the
-      wordmark: the departure stays next to the rule. */
+      here rather than utilities in the components, so the departure stays
+      next to the rule it departs from. */
    [data-figure] {
-      font-weight: 400;
+      font-family: var(--font-mono);
+      font-weight: 700;
       line-height: 1;
-      letter-spacing: -0.01em;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+   }
+
+   /* The unread count on the phone tab bar's Inbox tab: a step under the
+      label so it reads as a mark on the icon, not a second label. */
+   /* The phone tab bar's labels: a step under the body so the five fit
+      under their icons without crowding. */
+   [data-tab-bar] {
+      font-size: 0.75rem;
+   }
+   [data-tab-badge] {
+      font-size: 0.6875rem;
+   }
+
+   [data-identifier] {
+      font-family: var(--font-mono);
+      font-weight: 400;
       font-variant-numeric: tabular-nums;
    }
 
@@ -686,6 +958,44 @@
       font-size: 1.25rem;
    }
 
+   /* A treemap tile is as wide as its share, and its figure is sized by rank,
+      so a narrow tile cut its own number ("$11.…"). The tile is a container
+      and its figure shrinks with it, down from its named size. */
+   [data-treemap-tile] {
+      container-type: inline-size;
+   }
+
+   [data-treemap-tile] [data-figure='lg'] {
+      font-size: min(2.5rem, 18cqi);
+   }
+
+   [data-treemap-tile] [data-figure='md'] {
+      font-size: min(1.75rem, 18cqi);
+   }
+
+   [data-treemap-tile] [data-figure='sm'] {
+      font-size: min(1.25rem, 18cqi);
+   }
+
+   [data-auth-title] {
+      font-size: 1.875rem;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+   }
+
+   /* A popover that only reports something -- no buttons, no links -- must not
+      stand in front of the form it reports on. The password checklist sits
+      under its field, which on the sign-in card is exactly where the submit
+      button is, and it swallowed the click that finally passed the rules.
+
+      Radix puts the content inside a positioning wrapper it owns, and that
+      wrapper keeps `pointer-events: auto`, so a class on the content alone
+      does not let a click through. This reaches the wrapper by what it holds.
+      Opt in with `pointerThrough` on PopoverContent. */
+   [data-radix-popper-content-wrapper]:has(> [data-slot='popover-content'][data-pointer-through]) {
+      pointer-events: none;
+   }
+
    /* Keep the already-compacted sidebar menu on the previous type scale. */
    [data-slot='sidebar'] {
       --text-xs: 0.75rem;
@@ -706,25 +1016,18 @@
       --text-4xl--line-height: 2.5rem;
    }
 
-   /* Rail nav items are how you get around the app, so they sit a step above
-      the text-xs default rather than reading as captions beside their icons.
-      Marked with `data-shell-nav` in shell-rail.tsx and shell-rail-settings.tsx
-      -- the rail is hand-built markup with no shared nav primitive to hang this
-      off, and a structural selector would break the first time a list is
-      rewrapped. Note this is the sidebar in the app: `[data-slot='sidebar']`
-      above belongs to the shadcn sidebar, which the shell does not render, so
-      its overrides do not reach here.
-
-      14px, a step above the 13px body: `--text-sm` now matches the body size
-      exactly, so it no longer sets the rail apart. Line spacing stays at the
-      1.2 the body uses.
-
-      The items size to their content (`py-1.5`, no fixed height), so the type
-      just makes the rail taller. Section headings stay at the default -- they
-      label the groups, they are not destinations. */
+   /* Rail nav items sit at `--text-base` (1.125rem) in the mobile overlay
+      drawer and step down to 1rem on the desktop column (`md` / 48rem+), where
+      1.125rem reads oversized in the 232px rail. */
    [data-shell-nav] {
       font-size: var(--text-base);
       line-height: 1.2;
+   }
+
+   @media (min-width: 48rem) {
+      [data-shell-nav] {
+         font-size: 1rem;
+      }
    }
 
    /* Tab titles match the rail's items. The strip and the rail are one piece
@@ -737,7 +1040,7 @@
    }
 
    :where(.text-xs) {
-      font-weight: 400;
+      font-weight: var(--font-weight-normal);
    }
 
    /* Selection takes the focus hue, not the brand red: berry is reserved for
@@ -793,6 +1096,80 @@
    --app-inset-b: 8px; /* frame bottom */
    --app-inset-l: 0px;
    --app-frame: #111113;
+
+   /* The Agents launcher's own corner, and what has to stay clear of it.
+      Two places read these: the launcher strip in berry-shell.tsx anchors
+      itself at `--shell-launcher-b`, and the floating chat window lifts its
+      bottom edge by the whole of `--shell-launcher-clear`.
+
+      They used to be written out separately, and did not agree: the launcher
+      was inset-aware (`calc(var(--app-inset-b) + 1rem + 2px)`) while the
+      window sat at a flat `calc(4rem - 15px)` that ignored the frame and was
+      shorter than the control it was meant to clear, so the chat opened with
+      the button on top of it. `--shell-launcher-h` is the button, which sizes
+      to its own padding rather than to the 36px strip around it. */
+   --shell-launcher-b: calc(var(--app-inset-b) + 1rem + 2px);
+   --shell-launcher-h: 2.75rem;
+   /* `--floating-stack-lift` is how far page controls under the launcher
+      have pushed it up (set by ShellLauncherDock); clearing the launcher
+      means clearing it where it stands. */
+   --shell-launcher-clear: calc(
+      var(--shell-launcher-b) + var(--floating-stack-lift, 0px) + var(--shell-launcher-h) + 0.5rem
+   );
+   /* From `md` the launcher floats over the canvas, so a list scroller ends
+      with this much room (`md:pb-[var(--shell-launcher-room)]`): the part of
+      `--shell-launcher-clear` above the frame, so the last row scrolls clear. */
+   --shell-launcher-room: calc(var(--shell-launcher-clear) - var(--app-inset-b));
+}
+
+/* Below `md` the phone tab bar (shell-tab-bar.tsx) owns the bottom edge and
+   the Agents pill is gone. What floats bottom-right sits above the bar with a
+   margin; the chat window and toasts end right on its top edge. */
+@media (width < 48rem) {
+   :root {
+      --shell-tabbar-h: 3.5rem;
+      --shell-launcher-b: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom) + 0.75rem);
+      --shell-launcher-clear: calc(var(--shell-tabbar-h) + env(safe-area-inset-bottom));
+      --app-inset-t: 0px;
+      --app-inset-r: 0px;
+      --app-inset-b: 0px;
+      --app-inset-l: 0px;
+   }
+}
+
+/* The light ramp. In the light theme the frame around the workspace (the
+   rail, its collapsed column and the inset border) and the chat (the page and
+   the floating window) take a light ramp, so neither sits as a dark band on a
+   light page (decision D4: chat follows the theme). Scoped to
+   `[data-shell-chrome]` and `[data-chat-surface]` rather than redefining
+   `--shell-*` on :root, so anything else reading the tokens stays on the dark
+   ramp. Menus opened from them are portalled out, so they keep the popover
+   theme. The dark theme is untouched. */
+:root:not(.dark) {
+   --app-frame: #f4f4f5;
+}
+
+:root:not(.dark) :is([data-shell-chrome], [data-chat-surface]) {
+   --shell-rail: #f4f4f5;
+   --shell-canvas: #ffffff;
+   --shell-surface: #ffffff;
+   --shell-hover: #e8e8eb;
+   --shell-line: #e4e4e7;
+   --shell-line-strong: #d4d4d8;
+   --shell-text: #18181b;
+   --shell-text-muted: #52525b;
+   --shell-text-dim: #71717a;
+   --shell-text-faint: #a1a1aa;
+   --segment-track: #e8e8eb;
+   --segment-selected: #ffffff;
+   /* Hover fill of the settings rail's back control. */
+   --brand-hairline: #d4d4d8;
+   /* The current destination's glyph box: the kit's light button, a dark
+      fill with a light glyph, so it still reads as a filled shape. */
+   --shell-nav-icon-a: #3f3f46;
+   --shell-nav-icon-b: #18181b;
+   --shell-nav-icon-line: #18181b;
+   --shell-nav-icon-ink: #ffffff;
 }
 
 html {
@@ -812,6 +1189,12 @@ body {
    overflow: hidden;
 }
 
+@media (width < 48rem) {
+   body {
+      border-width: 0;
+   }
+}
+
 /*
  * Unlayered so typed text stays --foreground. Layered placeholder utilities
  * also set -webkit-text-fill-color on the control, which WebKit then uses
@@ -829,7 +1212,7 @@ input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='
 textarea,
 select {
    color: var(--input-color, var(--foreground));
-   caret-color: var(--input-color, var(--foreground));
+   caret-color: var(--caret-color, var(--input-color, var(--foreground)));
    -webkit-text-fill-color: var(--input-color, var(--foreground));
 }
 
@@ -878,6 +1261,35 @@ input[type='search'] {
    45% {
       opacity: 1;
       transform: scale(1);
+   }
+}
+
+/* The lockup's berry on the auth screens (BerryWordmark `pulse`). The dot
+   holds still; a ring of r=35 leaves it at 0.72 (r=25, the dot's own edge)
+   and fades out by 1, where its outer edge is still inside the brackets. */
+@keyframes berry-ripple {
+   0% {
+      opacity: 0.9;
+      transform: scale(0.72);
+   }
+
+   70%,
+   100% {
+      opacity: 0;
+      transform: scale(1);
+   }
+}
+
+/* Soft fade-in for newly mounted list/table rows (opacity only, no transform,
+   so WebKit never allocates a GPU layer per row). Starts at 0.35 rather than 0
+   so rows caught mid-fling never read as blank. */
+@keyframes berry-row-in {
+   from {
+      opacity: 0.35;
+   }
+
+   to {
+      opacity: 1;
    }
 }
 
@@ -955,22 +1367,6 @@ input[type='search'] {
    }
 }
 
-.ai-animated-border {
-   display: inline-flex;
-   padding: 1px;
-   border-radius: calc(var(--radius-md) + 1px);
-   background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #34d399, #fbbf24, #f472b6);
-   background-size: 300% 100%;
-   animation: ai-border-flow 4s linear infinite;
-}
-
-.ai-animated-border[aria-disabled='true'] {
-   animation: none;
-   background-position: 50% 50%;
-   opacity: 0.5;
-   pointer-events: none;
-}
-
 /* Auth shell: the top-right sign-in/sign-up switch sits one step above the
    body size so it reads with the wordmark, not as a caption. */
 [data-auth-top] {
@@ -981,14 +1377,6 @@ input[type='search'] {
 /* Auth 2FA code cells: digit-sized without a text-* utility on the span. */
 [data-auth-code-cell] {
    font-size: 1.25rem;
-   line-height: 1;
-}
-
-/* The Agents launcher is drawn 30% larger than the xxs chip. That scale
-   would enlarge the label with the chrome; dividing it back out keeps the
-   word at the body size. */
-.ai-animated-border.shell-agents-launcher {
-   font-size: calc(var(--text-xs) / 1.3);
    line-height: 1;
 }
 
@@ -1007,10 +1395,121 @@ input[type='search'] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-   .ai-animated-border,
    .ai-prompt-pill {
       animation: none;
       background-position: 50% 50%;
+   }
+}
+
+/* ── .spark: a control worth noticing ────────────────────────────────
+   Ledger redesign recipe (berry-redesign/ledger/components.css) ported to
+   this theme's own tokens instead of the kit's --accent/--raised/--line-2.
+   A light travels the border in the brand berry (--spark-edge → --pri-b)
+   rather than the rainbow sweep this replaced, the control casts a berry
+   bloom on what is behind it, and the label takes
+   --primary-text. This is for a SECONDARY control that invites an AI
+   action — "Create with agent", "AI Workflow", "Fix with AI" — never the
+   primary action on a screen, which already carries the gradient fill
+   (`Button` variant="default") and would just get a noisy ring around it.
+
+   Drawn as a conic gradient on ::after, masked down to a 1px ring, so the
+   control sits on any surface without needing to match a background.
+   --spark is a registered custom property because an unregistered one
+   cannot be interpolated by the keyframe; the `0deg` fallback inside var()
+   keeps a static ring on screen where @property is unsupported. */
+@property --spark {
+   syntax: '<angle>';
+   initial-value: 0deg;
+   inherits: false;
+}
+
+@keyframes spark {
+   to {
+      --spark: 360deg;
+   }
+}
+
+.spark {
+   position: relative;
+   color: var(--primary-text);
+   background: var(--card);
+
+   /* Art-directed, so named here rather than inlined below: `--spark-edge` is
+      the leading edge of the travelling light, a tint above --pri-a, and
+      `--spark-glow` is the bloom the control casts on the surface behind it.
+      Both are off the token scale on purpose and do not follow the theme. */
+   --spark-edge: #ff8dac;
+   --spark-glow: #9e1f45;
+   box-shadow: 0 0 24px 2px var(--spark-glow);
+
+   /* This control carries its own box: the recipe is drawn at one size, so
+      `size` sets only the gap on it. `height: auto` is what lets the padding
+      decide, over the fixed height a `size` utility would otherwise set. */
+   height: auto;
+   padding: 10px 20px;
+}
+
+.spark:hover {
+   color: var(--primary-text);
+   background: var(--secondary);
+}
+
+.spark::after {
+   content: '';
+   position: absolute;
+   inset: 0;
+   border-radius: inherit;
+   padding: 1px;
+   pointer-events: none;
+   background: conic-gradient(
+      from var(--spark, 0deg),
+      transparent 0 54%,
+      var(--spark-edge) 76%,
+      var(--pri-b) 84%,
+      transparent 96%
+   );
+   -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+   -webkit-mask-composite: xor;
+   mask-composite: exclude;
+   animation: spark 3.4s linear infinite;
+}
+
+/* The light is the invitation, not the state: once this IS the active mode
+   (a selected tab, not a one-shot action), add .on to drop the ring and
+   read as any other selected control. */
+.spark.on {
+   color: var(--foreground);
+   background: var(--background);
+   /* The bloom goes with the ring: a selected control that still glowed
+      would read as pending rather than as chosen. */
+   box-shadow: none;
+}
+
+.spark.on::after {
+   display: none;
+}
+
+/* Disabled drops the invitation entirely: no bloom, no travelling ring, no
+   hover fill. A dimmed control that still glowed read as busy, not as
+   unavailable. */
+.spark:disabled,
+.spark[aria-disabled='true'] {
+   /* A still hairline in place of the ring, so the control keeps its shape. */
+   box-shadow: inset 0 0 0 1px var(--border);
+   background: var(--card);
+   color: var(--muted-foreground);
+}
+
+.spark:disabled::after,
+.spark[aria-disabled='true']::after {
+   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+   .spark::after {
+      animation: none;
    }
 }
 
@@ -1051,21 +1550,25 @@ input[type='search'] {
    line-height: var(--text-xl--line-height);
 }
 
-/* Detail sidebars and the working sections under a description (plans,
-   milestones, tasks, updates and activity) use the compact interface scale.
-   Their controls take the surrounding size rather than their own. */
-[data-detail-sidebar] {
-   font-size: var(--text-xs);
-   line-height: var(--text-xs--line-height);
-}
+/* The detail column and the properties sidebar beside it read at the body
+   size, 16px: the sections around the description (a project's plan,
+   milestones, tasks and updates; a task's sub-tasks, comments and activity)
+   and the sidebar's own narrow rows (assignee, status, labels, milestone,
+   blocked by, details) are interface, not prose.
 
-[data-detail-body] {
+   They used to sit one step above the body, which was a 1px lift while the
+   body was 13px. At 16px that step is 18px, large enough to truncate a name
+   in the 292px sidebar and to make a comment read as a heading. The
+   description keeps the step, below, because it is the one text here read at
+   length. A section label lands on the same size as the rows it heads, so
+   weight and the dim tone tell them apart. */
+:is([data-detail-sidebar], [data-detail-body]) {
    font-size: var(--text-xs);
    line-height: var(--text-xs--line-height);
 }
 
 :is([data-detail-sidebar], [data-detail-body])
-   :is(button, input, textarea, select):not([data-detail-title]) {
+   :is(button, input, textarea, select):not([data-detail-title]):not([data-label-chip]) {
    font-size: inherit;
 }
 
@@ -1102,13 +1605,15 @@ input[type='search'] {
 }
 
 /* A skill's instructions are read as body, so a heading inside the editor
-   does not take the 500 the scale gives h1–h3. */
+   does not take the 500 the scale gives h1–h3. Body here is the 400 floor,
+   not the 100 this was written at: the attribute keeps its name so the markup
+   that sets it still selects, but there is no sub-400 text left. */
 [data-font-weight='100'] .ProseMirror,
 [data-font-weight='100'] .ProseMirror h1,
 [data-font-weight='100'] .ProseMirror h2,
 [data-font-weight='100'] .ProseMirror h3,
 [data-font-weight='100'] .ProseMirror h4 {
-   font-weight: 100;
+   font-weight: 400;
 }
 
 .tiptap-ai-editor .ProseMirror h1 {
@@ -1225,4 +1730,32 @@ input[type='search'] {
    float: left;
    height: 0;
    pointer-events: none;
+}
+
+/* A toast with an action reads first, then offers the action: the text takes
+   the whole row and the button wraps under it, on the left, lined up with the
+   text rather than squeezed beside it. Sonner lays the toast out as one flex
+   row (icon, content, button); wrapping that row is all this changes. */
+[data-sonner-toast][data-styled='true']:has(> [data-button]) {
+   flex-wrap: wrap;
+   align-items: flex-start;
+   row-gap: 10px;
+}
+[data-sonner-toast][data-styled='true']:has(> [data-button]) > [data-icon] {
+   /* Centred on the first line of the title (13px at 1.5) instead of the block. */
+   margin-top: 2px;
+}
+[data-sonner-toast][data-styled='true']:has(> [data-button]) > [data-content] {
+   flex-basis: calc(
+      100% - 16px - var(--toast-icon-margin-start) - var(--toast-icon-margin-end) - 6px
+   );
+}
+/* Sonner places the button through this variable (auto pushes it right). */
+[data-sonner-toast][data-styled='true']:has(> [data-button]) {
+   --toast-button-margin-start: 0px;
+}
+[data-sonner-toast][data-styled='true']:has(> [data-button]):has(> [data-icon]) {
+   --toast-button-margin-start: calc(
+      16px + var(--toast-icon-margin-start) + var(--toast-icon-margin-end) + 6px
+   );
 }

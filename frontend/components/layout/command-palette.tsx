@@ -18,6 +18,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import { publishShellEvent } from '@/lib/shell-events';
 import { formatCombo } from '@/lib/shortcuts';
+import { useCommandPaletteStore } from '@/store/command-palette-store';
 import { useCreateMilestoneStore } from '@/store/create-milestone-store';
 import { useCreateIssueStore } from '@/store/create-issue-store';
 import { useCreateProjectStore } from '@/store/create-project-store';
@@ -71,6 +72,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useShallow } from 'zustand/react/shallow';
 
 type PaletteRoute = 'root' | 'assign' | 'status' | 'priority' | 'labels' | 'project' | 'due-date';
 
@@ -86,7 +88,7 @@ const SEARCH_LIMIT = 20;
 /** Small keyboard hint chips on the right of a command row. */
 function Keys({ keys }: { keys: string[] }) {
    return (
-      <span className="ml-auto flex items-center gap-1">
+      <span className="ml-auto flex items-center gap-1 [@media(hover:none)]:hidden">
          {keys.map((key, index) => (
             <kbd
                key={index}
@@ -287,7 +289,10 @@ function matches(query: string, ...fields: string[]): boolean {
  */
 export function CommandPalette() {
    const t = useTranslations('navigation.palette');
-   const [open, setOpen] = useState(false);
+   // Open or closed lives in a store so the phone menu can open it too; the
+   // rest of what it shows is its own, and is cleared on every close.
+   const open = useCommandPaletteStore((state) => state.isOpen);
+   const setOpen = useCommandPaletteStore((state) => state.setOpen);
    const [route, setRoute] = useState<PaletteRoute>('root');
    const [query, setQuery] = useState('');
    /** When true, the issue context chip was dismissed with ⌫. */
@@ -298,8 +303,8 @@ export function CommandPalette() {
 
    const pathname = usePathname();
    const router = useRouter();
+   const issues = useIssuesStore((state) => state.issues);
    const {
-      issues,
       updateIssueStatus,
       updateIssuePriority,
       updateIssueAssignee,
@@ -307,7 +312,17 @@ export function CommandPalette() {
       removeIssueLabel,
       updateIssueProject,
       updateIssue,
-   } = useIssuesStore();
+   } = useIssuesStore(
+      useShallow((state) => ({
+         updateIssueStatus: state.updateIssueStatus,
+         updateIssuePriority: state.updateIssuePriority,
+         updateIssueAssignee: state.updateIssueAssignee,
+         addIssueLabel: state.addIssueLabel,
+         removeIssueLabel: state.removeIssueLabel,
+         updateIssueProject: state.updateIssueProject,
+         updateIssue: state.updateIssue,
+      }))
+   );
    const { openModal } = useCreateIssueStore();
    const openProjectModal = useCreateProjectStore((state) => state.openModal);
    const openGoalModal = useCreateMilestoneStore((state) => state.openModal);
@@ -409,7 +424,11 @@ export function CommandPalette() {
    const close = useCallback(() => {
       setOpen(false);
       reset();
-   }, [reset]);
+   }, [reset, setOpen]);
+
+   // It starts closed every time it mounts, as it did when this was local
+   // state, rather than coming back open from wherever it was left.
+   useEffect(() => () => setOpen(false), [setOpen]);
 
    // ⌘K / Ctrl+K, from wherever the focus happens to be — including a text
    // field, which is where someone usually is when they want it.
@@ -418,15 +437,14 @@ export function CommandPalette() {
          if (event.isComposing || event.repeat) return;
          if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
             event.preventDefault();
-            setOpen((value) => {
-               if (value) reset();
-               return !value;
-            });
+            const value = useCommandPaletteStore.getState().isOpen;
+            if (value) reset();
+            setOpen(!value);
          }
       };
       window.addEventListener('keydown', onKeyDown);
       return () => window.removeEventListener('keydown', onKeyDown);
-   }, [reset]);
+   }, [reset, setOpen]);
 
    const copy = useCallback(
       async (label: string, text: string) => {
@@ -533,11 +551,13 @@ export function CommandPalette() {
             {result.identifier ? (
                <span className="text-muted-foreground shrink-0">{result.identifier}</span>
             ) : null}
-            <span className="truncate">
+            <span className="min-w-0 flex-1 truncate">
                <Highlighted text={result.title} query={trimmed} />
             </span>
             {result.subtitle ? (
-               <span className="ml-auto truncate text-muted-foreground">{result.subtitle}</span>
+               <span className="ml-auto shrink-0 whitespace-nowrap text-muted-foreground">
+                  {result.subtitle}
+               </span>
             ) : null}
          </CommandItem>
       );
@@ -565,7 +585,7 @@ export function CommandPalette() {
             }}
          />
          {route === 'root' && (
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground pointer-events-none">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-muted-foreground pointer-events-none [@media(hover:none)]:hidden">
                {t('newTabHint', { combo: newTabHint })}
             </span>
          )}
@@ -591,7 +611,7 @@ export function CommandPalette() {
       >
          <DialogContent
             showCloseButton={false}
-            className="overflow-hidden p-0 sm:max-w-2xl top-[22%] translate-y-0 gap-0"
+            className="overflow-hidden p-0 sm:max-w-2xl top-2 sm:top-[22%] translate-y-0 gap-0"
          >
             <DialogTitle className="sr-only">Command menu</DialogTitle>
             <DialogDescription className="sr-only">Type a command or search</DialogDescription>
@@ -632,11 +652,11 @@ export function CommandPalette() {
                                  if (event.metaKey || event.ctrlKey) modifierDown.current = true;
                               }}
                            >
-                              <CircleDot className="text-muted-foreground" />
+                              <CircleDot className="text-muted-foreground shrink-0" />
                               <span className="text-muted-foreground shrink-0">
                                  {recent.identifier}
                               </span>
-                              <span className="truncate">{recent.title}</span>
+                              <span className="min-w-0 flex-1 truncate">{recent.title}</span>
                            </CommandItem>
                         ))}
                      </CommandGroup>
@@ -985,7 +1005,7 @@ export function CommandPalette() {
                                  </Avatar>
                                  {user.name}
                                  {issue.assignee?.id === user.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}
@@ -1009,7 +1029,7 @@ export function CommandPalette() {
                                  <candidate.icon />
                                  {candidate.name}
                                  {issue.status.id === candidate.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}
@@ -1033,7 +1053,7 @@ export function CommandPalette() {
                                  <candidate.icon className="text-muted-foreground" />
                                  {candidate.name}
                                  {issue.priority.id === candidate.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}
@@ -1067,7 +1087,9 @@ export function CommandPalette() {
                                        style={{ backgroundColor: label.color }}
                                     />
                                     {label.name}
-                                    {active && <Check className="ml-auto size-4" />}
+                                    {active && (
+                                       <Check className="text-(--primary) ml-auto size-4" />
+                                    )}
                                  </CommandItem>
                               );
                            })}
@@ -1102,7 +1124,7 @@ export function CommandPalette() {
                                  <project.icon className="text-muted-foreground" />
                                  {project.name}
                                  {issue.project?.id === project.id && (
-                                    <Check className="ml-auto size-4" />
+                                    <Check className="text-(--primary) ml-auto size-4" />
                                  )}
                               </CommandItem>
                            ))}

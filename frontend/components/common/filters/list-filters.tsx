@@ -1,7 +1,6 @@
 'use client';
 
-import { ActiveFilters } from '@/components/data-table-filter/components/active-filters';
-import { FilterSelector } from '@/components/data-table-filter/components/filter-selector';
+import { FilterTriggerButton, LazyActiveFilters, LazyFilterSelector } from './list-filters-lazy';
 import { dateFilterOperators } from '@/components/data-table-filter/core/operators';
 import type {
    Column,
@@ -23,7 +22,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { FilterXIcon } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 /**
  * The Linear-style list filter the Tasks page uses, for any list.
@@ -90,21 +89,35 @@ export function useListFilters<TData>({
    };
 }
 
-/** The "Filter" button: pick a field, then its values. */
+/**
+ * The "Filter" button: pick a field, then its values. Until it is first used
+ * (or `openOnMount` asks for it) it is a plain button and the menu's code is
+ * not loaded; the first click loads the menu and opens it.
+ */
 export function ListFilterTrigger<TData>({
    filter,
    iconOnly = false,
+   openOnMount = false,
 }: {
    filter: ListFilterController<TData>;
    iconOnly?: boolean;
+   /** Open the menu as soon as it is mounted (the click was already spent). */
+   openOnMount?: boolean;
 }) {
+   const [armed, setArmed] = useState(false);
+
+   if (!armed && !openOnMount) {
+      return <FilterTriggerButton iconOnly={iconOnly} onClick={() => setArmed(true)} />;
+   }
+
    return (
-      <FilterSelector
+      <LazyFilterSelector
          columns={filter.columns}
          filters={filter.filters}
          actions={filter.actions}
          strategy={filter.strategy}
          iconOnly={iconOnly}
+         openOnMount
       />
    );
 }
@@ -121,7 +134,7 @@ export function ListFilterClear({
    return (
       <Button size="xs" variant="destructive" className={className} onClick={onClear}>
          <FilterXIcon className="size-4" />
-         {t('clear')}
+         <span className="hidden md:inline-block">{t('clear')}</span>
       </Button>
    );
 }
@@ -149,7 +162,7 @@ export function ListFilterBar<TData>({
          )}
       >
          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <ActiveFilters
+            <LazyActiveFilters
                columns={filter.columns}
                filters={filter.filters}
                actions={filter.actions}

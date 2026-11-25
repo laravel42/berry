@@ -126,20 +126,23 @@ export default function SkillLabelsSettings() {
                value={query}
                onChange={setQuery}
             />
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2 max-sm:min-w-0 max-sm:flex-1">
                <Input
-                  variant="settings"
                   placeholder={t('newLabel')}
                   aria-label={t('newLabel')}
                   value={name}
                   disabled={!workspaceId}
-                  className="w-[180px]"
+                  className="w-[180px] max-sm:min-w-0 max-sm:flex-1"
                   onChange={(event) => setName(event.target.value)}
                   onKeyDown={(event) => {
                      if (event.key === 'Enter') void create();
                   }}
                />
-               <Button disabled={creating || name.trim() === ''} onClick={() => void create()}>
+               <Button
+                  size="sm"
+                  disabled={creating || name.trim() === ''}
+                  onClick={() => void create()}
+               >
                   {creating ? <Loader2 className="size-3.5 animate-spin" /> : t('create')}
                </Button>
             </div>
@@ -158,11 +161,22 @@ export default function SkillLabelsSettings() {
                      className="flex min-h-[42px] min-w-0 items-center gap-2 rounded-[10px] bg-settings-group pr-1.5 pl-3 transition-colors hover:bg-settings-row-hover"
                   >
                      <Popover>
-                        <PopoverTrigger
-                           aria-label={t('changeColour', { name: label.name })}
-                           className="size-2.5 shrink-0 cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-settings-group"
-                           style={{ backgroundColor: label.color }}
-                        />
+                        {/* A field-height button around the dot, so the row's controls share
+                            one height; the negative margin keeps the dot where it was. */}
+                        <PopoverTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={t('changeColour', { name: label.name })}
+                              className="-mx-[11px] shrink-0"
+                           >
+                              <span
+                                 aria-hidden
+                                 className="size-2.5 rounded-full"
+                                 style={{ backgroundColor: label.color }}
+                              />
+                           </Button>
+                        </PopoverTrigger>
                         <PopoverContent align="start" className="w-auto p-3">
                            <div className="grid grid-cols-4 gap-2">
                               {PALETTE.map((colour) => (
@@ -195,10 +209,11 @@ export default function SkillLabelsSettings() {
                      </Popover>
                      {/* The name is the rename field; it reads as plain text until
                          it is pointed at. */}
-                     <input
+                     <Input
+                        variant="inline"
                         defaultValue={label.name}
                         aria-label={t('rename', { name: label.name })}
-                        className="-ml-1 h-[26px] min-w-0 flex-1 truncate rounded-[6px] border border-transparent bg-transparent px-1.5 text-foreground outline-none [font:inherit] hover:border-settings-field-line focus-visible:border-settings-field-focus focus-visible:bg-settings-field"
+                        className="flex-1 truncate"
                         onBlur={(event) => rename(label, event.target.value)}
                         onKeyDown={(event) => {
                            if (event.key === 'Enter') event.currentTarget.blur();

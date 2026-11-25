@@ -7,6 +7,12 @@ const meta = {
    component: ChatMarkdown,
    tags: ['ai-generated', 'needs-work'],
    args: { body: agentReplyMarkdown, tone: 'shell' },
+   argTypes: {
+      tone: {
+         control: 'select',
+         options: ['shell', 'page'],
+      },
+   },
    decorators: [
       (Story, { args }) => (
          <div

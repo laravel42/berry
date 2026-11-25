@@ -1,16 +1,14 @@
 'use client';
 
 import { Building2, Check, ChevronDown, Plus } from 'lucide-react';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import {
-   EmptyState,
-   EmptyStateLoading,
-   EmptyStateMark,
-   EmptyStateText,
-} from '@/components/common/empty-state';
+import { BulkBar } from '@/components/common/bulk-bar';
+import { EmptyState, EmptyStateMark, EmptyStateText } from '@/components/common/empty-state';
+import { PageBackTitle } from '@/components/common/page/page-parts';
 import { useSettingsResource } from '@/components/common/settings/use-settings-resource';
 import MainLayout from '@/components/layout/main-layout';
 import { Button } from '@/components/ui/button';
@@ -24,7 +22,7 @@ import {
    CommandItem,
    CommandList,
 } from '@/components/ui/command';
-import { Input, searchFieldClass } from '@/components/ui/input';
+import { ToolbarSearch } from '@/components/common/page/toolbar-search';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { loadWorkspaceAgents } from '@/lib/agents';
 import {
@@ -36,6 +34,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAgentsStore } from '@/store/agents-store';
 import { useSessionStore } from '@/store/session-store';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** The action column, always shown: Add. */
 const ACTION_WIDTH = 'w-20';
@@ -62,6 +61,7 @@ function departmentRank(department: string): number {
 function AgentCatalogScreen() {
    const t = useTranslations('agents.catalog');
    const tOrg = useTranslations('organization');
+   const { orgId } = useParams<{ orgId: string }>();
    const organization = useSettingsResource(getOrganization);
    const reload = organization.reload;
    const hydrateAgents = useAgentsStore((state) => state.hydrateAgents);
@@ -168,14 +168,9 @@ function AgentCatalogScreen() {
    };
 
    const header = (
-      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5 [&_button]:!h-[30px]">
-         <Input
-            className={`${searchFieldClass} w-64 max-sm:w-40`}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={t('search')}
-            aria-label={t('search')}
-         />
+      <div className="mb-1 flex w-full shrink-0 flex-wrap items-center justify-start gap-x-3 gap-y-1.5 border-b px-4 py-2.5">
+         <PageBackTitle href={`/${orgId}/agents`} backLabel={t('back')} title={t('title')} />
+         <ToolbarSearch label={t('search')} value={query} onChange={setQuery} />
          <DepartmentMultiselect
             options={departmentOptions}
             value={departments}
@@ -188,7 +183,7 @@ function AgentCatalogScreen() {
    if (organization.error) {
       body = <p className="px-6 py-8 text-muted-foreground">{organization.error}</p>;
    } else if (!organization.value) {
-      body = <EmptyStateLoading label={t('loading')} />;
+      body = <ListSkeleton label={t('loading')} />;
    } else if (rows.length === 0) {
       body = (
          <EmptyState icon={<EmptyStateMark label={t('empty')} />}>
@@ -222,7 +217,7 @@ function AgentCatalogScreen() {
                </button>
                <span className={cn('shrink-0', ACTION_WIDTH)} aria-hidden />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto divide-y-[3px] divide-background">
+            <div className="min-h-0 flex-1 overflow-y-auto divide-y-[3px] divide-background md:pb-[var(--shell-launcher-room)]">
                {groups.map((group) => (
                   <Collapsible
                      key={group.department}
@@ -274,7 +269,7 @@ function AgentCatalogScreen() {
                ))}
             </div>
             {canEdit && selected.length > 0 ? (
-               <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-3 border-t bg-container px-6 py-2">
+               <BulkBar>
                   <Button size="sm" disabled={adding.length > 0} onClick={() => void add(selected)}>
                      {adding.length > 0 ? t('adding') : t('bulk.add', { count: selected.length })}
                   </Button>
@@ -286,7 +281,7 @@ function AgentCatalogScreen() {
                   >
                      {t('bulk.clear')}
                   </Button>
-               </div>
+               </BulkBar>
             ) : null}
          </div>
       );
@@ -326,7 +321,7 @@ export function DepartmentMultiselect({
       <Popover>
          <PopoverTrigger asChild>
             <Button
-               size="xs"
+               size="sm"
                variant="track"
                role="combobox"
                aria-label={t('filters.department')}
@@ -348,7 +343,9 @@ export function DepartmentMultiselect({
                         className="justify-between"
                      >
                         {t('filters.allDepartments')}
-                        {value.length === 0 ? <Check className="size-4 shrink-0" /> : null}
+                        {value.length === 0 ? (
+                           <Check className="text-(--primary) size-4 shrink-0" />
+                        ) : null}
                      </CommandItem>
                      {options.map((option) => {
                         const on = selected.has(option.value);
@@ -360,7 +357,7 @@ export function DepartmentMultiselect({
                               className="justify-between"
                            >
                               <span className="min-w-0 truncate">{option.label}</span>
-                              {on ? <Check className="size-4 shrink-0" /> : null}
+                              {on ? <Check className="text-(--primary) size-4 shrink-0" /> : null}
                            </CommandItem>
                         );
                      })}
@@ -395,7 +392,7 @@ function RoleLine({
          className={cn(
             'flex w-full items-center gap-3 border-b border-muted-foreground/5 px-6 py-3',
             'last:border-b-0',
-            selected && 'bg-sidebar/60'
+            selected && 'bg-accent'
          )}
       >
          {canEdit ? (
@@ -415,7 +412,7 @@ function RoleLine({
          <div className={cn('flex shrink-0 items-center justify-end', ACTION_WIDTH)}>
             {canEdit ? (
                <Button
-                  size="xxs"
+                  size="sm"
                   variant="soft"
                   disabled={adding}
                   onClick={onAdd}

@@ -79,6 +79,7 @@ type Story = StoryObj<typeof meta>;
 /** A markdown document opens formatted — tables included — and flips to its source. */
 export const MarkdownDocument: Story = {
    play: async ({ canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'docs' }));
       await userEvent.click(await canvas.findByTitle('Preview docs/README.md'));
       await expect(await canvas.findByRole('heading', { name: 'Landing page' })).toBeVisible();
       await expect(canvas.getByRole('cell', { name: 'Pricing' })).toBeVisible();
@@ -90,6 +91,7 @@ export const MarkdownDocument: Story = {
 /** An HTML file opens as source, like other code — the site runs on the Preview tab. */
 export const SitePreview: Story = {
    play: async ({ canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'site' }));
       await userEvent.click(await canvas.findByTitle('Preview site/index.html'));
       await expect(await canvas.findByText(/<!doctype html>/i)).toBeVisible();
       await expect(canvas.queryByTitle('Page preview of site/index.html')).toBeNull();
@@ -99,6 +101,7 @@ export const SitePreview: Story = {
 /** An SVG stored as text still shows as an image; code gets the code view; the tree walks the files. */
 export const ImageAndCode: Story = {
    play: async ({ canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'site' }));
       await userEvent.click(await canvas.findByTitle('Preview site/logo.svg'));
       const image = (await canvas.findByRole('img', { name: 'site/logo.svg' })) as HTMLImageElement;
       await expect(image.src).toMatch(/^blob:/);
@@ -112,7 +115,9 @@ export const ImageAndCode: Story = {
 
 /** A file with no viewer is listed by name only: nothing to open. */
 export const NoPreviewForBinary: Story = {
-   play: async ({ canvas }) => {
+   play: async ({ canvas, userEvent }) => {
+      await userEvent.click(await canvas.findByRole('button', { name: 'build' }));
+      await userEvent.click(await canvas.findByRole('button', { name: 'docs' }));
       await expect(await canvas.findByText('output.bin')).toBeVisible();
       await expect(canvas.queryByTitle('Preview build/output.bin')).toBeNull();
       await expect(canvas.queryByRole('button', { name: 'output.bin' })).toBeNull();

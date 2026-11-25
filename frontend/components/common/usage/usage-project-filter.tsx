@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, FolderKanban } from 'lucide-react';
+import { Check, ChevronDown, FolderKanban } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -14,12 +14,14 @@ import {
    CommandList,
 } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { useProjectsStore } from '@/store/projects-store';
 
 interface UsageProjectFilterProps {
    /** The chosen project, or `null` for every project. */
    projectId: string | null;
    onChange: (projectId: string | null) => void;
+   className?: string;
 }
 
 /**
@@ -30,7 +32,7 @@ interface UsageProjectFilterProps {
  * Projects come from the projects store, which the workspace hydrator fills
  * on every page, so the list costs no request of its own.
  */
-export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterProps) {
+export function UsageProjectFilter({ projectId, onChange, className }: UsageProjectFilterProps) {
    const t = useTranslations('areas.usage.filters');
    const projects = useProjectsStore((state) => state.projects);
    const [open, setOpen] = useState(false);
@@ -48,15 +50,24 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                 the Projects rail icon. */}
             <Button
                variant="outline"
+               // Field height, like the range control and the tabs on its line.
+               size="sm"
                role="combobox"
                aria-label={`${t('project')}: ${chosen ? chosen.name : t('allProjects')}`}
-               className="max-w-56 border-muted-foreground/15"
+               className={cn('max-w-56 border-muted-foreground/15', className)}
             >
-               <FolderKanban className="size-4" />
+               <FolderKanban className="size-4 shrink-0" aria-hidden />
                <span className="truncate">{chosen ? chosen.name : t('allProjects')}</span>
+               <ChevronDown
+                  className="ml-auto size-4 shrink-0 text-muted-foreground sm:hidden"
+                  aria-hidden
+               />
             </Button>
          </PopoverTrigger>
-         <PopoverContent className="w-64 p-0" align="start">
+         <PopoverContent
+            className="w-[max(16rem,var(--radix-popover-trigger-width))] p-0"
+            align="start"
+         >
             <Command>
                <CommandInput placeholder={t('searchProjects')} />
                <CommandList>
@@ -68,7 +79,7 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                         className="justify-between"
                      >
                         {t('allProjects')}
-                        {projectId === null ? <Check className="size-4" /> : null}
+                        {projectId === null ? <Check className="text-(--primary) size-4" /> : null}
                      </CommandItem>
                      {projects.map((project) => (
                         <CommandItem
@@ -78,7 +89,9 @@ export function UsageProjectFilter({ projectId, onChange }: UsageProjectFilterPr
                            className="justify-between"
                         >
                            <span className="truncate">{project.name}</span>
-                           {projectId === project.id ? <Check className="size-4 shrink-0" /> : null}
+                           {projectId === project.id ? (
+                              <Check className="text-(--primary) size-4 shrink-0" />
+                           ) : null}
                         </CommandItem>
                      ))}
                   </CommandGroup>

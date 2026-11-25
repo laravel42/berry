@@ -1,7 +1,6 @@
 'use client';
 
 import { ListFilterBar, useListFilters } from '@/components/common/filters/list-filters';
-import { EmptyStateLoading } from '@/components/common/empty-state';
 import { PageStatement } from '@/components/common/page/page-parts';
 import type { FiltersState } from '@/components/data-table-filter/core/types';
 import { Button } from '@/components/ui/button';
@@ -41,6 +40,7 @@ import {
    type InboxFacets,
    type InboxShowFilter,
 } from './use-inbox';
+import { ListSkeleton } from '@/components/common/page/page-skeleton';
 
 /** How much of the archive is read in one go. */
 const ARCHIVE_PAGE = 100;
@@ -269,7 +269,7 @@ export default function Inbox() {
                line={t('statement.line', { count: unread })}
                sub={t('statement.sub')}
             />
-            <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-b px-5 py-[2px] [&_button]:!h-[30px]">
+            <div className="flex h-[48px] shrink-0 items-center gap-1.5 border-b px-2 py-[2px] sm:px-5">
                <InboxFilterBar
                   filter={filter}
                   show={show}
@@ -286,7 +286,7 @@ export default function Inbox() {
                <div className="ml-auto flex items-center gap-1">
                   <DropdownMenu>
                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="xs" aria-label={t('actions.bulkMenu')}>
+                        <Button variant="ghost" size="icon-sm" aria-label={t('actions.bulkMenu')}>
                            <MoreHorizontal className="size-4" />
                         </Button>
                      </DropdownMenuTrigger>
@@ -349,7 +349,7 @@ export default function Inbox() {
 
          <div
             className={cn(
-               'h-full min-h-0 flex-1 flex-col bg-container',
+               'h-full min-h-0 min-w-0 flex-1 flex-col bg-container',
                selectedId ? 'flex' : 'hidden lg:flex'
             )}
          >
@@ -417,7 +417,7 @@ function InboxList({
          />
       );
    }
-   if (!ready) return <EmptyStateLoading label={t('states.loading')} />;
+   if (!ready) return <ListSkeleton label={t('states.loading')} />;
    if (items.length === 0) {
       if (sourceCount > 0 && filtered) {
          return (

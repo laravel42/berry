@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 interface ShellIconProps {
    /** Inner SVG markup on a 24x24 viewBox. */
    path: string;
@@ -30,14 +32,30 @@ export function ShellIcon({ path, size = 15, className }: ShellIconProps) {
 }
 
 /** The Berry mark: brackets around a berry. */
+/**
+ * The shell's own copy of the isotipo, on --shell-* rather than theme tokens.
+ *
+ * The shell is dark whatever the rest of the app is doing, so it always wants
+ * the asset's dark colourway -- which is what --shell-text and --shell-accent
+ * already are. Same official geometry as components/brand/berry-mark.tsx; this
+ * stays a separate component only because its colours come from a palette the
+ * theme does not reach.
+ */
 export function BerryMark({ size = 17, muted = false }: { size?: number; muted?: boolean }) {
    const bracket = muted ? 'var(--shell-text-dim)' : 'var(--shell-text)';
-   const weight = muted ? 7 : 6;
    return (
-      <svg width={size} height={size} viewBox="0 0 64 64" className="flex-none" aria-hidden="true">
-         <path d="M14 8H8v48h6" stroke={bracket} strokeWidth={weight} fill="none" />
-         <path d="M50 8h6v48h-6" stroke={bracket} strokeWidth={weight} fill="none" />
-         <circle cx="32" cy="32" r={muted ? 14 : 13} fill="var(--shell-accent)" />
+      <svg
+         width={size}
+         height={size}
+         viewBox="0 0 100 100"
+         className="flex-none"
+         aria-hidden="true"
+      >
+         <path
+            d="M18.75,10.42V0H0v100h18.75v-10.42h-8.33V10.42h8.33ZM81.25,0v10.42h8.33v79.17h-8.33v10.42h18.75V0h-18.75Z"
+            fill={bracket}
+         />
+         <circle cx="50" cy="50" r="25.16" fill="var(--shell-accent)" />
       </svg>
    );
 }
@@ -63,17 +81,44 @@ export const shellIconButton = [
  * A rail row: icon plus label, highlighted when it is where you are.
  *
  * Shared by the workspace routes, Personal and the settings rail so the three
- * lists cannot drift. Below `lg` the rail is an overlay a person taps, so a
- * row is at least 44px tall there; as a column it sizes to its text.
+ * lists cannot drift. The kit's `.navi` is 44px tall at every width, 10px
+ * radius, 500 weight, stepping to 600 and the lighter text on the row you are
+ * on — the row keeps the 44px floor as a column too, rather than sizing to its
+ * text, so it agrees with the buttons and fields that already took that floor.
  */
 export function shellNavRow(on: boolean): string {
    return [
-      'flex min-h-11 items-center gap-2.5 rounded px-3 py-1.5 transition-colors lg:min-h-0',
+      'flex min-h-11 items-center gap-2.5 rounded-lg px-3 py-1.5 transition-colors',
       'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]',
       on
          ? // Inset rather than a real border: a 2px edge on a rounded pill
            // would shift the label by two pixels on selection.
-           'bg-[var(--shell-surface)] text-[var(--shell-text)]'
+           'bg-[var(--shell-surface)] font-semibold text-[var(--shell-text)]'
          : 'text-[var(--shell-text-muted)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)]',
    ].join(' ');
+}
+
+/**
+ * A nav glyph in its box — the kit's `.navi .ib`.
+ *
+ * 22px rounded square, the sunken fill at rest, the button gradient with dark
+ * ink on the row you are on. Takes the glyph as children because the three
+ * lists draw theirs differently: the workspace and Personal routes keep their
+ * path data in a data file and render it through `ShellIcon`, while the
+ * settings rail holds lucide components.
+ */
+export function ShellNavIcon({ on, children }: { on: boolean; children: ReactNode }) {
+   return (
+      <span
+         aria-hidden="true"
+         className={[
+            'grid size-[22px] flex-none place-items-center rounded-sm transition-colors',
+            on
+               ? 'border border-[var(--shell-nav-icon-line)] bg-[linear-gradient(180deg,var(--shell-nav-icon-a)_0%,var(--shell-nav-icon-b)_100%)] text-[var(--shell-nav-icon-ink)] shadow-xs'
+               : 'bg-[var(--shell-line)] text-[var(--shell-text-muted)]',
+         ].join(' ')}
+      >
+         {children}
+      </span>
+   );
 }

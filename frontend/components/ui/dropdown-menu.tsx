@@ -6,8 +6,43 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
 
-function DropdownMenu({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
+// Radix opens a menu on pointerdown for every pointer type. On touch screens that opens it the
+// moment the finger lands, locks the page scroll, and a swipe that starts on a trigger inside a
+// list can no longer scroll it. So touch and pen open on the click that follows a tap instead.
+// The trigger needs the open state to toggle from that click, which the root shares here.
+const DropdownMenuToggleContext = React.createContext<(() => void) | null>(null);
+
+function DropdownMenu({
+   open: openProp,
+   defaultOpen,
+   onOpenChange,
+   ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
+   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen ?? false);
+   const isControlled = openProp !== undefined;
+   const open = isControlled ? openProp : uncontrolledOpen;
+   const openRef = React.useRef(open);
+   openRef.current = open;
+
+   const handleOpenChange = React.useCallback(
+      (next: boolean) => {
+         if (!isControlled) setUncontrolledOpen(next);
+         onOpenChange?.(next);
+      },
+      [isControlled, onOpenChange]
+   );
+   const toggle = React.useCallback(() => handleOpenChange(!openRef.current), [handleOpenChange]);
+
+   return (
+      <DropdownMenuToggleContext.Provider value={toggle}>
+         <DropdownMenuPrimitive.Root
+            data-slot="dropdown-menu"
+            open={open}
+            onOpenChange={handleOpenChange}
+            {...props}
+         />
+      </DropdownMenuToggleContext.Provider>
+   );
 }
 
 function DropdownMenuPortal({
@@ -17,14 +52,40 @@ function DropdownMenuPortal({
 }
 
 function DropdownMenuTrigger({
+   onPointerDown,
+   onClick,
    ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
-   return <DropdownMenuPrimitive.Trigger data-slot="dropdown-menu-trigger" {...props} />;
+   const toggle = React.useContext(DropdownMenuToggleContext);
+   const tappedRef = React.useRef(false);
+
+   return (
+      <DropdownMenuPrimitive.Trigger
+         data-slot="dropdown-menu-trigger"
+         {...props}
+         onPointerDown={(event) => {
+            onPointerDown?.(event);
+            tappedRef.current = false;
+            if (event.defaultPrevented || !toggle || event.pointerType === 'mouse') return;
+            // Stops Radix opening on touch-down; the click of a tap opens it instead.
+            event.preventDefault();
+            tappedRef.current = true;
+         }}
+         onClick={(event) => {
+            onClick?.(event);
+            const tapped = tappedRef.current;
+            tappedRef.current = false;
+            if (event.defaultPrevented || !tapped || !toggle || props.disabled) return;
+            toggle();
+         }}
+      />
+   );
 }
 
 function DropdownMenuContent({
    className,
    sideOffset = 4,
+   collisionPadding = 8,
    ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
    return (
@@ -32,8 +93,9 @@ function DropdownMenuContent({
          <DropdownMenuPrimitive.Content
             data-slot="dropdown-menu-content"
             sideOffset={sideOffset}
+            collisionPadding={collisionPadding}
             className={cn(
-               'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md',
+               'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-w-[min(calc(100vw-1rem),var(--radix-dropdown-menu-content-available-width))] min-w-[min(8rem,var(--radix-dropdown-menu-content-available-width))] overflow-hidden rounded-md border p-1 shadow-md',
                className
             )}
             {...props}
@@ -87,7 +149,7 @@ function DropdownMenuCheckboxItem({
       >
          <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
             <DropdownMenuPrimitive.ItemIndicator>
-               <CheckIcon className="size-4" />
+               <CheckIcon className="text-(--primary) size-4" />
             </DropdownMenuPrimitive.ItemIndicator>
          </span>
          {children}
@@ -159,7 +221,10 @@ function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'spa
    return (
       <span
          data-slot="dropdown-menu-shortcut"
-         className={cn('text-muted-foreground ml-auto tracking-widest', className)}
+         className={cn(
+            'text-muted-foreground ml-auto tracking-widest [@media(hover:none)]:hidden',
+            className
+         )}
          {...props}
       />
    );
@@ -195,13 +260,15 @@ function DropdownMenuSubTrigger({
 
 function DropdownMenuSubContent({
    className,
+   collisionPadding = 8,
    ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
    return (
       <DropdownMenuPrimitive.SubContent
          data-slot="dropdown-menu-sub-content"
+         collisionPadding={collisionPadding}
          className={cn(
-            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg',
+            'bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-w-[min(calc(100vw-1rem),var(--radix-dropdown-menu-content-available-width))] min-w-[min(8rem,var(--radix-dropdown-menu-content-available-width))] overflow-hidden rounded-md border p-1 shadow-lg',
             className
          )}
          {...props}

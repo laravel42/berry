@@ -9,7 +9,14 @@
    "header": {
       "breadcrumb": "Where this task sits",
       "noProject": "No project",
-      "parentOf": "sub-task of",
+      "parentOf": "Sub-task of {identifier}: {title}",
+      "openParent": "Open the parent task, {identifier}",
+      "previousTask": "Previous task",
+      "nextTask": "Next task",
+      "unsavedTitle": "Leave without saving?",
+      "unsavedBody": "This task has changes that have not been saved.",
+      "unsavedStay": "Keep editing",
+      "unsavedLeave": "Discard changes",
       "markDone": "Mark done",
       "markNotDone": "Reopen",
       "decideInReviews": "Decide in Reviews",
@@ -240,7 +247,9 @@
       "stopFailed": "The run could not be stopped.",
       "restart": "Restart",
       "restarted": "Restarted. The agent is starting again.",
-      "restartFailed": "The run could not be restarted."
+      "restartFailed": "The run could not be restarted.",
+      "restartNoRuntime": "None of the models on this agent's tier can run on this server. Put a connected model there, such as one from a CLI.",
+      "openModelTiers": "Model tiers"
    },
    "activity": {
       "title": "Activity",
