@@ -409,13 +409,7 @@ export function SubIssues({ issue }: { issue: Issue }) {
                      onChange={(event) => setTitle(event.target.value)}
                      onKeyDown={(event) => event.key === 'Enter' && add()}
                   />
-                  <Button
-                     size="sm"
-                     variant={canAdd ? 'default' : 'secondary'}
-                     className={cn(!canAdd && 'border border-transparent')}
-                     disabled={!canAdd}
-                     onClick={add}
-                  >
+                  <Button size="sm" disabled={!canAdd} onClick={add}>
                      <Plus className="mr-1 size-3.5" aria-hidden />
                      {t('add')}
                   </Button>
