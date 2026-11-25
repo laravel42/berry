@@ -74,6 +74,7 @@ export function ChatComposer({
 }: ChatComposerProps) {
    const t = useTranslations('agentsChat.chat');
    const placeholder = t('composerPlaceholder');
+   const composerRef = useRef<HTMLDivElement>(null);
    const input = useRef<HTMLTextAreaElement>(null);
    useEffect(() => {
       if (focusSignal > 0) input.current?.focus();
@@ -107,7 +108,10 @@ export function ChatComposer({
                if (canSend) onSend();
             }}
          >
-            <div className="flex min-w-0 flex-1 flex-col rounded-2xl border border-[var(--shell-line-strong)] bg-[var(--shell-surface)] px-3 py-2 shadow-lg shadow-black/20 focus-within:border-[var(--shell-text-dim)]">
+            <div
+               ref={composerRef}
+               className="flex min-w-0 flex-1 flex-col rounded-2xl border border-[var(--shell-line-strong)] bg-[var(--shell-surface)] px-3 py-2 shadow-lg shadow-black/20 focus-within:border-[var(--shell-text-dim)]"
+            >
                <textarea
                   ref={input}
                   rows={3}
@@ -161,6 +165,7 @@ export function ChatComposer({
                   <div className="flex items-center gap-2">
                      <EmojiInsertButton
                         textareaRef={input}
+                        anchorRef={composerRef}
                         value={value}
                         onChange={onChange}
                         disabled={disabled}

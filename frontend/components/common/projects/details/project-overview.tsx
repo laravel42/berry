@@ -43,6 +43,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
    const [draft, setDraft] = useState('');
    const [focused, setFocused] = useState(false);
    const [copiedDescription, setCopiedDescription] = useState(false);
+   const composerRef = useRef<HTMLDivElement>(null);
    const updateRef = useRef<HTMLTextAreaElement>(null);
    const palette = useComposerPalette({
       textareaRef: updateRef,
@@ -165,6 +166,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                       composer; a mention here is text in the update. */}
                   <div className="flex flex-col">
                      <div
+                        ref={composerRef}
                         className={cn(
                            'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
                            focused ? 'border-primary' : 'border-border'
@@ -173,6 +175,7 @@ export default function ProjectOverview({ projectId }: ProjectOverviewProps) {
                         <div className="flex items-end gap-2">
                            <EmojiInsertButton
                               textareaRef={updateRef}
+                              anchorRef={composerRef}
                               value={draft}
                               onChange={setDraft}
                               side="top"

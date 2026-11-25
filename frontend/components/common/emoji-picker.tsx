@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
 /**
@@ -41,8 +41,10 @@ interface ChosenEmoji {
  * Height shared by the picker host and the <em-emoji-picker> element so the
  * flex column inside the shadow root always gets a bounded scroll viewport
  * and Radix Popper measures its true height to flip cleanly above/below.
+ * Clamping to `--radix-popover-content-available-height` keeps the popover
+ * from spilling over its anchor textarea on short viewports.
  */
-const PICKER_HEIGHT = 'min(26rem, 60dvh)';
+const PICKER_HEIGHT = 'min(26rem, 60dvh, var(--radix-popover-content-available-height, 26rem))';
 
 /**
  * Injected into emoji-mart's open shadow root to fix mobile Safari touch
@@ -378,11 +380,13 @@ export function EmojiPickerPopover({
    quick,
    isActive,
    returnFocusTo,
+   anchorRef,
    keepOpen = false,
    onOpenChange,
    onAfterClose,
    align = 'start',
    side,
+   sideOffset = 4,
 }: {
    onSelect: (emoji: string, from: 'quick' | 'catalogue') => void;
    /** The trigger: a button, given to the popover with `asChild`. */
@@ -390,6 +394,11 @@ export function EmojiPickerPopover({
    quick?: readonly string[];
    isActive?: (emoji: string) => boolean;
    returnFocusTo?: RefObject<HTMLElement | null>;
+   /**
+    * Optional positioning anchor (such as a textarea or composer container) so
+    * the popover opens clear of the text area instead of over it.
+    */
+   anchorRef?: RefObject<HTMLElement | null>;
    /** Keep the popover open after choosing an emoji so several can be inserted in a row. */
    keepOpen?: boolean;
    onOpenChange?: (open: boolean) => void;
@@ -397,6 +406,7 @@ export function EmojiPickerPopover({
    onAfterClose?: () => void;
    align?: 'start' | 'center' | 'end';
    side?: 'top' | 'bottom';
+   sideOffset?: number;
 }) {
    const t = useTranslations('common.emoji');
    const [open, setOpen] = useState(false);
@@ -416,10 +426,12 @@ export function EmojiPickerPopover({
             onOpenChange?.(next);
          }}
       >
+         {anchorRef ? <PopoverAnchor virtualRef={anchorRef} /> : null}
          <PopoverTrigger asChild>{children}</PopoverTrigger>
          <PopoverContent
             align={align}
             side={side}
+            sideOffset={sideOffset}
             collisionPadding={16}
             className="w-auto overflow-hidden p-0"
             onCloseAutoFocus={(event) => {
@@ -468,6 +480,7 @@ export function EmojiPickerPopover({
  */
 export function EmojiInsertButton({
    textareaRef,
+   anchorRef,
    value,
    onChange,
    className,
@@ -475,9 +488,14 @@ export function EmojiInsertButton({
    compact = false,
    disabled = false,
    align,
-   side,
+   side = 'top',
 }: {
    textareaRef: RefObject<HTMLTextAreaElement | null>;
+   /**
+    * Container to position the picker against (defaults to `textareaRef` so
+    * the picker opens above the text area rather than covering its lines).
+    */
+   anchorRef?: RefObject<HTMLElement | null>;
    value: string;
    onChange: (value: string) => void;
    className?: string;
@@ -547,11 +565,13 @@ export function EmojiInsertButton({
       <EmojiPickerPopover
          onSelect={insert}
          returnFocusTo={textareaRef}
+         anchorRef={anchorRef ?? textareaRef}
          keepOpen
          onOpenChange={handleOpenChange}
          onAfterClose={restoreCaret}
          align={align}
          side={side}
+         sideOffset={8}
       >
          {compact ? (
             <button

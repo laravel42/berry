@@ -977,6 +977,7 @@ export function ActivityCommentComposer({
    // A reply is not kept per task the way the root draft is, so moving away loses it.
    useReportUnsavedEdits(`reply:${parentId ?? ''}`, isReply && replyDraft.trim() !== '');
 
+   const composerRef = useRef<HTMLDivElement>(null);
    const textareaRef = useRef<HTMLTextAreaElement>(null);
    const backdropRef = useRef<HTMLDivElement>(null);
    const workspaceId = useSessionStore((state) => state.workspace?.id);
@@ -1243,6 +1244,7 @@ export function ActivityCommentComposer({
             </span>
          ) : null}
          <div
+            ref={composerRef}
             className={cn(
                'flex flex-col gap-1.5 rounded-lg border bg-muted/15 px-2.5 py-1.5 transition-colors',
                focused ? 'border-primary' : 'border-border'
@@ -1272,6 +1274,7 @@ export function ActivityCommentComposer({
                   </button>
                   <EmojiInsertButton
                      textareaRef={textareaRef}
+                     anchorRef={composerRef}
                      value={draft}
                      onChange={setDraft}
                      side="top"
