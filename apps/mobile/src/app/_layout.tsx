@@ -1,10 +1,10 @@
 import { useFonts } from 'expo-font';
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono/400Regular';
 import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,10 +13,17 @@ import { BerryMark } from '@/components/berry-mark';
 import { AppText } from '@/components/text';
 import { ToastHost } from '@/components/toast';
 import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
+import {
+  configureNotifications,
+  notifyInboxItemsLocally,
+  subscribeNotificationTaps,
+} from '@/lib/notifications';
+import { findNewUnreadInboxItems } from '@/lib/notifications-logic';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useNotificationsStore } from '@/store/notifications-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
@@ -36,18 +43,31 @@ export default function RootLayout() {
   const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
   const resetWorkspace = useWorkspaceStore((state) => state.reset);
   const resetInbox = useInboxStore((state) => state.reset);
+  const inboxItems = useInboxStore((state) => state.items);
   const resetIssues = useIssuesStore((state) => state.reset);
   const resetChat = useChatStore((state) => state.reset);
+  const inboxAlertsEnabled = useNotificationsStore((state) => state.inboxAlertsEnabled);
+  const refreshNotifPermission = useNotificationsStore((state) => state.refreshPermission);
+  const seenInboxIdsRef = useRef<Set<string> | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
   useForegroundRefresh();
 
   useEffect(() => {
+    configureNotifications();
+    void refreshNotifPermission();
+    return subscribeNotificationTaps((route) => {
+      router.push(route as Href);
+    });
+  }, [refreshNotifPermission, router]);
+
+  useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
   useEffect(() => {
+    seenInboxIdsRef.current = null;
     if (status === 'signed_in' && client && currentWorkspaceId) {
       resetIssues();
       void loadWorkspace(client, currentWorkspaceId);
@@ -58,6 +78,15 @@ export default function RootLayout() {
       resetChat();
     }
   }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox, resetIssues, resetChat]);
+
+  useEffect(() => {
+    if (status !== 'signed_in' || inboxItems.length === 0) return;
+    const newlyArrived = findNewUnreadInboxItems(seenInboxIdsRef.current, inboxItems);
+    seenInboxIdsRef.current = new Set(inboxItems.map((item) => item.id));
+    if (inboxAlertsEnabled && newlyArrived.length > 0) {
+      void notifyInboxItemsLocally(newlyArrived);
+    }
+  }, [status, inboxItems, inboxAlertsEnabled]);
 
   useEffect(() => {
     if (loaded && status !== 'hydrating') {

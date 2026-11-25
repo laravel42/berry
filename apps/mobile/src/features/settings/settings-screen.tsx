@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
 import { WorkspaceSheet } from '@/components/workspace-sheet';
 import { useAuthStore } from '@/store/auth-store';
+import { useNotificationsStore } from '@/store/notifications-store';
+import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
@@ -39,8 +41,49 @@ export function SettingsScreen() {
   const workspaces = useAuthStore((state) => state.workspaces);
   const logout = useAuthStore((state) => state.logout);
   const workspace = useWorkspaceStore((state) => state.workspace);
+  const permission = useNotificationsStore((state) => state.permission);
+  const inboxAlertsEnabled = useNotificationsStore((state) => state.inboxAlertsEnabled);
+  const sendingTest = useNotificationsStore((state) => state.sendingTest);
+  const refreshPermission = useNotificationsStore((state) => state.refreshPermission);
+  const enableNotifications = useNotificationsStore((state) => state.enable);
+  const setInboxAlertsEnabled = useNotificationsStore((state) => state.setInboxAlertsEnabled);
+  const sendTest = useNotificationsStore((state) => state.sendTest);
+  const showToast = useToastStore((state) => state.showToast);
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
+
+  useEffect(() => {
+    void refreshPermission();
+  }, [refreshPermission]);
+
+  const handleEnableNotifications = async () => {
+    const next = await enableNotifications();
+    if (next === 'granted') {
+      showToast('Native notifications enabled', 'verdant');
+    } else if (next === 'denied') {
+      showToast('Notifications blocked in system settings', 'amber');
+    }
+  };
+
+  const handleTestNotification = async () => {
+    const ok = await sendTest();
+    if (ok) {
+      showToast('Test notification scheduled (2s)', 'verdant');
+    } else {
+      showToast('Enable notifications permission first', 'amber');
+    }
+  };
+
+  const permissionLabel =
+    permission === 'granted'
+      ? 'Granted'
+      : permission === 'denied'
+        ? 'Denied'
+        : permission === 'unsupported'
+          ? 'Unsupported'
+          : 'Not enabled';
+  const permissionTone: 'verdant' | 'amber' | 'ash' =
+    permission === 'granted' ? 'verdant' : permission === 'denied' ? 'amber' : 'ash';
 
   const confirmSignOut = () => {
     Alert.alert('Sign out', 'Disconnect this device from Berry?', [
@@ -79,6 +122,44 @@ export function SettingsScreen() {
               </AppText>
             </Pressable>
           ) : null}
+        </View>
+
+        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+          NOTIFICATIONS
+        </AppText>
+        <View style={styles.card}>
+          <KeyValueRow label="System permission" value={permissionLabel} tone={permissionTone} />
+          <View style={styles.kvRow}>
+            <AppText size={13} tone="ash">
+              Alert on new Inbox items
+            </AppText>
+            <Switch
+              value={inboxAlertsEnabled}
+              onValueChange={setInboxAlertsEnabled}
+              trackColor={{ false: colors.hair, true: colors.berry }}
+              thumbColor={colors.chalk}
+            />
+          </View>
+          {permission !== 'granted' && permission !== 'unsupported' ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void handleEnableNotifications()}
+              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+              <AppText size={13} weight="medium" tone="chalk">
+                Enable notifications
+              </AppText>
+            </Pressable>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            disabled={sendingTest || permission === 'unsupported'}
+            onPress={() => void handleTestNotification()}
+            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
+            <Icon name="bell" size={15} color={colors.white} />
+            <AppText size={13} weight="medium" style={styles.primaryText}>
+              {sendingTest ? 'Scheduling...' : 'Send test notification (2s)'}
+            </AppText>
+          </Pressable>
         </View>
 
         <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
@@ -168,6 +249,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  primaryBtn: {
+    marginTop: 4,
+    height: 40,
+    borderRadius: 9,
+    backgroundColor: colors.berry,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  primaryText: { color: colors.white },
   dangerBtn: {
     marginTop: 8,
     height: 44,
