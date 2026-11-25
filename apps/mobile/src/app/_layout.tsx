@@ -13,6 +13,7 @@ import { BerryMark } from '@/components/berry-mark';
 import { AppText } from '@/components/text';
 import { ToastHost } from '@/components/toast';
 import { useAuthStore } from '@/store/auth-store';
+import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
@@ -23,15 +24,27 @@ export default function RootLayout() {
     JetBrainsMono_500Medium,
   });
   const status = useAuthStore((state) => state.status);
+  const client = useAuthStore((state) => state.client);
+  const currentWorkspaceId = useAuthStore((state) => state.currentWorkspaceId);
   const hydrateError = useAuthStore((state) => state.hydrateError);
   const hydrate = useAuthStore((state) => state.hydrate);
   const logout = useAuthStore((state) => state.logout);
+  const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
+  const resetWorkspace = useWorkspaceStore((state) => state.reset);
   const router = useRouter();
   const segments = useSegments();
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  useEffect(() => {
+    if (status === 'signed_in' && client && currentWorkspaceId) {
+      void loadWorkspace(client, currentWorkspaceId);
+    } else if (status === 'signed_out') {
+      resetWorkspace();
+    }
+  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace]);
 
   useEffect(() => {
     if (loaded && status !== 'hydrating') {

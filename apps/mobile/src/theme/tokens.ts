@@ -20,5 +20,3 @@ export const fonts = {
   regular: 'JetBrainsMono_400Regular',
   medium: 'JetBrainsMono_500Medium',
 } as const;
-
-export const workspaceName = 'laravel42';

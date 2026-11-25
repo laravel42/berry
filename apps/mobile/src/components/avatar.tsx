@@ -1,18 +1,24 @@
 import { StyleSheet, View } from 'react-native';
 
 import { person } from '@/data/people';
+import { UNASSIGNED_ACTOR, type ActorView } from '@/model/mappers';
 import type { PersonId } from '@/model/types';
 import { colors } from '@/theme/tokens';
 
 import { AppText } from './text';
 
 type Props = {
-  id: PersonId;
+  actor?: ActorView | null;
+  id?: PersonId;
   size?: number;
 };
 
-export function Avatar({ id, size = 28 }: Props) {
-  const who = person(id);
+export function Avatar({ actor, id, size = 28 }: Props) {
+  const who = actor
+    ? { name: actor.name, initials: actor.initials, agent: actor.type === 'agent' }
+    : id
+      ? person(id)
+      : { name: UNASSIGNED_ACTOR.name, initials: UNASSIGNED_ACTOR.initials, agent: false };
   const radius = who.agent ? 6 : size / 2;
   return (
     <View

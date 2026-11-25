@@ -1,7 +1,6 @@
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { STATUS, TONE_COLOR } from '@/data/people';
-import type { Status } from '@/model/types';
+import { STATUS_META, TONE_COLOR_MAP, type IssueStatusUi } from '@/model/mappers';
 import { colors } from '@/theme/tokens';
 
 type MarkProps = {
@@ -25,8 +24,8 @@ export function BerryMark({ size = 18, dot = colors.berry, stroke = colors.chalk
   );
 }
 
-export function StatusMark({ status, size = 16 }: { status: Status; size?: number }) {
-  const meta = STATUS[status];
-  const color = TONE_COLOR[meta.tone];
+export function StatusMark({ status, size = 16 }: { status: IssueStatusUi; size?: number }) {
+  const meta = STATUS_META[status] ?? STATUS_META.backlog;
+  const color = TONE_COLOR_MAP[meta.tone];
   return <BerryMark size={size} dot={color} stroke={colors.ash} hollow={meta.hollow} crossed={meta.crossed} />;
 }
