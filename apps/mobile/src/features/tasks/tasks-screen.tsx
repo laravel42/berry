@@ -54,8 +54,9 @@ export function TasksScreen() {
     void loadIssues(
       client,
       boards.map((b) => b.id),
+      { userId: user?.id ?? null },
     );
-  }, [client, boardIdsKey, boards, loadIssues]);
+  }, [client, boardIdsKey, boards, user?.id, loadIssues]);
 
   const { assigned, created } = useMemo(
     () => (user ? splitMyIssues(issues, user.id) : { assigned: [], created: [] }),
@@ -78,7 +79,7 @@ export function TasksScreen() {
     void loadIssues(
       client,
       boards.map((b) => b.id),
-      { silent: true },
+      { silent: true, userId: user?.id ?? null },
     );
   };
 
@@ -120,6 +121,7 @@ export function TasksScreen() {
                   void loadIssues(
                     client,
                     boards.map((b) => b.id),
+                    { userId: user?.id ?? null },
                   );
                 }
               }}

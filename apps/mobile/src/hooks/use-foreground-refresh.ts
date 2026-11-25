@@ -23,10 +23,11 @@ export function useForegroundRefresh(): void {
       if (wasBackground && nextState === 'active') {
         void useInboxStore.getState().load(client, workspaceId, { silent: true });
         if (boards.length > 0) {
+          const userId = useAuthStore.getState().user?.id ?? null;
           void useIssuesStore.getState().loadIssues(
             client,
             boards.map((b) => b.id),
-            { silent: true },
+            { silent: true, userId },
           );
         }
         void useChatStore.getState().loadConversations(client, { silent: true });

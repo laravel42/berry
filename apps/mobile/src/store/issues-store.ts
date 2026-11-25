@@ -46,7 +46,11 @@ type IssuesState = {
   detailsById: Record<string, IssueDetailBundle>;
   busyAction: boolean;
   setMineTab: (tab: MineTab) => void;
-  loadIssues: (client: BerryClient, boardIds: string[], options?: { silent?: boolean }) => Promise<void>;
+  loadIssues: (
+    client: BerryClient,
+    boardIds: string[],
+    options?: { silent?: boolean; userId?: string | null },
+  ) => Promise<void>;
   loadIssueDetail: (client: BerryClient, workspaceId: string, issueRef: string) => Promise<void>;
   upsertIssue: (issue: ApiIssue) => void;
   addComment: (client: BerryClient, issueId: string, body: string) => Promise<boolean>;
@@ -82,7 +86,19 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
     }
     set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
     try {
-      const pages = await Promise.all(boardIds.map((boardId) => listBoardIssues(client, boardId)));
+      const requests = boardIds.flatMap((boardId) => {
+        const calls = [listBoardIssues(client, boardId)];
+        if (options?.userId) {
+          calls.push(
+            listBoardIssues(client, boardId, {
+              assigneeType: 'user',
+              assigneeId: options.userId,
+            }),
+          );
+        }
+        return calls;
+      });
+      const pages = await Promise.all(requests);
       const map = new Map<string, ApiIssue>();
       for (const page of pages) {
         for (const issue of page.nodes) {

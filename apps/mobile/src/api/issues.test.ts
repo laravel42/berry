@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import { createBerryClient } from '@/api/client';
 import type { ApiIssue } from '@/api/types';
 
-import { createIssueComment, sendBackIssue, splitMyIssues } from './issues';
+import { createIssueComment, listBoardIssues, sendBackIssue, splitMyIssues } from './issues';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -56,6 +56,24 @@ describe('issues API', () => {
     const split = splitMyIssues([a, b, c], 'user-me');
     expect(split.assigned.map((x) => x.id)).toEqual(['i-assigned']);
     expect(split.created.map((x) => x.id)).toEqual(['i-created']);
+  });
+
+  test('listBoardIssues passes assigneeType and assigneeId query params when provided', async () => {
+    let seenUrl = '';
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input) => {
+        seenUrl = String(input);
+        return jsonResponse({ nodes: [], pageInfo: { hasNextPage: false, endCursor: null } });
+      },
+    });
+
+    await listBoardIssues(client, 'board-1', { assigneeType: 'user', assigneeId: 'user-me' });
+    const parsed = new URL(seenUrl);
+    expect(parsed.searchParams.get('boardId')).toBe('board-1');
+    expect(parsed.searchParams.get('assigneeType')).toBe('user');
+    expect(parsed.searchParams.get('assigneeId')).toBe('user-me');
   });
 
   test('createIssueComment sends Idempotency-Key and { body }', async () => {

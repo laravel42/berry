@@ -48,13 +48,23 @@ export function splitMyIssues(
   return { assigned, created };
 }
 
+export type ListBoardIssuesOptions = {
+  after?: string | null;
+  assigneeType?: 'user' | 'agent';
+  assigneeId?: string;
+};
+
 export async function listBoardIssues(
   client: BerryClient,
   boardId: string,
-  after?: string | null,
+  options?: ListBoardIssuesOptions,
 ): Promise<Connection<ApiIssue>> {
   const params = new URLSearchParams({ boardId, first: '100' });
-  if (after) params.set('after', after);
+  if (options?.after) params.set('after', options.after);
+  if (options?.assigneeType && options?.assigneeId) {
+    params.set('assigneeType', options.assigneeType);
+    params.set('assigneeId', options.assigneeId);
+  }
   return client.get<Connection<ApiIssue>>(`/api/v1/issues?${params.toString()}`);
 }
 
