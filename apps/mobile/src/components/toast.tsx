@@ -3,13 +3,17 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useApp } from '@/store/app-store';
+import { useToastStore } from '@/store/toast-store';
 import { colors } from '@/theme/tokens';
 
 import { BerryMark } from './berry-mark';
 import { AppText } from './text';
 
 export function ToastHost() {
-  const toast = useApp((state) => state.toast);
+  const newToast = useToastStore((state) => state.message);
+  const tone = useToastStore((state) => state.tone);
+  const legacyToast = useApp((state) => state.toast);
+  const toast = newToast ?? legacyToast;
   const insets = useSafeAreaInsets();
   const [opacity] = useState(() => new Animated.Value(0));
 
@@ -23,10 +27,12 @@ export function ToastHost() {
 
   if (!toast) return null;
 
+  const dotColor = tone === 'danger' ? colors.danger : tone === 'amber' ? colors.amber : colors.verdant;
+
   return (
     <Animated.View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 72, opacity }]}>
       <View style={styles.pill}>
-        <BerryMark size={16} dot={colors.verdant} />
+        <BerryMark size={16} dot={dotColor} />
         <AppText size={13}>{toast}</AppText>
       </View>
     </Animated.View>
