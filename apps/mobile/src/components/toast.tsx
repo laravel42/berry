@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useApp } from '@/store/app-store';
 import { useToastStore } from '@/store/toast-store';
 import { colors } from '@/theme/tokens';
 
@@ -10,10 +9,8 @@ import { BerryMark } from './berry-mark';
 import { AppText } from './text';
 
 export function ToastHost() {
-  const newToast = useToastStore((state) => state.message);
+  const toast = useToastStore((state) => state.message);
   const tone = useToastStore((state) => state.tone);
-  const legacyToast = useApp((state) => state.toast);
-  const toast = newToast ?? legacyToast;
   const insets = useSafeAreaInsets();
   const [opacity] = useState(() => new Animated.Value(0));
 

@@ -12,7 +12,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BerryMark } from '@/components/berry-mark';
 import { AppText } from '@/components/text';
 import { ToastHost } from '@/components/toast';
+import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
 import { useAuthStore } from '@/store/auth-store';
+import { useChatStore } from '@/store/chat-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
@@ -35,8 +37,11 @@ export default function RootLayout() {
   const resetWorkspace = useWorkspaceStore((state) => state.reset);
   const resetInbox = useInboxStore((state) => state.reset);
   const resetIssues = useIssuesStore((state) => state.reset);
+  const resetChat = useChatStore((state) => state.reset);
   const router = useRouter();
   const segments = useSegments();
+
+  useForegroundRefresh();
 
   useEffect(() => {
     void hydrate();
@@ -50,8 +55,9 @@ export default function RootLayout() {
       resetWorkspace();
       resetInbox();
       resetIssues();
+      resetChat();
     }
-  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox, resetIssues]);
+  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox, resetIssues, resetChat]);
 
   useEffect(() => {
     if (loaded && status !== 'hydrating') {

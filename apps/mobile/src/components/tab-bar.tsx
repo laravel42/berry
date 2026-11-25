@@ -1,7 +1,7 @@
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { chatUnreadCount, useApp } from '@/store/app-store';
+import { chatUnreadTotal, useChatStore } from '@/store/chat-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { colors } from '@/theme/tokens';
 
@@ -25,7 +25,7 @@ type TabBarProps = {
 export function BerryTabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const inbox = useInboxStore((store) => store.unreadCount);
-  const chat = useApp((store) => chatUnreadCount(store.chats));
+  const chat = useChatStore((store) => chatUnreadTotal(store.conversations));
   const badges: Record<string, number> = { index: inbox, chat };
   const ios = Platform.OS === 'ios';
 
