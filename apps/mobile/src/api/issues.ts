@@ -3,8 +3,37 @@ import type {
   ApiActivityItem,
   ApiComment,
   ApiIssue,
+  ApiIssuePriority,
   Connection,
 } from '@/api/types';
+
+export type CreateIssueInput = {
+  boardId: string;
+  title: string;
+  description: string | null;
+  priority: ApiIssuePriority;
+  status: 'backlog' | 'todo';
+  assignee: { type: 'user' | 'agent'; id: string } | null;
+  projectId?: string | null;
+};
+
+export async function createIssue(
+  client: BerryClient,
+  input: CreateIssueInput,
+): Promise<ApiIssue> {
+  const payload: Record<string, unknown> = {
+    boardId: input.boardId,
+    title: input.title.trim(),
+    description: input.description,
+    priority: input.priority,
+    status: input.status,
+    assignee: input.assignee,
+  };
+  if (input.projectId) {
+    payload.projectId = input.projectId;
+  }
+  return client.post<ApiIssue>('/api/v1/issues', payload, { idempotent: true });
+}
 
 export function splitMyIssues(
   issues: ApiIssue[],
