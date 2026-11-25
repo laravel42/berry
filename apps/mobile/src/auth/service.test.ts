@@ -211,4 +211,50 @@ describe('auth service', () => {
     await signOutSession(client, 'tok-uuid-1');
     expect(deletedPath).toBe('https://berry.example.com/api/v1/tokens/tok-uuid-1');
   });
+
+  test('normalizes email casing and falls back to native cookie jar when Set-Cookie header is hidden on iOS', async () => {
+    const seen: { url: string; credentials?: RequestCredentials; email?: string }[] = [];
+
+    const result = await signInWithPassword(
+      {
+        baseUrl: 'https://berry.example.com',
+        email: '  Edo@Laravel42.com  ',
+        password: 'Berry-secret-password',
+        deviceLabel: 'iOS',
+      },
+      async (input, init) => {
+        const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : null;
+        seen.push({
+          url: String(input),
+          credentials: init?.credentials,
+          email: typeof body?.email === 'string' ? body.email : undefined,
+        });
+
+        if (String(input).endsWith('/api/auth/sign-in/email')) {
+          // Simulate iOS NSURLSession storing HttpOnly cookie natively without exposing Set-Cookie to JS.
+          return jsonResponse({ user: { id: 'u1', email: 'edo@laravel42.com' } }, 200);
+        }
+        if (String(input).endsWith('/api/v1/tokens')) {
+          return jsonResponse(
+            {
+              personalToken: { id: 'tok-ios-1', name: 'Berry Mobile (iOS)' },
+              token: 'berry_pat_ios_cookiejar_ok',
+            },
+            201,
+          );
+        }
+        return jsonResponse({ success: true }, 200);
+      },
+    );
+
+    expect(result).toEqual({
+      kind: 'signed_in',
+      token: 'berry_pat_ios_cookiejar_ok',
+      tokenId: 'tok-ios-1',
+    });
+    expect(seen[0]?.email).toBe('edo@laravel42.com');
+    expect(seen[0]?.credentials).toBe('include');
+    expect(seen[1]?.url).toBe('https://berry.example.com/api/v1/tokens');
+    expect(seen[1]?.credentials).toBe('include');
+  });
 });

@@ -120,6 +120,9 @@ async function mintMobilePat(input: {
   const response = await input.fetchImpl(`${cleanBaseUrl(input.baseUrl)}/api/v1/tokens`, {
     method: 'POST',
     headers,
+    // iOS NSURLSession keeps HttpOnly session cookies in its native jar and may hide
+    // Set-Cookie from JS; `include` lets the jar attach them when we could not read one.
+    credentials: 'include',
     body: JSON.stringify({
       name: `Berry Mobile (${input.deviceLabel})`,
       expiresAt,
@@ -128,6 +131,14 @@ async function mintMobilePat(input: {
 
   const parsed = await parseJsonSafe(response);
   if (!response.ok) {
+    if (response.status === 401 && !input.sessionCookie) {
+      throw new ApiClientError({
+        status: 401,
+        code: 'COOKIE_UNAVAILABLE',
+        message:
+          'Signed in, but this device did not keep the session cookie. Use an API key (berry_pat_) instead.',
+      });
+    }
     throw authErrorFromResponse(response, parsed);
   }
 
@@ -146,6 +157,7 @@ async function mintMobilePat(input: {
   try {
     await input.fetchImpl(`${cleanBaseUrl(input.baseUrl)}/api/auth/sign-out`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
@@ -182,18 +194,21 @@ export async function signInWithPassword(
 ): Promise<PasswordSignInResult> {
   const base = cleanBaseUrl(input.baseUrl);
   const origin = input.origin ? cleanBaseUrl(input.origin) : base;
+  // Accounts are stored lowercase; phone keyboards like to capitalise the first letter.
+  const email = input.email.trim().toLowerCase();
 
   let response: Response;
   try {
     response = await fetchImpl(`${base}/api/auth/sign-in/email`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Origin: origin,
       },
       body: JSON.stringify({
-        email: input.email.trim(),
+        email,
         password: input.password,
       }),
     });
@@ -215,14 +230,8 @@ export async function signInWithPassword(
     return { kind: 'two_factor', sessionCookie };
   }
 
-  if (!sessionCookie) {
-    throw new ApiClientError({
-      status: 400,
-      code: 'COOKIE_UNAVAILABLE',
-      message: 'Could not establish a mobile session cookie from this runtime. Use an API key (berry_pat_) instead.',
-    });
-  }
-
+  // An empty cookie is not fatal: on iOS the native jar holds it and `credentials: 'include'`
+  // attaches it to the token request. mintMobilePat reports a clear error if that fails too.
   const minted = await mintMobilePat({
     baseUrl: base,
     sessionCookie,
@@ -250,6 +259,7 @@ export async function verifyTwoFactorAndMintToken(
   try {
     response = await fetchImpl(`${base}/api/auth/two-factor/verify-totp`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',

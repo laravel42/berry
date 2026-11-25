@@ -38,6 +38,7 @@ export function SignInScreen() {
   const [serverUrl, setServerUrl] = useState(() => storedBaseUrl || defaultServerUrl());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [totpCode, setTotpCode] = useState('');
   const [twoFactorCookie, setTwoFactorCookie] = useState<string | null>(null);
   const [twoFactorOrigin, setTwoFactorOrigin] = useState<string | null>(null);
@@ -249,16 +250,32 @@ export function SignInScreen() {
               />
             </View>
             <View style={styles.field}>
-              <AppText size={12} tone="ash">
-                Password
-              </AppText>
+              <View style={styles.labelRow}>
+                <AppText size={12} tone="ash">
+                  Password
+                </AppText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+                  hitSlop={8}
+                  onPress={() => setShowPassword((value) => !value)}>
+                  <AppText size={12} tone="ash">
+                    {showPassword ? 'Hide' : 'Show'}
+                  </AppText>
+                </Pressable>
+              </View>
               <TextInput
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••••••"
                 placeholderTextColor={colors.slate}
-                secureTextEntry
+                secureTextEntry={!showPassword}
                 textContentType="password"
+                autoComplete="password"
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                smartInsertDelete={false}
                 editable={!submitting}
                 onSubmitEditing={onSubmit}
                 style={styles.input}
@@ -352,6 +369,7 @@ const styles = StyleSheet.create({
   subtitle: { textAlign: 'center' },
   stack: { gap: 12 },
   field: { gap: 6 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   input: {
     minHeight: 46,
     borderRadius: 10,
