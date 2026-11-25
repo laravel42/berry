@@ -48,19 +48,20 @@
    --font-mono: var(--font-jetbrains-mono);
    --font-display: var(--font-jetbrains-mono);
    /* --- Weight scale ----------------------------------------------------
-      The whole interface is set lighter than Tailwind's defaults: body text
-      (`font-normal`) and `font-medium` sit at 200, the light steps at 300,
-      and emphasis comes down to 400 (`font-semibold`) and 600 (`font-bold`).
-      Both faces are variable over 100-900 (app/layout.tsx), so every step is
-      a real weight, not a synthesised one.
+      The whole interface is set lighter than Tailwind's defaults, with 300 as
+      the floor (200 goes too thin on Inter): the light steps, body text
+      (`font-normal`), and `font-medium` sit at 300, and emphasis steps up to
+      400 (`font-semibold`) and 600 (`font-bold`). Both faces are variable over
+      100-900 (app/layout.tsx), so every step is a real weight, not a
+      synthesised one.
 
       Declarations written as numbers (`font-weight: 600` in this file, or an
       arbitrary `[font-weight:...]`) bypass this scale and keep their value. */
    --font-weight-thin: 300;
    --font-weight-extralight: 300;
    --font-weight-light: 300;
-   --font-weight-normal: 200;
-   --font-weight-medium: 200;
+   --font-weight-normal: 300;
+   --font-weight-medium: 300;
    --font-weight-semibold: 400;
    --font-weight-bold: 600;
    /* The body size, 16px: `body` applies `text-xs`, so this step is what the
