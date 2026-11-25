@@ -13,6 +13,7 @@ import { BerryMark } from '@/components/berry-mark';
 import { AppText } from '@/components/text';
 import { ToastHost } from '@/components/toast';
 import { useAuthStore } from '@/store/auth-store';
+import { useInboxStore } from '@/store/inbox-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
@@ -31,6 +32,7 @@ export default function RootLayout() {
   const logout = useAuthStore((state) => state.logout);
   const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
   const resetWorkspace = useWorkspaceStore((state) => state.reset);
+  const resetInbox = useInboxStore((state) => state.reset);
   const router = useRouter();
   const segments = useSegments();
 
@@ -43,8 +45,9 @@ export default function RootLayout() {
       void loadWorkspace(client, currentWorkspaceId);
     } else if (status === 'signed_out') {
       resetWorkspace();
+      resetInbox();
     }
-  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace]);
+  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox]);
 
   useEffect(() => {
     if (loaded && status !== 'hydrating') {

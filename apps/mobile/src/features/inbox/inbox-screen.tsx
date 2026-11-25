@@ -1,18 +1,29 @@
 import { router } from 'expo-router';
-import { useRef } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import ReanimatedSwipeable, { SwipeDirection, type SwipeableMethods } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { mapInboxKind } from '@/api/inbox';
+import type { ApiInboxItem } from '@/api/types';
+import { BerryMark } from '@/components/berry-mark';
 import { Fab } from '@/components/fab';
 import { Icon, type IconName } from '@/components/icon';
 import { HeaderIconButton, ScreenHeader } from '@/components/screen-header';
 import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
-import { BerryMark } from '@/components/berry-mark';
-import { issueKey } from '@/data/people';
-import type { NotifKind, Notification } from '@/model/types';
-import { useApp } from '@/store/app-store';
+import { formatRelativeTime } from '@/model/mappers';
+import type { NotifKind } from '@/model/types';
+import { useAuthStore } from '@/store/auth-store';
+import { useInboxStore } from '@/store/inbox-store';
 import { colors } from '@/theme/tokens';
 
 const KIND: Record<NotifKind, { label: string; icon: IconName; color: string }> = {
@@ -25,26 +36,49 @@ const KIND: Record<NotifKind, { label: string; icon: IconName; color: string }> 
   done: { label: 'Done', icon: 'done', color: colors.verdant },
 };
 
-const DECISIONS = new Set<NotifKind>(['review', 'approval', 'failed', 'blocked']);
-
 export function InboxScreen() {
   const insets = useSafeAreaInsets();
-  const notifications = useApp((state) => state.notifications);
-  const issues = useApp((state) => state.issues);
-  const view = useApp((state) => state.inboxView);
-  const onlyNeeds = useApp((state) => state.onlyNeeds);
-  const setInboxView = useApp((state) => state.setInboxView);
-  const toggleOnlyNeeds = useApp((state) => state.toggleOnlyNeeds);
-  const markAllRead = useApp((state) => state.markAllRead);
-  const unread = notifications.filter((item) => !item.archived && !item.read).length;
-  const live = notifications.filter((item) => !item.archived);
-  const needs = live.filter((item) => item.needs);
-  const archiveView = view === 'archive';
-  let rows = notifications.filter((item) => item.archived === archiveView);
-  if (!archiveView && onlyNeeds) rows = rows.filter((item) => item.needs);
+  const client = useAuthStore((state) => state.client);
+  const workspaceId = useAuthStore((state) => state.currentWorkspaceId);
+
+  const items = useInboxStore((state) => state.items);
+  const unreadCount = useInboxStore((state) => state.unreadCount);
+  const view = useInboxStore((state) => state.view);
+  const onlyNeeds = useInboxStore((state) => state.onlyNeeds);
+  const loading = useInboxStore((state) => state.loading);
+  const refreshing = useInboxStore((state) => state.refreshing);
+  const loadingMore = useInboxStore((state) => state.loadingMore);
+  const hasNextPage = useInboxStore((state) => state.hasNextPage);
+  const error = useInboxStore((state) => state.error);
+  const setView = useInboxStore((state) => state.setView);
+  const toggleOnlyNeeds = useInboxStore((state) => state.toggleOnlyNeeds);
+  const load = useInboxStore((state) => state.load);
+  const loadMore = useInboxStore((state) => state.loadMore);
+  const markAllRead = useInboxStore((state) => state.markAllRead);
+
+  useEffect(() => {
+    if (!client || !workspaceId) return;
+    void load(client, workspaceId);
+  }, [client, workspaceId, view, load]);
+
+  const archiveView = view === 'archived';
+  const mapped = items.map((item) => ({ item, meta: mapInboxKind(item) }));
+  const needs = archiveView ? [] : mapped.filter((entry) => entry.meta.needs);
+  const visible = !archiveView && onlyNeeds ? needs : mapped;
+
   const figures = (['review', 'approval', 'failed', 'blocked'] as const)
-    .map((kind) => ({ kind, n: needs.filter((item) => item.kind === kind).length }))
-    .filter((item) => item.n > 0);
+    .map((kind) => ({ kind, n: needs.filter((entry) => entry.meta.kind === kind).length }))
+    .filter((entry) => entry.n > 0);
+
+  const onRefresh = () => {
+    if (!client || !workspaceId) return;
+    void load(client, workspaceId, { silent: true });
+  };
+
+  const onMarkAllRead = () => {
+    if (!client || !workspaceId) return;
+    void markAllRead(client, workspaceId);
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -57,13 +91,13 @@ export function InboxScreen() {
         }
         trailing={
           Platform.OS === 'ios' ? (
-            <Pressable accessibilityRole="button" onPress={markAllRead}>
+            <Pressable accessibilityRole="button" onPress={onMarkAllRead}>
               <AppText size={13} tone="ash">
                 Mark all read
               </AppText>
             </Pressable>
           ) : (
-            <HeaderIconButton label="Mark all read" onPress={markAllRead}>
+            <HeaderIconButton label="Mark all read" onPress={onMarkAllRead}>
               <Icon name="checks" />
             </HeaderIconButton>
           )
@@ -72,15 +106,44 @@ export function InboxScreen() {
       <View style={styles.pad}>
         <Segmented
           items={[
-            { id: 'inbox' as const, label: unread ? `Inbox · ${unread}` : 'Inbox' },
-            { id: 'archive' as const, label: 'Archive' },
+            { id: 'active' as const, label: unreadCount > 0 ? `Inbox · ${unreadCount}` : 'Inbox' },
+            { id: 'archived' as const, label: 'Archive' },
           ]}
           value={view}
-          onChange={setInboxView}
+          onChange={setView}
         />
       </View>
-      <ScrollView contentContainerStyle={styles.list}>
-        {!archiveView && needs.length > 0 ? (
+      <ScrollView
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
+        {error ? (
+          <View style={styles.errorCard}>
+            <AppText size={14} weight="medium" tone="danger">
+              Could not load inbox
+            </AppText>
+            <AppText size={13} tone="ash">
+              {error}
+            </AppText>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (client && workspaceId) void load(client, workspaceId);
+              }}
+              style={styles.retryBtn}>
+              <AppText size={13} weight="medium" style={styles.retryText}>
+                Retry
+              </AppText>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {!error && loading && items.length === 0 ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={colors.berry} />
+          </View>
+        ) : null}
+
+        {!error && !archiveView && needs.length > 0 ? (
           <Pressable accessibilityRole="button" onPress={toggleOnlyNeeds} style={styles.band}>
             <View style={styles.bandTop}>
               <AppText size={12} weight="medium" tone="amber">
@@ -108,12 +171,14 @@ export function InboxScreen() {
             </View>
           </Pressable>
         ) : null}
-        {rows.map((item) => {
-          const issue = issues.find((candidate) => candidate.id === item.issue);
-          if (!issue) return null;
-          return <InboxRow key={item.id} item={item} title={issue.title} resolved={issue.resolved} />;
-        })}
-        {rows.length === 0 ? (
+
+        {!error
+          ? visible.map(({ item, meta }) => (
+              <InboxRow key={item.id} item={item} kind={meta.kind} />
+            ))
+          : null}
+
+        {!error && !loading && visible.length === 0 ? (
           <View style={styles.empty}>
             <BerryMark size={36} dot={colors.verdant} />
             <AppText size={16} weight="medium">
@@ -125,11 +190,28 @@ export function InboxScreen() {
                 : 'New reviews, approvals and agent questions show up here.'}
             </AppText>
           </View>
-        ) : (
-          <AppText size={12} tone="slate" style={styles.hint}>
-            {archiveView ? 'Swipe left to move back to the inbox' : 'Swipe right to mark read · left to archive'}
-          </AppText>
-        )}
+        ) : null}
+
+        {!error && visible.length > 0 ? (
+          <>
+            {hasNextPage ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={loadingMore}
+                onPress={() => {
+                  if (client && workspaceId) void loadMore(client, workspaceId);
+                }}
+                style={styles.loadMore}>
+                <AppText size={13} tone="ash">
+                  {loadingMore ? 'Loading…' : 'Load more'}
+                </AppText>
+              </Pressable>
+            ) : null}
+            <AppText size={12} tone="slate" style={styles.hint}>
+              {archiveView ? 'Swipe left to move back to the inbox' : 'Swipe right to mark read · left to archive'}
+            </AppText>
+          </>
+        ) : null}
       </ScrollView>
       <Fab label="New task" onPress={() => router.push('/compose')} />
     </View>
@@ -142,13 +224,23 @@ function labelFor(kind: NotifKind, count: number): string {
   return kind;
 }
 
-function InboxRow({ item, title, resolved }: { item: Notification; title: string; resolved?: string }) {
-  const toggleRead = useApp((state) => state.toggleRead);
-  const archive = useApp((state) => state.archiveNotification);
+function InboxRow({ item, kind }: { item: ApiInboxItem; kind: NotifKind }) {
+  const client = useAuthStore((state) => state.client);
+  const workspaceId = useAuthStore((state) => state.currentWorkspaceId);
+  const toggleRead = useInboxStore((state) => state.toggleRead);
+  const setRead = useInboxStore((state) => state.setRead);
+  const archive = useInboxStore((state) => state.archive);
   const ref = useRef<SwipeableMethods>(null);
-  const kind = KIND[item.kind];
-  const decided = !item.needs && DECISIONS.has(item.kind) && resolved;
-  const event = decided ? `Decided · ${resolved}` : `${kind.label} · ${item.body}`;
+  const styleMeta = KIND[kind];
+
+  const onOpen = () => {
+    if (client && workspaceId && !item.read) {
+      void setRead(client, workspaceId, item.id, true);
+    }
+    if (item.issueId) {
+      router.push({ pathname: '/issue/[id]', params: { id: item.issueId, from: item.id } });
+    }
+  };
 
   return (
     <ReanimatedSwipeable
@@ -168,28 +260,31 @@ function InboxRow({ item, title, resolved }: { item: Notification; title: string
       )}
       onSwipeableOpen={(direction) => {
         ref.current?.close();
-        if (direction === SwipeDirection.RIGHT) toggleRead(item.id);
-        else archive(item.id);
+        if (!client || !workspaceId) return;
+        if (direction === SwipeDirection.RIGHT) {
+          void toggleRead(client, workspaceId, item.id);
+        } else {
+          void archive(client, workspaceId, item.id);
+        }
       }}>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push({ pathname: '/issue/[id]', params: { id: item.issue, from: item.id } })}
-        style={styles.row}>
-        <Icon name={decided ? 'done' : kind.icon} size={18} color={decided ? colors.verdant : kind.color} />
+      <Pressable accessibilityRole="button" onPress={onOpen} style={styles.row}>
+        <Icon name={styleMeta.icon} size={18} color={styleMeta.color} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
             <AppText size={13} weight={item.read ? 'regular' : 'medium'} style={styles.title} numberOfLines={1}>
-              <AppText size={13} tone="ash">
-                {issueKey(item.issue)}{' '}
-              </AppText>
-              {title}
+              {item.issueIdentifier ? (
+                <AppText size={13} tone="ash">
+                  {item.issueIdentifier}{' '}
+                </AppText>
+              ) : null}
+              {item.title}
             </AppText>
             <AppText size={12} tone="ash">
-              {item.time}
+              {formatRelativeTime(item.createdAt)}
             </AppText>
           </View>
           <AppText size={12} tone="ash" numberOfLines={2}>
-            {event}
+            {item.body || styleMeta.label}
           </AppText>
         </View>
         {item.read ? <View style={styles.dotSpacer} /> : <View style={styles.dot} accessibilityLabel="Unread" />}
@@ -201,23 +296,23 @@ function InboxRow({ item, title, resolved }: { item: Notification; title: string
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.void },
   pad: { paddingHorizontal: 16, paddingBottom: 8 },
-  list: { paddingBottom: 32 },
+  list: { paddingBottom: 96 },
   band: {
     marginHorizontal: 16,
-    marginBottom: 8,
+    marginVertical: 8,
     padding: 14,
     borderRadius: 14,
     backgroundColor: '#1C1811',
     borderWidth: 1,
     borderColor: 'rgba(217,164,65,0.35)',
-    gap: 6,
+    gap: 8,
   },
-  bandTop: { flexDirection: 'row', justifyContent: 'space-between' },
+  bandTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   figures: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   row: {
     flexDirection: 'row',
-    gap: 12,
     alignItems: 'flex-start',
+    gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     backgroundColor: colors.void,
@@ -225,14 +320,41 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hair,
   },
   rowBody: { flex: 1, gap: 4 },
-  rowTop: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  rowTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: { flex: 1 },
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.berry, marginTop: 6 },
   dotSpacer: { width: 8 },
-  under: { justifyContent: 'center', paddingHorizontal: 18, width: 120 },
-  underRead: { backgroundColor: '#243246', alignItems: 'flex-start' },
-  underArchive: { backgroundColor: colors.hair, alignItems: 'flex-end' },
-  empty: { alignItems: 'center', gap: 8, padding: 40 },
+  under: { justifyContent: 'center', paddingHorizontal: 20 },
+  underRead: { backgroundColor: colors.deep },
+  underArchive: { backgroundColor: colors.hair },
+  empty: { alignItems: 'center', gap: 10, paddingHorizontal: 32, paddingTop: 64 },
   center: { textAlign: 'center' },
-  hint: { textAlign: 'center', padding: 20 },
+  hint: { textAlign: 'center', paddingVertical: 16 },
+  loadMore: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  errorCard: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#241616',
+    borderWidth: 1,
+    borderColor: 'rgba(224,106,88,0.4)',
+    gap: 8,
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+    marginTop: 4,
+  },
+  retryText: { color: colors.white },
 });
