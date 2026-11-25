@@ -14,6 +14,7 @@ import { AppText } from '@/components/text';
 import { ToastHost } from '@/components/toast';
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
+import { useIssuesStore } from '@/store/issues-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
@@ -33,6 +34,7 @@ export default function RootLayout() {
   const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
   const resetWorkspace = useWorkspaceStore((state) => state.reset);
   const resetInbox = useInboxStore((state) => state.reset);
+  const resetIssues = useIssuesStore((state) => state.reset);
   const router = useRouter();
   const segments = useSegments();
 
@@ -42,12 +44,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (status === 'signed_in' && client && currentWorkspaceId) {
+      resetIssues();
       void loadWorkspace(client, currentWorkspaceId);
     } else if (status === 'signed_out') {
       resetWorkspace();
       resetInbox();
+      resetIssues();
     }
-  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox]);
+  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox, resetIssues]);
 
   useEffect(() => {
     if (loaded && status !== 'hydrating') {

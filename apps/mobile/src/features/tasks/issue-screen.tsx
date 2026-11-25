@@ -1,6 +1,16 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
@@ -8,61 +18,167 @@ import { StatusMark } from '@/components/berry-mark';
 import { Icon } from '@/components/icon';
 import { PriorityBars } from '@/components/priority-bars';
 import { AppText } from '@/components/text';
-import { PRIORITY_LEVEL, STATUS, issueKey, person } from '@/data/people';
-import { useApp } from '@/store/app-store';
+import {
+  PRIORITY_META,
+  STATUS_META,
+  UNASSIGNED_ACTOR,
+  actorFromRef,
+  deriveInitials,
+  formatRelativeTime,
+  mapApiPriority,
+  mapApiStatus,
+  type ActorView,
+} from '@/model/mappers';
+import { useAuthStore } from '@/store/auth-store';
+import { useInboxStore } from '@/store/inbox-store';
+import { useIssuesStore } from '@/store/issues-store';
 import { colors } from '@/theme/tokens';
+
+type TimelineRow = {
+  id: string;
+  actor: ActorView;
+  text: string;
+  occurredAt: string;
+};
+
+function describeActivity(type: string, status: string | null, changedFields: string[]): string {
+  if (type === 'issue.created') return 'created this task';
+  if (status) return `moved this to ${STATUS_META[mapApiStatus(status)].label}`;
+  if (changedFields.length > 0) return `updated ${changedFields.join(', ')}`;
+  return type.replaceAll('.', ' ');
+}
 
 export function IssueScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
-  const issue = useApp((state) => state.issues.find((item) => item.id === id));
-  const decide = useApp((state) => state.decide);
-  const comment = useApp((state) => state.comment);
-  const archive = useApp((state) => state.archiveNotification);
-  const setRead = useApp((state) => state.setRead);
-  useEffect(() => {
-    if (from) setRead(from, true);
-  }, [from, setRead]);
   const insets = useSafeAreaInsets();
-  const [sendBack, setSendBack] = useState(false);
+  const client = useAuthStore((state) => state.client);
+  const workspaceId = useAuthStore((state) => state.currentWorkspaceId);
+
+  const detail = useIssuesStore((state) => (id ? state.detailsById[id] : undefined));
+  const fallbackIssue = useIssuesStore((state) => state.issues.find((item) => item.id === id));
+  const busyAction = useIssuesStore((state) => state.busyAction);
+  const loadIssueDetail = useIssuesStore((state) => state.loadIssueDetail);
+  const addComment = useIssuesStore((state) => state.addComment);
+  const approveIssue = useIssuesStore((state) => state.approveIssue);
+  const sendBack = useIssuesStore((state) => state.sendBack);
+  const decideApproval = useIssuesStore((state) => state.decideApproval);
+  const retryRun = useIssuesStore((state) => state.retryRun);
+
+  const setRead = useInboxStore((state) => state.setRead);
+  const archive = useInboxStore((state) => state.archive);
+
+  const [sendBackOpen, setSendBackOpen] = useState(false);
   const [note, setNote] = useState('');
   const [draft, setDraft] = useState('');
 
+  useEffect(() => {
+    if (!client || !workspaceId || !id) return;
+    void loadIssueDetail(client, workspaceId, id);
+  }, [client, workspaceId, id, loadIssueDetail]);
+
+  const issue = detail?.issue?.id ? detail.issue : fallbackIssue;
+  const pendingApproval = detail?.approvals.find((a) => a.status === 'pending') ?? null;
+  const review = detail?.review ?? null;
+
+  const timeline = useMemo<TimelineRow[]>(() => {
+    const rows: TimelineRow[] = [];
+    for (const comment of detail?.comments ?? []) {
+      rows.push({
+        id: `comment-${comment.id}`,
+        actor: actorFromRef(comment.author),
+        text: comment.body,
+        occurredAt: comment.createdAt,
+      });
+    }
+    for (const act of detail?.activity ?? []) {
+      if (act.commentId) continue;
+      const actor: ActorView = act.actor
+        ? {
+            id: act.actor.id,
+            type: act.actor.type === 'agent' ? 'agent' : 'user',
+            name: act.actor.name ?? 'Berry',
+            initials: deriveInitials(act.actor.name ?? 'Berry'),
+            avatarUrl: act.actor.avatarUrl,
+          }
+        : UNASSIGNED_ACTOR;
+      rows.push({
+        id: `act-${act.id}`,
+        actor,
+        text: describeActivity(act.type, act.status, act.changedFields),
+        occurredAt: act.occurredAt,
+      });
+    }
+    return rows.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
+  }, [detail?.comments, detail?.activity]);
+
+  const close = () => router.back();
+
   if (!issue) {
     return (
-      <View style={styles.missing}>
-        <AppText>This task is gone.</AppText>
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <View style={styles.nav}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={close} style={styles.back}>
+            <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
+            {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
+          </Pressable>
+        </View>
+        <View style={styles.missing}>
+          {detail?.error ? (
+            <View style={styles.errorBox}>
+              <AppText size={14} tone="danger">
+                {detail.error}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  if (client && workspaceId && id) void loadIssueDetail(client, workspaceId, id);
+                }}
+                style={styles.retryBtn}>
+                <AppText size={13} weight="medium" style={styles.primaryText}>
+                  Retry
+                </AppText>
+              </Pressable>
+            </View>
+          ) : (
+            <ActivityIndicator color={colors.berry} />
+          )}
+        </View>
       </View>
     );
   }
 
-  const status = STATUS[issue.status];
-  const agent = person(issue.assignee);
-  const pending = Boolean(issue.decision) && !issue.resolved;
-  const showReview = pending && issue.decision === 'review';
-  const showApproval = pending && issue.decision === 'approval';
-  const showFailed = pending && issue.decision === 'failed';
-  const showQuestion = pending && issue.decision === 'question';
-  const composer = !showReview && !showApproval && !showFailed;
-  const backLabel = 'Back';
+  const statusUi = mapApiStatus(issue.status);
+  const statusMeta = STATUS_META[statusUi];
+  const priorityUi = mapApiPriority(issue.priority);
+  const assigneeActor = actorFromRef(issue.assignee);
+  const showReview = statusUi === 'in_review';
+  const showApproval = Boolean(pendingApproval) && !showReview;
+  const showRetry = !showReview && !showApproval && issue.assignee?.type === 'agent' && !issue.activeRunId && statusUi !== 'done' && statusUi !== 'cancelled';
 
-  const close = () => router.back();
+  const handleComment = async () => {
+    if (!client || !draft.trim() || busyAction) return;
+    const ok = await addComment(client, issue.id, draft);
+    if (ok) setDraft('');
+  };
 
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <KeyboardAvoidingView
+      style={[styles.screen, { paddingTop: insets.top }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.nav}>
-        <Pressable accessibilityRole="button" accessibilityLabel={backLabel} onPress={close} style={styles.back}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={close} style={styles.back}>
           <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
-          {Platform.OS === 'ios' ? <AppText size={16}>{backLabel}</AppText> : null}
+          {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
         </Pressable>
         <AppText size={13} tone="ash">
-          {issueKey(issue.id)}
+          {issue.identifier}
         </AppText>
-        {from ? (
+        {from && client && workspaceId ? (
           <View style={styles.navActions}>
             <Pressable
               accessibilityLabel="Mark unread"
               onPress={() => {
-                setRead(from, false);
+                void setRead(client, workspaceId, from, false);
                 close();
               }}>
               <Icon name="mail" size={20} />
@@ -70,7 +186,7 @@ export function IssueScreen() {
             <Pressable
               accessibilityLabel="Archive"
               onPress={() => {
-                archive(from);
+                void archive(client, workspaceId, from);
                 close();
               }}>
               <Icon name="archive" size={20} />
@@ -80,172 +196,163 @@ export function IssueScreen() {
           <View style={styles.navSpacer} />
         )}
       </View>
+
       <ScrollView contentContainerStyle={styles.body}>
         <AppText size={12} tone="ash">
-          {issue.project} · opened by {person(issue.createdBy).name}
+          {issue.project?.name ?? 'Workspace'}
+          {issue.createdBy ? ` · opened by ${issue.createdBy.name}` : ''}
         </AppText>
-        <AppText size={24} weight="medium" style={styles.title}>
+        <AppText size={22} weight="medium" style={styles.title}>
           {issue.title}
         </AppText>
+
         <View style={styles.props}>
           <Prop label="Status">
-            <StatusMark status={issue.status} />
-            <AppText size={13}>{status.label}</AppText>
+            <StatusMark status={statusUi} />
+            <AppText size={13}>{statusMeta.label}</AppText>
           </Prop>
           <Prop label="Priority">
-            <PriorityBars priority={issue.priority} />
-            <AppText size={13}>{PRIORITY_LEVEL[issue.priority]?.label}</AppText>
+            <PriorityBars priority={priorityUi} />
+            <AppText size={13}>{PRIORITY_META[priorityUi].label}</AppText>
           </Prop>
           <Prop label="Assignee">
-            <Avatar id={issue.assignee} size={22} />
-            <AppText size={13}>{agent.name}</AppText>
+            <Avatar actor={assigneeActor} size={22} />
+            <AppText size={13}>{assigneeActor.name}</AppText>
           </Prop>
-          <Prop label="Project">
-            <AppText size={13}>{issue.project}</AppText>
-          </Prop>
+          {issue.project ? (
+            <Prop label="Project">
+              <AppText size={13}>{issue.project.name}</AppText>
+            </Prop>
+          ) : null}
         </View>
 
         {showReview ? (
           <Callout tone="amber" title="Waiting on your review">
-            The work is delivered. An agent’s approval doesn’t close a task; only you can move it to Done.
+            The work is delivered. Only you can approve and move this task to Done.
           </Callout>
-        ) : null}
-        {showApproval ? (
-          <Callout tone="amber" title="Approval needed">
-            {issue.approval}
-          </Callout>
-        ) : null}
-        {showFailed ? <Callout tone="danger" title="Run failed">{issue.failure}</Callout> : null}
-        {showQuestion ? (
-          <View style={styles.question}>
-            <AppText size={13} weight="medium" tone="amber">
-              {agent.name} needs an answer
-            </AppText>
-            <AppText size={14}>{issue.question}</AppText>
-            {(issue.options ?? []).map((option) => (
-              <Pressable
-                key={option}
-                accessibilityRole="button"
-                onPress={() =>
-                  decide(
-                    issue.id,
-                    { status: 'in_progress' },
-                    [
-                      { who: 'me', text: `answered: ${option}`, time: 'now' },
-                      { who: 'berry', text: `resumed the run for ${agent.name}`, time: 'now' },
-                    ],
-                    `you answered ${option}`,
-                    `Answer sent to ${agent.name}`,
-                  )
-                }
-                style={styles.option}>
-                <AppText size={14}>{option}</AppText>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-        {issue.resolved ? (
-          <View style={styles.resolved}>
-            <Icon name="check" size={16} color={colors.verdant} />
-            <AppText size={13}>Decided: {issue.resolved}</AppText>
-          </View>
         ) : null}
 
-        {issue.pr ? (
+        {pendingApproval ? (
+          <Callout tone="amber" title={`Approval needed · ${pendingApproval.title}`}>
+            {pendingApproval.description ?? 'This task is waiting on your approval before proceeding.'}
+          </Callout>
+        ) : null}
+
+        {review?.pullRequest ? (
           <View style={styles.block}>
             <AppText size={12} tone="ash">
               Delivered
             </AppText>
-            <View style={styles.card}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (review.pullRequest?.url) void Linking.openURL(review.pullRequest.url);
+              }}
+              style={styles.card}>
               <View style={styles.prTop}>
                 <Icon name="git" size={16} color={colors.azure} />
                 <View style={styles.copy}>
                   <AppText size={14} weight="medium">
-                    Pull request {issue.pr.num}
+                    Pull request #{review.pullRequest.number}
                   </AppText>
-                  <AppText size={12} tone="ash">
-                    {issue.pr.branch}
-                  </AppText>
+                  {review.pullRequest.branch ? (
+                    <AppText size={12} tone="ash">
+                      {review.pullRequest.branch}
+                    </AppText>
+                  ) : null}
                 </View>
-                <AppText size={12} tone="ash">
-                  GitHub ↗
-                </AppText>
+                {review.pullRequest.url ? (
+                  <AppText size={12} tone="ash">
+                    GitHub ↗
+                  </AppText>
+                ) : null}
               </View>
               <AppText size={12} tone="ash">
-                {issue.pr.files} files · +{issue.pr.add} · −{issue.pr.del}
+                {review.delivery.filesChanged} files · +{review.delivery.insertions} · −{review.delivery.deletions}
               </AppText>
-              <AppText size={12} tone="verdant">
-                {issue.pr.checks}
-              </AppText>
-              {issue.qa ? (
-                <AppText size={12} tone="verdant">
-                  {issue.qa}
+              {review.checks ? (
+                <AppText size={12} tone={review.checks.passed ? 'verdant' : 'danger'}>
+                  {review.checks.passed ? 'Checks passed' : 'Checks failed'}
                 </AppText>
               ) : null}
-            </View>
+            </Pressable>
           </View>
         ) : null}
 
-        {issue.handoff ? (
+        {review?.run.summary ? (
           <View style={styles.block}>
             <AppText size={12} tone="ash">
-              Handoff from {agent.name}
+              Handoff summary
             </AppText>
-            <AppText size={14}>“{issue.handoff}”</AppText>
+            <AppText size={14}>{review.run.summary}</AppText>
           </View>
         ) : null}
 
-        <View style={styles.block}>
-          <AppText size={12} tone="ash">
-            Description
-          </AppText>
-          <AppText size={14}>{issue.desc}</AppText>
-        </View>
+        {issue.description ? (
+          <View style={styles.block}>
+            <AppText size={12} tone="ash">
+              Description
+            </AppText>
+            <AppText size={14}>{issue.description}</AppText>
+          </View>
+        ) : null}
 
         <View style={styles.block}>
           <AppText size={12} tone="ash">
             Activity
           </AppText>
-          {issue.activity.map((entry, index) => (
-            <View key={`${entry.time}-${index}`} style={styles.activity}>
-              <Avatar id={entry.who} size={24} />
+          {detail?.loading && timeline.length === 0 ? (
+            <ActivityIndicator color={colors.berry} />
+          ) : null}
+          {timeline.map((entry) => (
+            <View key={entry.id} style={styles.activity}>
+              <Avatar actor={entry.actor} size={24} />
               <AppText size={13} style={styles.copy}>
                 <AppText size={13} weight="medium">
-                  {person(entry.who).name}{' '}
+                  {entry.actor.name}{' '}
                 </AppText>
                 {entry.text}
               </AppText>
               <AppText size={12} tone="ash">
-                {entry.time}
+                {formatRelativeTime(entry.occurredAt)}
               </AppText>
             </View>
           ))}
+          {!detail?.loading && timeline.length === 0 ? (
+            <AppText size={13} tone="slate">
+              No comments or activity yet.
+            </AppText>
+          ) : null}
         </View>
       </ScrollView>
 
       <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-        {showReview && !sendBack ? (
+        {showReview && !sendBackOpen && client && workspaceId ? (
           <View style={styles.barRow}>
-            <Pressable accessibilityRole="button" onPress={() => setSendBack(true)} style={styles.secondary}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={busyAction}
+              onPress={() => setSendBackOpen(true)}
+              style={[styles.secondary, busyAction && styles.disabled]}>
               <AppText>Send back</AppText>
             </Pressable>
             <Pressable
               accessibilityRole="button"
+              disabled={busyAction}
               onPress={() =>
-                decide(
-                  issue.id,
-                  { status: 'done' },
-                  [{ who: 'me', text: 'approved and moved this to Done', time: 'now' }],
-                  'you approved it',
-                  `${issueKey(issue.id)} approved · Done`,
-                )
+                void approveIssue(client, workspaceId, issue.id, review?.pullRequest ? review.run.id : null)
               }
-              style={styles.primary}>
-              <AppText style={styles.primaryText}>Approve</AppText>
+              style={[styles.primary, busyAction && styles.disabled]}>
+              {busyAction ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <AppText style={styles.primaryText}>Approve</AppText>
+              )}
             </Pressable>
           </View>
         ) : null}
-        {showReview && sendBack ? (
+
+        {showReview && sendBackOpen && client && workspaceId ? (
           <View style={styles.stack}>
             <TextInput
               value={note}
@@ -256,84 +363,59 @@ export function IssueScreen() {
               style={styles.input}
             />
             <View style={styles.barRow}>
-              <Pressable onPress={() => { setSendBack(false); setNote(''); }} style={styles.secondary}>
+              <Pressable
+                onPress={() => {
+                  setSendBackOpen(false);
+                  setNote('');
+                }}
+                style={styles.secondary}>
                 <AppText>Cancel</AppText>
               </Pressable>
               <Pressable
-                onPress={() => {
-                  const text = note.trim();
-                  if (!text) return;
-                  decide(
-                    issue.id,
-                    { status: 'todo' },
-                    [
-                      { who: 'me', text: `sent this back: “${text}”`, time: 'now' },
-                      { who: 'berry', text: `queued a new run for ${agent.name}`, time: 'now' },
-                    ],
-                    'you sent it back',
-                    `${issueKey(issue.id)} sent back to ${agent.name}`,
-                  );
-                  setSendBack(false);
-                  setNote('');
+                disabled={!note.trim() || busyAction}
+                onPress={async () => {
+                  const ok = await sendBack(client, workspaceId, issue.id, note);
+                  if (ok) {
+                    setSendBackOpen(false);
+                    setNote('');
+                  }
                 }}
-                style={[styles.primary, !note.trim() && styles.disabled]}>
+                style={[styles.primary, (!note.trim() || busyAction) && styles.disabled]}>
                 <AppText style={styles.primaryText}>Send back</AppText>
               </Pressable>
             </View>
           </View>
         ) : null}
-        {showApproval ? (
+
+        {showApproval && pendingApproval && client && workspaceId ? (
           <View style={styles.barRow}>
             <Pressable
-              onPress={() =>
-                decide(
-                  issue.id,
-                  { status: 'backlog' },
-                  [{ who: 'me', text: 'declined the start', time: 'now' }],
-                  'you declined the start',
-                  'Declined · stays in Backlog',
-                )
-              }
-              style={styles.secondary}>
-              <AppText>Decline</AppText>
+              disabled={busyAction}
+              onPress={() => void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'reject')}
+              style={[styles.secondary, busyAction && styles.disabled]}>
+              <AppText>Reject</AppText>
             </Pressable>
             <Pressable
-              onPress={() =>
-                decide(
-                  issue.id,
-                  { status: 'in_progress' },
-                  [
-                    { who: 'me', text: 'approved the start', time: 'now' },
-                    { who: 'berry', text: `started a run for ${agent.name}`, time: 'now' },
-                  ],
-                  'you approved the start',
-                  `${agent.name} started ${issueKey(issue.id)}`,
-                )
-              }
-              style={styles.primary}>
-              <AppText style={styles.primaryText}>Start</AppText>
+              disabled={busyAction}
+              onPress={() => void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'approve')}
+              style={[styles.primary, busyAction && styles.disabled]}>
+              <AppText style={styles.primaryText}>Approve</AppText>
             </Pressable>
           </View>
         ) : null}
-        {showFailed ? (
+
+        {showRetry && client && workspaceId ? (
           <Pressable
-            onPress={() =>
-              decide(
-                issue.id,
-                { status: 'in_progress' },
-                [
-                  { who: 'me', text: 'ran it again', time: 'now' },
-                  { who: 'berry', text: `started a run for ${agent.name}`, time: 'now' },
-                ],
-                'you ran it again',
-                `Run restarted on ${issueKey(issue.id)}`,
-              )
-            }
-            style={styles.primary}>
-            <AppText style={styles.primaryText}>Run again</AppText>
+            disabled={busyAction}
+            onPress={() => void retryRun(client, workspaceId, issue.id)}
+            style={[styles.retryBar, busyAction && styles.disabled]}>
+            <AppText size={13} tone="azure">
+              Restart agent run
+            </AppText>
           </Pressable>
         ) : null}
-        {composer ? (
+
+        {!showReview && !showApproval ? (
           <View style={styles.composer}>
             <TextInput
               value={draft}
@@ -341,24 +423,20 @@ export function IssueScreen() {
               placeholder="Comment or @mention an agent"
               placeholderTextColor={colors.ash}
               style={styles.comment}
-              onSubmitEditing={() => {
-                comment(issue.id, draft);
-                setDraft('');
-              }}
+              editable={!busyAction}
+              onSubmitEditing={() => void handleComment()}
             />
             <Pressable
               accessibilityLabel="Send"
-              onPress={() => {
-                comment(issue.id, draft);
-                setDraft('');
-              }}
-              style={styles.send}>
+              disabled={!draft.trim() || busyAction}
+              onPress={() => void handleComment()}
+              style={[styles.send, (!draft.trim() || busyAction) && styles.disabled]}>
               <Icon name="send" size={18} />
             </Pressable>
           </View>
         ) : null}
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -386,7 +464,14 @@ function Callout({ title, children, tone }: { title: string; children: string | 
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.void },
-  missing: { flex: 1, backgroundColor: colors.void, alignItems: 'center', justifyContent: 'center' },
+  missing: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorBox: { alignItems: 'center', gap: 12 },
+  retryBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colors.berry,
+  },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, minHeight: 48 },
   back: { flexDirection: 'row', alignItems: 'center', minWidth: 72 },
   navActions: { flexDirection: 'row', gap: 16, minWidth: 72, justifyContent: 'flex-end' },
@@ -398,21 +483,26 @@ const styles = StyleSheet.create({
   propValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   callout: { gap: 6, padding: 12, borderRadius: 12, backgroundColor: '#1C1811', borderWidth: 1, borderColor: 'rgba(217,164,65,0.35)' },
   calloutDanger: { backgroundColor: '#241616', borderColor: 'rgba(224,106,88,0.4)' },
-  question: { gap: 8 },
-  option: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.line },
-  resolved: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   block: { gap: 8 },
   card: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: colors.base, borderWidth: 1, borderColor: colors.hair },
   prTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   copy: { flex: 1 },
   activity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  bar: { borderTopWidth: 1, borderTopColor: colors.hair, padding: 12, backgroundColor: colors.ink },
+  bar: { borderTopWidth: 1, borderTopColor: colors.hair, padding: 12, backgroundColor: colors.ink, gap: 8 },
   barRow: { flexDirection: 'row', gap: 8 },
   stack: { gap: 8 },
   secondary: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   primary: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: colors.berry, alignItems: 'center', justifyContent: 'center' },
   primaryText: { color: colors.white },
   disabled: { opacity: 0.45 },
+  retryBar: {
+    minHeight: 36,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(90,146,201,0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   input: { minHeight: 72, color: colors.chalk, fontSize: 14, textAlignVertical: 'top' },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   comment: { flex: 1, minHeight: 44, color: colors.chalk, fontSize: 14 },

@@ -1,32 +1,86 @@
 import { router } from 'expo-router';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { splitMyIssues } from '@/api/issues';
 import { Avatar } from '@/components/avatar';
+import { BerryMark, StatusMark } from '@/components/berry-mark';
 import { Fab } from '@/components/fab';
 import { Icon } from '@/components/icon';
 import { PriorityBars } from '@/components/priority-bars';
 import { HeaderIconButton, ScreenHeader } from '@/components/screen-header';
 import { Segmented } from '@/components/segmented';
-import { StatusMark } from '@/components/berry-mark';
 import { AppText } from '@/components/text';
-import { STATUS, STATUS_ORDER, issueKey } from '@/data/people';
-import { useApp } from '@/store/app-store';
+import {
+  STATUS_META,
+  STATUS_ORDER_UI,
+  actorFromRef,
+  mapApiPriority,
+  mapApiStatus,
+} from '@/model/mappers';
+import { useAuthStore } from '@/store/auth-store';
+import { useIssuesStore } from '@/store/issues-store';
+import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
 export function TasksScreen() {
   const insets = useSafeAreaInsets();
-  const issues = useApp((state) => state.issues);
-  const mineTab = useApp((state) => state.mineTab);
-  const setMineTab = useApp((state) => state.setMineTab);
-  const assigned = issues.filter((issue) => issue.assignee === 'me');
-  const created = issues.filter((issue) => issue.createdBy === 'me');
+  const client = useAuthStore((state) => state.client);
+  const user = useAuthStore((state) => state.user);
+  const boards = useWorkspaceStore((state) => state.boards);
+  const workspaceLoading = useWorkspaceStore((state) => state.loading);
+
+  const issues = useIssuesStore((state) => state.issues);
+  const mineTab = useIssuesStore((state) => state.mineTab);
+  const loading = useIssuesStore((state) => state.loading);
+  const refreshing = useIssuesStore((state) => state.refreshing);
+  const error = useIssuesStore((state) => state.error);
+  const setMineTab = useIssuesStore((state) => state.setMineTab);
+  const loadIssues = useIssuesStore((state) => state.loadIssues);
+
+  const boardIdsKey = boards.map((b) => b.id).join(',');
+
+  useEffect(() => {
+    if (!client || boards.length === 0) return;
+    void loadIssues(
+      client,
+      boards.map((b) => b.id),
+    );
+  }, [client, boardIdsKey, boards, loadIssues]);
+
+  const { assigned, created } = useMemo(
+    () => (user ? splitMyIssues(issues, user.id) : { assigned: [], created: [] }),
+    [issues, user],
+  );
   const scoped = mineTab === 'assigned' ? assigned : created;
-  const groups = STATUS_ORDER.map((status) => ({
-    status,
-    label: STATUS[status].label,
-    rows: scoped.filter((issue) => issue.status === status),
-  })).filter((group) => group.rows.length > 0);
+
+  const groups = useMemo(
+    () =>
+      STATUS_ORDER_UI.map((status) => ({
+        status,
+        label: STATUS_META[status].label,
+        rows: scoped.filter((issue) => mapApiStatus(issue.status) === status),
+      })).filter((group) => group.rows.length > 0),
+    [scoped],
+  );
+
+  const onRefresh = () => {
+    if (!client || boards.length === 0) return;
+    void loadIssues(
+      client,
+      boards.map((b) => b.id),
+      { silent: true },
+    );
+  };
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -48,37 +102,87 @@ export function TasksScreen() {
           onChange={setMineTab}
         />
       </View>
-      <ScrollView contentContainerStyle={styles.list}>
-        {groups.map((group) => (
-          <View key={group.status}>
-            <View style={styles.group}>
-              <StatusMark status={group.status} />
-              <AppText size={13} weight="medium">
-                {group.label}
+      <ScrollView
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
+        {error ? (
+          <View style={styles.errorCard}>
+            <AppText size={14} weight="medium" tone="danger">
+              Could not load tasks
+            </AppText>
+            <AppText size={13} tone="ash">
+              {error}
+            </AppText>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (client && boards.length > 0) {
+                  void loadIssues(
+                    client,
+                    boards.map((b) => b.id),
+                  );
+                }
+              }}
+              style={styles.retryBtn}>
+              <AppText size={13} weight="medium" style={styles.retryText}>
+                Retry
               </AppText>
-              <AppText size={12} tone="ash">
-                {group.rows.length}
-              </AppText>
-            </View>
-            {group.rows.map((issue) => (
-              <Pressable
-                key={issue.id}
-                accessibilityRole="button"
-                android_ripple={{ color: colors.hair }}
-                onPress={() => router.push({ pathname: '/issue/[id]', params: { id: issue.id } })}
-                style={styles.row}>
-                <View style={styles.copy}>
-                  <AppText size={12} tone="ash">
-                    {issueKey(issue.id)}
-                  </AppText>
-                  <AppText size={14}>{issue.title}</AppText>
-                </View>
-                <PriorityBars priority={issue.priority} />
-                <Avatar id={issue.assignee} />
-              </Pressable>
-            ))}
+            </Pressable>
           </View>
-        ))}
+        ) : null}
+
+        {!error && (loading || workspaceLoading) && issues.length === 0 ? (
+          <View style={styles.empty}>
+            <ActivityIndicator color={colors.berry} />
+          </View>
+        ) : null}
+
+        {!error
+          ? groups.map((group) => (
+              <View key={group.status}>
+                <View style={styles.group}>
+                  <StatusMark status={group.status} />
+                  <AppText size={13} weight="medium">
+                    {group.label}
+                  </AppText>
+                  <AppText size={12} tone="ash">
+                    {group.rows.length}
+                  </AppText>
+                </View>
+                {group.rows.map((issue) => (
+                  <Pressable
+                    key={issue.id}
+                    accessibilityRole="button"
+                    android_ripple={{ color: colors.hair }}
+                    onPress={() => router.push({ pathname: '/issue/[id]', params: { id: issue.id } })}
+                    style={styles.row}>
+                    <View style={styles.copy}>
+                      <AppText size={12} tone="ash">
+                        {issue.identifier}
+                      </AppText>
+                      <AppText size={14}>{issue.title}</AppText>
+                    </View>
+                    <PriorityBars priority={mapApiPriority(issue.priority)} />
+                    <Avatar actor={actorFromRef(issue.assignee)} />
+                  </Pressable>
+                ))}
+              </View>
+            ))
+          : null}
+
+        {!error && !loading && !workspaceLoading && groups.length === 0 ? (
+          <View style={styles.empty}>
+            <BerryMark size={32} dot={colors.ash} />
+            <AppText size={15} weight="medium">
+              No tasks here yet
+            </AppText>
+            <AppText size={13} tone="ash" style={styles.center}>
+              {mineTab === 'assigned'
+                ? 'Tasks assigned to you appear here.'
+                : 'Tasks you create in this workspace appear here.'}
+            </AppText>
+          </View>
+        ) : null}
       </ScrollView>
       {Platform.OS === 'android' ? <Fab label="New task" onPress={() => router.push('/compose')} /> : null}
     </View>
@@ -88,7 +192,7 @@ export function TasksScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.void },
   pad: { paddingHorizontal: 16, paddingBottom: 8 },
-  list: { paddingBottom: 32 },
+  list: { paddingBottom: 96 },
   group: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -107,4 +211,24 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hair,
   },
   copy: { flex: 1, gap: 2 },
+  empty: { alignItems: 'center', gap: 10, paddingHorizontal: 32, paddingTop: 64 },
+  center: { textAlign: 'center' },
+  errorCard: {
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#241616',
+    borderWidth: 1,
+    borderColor: 'rgba(224,106,88,0.4)',
+    gap: 8,
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+    marginTop: 4,
+  },
+  retryText: { color: colors.white },
 });
