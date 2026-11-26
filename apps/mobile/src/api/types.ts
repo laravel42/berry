@@ -154,6 +154,14 @@ export type ApiIssueStatus =
 
 export type ApiIssuePriority = 'none' | 'low' | 'medium' | 'high' | 'urgent';
 
+export type ApiIssueLabel = {
+  id: string;
+  name: string;
+  color: string;
+  description: string | null;
+  archivedAt: string | null;
+};
+
 export type ApiIssue = {
   id: string;
   boardId: string;
@@ -170,6 +178,11 @@ export type ApiIssue = {
   activeRunId: string | null;
   project?: { id: string; name: string } | null;
   milestone?: { id: string; title: string } | null;
+  repository?: { provider?: string | null; fullName?: string | null; name?: string | null } | null;
+  cycleId?: string | null;
+  parentId?: string | null;
+  childTotal?: number;
+  childDone?: number;
   createdBy: ApiActorRef | null;
   createdAt: string;
   updatedAt: string;

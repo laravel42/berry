@@ -17,7 +17,7 @@ const PATHS = {
   arrowLeft: 'M19 12H5M12 19l-7-7 7-7',
   close: 'M18 6 6 18M6 6l12 12',
   search: 'M21 21l-4.3-4.3M19 11a8 8 0 1 1-16 0a8 8 0 1 1 16 0',
-  send: 'M22 2 11 13M22 2l-7 20-4-9-9-4z',
+  send: 'M12 19V5M5 12l7-7 7 7',
   mic: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3',
   micOff: 'M2 2l20 20M18.89 13.23A7 7 0 0 0 19 12v-2M5 10v2a7 7 0 0 0 12 5M15 9.34V5a3 3 0 0 0-5.68-1.33M9 9v3a3 3 0 0 0 5.12 2.12M12 19v3',
   cam: 'M16 13l5.22 3.48a.5.5 0 0 0 .78-.42V7.94a.5.5 0 0 0-.76-.43L16 10.5M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
@@ -57,15 +57,22 @@ type Props = {
   size?: number;
   color?: string;
   fill?: boolean;
+  strokeWidth?: number;
 };
 
-export function Icon({ name, size = 22, color = colors.chalk, fill = false }: Props) {
+export function Icon({
+  name,
+  size = 22,
+  color = colors.chalk,
+  fill = false,
+  strokeWidth = 1.8,
+}: Props) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d={PATHS[name]}
         stroke={fill ? 'none' : color}
-        strokeWidth={1.8}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill={fill ? color : 'none'}

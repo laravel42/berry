@@ -1,9 +1,10 @@
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Linking,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ApiIssuePriority } from '@/api/types';
 import { Avatar } from '@/components/avatar';
 import { StatusMark } from '@/components/berry-mark';
 import { Icon } from '@/components/icon';
@@ -27,7 +29,9 @@ import {
   formatRelativeTime,
   mapApiPriority,
   mapApiStatus,
+  mapUiStatusToApi,
   type ActorView,
+  type IssueStatusUi,
 } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
@@ -36,16 +40,71 @@ import { colors, fonts, radii } from '@/theme/tokens';
 
 type TimelineRow = {
   id: string;
+  kind: 'comment' | 'event';
   actor: ActorView;
   text: string;
   occurredAt: string;
 };
 
+type ActivityFilter = 'all' | 'comments';
+
+const STATUS_PICKER_ORDER: IssueStatusUi[] = [
+  'backlog',
+  'todo',
+  'in_progress',
+  'in_review',
+  'blocked',
+  'done',
+  'cancelled',
+];
+
+const PRIORITY_PICKER_ORDER: ApiIssuePriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
+
+const SHORT_MONTHS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+];
+
+function formatShortDate(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  if (dateOnly) {
+    const year = Number(dateOnly[1]);
+    const month = SHORT_MONTHS[Number(dateOnly[2]) - 1] ?? '';
+    const day = Number(dateOnly[3]);
+    const currentYear = new Date().getFullYear();
+    return year === currentYear ? `${month} ${day}` : `${month} ${day}, ${year}`;
+  }
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return '';
+  const d = new Date(ts);
+  const month = SHORT_MONTHS[d.getMonth()] ?? '';
+  const day = d.getDate();
+  const year = d.getFullYear();
+  const currentYear = new Date().getFullYear();
+  return year === currentYear ? `${month} ${day}` : `${month} ${day}, ${year}`;
+}
+
 function describeActivity(type: string, status: string | null, changedFields: string[]): string {
   if (type === 'issue.created') return 'created this task';
+  if (type === 'issue.labels_changed' || type === 'issue.labels.updated') return 'updated labels';
+  if (type === 'issue.assigned' || type === 'issue.assignee_changed') return 'changed assignee';
   if (status) return `moved this to ${STATUS_META[mapApiStatus(status)].label}`;
   if (changedFields.length > 0) return `updated ${changedFields.join(', ')}`;
-  return type.replaceAll('.', ' ');
+  return type
+    .replace(/^issue[._]/, '')
+    .replace(/[._]+/g, ' ')
+    .trim();
 }
 
 export function IssueScreen() {
@@ -58,6 +117,7 @@ export function IssueScreen() {
   const fallbackIssue = useIssuesStore((state) => state.issues.find((item) => item.id === id));
   const busyAction = useIssuesStore((state) => state.busyAction);
   const loadIssueDetail = useIssuesStore((state) => state.loadIssueDetail);
+  const updateIssue = useIssuesStore((state) => state.updateIssue);
   const addComment = useIssuesStore((state) => state.addComment);
   const approveIssue = useIssuesStore((state) => state.approveIssue);
   const sendBack = useIssuesStore((state) => state.sendBack);
@@ -70,6 +130,8 @@ export function IssueScreen() {
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const [note, setNote] = useState('');
   const [draft, setDraft] = useState('');
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
+  const [picker, setPicker] = useState<'status' | 'priority' | null>(null);
 
   useEffect(() => {
     if (!client || !workspaceId || !id) return;
@@ -77,6 +139,7 @@ export function IssueScreen() {
   }, [client, workspaceId, id, loadIssueDetail]);
 
   const issue = detail?.issue?.id ? detail.issue : fallbackIssue;
+  const labels = detail?.labels ?? [];
   const pendingApproval = detail?.approvals.find((a) => a.status === 'pending') ?? null;
   const review = detail?.review ?? null;
 
@@ -85,6 +148,7 @@ export function IssueScreen() {
     for (const comment of detail?.comments ?? []) {
       rows.push({
         id: `comment-${comment.id}`,
+        kind: 'comment',
         actor: actorFromRef(comment.author),
         text: comment.body,
         occurredAt: comment.createdAt,
@@ -103,6 +167,7 @@ export function IssueScreen() {
         : UNASSIGNED_ACTOR;
       rows.push({
         id: `act-${act.id}`,
+        kind: 'event',
         actor,
         text: describeActivity(act.type, act.status, act.changedFields),
         occurredAt: act.occurredAt,
@@ -111,13 +176,30 @@ export function IssueScreen() {
     return rows.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
   }, [detail?.comments, detail?.activity]);
 
+  const commentCount = useMemo(
+    () => timeline.filter((entry) => entry.kind === 'comment').length,
+    [timeline],
+  );
+
+  const visibleTimeline = useMemo(
+    () =>
+      activityFilter === 'comments'
+        ? timeline.filter((entry) => entry.kind === 'comment')
+        : timeline,
+    [timeline, activityFilter],
+  );
+
   const close = () => router.back();
 
   if (!issue) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.nav}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={close} style={styles.back}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            onPress={close}
+            style={styles.back}>
             <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
             {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
           </Pressable>
@@ -153,7 +235,22 @@ export function IssueScreen() {
   const assigneeActor = actorFromRef(issue.assignee);
   const showReview = statusUi === 'in_review';
   const showApproval = Boolean(pendingApproval) && !showReview;
-  const showRetry = !showReview && !showApproval && issue.assignee?.type === 'agent' && !issue.activeRunId && statusUi !== 'done' && statusUi !== 'cancelled';
+  const showRetry =
+    !showReview &&
+    !showApproval &&
+    issue.assignee?.type === 'agent' &&
+    !issue.activeRunId &&
+    statusUi !== 'done' &&
+    statusUi !== 'cancelled';
+
+  const repoName = issue.repository?.fullName || issue.repository?.name || null;
+  const childTotal = issue.childTotal ?? 0;
+  const childDone = issue.childDone ?? 0;
+  const startLabel = formatShortDate(issue.startDate);
+  const dueLabel = formatShortDate(issue.dueDate);
+  const datesText = [startLabel ? `Start ${startLabel}` : null, dueLabel ? `Due ${dueLabel}` : null]
+    .filter(Boolean)
+    .join(' · ');
 
   const handleComment = async () => {
     if (!client || !draft.trim() || busyAction) return;
@@ -161,12 +258,175 @@ export function IssueScreen() {
     if (ok) setDraft('');
   };
 
+  const handleStatusSelect = (next: IssueStatusUi) => {
+    setPicker(null);
+    if (!client || next === statusUi) return;
+    void updateIssue(client, issue.id, { status: mapUiStatusToApi(next) });
+  };
+
+  const handlePrioritySelect = (next: ApiIssuePriority) => {
+    setPicker(null);
+    if (!client || next === priorityUi) return;
+    void updateIssue(client, issue.id, { priority: next });
+  };
+
+  const propertyRows: { key: string; node: ReactNode }[] = [
+    {
+      key: 'status',
+      node: (
+        <PropRow
+          label="Status"
+          onPress={client && !busyAction ? () => setPicker('status') : undefined}
+          chevron>
+          <StatusMark status={statusUi} />
+          <AppText size={13}>{statusMeta.label}</AppText>
+        </PropRow>
+      ),
+    },
+    {
+      key: 'priority',
+      node: (
+        <PropRow
+          label="Priority"
+          onPress={client && !busyAction ? () => setPicker('priority') : undefined}
+          chevron>
+          <PriorityBars priority={priorityUi} />
+          <AppText size={13}>{PRIORITY_META[priorityUi].label}</AppText>
+        </PropRow>
+      ),
+    },
+    {
+      key: 'assignee',
+      node: (
+        <PropRow label="Assignee">
+          <Avatar actor={assigneeActor} size={22} />
+          <AppText size={13}>{assigneeActor.name}</AppText>
+          {assigneeActor.type === 'agent' ? (
+            <View style={styles.metaPill}>
+              <AppText mono size={10} weight="medium" tone="ash">
+                Agent
+              </AppText>
+            </View>
+          ) : null}
+        </PropRow>
+      ),
+    },
+  ];
+
+  if (issue.project) {
+    const project = issue.project;
+    propertyRows.push({
+      key: 'project',
+      node: (
+        <PropRow
+          label="Project"
+          onPress={() => router.push(`/project/${project.id}` as Href)}
+          chevron>
+          <AppText size={13} numberOfLines={1}>
+            {project.name}
+          </AppText>
+        </PropRow>
+      ),
+    });
+  }
+
+  if (issue.milestone) {
+    propertyRows.push({
+      key: 'milestone',
+      node: (
+        <PropRow label="Milestone">
+          <AppText size={13} numberOfLines={1}>
+            {issue.milestone.title}
+          </AppText>
+        </PropRow>
+      ),
+    });
+  }
+
+  if (labels.length > 0) {
+    propertyRows.push({
+      key: 'labels',
+      node: (
+        <PropRow label="Labels" alignTop>
+          <View style={styles.labelsWrap}>
+            {labels.map((label) => (
+              <View key={label.id} style={styles.labelChip}>
+                <View style={[styles.labelDot, { backgroundColor: label.color }]} />
+                <AppText size={11} tone="chalk">
+                  {label.name}
+                </AppText>
+              </View>
+            ))}
+          </View>
+        </PropRow>
+      ),
+    });
+  }
+
+  if (datesText) {
+    propertyRows.push({
+      key: 'dates',
+      node: (
+        <PropRow label="Dates">
+          <AppText mono size={12} tone="chalk">
+            {datesText}
+          </AppText>
+        </PropRow>
+      ),
+    });
+  }
+
+  if (repoName) {
+    propertyRows.push({
+      key: 'repository',
+      node: (
+        <PropRow label="Repository">
+          <AppText mono size={12} tone="chalk" numberOfLines={1}>
+            {repoName}
+          </AppText>
+        </PropRow>
+      ),
+    });
+  }
+
+  if (childTotal > 0) {
+    propertyRows.push({
+      key: 'subtasks',
+      node: (
+        <PropRow label="Sub-tasks">
+          <AppText mono size={12} tone="chalk">
+            {`${childDone}/${childTotal} done`}
+          </AppText>
+        </PropRow>
+      ),
+    });
+  }
+
+  if (issue.autoGate) {
+    propertyRows.push({
+      key: 'autogate',
+      node: (
+        <PropRow label="AutoGate">
+          <View style={styles.metaPill}>
+            <AppText mono size={10} weight="medium" tone="ash">
+              Enabled
+            </AppText>
+          </View>
+        </PropRow>
+      ),
+    });
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.screen, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.nav}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={close} style={styles.back}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={close}
+          style={styles.back}>
           <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
           {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
         </Pressable>
@@ -198,32 +458,30 @@ export function IssueScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.body}>
-        <AppText size={12} tone="ash">
-          {issue.project?.name ?? 'Workspace'}
-          {issue.createdBy ? ` · opened by ${issue.createdBy.name}` : ''}
-        </AppText>
-        <AppText size={22} weight="medium" style={styles.title}>
-          {issue.title}
-        </AppText>
+        <View style={styles.headerBlock}>
+          <AppText size={12} tone="ash">
+            {issue.project?.name ?? 'Workspace'}
+            {issue.createdBy ? ` · opened by ${issue.createdBy.name}` : ''}
+          </AppText>
+          <AppText size={22} weight="medium" style={styles.title}>
+            {issue.title}
+          </AppText>
+        </View>
 
-        <View style={styles.props}>
-          <Prop label="Status">
-            <StatusMark status={statusUi} />
-            <AppText size={13}>{statusMeta.label}</AppText>
-          </Prop>
-          <Prop label="Priority">
-            <PriorityBars priority={priorityUi} />
-            <AppText size={13}>{PRIORITY_META[priorityUi].label}</AppText>
-          </Prop>
-          <Prop label="Assignee">
-            <Avatar actor={assigneeActor} size={22} />
-            <AppText size={13}>{assigneeActor.name}</AppText>
-          </Prop>
-          {issue.project ? (
-            <Prop label="Project">
-              <AppText size={13}>{issue.project.name}</AppText>
-            </Prop>
-          ) : null}
+        <View style={styles.block}>
+          <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+            PROPERTIES
+          </AppText>
+          <View style={styles.propsCard}>
+            {propertyRows.map((row, index) => (
+              <View key={row.key} style={index > 0 ? styles.propDivider : undefined}>
+                {row.node}
+              </View>
+            ))}
+          </View>
+          <AppText mono size={11} tone="slate" style={styles.timestamps}>
+            {`Created ${formatShortDate(issue.createdAt)} · Updated ${formatRelativeTime(issue.updatedAt)}`}
+          </AppText>
         </View>
 
         {showReview ? (
@@ -234,7 +492,8 @@ export function IssueScreen() {
 
         {pendingApproval ? (
           <Callout tone="berryText" title={`Approval needed · ${pendingApproval.title}`}>
-            {pendingApproval.description ?? 'This task is waiting on your approval before proceeding.'}
+            {pendingApproval.description ??
+              'This task is waiting on your approval before proceeding.'}
           </Callout>
         ) : null}
 
@@ -271,7 +530,8 @@ export function IssueScreen() {
                 ) : null}
               </View>
               <AppText mono size={11} tone="slate">
-                {review.delivery.filesChanged} files · +{review.delivery.insertions} · −{review.delivery.deletions}
+                {review.delivery.filesChanged} files · +{review.delivery.insertions} · −
+                {review.delivery.deletions}
               </AppText>
               {review.checks ? (
                 <AppText size={12} tone={review.checks.passed ? 'ash' : 'danger'}>
@@ -287,7 +547,9 @@ export function IssueScreen() {
             <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
               HANDOFF SUMMARY
             </AppText>
-            <AppText size={14}>{review.run.summary}</AppText>
+            <View style={styles.card}>
+              <AppText size={14}>{review.run.summary}</AppText>
+            </View>
           </View>
         ) : null}
 
@@ -296,34 +558,105 @@ export function IssueScreen() {
             <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
               DESCRIPTION
             </AppText>
-            <AppText size={14}>{issue.description}</AppText>
+            <View style={styles.card}>
+              <AppText size={14} style={styles.descriptionText}>
+                {issue.description}
+              </AppText>
+            </View>
           </View>
         ) : null}
 
         <View style={styles.block}>
-          <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
-            ACTIVITY
-          </AppText>
+          <View style={styles.activityHeader}>
+            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              ACTIVITY
+            </AppText>
+            <View style={styles.filterGroup}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: activityFilter === 'all' }}
+                onPress={() => setActivityFilter('all')}
+                style={[styles.filterPill, activityFilter === 'all' && styles.filterPillActive]}>
+                <AppText
+                  mono
+                  size={11}
+                  weight={activityFilter === 'all' ? 'medium' : 'regular'}
+                  tone={activityFilter === 'all' ? 'chalk' : 'slate'}>
+                  {`All · ${timeline.length}`}
+                </AppText>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ selected: activityFilter === 'comments' }}
+                onPress={() => setActivityFilter('comments')}
+                style={[
+                  styles.filterPill,
+                  activityFilter === 'comments' && styles.filterPillActive,
+                ]}>
+                <AppText
+                  mono
+                  size={11}
+                  weight={activityFilter === 'comments' ? 'medium' : 'regular'}
+                  tone={activityFilter === 'comments' ? 'chalk' : 'slate'}>
+                  {`Comments · ${commentCount}`}
+                </AppText>
+              </Pressable>
+            </View>
+          </View>
+
           {detail?.loading && timeline.length === 0 ? (
             <ActivityIndicator color={colors.berry} />
           ) : null}
-          {timeline.map((entry) => (
-            <View key={entry.id} style={styles.activity}>
-              <Avatar actor={entry.actor} size={24} />
-              <AppText size={13} style={styles.copy}>
-                <AppText size={13} weight="medium">
-                  {entry.actor.name}{' '}
-                </AppText>
-                {entry.text}
-              </AppText>
-              <AppText mono size={11} tone="slate">
-                {formatRelativeTime(entry.occurredAt)}
-              </AppText>
-            </View>
-          ))}
-          {!detail?.loading && timeline.length === 0 ? (
+
+          <View style={styles.timelineList}>
+            {visibleTimeline.map((entry) =>
+              entry.kind === 'comment' ? (
+                <View key={entry.id} style={styles.commentCard}>
+                  <View style={styles.commentHeader}>
+                    <Avatar actor={entry.actor} size={24} />
+                    <View style={styles.commentAuthorWrap}>
+                      <AppText size={13} weight="medium" tone="chalk" numberOfLines={1}>
+                        {entry.actor.name}
+                      </AppText>
+                      {entry.actor.type === 'agent' ? (
+                        <View style={styles.metaPill}>
+                          <AppText mono size={10} weight="medium" tone="ash">
+                            Agent
+                          </AppText>
+                        </View>
+                      ) : null}
+                    </View>
+                    <AppText mono size={11} tone="slate">
+                      {formatRelativeTime(entry.occurredAt)}
+                    </AppText>
+                  </View>
+                  <AppText size={14} tone="chalk" style={styles.commentBody}>
+                    {entry.text}
+                  </AppText>
+                </View>
+              ) : (
+                <View key={entry.id} style={styles.eventRow}>
+                  <View style={styles.eventRailCol}>
+                    <View style={styles.eventRailLine} />
+                    <View style={styles.eventDot} />
+                  </View>
+                  <AppText size={12} tone="slate" style={styles.copy}>
+                    <AppText size={12} weight="medium" tone="ash">
+                      {entry.actor.name}{' '}
+                    </AppText>
+                    {entry.text}
+                  </AppText>
+                  <AppText mono size={11} tone="slate">
+                    {formatRelativeTime(entry.occurredAt)}
+                  </AppText>
+                </View>
+              ),
+            )}
+          </View>
+
+          {!detail?.loading && visibleTimeline.length === 0 ? (
             <AppText size={13} tone="slate">
-              No comments or activity yet.
+              {activityFilter === 'comments' ? 'No comments yet.' : 'No comments or activity yet.'}
             </AppText>
           ) : null}
         </View>
@@ -343,7 +676,12 @@ export function IssueScreen() {
               accessibilityRole="button"
               disabled={busyAction}
               onPress={() =>
-                void approveIssue(client, workspaceId, issue.id, review?.pullRequest ? review.run.id : null)
+                void approveIssue(
+                  client,
+                  workspaceId,
+                  issue.id,
+                  review?.pullRequest ? review.run.id : null,
+                )
               }
               style={[styles.primary, busyAction && styles.disabled]}>
               {busyAction ? (
@@ -398,13 +736,17 @@ export function IssueScreen() {
           <View style={styles.barRow}>
             <Pressable
               disabled={busyAction}
-              onPress={() => void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'reject')}
+              onPress={() =>
+                void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'reject')
+              }
               style={[styles.secondary, busyAction && styles.disabled]}>
               <AppText weight="medium">Reject</AppText>
             </Pressable>
             <Pressable
               disabled={busyAction}
-              onPress={() => void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'approve')}
+              onPress={() =>
+                void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'approve')
+              }
               style={[styles.primary, busyAction && styles.disabled]}>
               <AppText weight="medium" style={styles.primaryText}>
                 Approve
@@ -440,24 +782,133 @@ export function IssueScreen() {
               disabled={!draft.trim() || busyAction}
               onPress={() => void handleComment()}
               style={[styles.send, (!draft.trim() || busyAction) && styles.disabled]}>
-              <Icon name="send" size={16} color={colors.buttonPrimaryInk} />
+              <Icon name="send" size={18} strokeWidth={2.2} color={colors.buttonPrimaryInk} />
             </Pressable>
           </View>
         ) : null}
       </View>
+
+      <Modal
+        visible={picker !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPicker(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setPicker(null)}>
+          <Pressable
+            style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            onPress={() => undefined}>
+            <View style={styles.sheetGrabber} />
+            <View style={styles.sheetHeader}>
+              <AppText size={15} weight="medium" tone="chalk">
+                {picker === 'status' ? 'Set status' : 'Set priority'}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                onPress={() => setPicker(null)}
+                style={styles.sheetCloseBtn}>
+                <Icon name="close" size={18} color={colors.ash} />
+              </Pressable>
+            </View>
+            <View style={styles.sheetOptions}>
+              {picker === 'status'
+                ? STATUS_PICKER_ORDER.map((candidate) => {
+                    const active = candidate === statusUi;
+                    return (
+                      <Pressable
+                        key={candidate}
+                        accessibilityRole="button"
+                        onPress={() => handleStatusSelect(candidate)}
+                        style={({ pressed }) => [
+                          styles.sheetOption,
+                          active && styles.sheetOptionActive,
+                          pressed && styles.sheetOptionPressed,
+                        ]}>
+                        <StatusMark status={candidate} />
+                        <AppText
+                          size={14}
+                          weight={active ? 'medium' : 'regular'}
+                          tone="chalk"
+                          style={styles.copy}>
+                          {STATUS_META[candidate].label}
+                        </AppText>
+                        {active ? <Icon name="check" size={16} color={colors.chalk} /> : null}
+                      </Pressable>
+                    );
+                  })
+                : PRIORITY_PICKER_ORDER.map((candidate) => {
+                    const active = candidate === priorityUi;
+                    return (
+                      <Pressable
+                        key={candidate}
+                        accessibilityRole="button"
+                        onPress={() => handlePrioritySelect(candidate)}
+                        style={({ pressed }) => [
+                          styles.sheetOption,
+                          active && styles.sheetOptionActive,
+                          pressed && styles.sheetOptionPressed,
+                        ]}>
+                        <PriorityBars priority={candidate} />
+                        <AppText
+                          size={14}
+                          weight={active ? 'medium' : 'regular'}
+                          tone="chalk"
+                          style={styles.copy}>
+                          {PRIORITY_META[candidate].label}
+                        </AppText>
+                        {active ? <Icon name="check" size={16} color={colors.chalk} /> : null}
+                      </Pressable>
+                    );
+                  })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
-function Prop({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <View style={styles.prop}>
-      <AppText size={12} tone="ash">
+function PropRow({
+  label,
+  children,
+  onPress,
+  chevron = false,
+  alignTop = false,
+}: {
+  label: string;
+  children: ReactNode;
+  onPress?: () => void;
+  chevron?: boolean;
+  alignTop?: boolean;
+}) {
+  const content = (
+    <>
+      <AppText size={12} tone="ash" style={alignTop ? styles.propLabelTop : undefined}>
         {label}
       </AppText>
-      <View style={styles.propValue}>{children}</View>
-    </View>
+      <View style={styles.propRight}>
+        <View style={styles.propValue}>{children}</View>
+        {chevron ? <Icon name="chevronRight" size={14} color={colors.slate} /> : null}
+      </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.prop,
+          alignTop && styles.propAlignTop,
+          pressed && styles.propPressed,
+        ]}>
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={[styles.prop, alignTop && styles.propAlignTop]}>{content}</View>;
 }
 
 function Callout({
@@ -502,19 +953,85 @@ const styles = StyleSheet.create({
   back: { flexDirection: 'row', alignItems: 'center', minWidth: 72 },
   navActions: { flexDirection: 'row', gap: 16, minWidth: 72, justifyContent: 'flex-end' },
   navSpacer: { width: 72 },
-  body: { padding: 16, gap: 14, paddingBottom: 24 },
+  body: { padding: 16, gap: 16, paddingBottom: 24 },
+  headerBlock: { gap: 4 },
   title: { letterSpacing: -0.3 },
   sectionLabel: { letterSpacing: 0.6 },
-  props: { borderTopWidth: 1, borderTopColor: colors.hair },
+  propsCard: {
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    borderRadius: radii.card,
+    overflow: 'hidden',
+  },
+  propDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
+  },
   prop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hair,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
   },
-  propValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  propAlignTop: {
+    alignItems: 'flex-start',
+  },
+  propLabelTop: {
+    paddingTop: 3,
+  },
+  propPressed: {
+    backgroundColor: colors.panel,
+  },
+  propRight: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  propValue: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  metaPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  labelsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  labelChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  labelDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  timestamps: {
+    paddingHorizontal: 2,
+  },
   callout: {
     gap: 6,
     padding: 14,
@@ -533,10 +1050,95 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.hair,
   },
+  descriptionText: {
+    lineHeight: 20,
+  },
   prTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   copy: { flex: 1 },
-  activity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  bar: { borderTopWidth: 1, borderTopColor: colors.hair, padding: 12, backgroundColor: colors.base, gap: 8 },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  filterGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    padding: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  filterPill: {
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterPillActive: {
+    backgroundColor: colors.field,
+    borderColor: colors.line,
+  },
+  timelineList: {
+    gap: 10,
+  },
+  commentCard: {
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    borderRadius: radii.card,
+    padding: 12,
+    gap: 8,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  commentAuthorWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  commentBody: {
+    lineHeight: 20,
+  },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 3,
+  },
+  eventRailCol: {
+    width: 24,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eventRailLine: {
+    position: 'absolute',
+    width: 1,
+    top: -4,
+    bottom: -4,
+    backgroundColor: colors.hair,
+  },
+  eventDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.line,
+  },
+  bar: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
+    padding: 12,
+    backgroundColor: colors.base,
+    gap: 8,
+  },
   barRow: { flexDirection: 'row', gap: 8 },
   stack: { gap: 8 },
   secondary: {
@@ -601,5 +1203,62 @@ const styles = StyleSheet.create({
     backgroundColor: colors.buttonPrimary,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: colors.ink,
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    borderTopWidth: 1,
+    borderColor: colors.hair,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    gap: 10,
+  },
+  sheetGrabber: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.line,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  sheetCloseBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetOptions: {
+    gap: 2,
+    paddingBottom: 6,
+  },
+  sheetOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  sheetOptionActive: {
+    backgroundColor: colors.base,
+    borderColor: colors.hair,
+  },
+  sheetOptionPressed: {
+    opacity: 0.85,
   },
 });

@@ -151,7 +151,7 @@ export function ConversationScreen() {
             {sending ? (
               <ActivityIndicator color={colors.buttonPrimaryInk} size="small" />
             ) : (
-              <Icon name="send" size={16} color={colors.buttonPrimaryInk} />
+              <Icon name="send" size={18} strokeWidth={2.2} color={colors.buttonPrimaryInk} />
             )}
           </Pressable>
         </View>

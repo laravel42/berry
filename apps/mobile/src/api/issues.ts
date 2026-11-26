@@ -3,6 +3,7 @@ import type {
   ApiActivityItem,
   ApiComment,
   ApiIssue,
+  ApiIssueLabel,
   ApiIssuePriority,
   Connection,
 } from '@/api/types';
@@ -126,6 +127,16 @@ export async function listIssueActivity(
 ): Promise<ApiActivityItem[]> {
   const res = await client.get<Connection<ApiActivityItem>>(
     `/api/v1/issues/${encodeURIComponent(issueRef)}/activity?first=50`,
+  );
+  return res.nodes;
+}
+
+export async function listIssueLabels(
+  client: BerryClient,
+  issueRef: string,
+): Promise<ApiIssueLabel[]> {
+  const res = await client.get<Connection<ApiIssueLabel>>(
+    `/api/v1/issues/${encodeURIComponent(issueRef)}/labels`,
   );
   return res.nodes;
 }

@@ -8,6 +8,7 @@ import {
   createIssueComment,
   listAllBoardIssues,
   listBoardIssues,
+  listIssueLabels,
   sendBackIssue,
   splitMyIssues,
 } from './issues';
@@ -176,6 +177,41 @@ describe('issues API', () => {
     const all = await listAllBoardIssues(client, 'board-1');
     expect(seenAfter).toEqual([null, 'cursor-2']);
     expect(all.map((i) => i.id)).toEqual(['i-1', 'i-2', 'i-3']);
+  });
+
+  test('listIssueLabels fetches /api/v1/issues/:ref/labels and returns nodes', async () => {
+    let seenPath = '';
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input) => {
+        seenPath = new URL(String(input)).pathname;
+        return jsonResponse({
+          nodes: [
+            {
+              id: 'lbl-1',
+              name: 'mobile',
+              color: '#C9325C',
+              description: null,
+              archivedAt: null,
+            },
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        });
+      },
+    });
+
+    const labels = await listIssueLabels(client, 'LAR-1');
+    expect(seenPath).toBe('/api/v1/issues/LAR-1/labels');
+    expect(labels).toEqual([
+      {
+        id: 'lbl-1',
+        name: 'mobile',
+        color: '#C9325C',
+        description: null,
+        archivedAt: null,
+      },
+    ]);
   });
 
   test('formatRelativeTime rounds days to match web date-fns formatDistanceToNow', () => {
