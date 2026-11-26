@@ -2,7 +2,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 export type FilterOption<T extends string = string> = {
   id: T;
@@ -35,7 +35,7 @@ export function SearchFilterBar<T extends string = string>({
           value={query}
           onChangeText={onChangeQuery}
           placeholder={placeholder}
-          placeholderTextColor={colors.ash}
+          placeholderTextColor={colors.placeholder}
           autoCapitalize="none"
           autoCorrect={false}
           style={styles.searchInput}
@@ -95,9 +95,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginHorizontal: 16,
-    paddingHorizontal: 12,
-    height: 40,
-    borderRadius: 10,
+    paddingHorizontal: 14,
+    height: 38,
+    borderRadius: radii.pill,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -116,18 +116,18 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1,
   },
   chipActive: {
-    backgroundColor: colors.berry,
-    borderColor: colors.berry,
+    backgroundColor: colors.chalk,
+    borderColor: colors.chalk,
   },
   chipInactive: {
     backgroundColor: colors.base,
     borderColor: colors.hair,
   },
   chipTextActive: {
-    color: colors.white,
+    color: colors.void,
   },
 });

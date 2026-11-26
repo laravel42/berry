@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { AppText } from './text';
 
@@ -37,7 +37,7 @@ export function Segmented<T extends string>({
               <AppText
                 size={13}
                 weight={selected ? 'medium' : 'regular'}
-                tone={selected ? 'chalk' : 'ash'}>
+                tone={selected ? 'chalk' : 'slate'}>
                 {item.label}
               </AppText>
               <View style={[styles.indicator, selected && styles.indicatorActive]} />
@@ -59,7 +59,7 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected }}
             onPress={() => onChange(item.id)}
             style={[styles.item, selected && styles.selected]}>
-            <AppText size={12} weight={selected ? 'medium' : 'regular'} tone={selected ? 'chalk' : 'ash'}>
+            <AppText size={12} weight={selected ? 'medium' : 'regular'} tone={selected ? 'chalk' : 'slate'}>
               {item.label}
             </AppText>
           </Pressable>
@@ -72,8 +72,10 @@ export function Segmented<T extends string>({
 const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
-    backgroundColor: colors.ink,
-    borderRadius: 10,
+    backgroundColor: colors.field,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.hair,
     padding: 3,
     gap: 2,
   },
@@ -82,11 +84,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 32,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     paddingHorizontal: 8,
   },
   selected: {
-    backgroundColor: colors.hair,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
   },
   underlineTrack: {
     flexDirection: 'row',
@@ -109,6 +112,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   indicatorActive: {
-    backgroundColor: colors.berry,
+    backgroundColor: colors.chalk,
   },
 });

@@ -3,7 +3,7 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useToastStore } from '@/store/toast-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { BerryMark } from './berry-mark';
 import { AppText } from './text';
@@ -42,8 +42,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: colors.ink,
-    borderRadius: 999,
+    backgroundColor: colors.panel,
+    borderRadius: radii.pill,
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,

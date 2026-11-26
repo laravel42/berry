@@ -1,6 +1,6 @@
 import { Platform, Pressable, StyleSheet } from 'react-native';
 
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { Icon, type IconName } from './icon';
 
@@ -14,7 +14,7 @@ export function Fab({ label, icon = 'plus', onPress }: Props) {
   if (Platform.OS === 'ios') return null;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.fab}>
-      <Icon name={icon} size={24} color={colors.white} />
+      <Icon name={icon} size={24} color={colors.buttonPrimaryInk} />
     </Pressable>
   );
 }
@@ -26,8 +26,8 @@ const styles = StyleSheet.create({
     bottom: 16,
     width: 56,
     height: 56,
-    borderRadius: 16,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,

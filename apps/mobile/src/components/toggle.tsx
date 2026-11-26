@@ -21,7 +21,7 @@ export function Toggle({
   value,
   onValueChange,
   disabled = false,
-  activeColor = colors.berry,
+  activeColor = colors.settingsAccent,
   accessibilityLabel,
 }: ToggleProps) {
   const [progress] = useState(() => new Animated.Value(value ? 1 : 0));
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   trackOff: {
-    backgroundColor: colors.line,
+    backgroundColor: colors.switchOff,
   },
   disabled: {
     opacity: 0.45,

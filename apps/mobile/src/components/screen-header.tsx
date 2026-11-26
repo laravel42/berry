@@ -3,7 +3,7 @@ import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { BerryMark } from './berry-mark';
 import { Icon } from './icon';
@@ -38,7 +38,7 @@ export function ScreenHeader({ title, action, trailing }: Props) {
             style={styles.androidWsBtn}>
             <BerryMark size={22} />
             <View style={styles.androidCopy}>
-              <AppText size={19} weight="medium" numberOfLines={1}>
+              <AppText mono size={18} weight="semibold" numberOfLines={1}>
                 {title}
               </AppText>
               <View style={styles.wsSubRow}>
@@ -73,7 +73,7 @@ export function ScreenHeader({ title, action, trailing }: Props) {
           {action}
         </View>
         <View style={styles.iosTitleRow}>
-          <AppText size={32} weight="medium" style={styles.iosTitle}>
+          <AppText mono size={24} weight="semibold" style={styles.iosTitle}>
             {title}
           </AppText>
           {trailing}
@@ -95,9 +95,19 @@ export function HeaderIconButton({ label, onPress, children }: { label: string; 
 const styles = StyleSheet.create({
   ios: { paddingHorizontal: 20, paddingBottom: 8, gap: 6 },
   iosTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 36 },
-  wordmark: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  wordmark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
   iosTitleRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
-  iosTitle: { letterSpacing: -0.4 },
+  iosTitle: { letterSpacing: -0.5 },
   android: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -114,6 +124,9 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 18,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
   },
 });

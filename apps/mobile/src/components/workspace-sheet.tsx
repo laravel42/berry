@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { BerryMark } from './berry-mark';
 import { Icon } from './icon';
@@ -45,7 +45,7 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
           <View style={styles.grabber} />
           <View style={styles.header}>
             <View style={styles.copy}>
-              <AppText size={15} weight="medium">
+              <AppText mono size={15} weight="semibold">
                 {user?.name ?? 'Account'}
               </AppText>
               <AppText size={12} tone="ash">
@@ -57,7 +57,7 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
             </Pressable>
           </View>
 
-          <AppText size={12} tone="ash" style={styles.sectionLabel}>
+          <AppText mono size={11} tone="slate" style={styles.sectionLabel}>
             Workspaces
           </AppText>
           <ScrollView style={styles.list}>
@@ -69,16 +69,16 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
                   accessibilityRole="button"
                   onPress={() => void select(ws.id, ws.name)}
                   style={[styles.row, active && styles.rowActive]}>
-                  <BerryMark size={18} dot={active ? colors.berry : colors.ash} />
+                  <BerryMark size={18} dot={active ? colors.berry : colors.slate} />
                   <View style={styles.copy}>
                     <AppText size={14} weight={active ? 'medium' : 'regular'}>
                       {ws.name}
                     </AppText>
-                    <AppText size={11} tone="ash">
+                    <AppText size={11} tone="slate">
                       {ws.slug} · {ws.role}
                     </AppText>
                   </View>
-                  {active ? <Icon name="check" size={16} color={colors.berry} /> : null}
+                  {active ? <Icon name="check" size={16} color={colors.chalk} /> : null}
                 </Pressable>
               );
             })}
@@ -102,9 +102,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: colors.ink,
-    borderTopLeftRadius: 18,
-    borderTopRightRadius: 18,
+    backgroundColor: colors.panel,
+    borderTopLeftRadius: radii.cardLg,
+    borderTopRightRadius: radii.cardLg,
     borderTopWidth: 1,
     borderColor: colors.hair,
     paddingHorizontal: 16,
@@ -116,7 +116,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     width: 36,
     height: 4,
-    borderRadius: 2,
+    borderRadius: radii.pill,
     backgroundColor: colors.line,
   },
   header: {
@@ -127,7 +127,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.hair,
   },
-  closeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   sectionLabel: { paddingTop: 4 },
   list: { maxHeight: 280 },
   row: {
@@ -136,16 +145,21 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 11,
     paddingHorizontal: 10,
-    borderRadius: 10,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  rowActive: { backgroundColor: colors.base },
+  rowActive: {
+    backgroundColor: colors.base,
+    borderColor: colors.hair,
+  },
   copy: { flex: 1, gap: 2 },
   logoutRow: {
     minHeight: 46,
-    borderRadius: 12,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: 'rgba(224,106,88,0.35)',
-    backgroundColor: '#241616',
+    borderColor: 'rgba(255,138,138,0.3)',
+    backgroundColor: colors.base,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 6,
