@@ -17,7 +17,7 @@ import { AppText } from '@/components/text';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 const DEFAULT_ORCHESTRATOR_SUBTITLE =
   'Ask Berry about your workspace, plan tasks, or coordinate work';
@@ -83,7 +83,7 @@ export function NewChatScreen() {
             <Icon name="close" />
           </Pressable>
         )}
-        <AppText size={16} weight="medium">
+        <AppText mono size={16} weight="semibold">
           {ios ? 'New Chat' : 'New chat'}
         </AppText>
         <View style={styles.spacer} />
@@ -96,7 +96,7 @@ export function NewChatScreen() {
             value={topic}
             onChangeText={setTopic}
             placeholder="Optional topic (e.g. Sprint planning)"
-            placeholderTextColor={colors.ash}
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
           />
           {topic.length > 0 ? (
@@ -116,7 +116,7 @@ export function NewChatScreen() {
             value={query}
             onChangeText={setQuery}
             placeholder="Search workspace agents"
-            placeholderTextColor={colors.ash}
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             autoCorrect={false}
           />
@@ -135,7 +135,7 @@ export function NewChatScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>
         {platformAssistants.length > 0 ? (
           <View>
-            <AppText size={11} weight="medium" tone="ash" style={styles.section}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.section}>
               PLATFORM ASSISTANT
             </AppText>
             {platformAssistants.map((agent) => (
@@ -152,7 +152,7 @@ export function NewChatScreen() {
                       {agent.name}
                     </AppText>
                     <View style={styles.berryBadge}>
-                      <AppText size={10} weight="medium" tone="berry">
+                      <AppText mono size={10} weight="medium" tone="berryText">
                         Platform assistant
                       </AppText>
                     </View>
@@ -173,34 +173,36 @@ export function NewChatScreen() {
 
         {otherRoleAgents.length > 0 ? (
           <View>
-            <AppText size={11} weight="medium" tone="ash" style={styles.section}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.section}>
               OTHER ROLE AGENTS
             </AppText>
-            {otherRoleAgents.map((agent) => (
-              <Pressable
-                key={agent.id}
-                accessibilityRole="button"
-                disabled={creatingId !== null}
-                onPress={() => void startNewChat(agent.id)}
-                style={styles.row}>
-                <Avatar actor={agent} size={36} />
-                <View style={styles.copy}>
-                  <AppText size={14} numberOfLines={1}>
-                    {agent.name}
-                  </AppText>
-                  {agent.description ? (
-                    <AppText size={12} tone="ash" numberOfLines={1}>
-                      {agent.description}
+            <View style={styles.agentListCard}>
+              {otherRoleAgents.map((agent, index) => (
+                <Pressable
+                  key={agent.id}
+                  accessibilityRole="button"
+                  disabled={creatingId !== null}
+                  onPress={() => void startNewChat(agent.id)}
+                  style={[styles.row, index > 0 && styles.rowDivider]}>
+                  <Avatar actor={agent} size={36} />
+                  <View style={styles.copy}>
+                    <AppText size={14} weight="medium" numberOfLines={1}>
+                      {agent.name}
                     </AppText>
-                  ) : null}
-                </View>
-                {creatingId === agent.id ? (
-                  <ActivityIndicator color={colors.berry} />
-                ) : (
-                  <Icon name="chevronRight" size={16} color={colors.ash} />
-                )}
-              </Pressable>
-            ))}
+                    {agent.description ? (
+                      <AppText size={12} tone="ash" numberOfLines={1}>
+                        {agent.description}
+                      </AppText>
+                    ) : null}
+                  </View>
+                  {creatingId === agent.id ? (
+                    <ActivityIndicator color={colors.berry} />
+                  ) : (
+                    <Icon name="chevronRight" size={16} color={colors.ash} />
+                  )}
+                </Pressable>
+              ))}
+            </View>
           </View>
         ) : null}
 
@@ -215,7 +217,7 @@ export function NewChatScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.ink },
+  screen: { flex: 1, backgroundColor: colors.void },
   grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: colors.line, marginTop: 8 },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 52 },
   spacer: { width: 48 },
@@ -225,10 +227,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginHorizontal: 16,
-    paddingHorizontal: 12,
-    minHeight: 40,
-    borderRadius: Platform.OS === 'ios' ? 10 : 22,
-    backgroundColor: colors.void,
+    paddingHorizontal: 14,
+    minHeight: 42,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.hair,
   },
@@ -239,27 +241,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     minHeight: 40,
   },
-  section: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, letterSpacing: 0.6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12 },
+  section: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, letterSpacing: 0.7 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
+  rowDivider: { borderTopWidth: 1, borderTopColor: colors.hair },
   featuredRow: {
     marginHorizontal: 16,
     marginBottom: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
-    borderColor: 'rgba(199,74,94,0.35)',
+    borderColor: colors.hair,
+  },
+  agentListCard: {
+    marginHorizontal: 16,
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    overflow: 'hidden',
   },
   copy: { flex: 1, gap: 3 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   agentName: { flexShrink: 1 },
   berryBadge: {
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: 'rgba(199,74,94,0.16)',
+    borderRadius: radii.pill,
+    backgroundColor: colors.berrySoft,
     borderWidth: 1,
-    borderColor: 'rgba(199,74,94,0.35)',
+    borderColor: 'rgba(201,50,92,0.4)',
   },
   empty: { textAlign: 'center', padding: 24 },
 });

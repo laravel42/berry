@@ -38,7 +38,7 @@ import { AppText } from '@/components/text';
 import { Toggle } from '@/components/toggle';
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 import { KeyValueRow } from './settings-panels';
 
@@ -47,7 +47,7 @@ type Tone = 'chalk' | 'ash' | 'slate' | 'berry' | 'azure' | 'amber' | 'verdant' 
 function StatusBadge({ label, tone = 'ash' }: { label: string; tone?: Tone }) {
   return (
     <View style={styles.badge}>
-      <AppText size={11} weight="medium" tone={tone}>
+      <AppText mono size={11} weight="medium" tone={tone}>
         {label}
       </AppText>
     </View>
@@ -279,7 +279,7 @@ export function PreferencesProfilePanel({
           tintColor={colors.berry}
         />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         PROFILE
       </AppText>
       <View style={styles.card}>
@@ -290,7 +290,7 @@ export function PreferencesProfilePanel({
           value={nameInput}
           onChangeText={setNameInput}
           placeholder="Your name"
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={styles.input}
           autoCapitalize="words"
           returnKeyType="done"
@@ -311,7 +311,7 @@ export function PreferencesProfilePanel({
         </Pressable>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         PREFERENCES
       </AppText>
       <PanelStateCard
@@ -434,15 +434,15 @@ export function PreferencesProfilePanel({
         </View>
       ) : null}
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         ACCOUNT DETAILS
       </AppText>
       <View style={styles.card}>
         <KeyValueRow label="Name" value={user?.name ?? '—'} />
         <KeyValueRow label="Email" value={user?.email ?? '—'} />
-        <KeyValueRow label="User ID" value={user?.id ?? '—'} tone="ash" />
+        <KeyValueRow label="User ID" value={user?.id ?? '—'} tone="ash" monoValue />
         <KeyValueRow label="Workspace role" value={workspace?.role ?? '—'} />
-        <KeyValueRow label="Server URL" value={baseUrl || '—'} tone="ash" />
+        <KeyValueRow label="Server URL" value={baseUrl || '—'} tone="ash" monoValue />
       </View>
 
       <Pressable
@@ -617,7 +617,7 @@ export function PlatformNotificationsPanel({
         </AppText>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         INBOX EVENTS
       </AppText>
 
@@ -725,7 +725,7 @@ export function ShortcutsPanel({ bottomPadding }: { bottomPadding: number }) {
           value={query}
           onChangeText={setQuery}
           placeholder="Search shortcuts or keys..."
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={styles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
@@ -754,7 +754,7 @@ export function ShortcutsPanel({ bottomPadding }: { bottomPadding: number }) {
       ) : (
         filteredGroups.map((group) => (
           <View key={group.id} style={styles.groupBlock}>
-            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
               {group.title}
             </AppText>
             <View style={styles.card}>
@@ -768,7 +768,7 @@ export function ShortcutsPanel({ bottomPadding }: { bottomPadding: number }) {
                     <View style={styles.keycapRow}>
                       {item.keys.map((keyLabel, keyIndex) => (
                         <View key={`${item.id}-${keyIndex}`} style={styles.keycap}>
-                          <AppText size={11} weight="medium" tone="chalk">
+                          <AppText mono size={11} weight="medium" tone="chalk">
                             {keyLabel}
                           </AppText>
                         </View>
@@ -897,7 +897,7 @@ export function SecurityPanel({
           tintColor={colors.berry}
         />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         TWO-FACTOR AUTHENTICATION
       </AppText>
       <View style={styles.infoCard}>
@@ -910,7 +910,7 @@ export function SecurityPanel({
         </AppText>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         ACTIVE SESSIONS ({state.items.length})
       </AppText>
 
@@ -1138,7 +1138,7 @@ export function ConnectedAccountsPanel({
           tintColor={colors.berry}
         />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         ADD ADDRESS
       </AppText>
       <View style={styles.card}>
@@ -1175,7 +1175,7 @@ export function ConnectedAccountsPanel({
           value={addressInput}
           onChangeText={setAddressInput}
           placeholder={getChannelPlaceholder(selectedChannel)}
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={styles.input}
           keyboardType={keyboardType}
           autoCapitalize="none"
@@ -1193,14 +1193,14 @@ export function ConnectedAccountsPanel({
             (addressInput.trim().length === 0 || adding || !client) && styles.disabledBtn,
             pressed && styles.pressed,
           ]}>
-          <Icon name="plus" size={15} color={colors.white} />
+          <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
           <AppText size={13} weight="medium" style={styles.primaryText}>
             {adding ? 'Adding...' : 'Add address'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         CONNECTED ADDRESSES ({state.items.length})
       </AppText>
 
@@ -1256,26 +1256,26 @@ const styles = StyleSheet.create({
   groupBlock: { gap: 8 },
   card: {
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     gap: 10,
   },
   infoCard: {
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.ink,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     gap: 6,
   },
   stateCard: {
     padding: 20,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -1284,7 +1284,7 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 8 },
   divider: {
     height: 1,
-    backgroundColor: colors.hair,
+    backgroundColor: colors.divider,
   },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   rowSpaced: { paddingTop: 10 },
@@ -1294,68 +1294,68 @@ const styles = StyleSheet.create({
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 7,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   pillActive: {
-    backgroundColor: colors.berry,
-    borderColor: colors.berry,
+    backgroundColor: colors.buttonPrimary,
+    borderColor: colors.buttonPrimary,
   },
-  pillActiveText: { color: colors.white },
+  pillActiveText: { color: colors.buttonPrimaryInk },
   chipRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
   chip: {
     paddingHorizontal: 11,
     paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   chipActive: {
-    backgroundColor: colors.berry,
-    borderColor: colors.berry,
+    backgroundColor: colors.buttonPrimary,
+    borderColor: colors.buttonPrimary,
   },
   badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   keycapRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   keycap: {
     minWidth: 26,
     paddingHorizontal: 7,
     paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: colors.ink,
+    borderRadius: radii.sm,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     height: 40,
-    borderRadius: 9,
-    paddingHorizontal: 12,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.regular,
     fontSize: 13,
   },
   searchBox: {
     height: 42,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1370,10 +1370,10 @@ const styles = StyleSheet.create({
   actionBtn: {
     marginTop: 4,
     height: 38,
-    borderRadius: 9,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
@@ -1382,32 +1382,32 @@ const styles = StyleSheet.create({
   primaryBtn: {
     marginTop: 2,
     height: 40,
-    borderRadius: 9,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   disabledBtn: { opacity: 0.45 },
-  primaryText: { color: colors.white },
+  primaryText: { color: colors.buttonPrimaryInk },
   revokeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   smallIconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   dangerBtn: {
     marginTop: 8,
     height: 44,
-    borderRadius: 10,
-    backgroundColor: colors.base,
+    borderRadius: radii.pill,
+    backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: colors.danger,
     flexDirection: 'row',

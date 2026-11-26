@@ -23,7 +23,7 @@ import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
 import { defaultServerUrl, normalizeServerUrl } from '@/lib/env';
 import { useAuthStore } from '@/store/auth-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 type AuthMode = 'email' | 'token';
 
@@ -176,7 +176,7 @@ export function SignInScreen() {
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
           <BerryMark size={36} />
-          <AppText size={24} weight="medium">
+          <AppText mono size={24} weight="semibold">
             Berry
           </AppText>
           <AppText size={13} tone="ash" style={styles.subtitle}>
@@ -208,7 +208,7 @@ export function SignInScreen() {
             value={serverUrl}
             onChangeText={setServerUrl}
             placeholder="https://berry.example.com"
-            placeholderTextColor={colors.slate}
+            placeholderTextColor={colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
@@ -240,7 +240,7 @@ export function SignInScreen() {
                 value={email}
                 onChangeText={setEmail}
                 placeholder="you@company.com"
-                placeholderTextColor={colors.slate}
+                placeholderTextColor={colors.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
                 keyboardType="email-address"
@@ -268,7 +268,7 @@ export function SignInScreen() {
                 value={password}
                 onChangeText={setPassword}
                 placeholder="••••••••••••"
-                placeholderTextColor={colors.slate}
+                placeholderTextColor={colors.placeholder}
                 secureTextEntry={!showPassword}
                 textContentType="password"
                 autoComplete="password"
@@ -297,7 +297,7 @@ export function SignInScreen() {
                 value={totpCode}
                 onChangeText={setTotpCode}
                 placeholder="123456"
-                placeholderTextColor={colors.slate}
+                placeholderTextColor={colors.placeholder}
                 keyboardType="number-pad"
                 maxLength={8}
                 editable={!submitting}
@@ -329,7 +329,7 @@ export function SignInScreen() {
                 value={pat}
                 onChangeText={setPat}
                 placeholder="berry_pat_..."
-                placeholderTextColor={colors.slate}
+                placeholderTextColor={colors.placeholder}
                 autoCapitalize="none"
                 autoCorrect={false}
                 secureTextEntry
@@ -350,7 +350,7 @@ export function SignInScreen() {
           onPress={onSubmit}
           style={[styles.primary, !canSubmit && styles.disabled]}>
           {submitting ? (
-            <ActivityIndicator color={colors.white} />
+            <ActivityIndicator color={colors.buttonPrimaryInk} />
           ) : (
             <AppText size={15} weight="medium" style={styles.primaryText}>
               {twoFactorCookie ? 'Verify code' : 'Sign in'}
@@ -372,37 +372,37 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   input: {
     minHeight: 46,
-    borderRadius: 10,
+    borderRadius: radii.pill,
     borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.ink,
-    paddingHorizontal: 12,
+    borderColor: colors.hair,
+    backgroundColor: colors.field,
+    paddingHorizontal: 16,
     color: colors.chalk,
     fontFamily: fonts.regular,
     fontSize: 14,
   },
   notice: {
     padding: 12,
-    borderRadius: 10,
+    borderRadius: radii.card,
     backgroundColor: '#1C1811',
     borderWidth: 1,
     borderColor: 'rgba(217,164,65,0.35)',
   },
   errorBox: {
     padding: 12,
-    borderRadius: 10,
+    borderRadius: radii.card,
     backgroundColor: '#241616',
     borderWidth: 1,
     borderColor: 'rgba(224,106,88,0.45)',
   },
   primary: {
     minHeight: 48,
-    borderRadius: 12,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
   },
   disabled: { opacity: 0.45 },
-  primaryText: { color: colors.white },
+  primaryText: { color: colors.buttonPrimaryInk },
 });

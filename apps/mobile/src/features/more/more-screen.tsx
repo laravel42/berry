@@ -11,7 +11,7 @@ import { WorkspaceSheet } from '@/components/workspace-sheet';
 import { deriveInitials, type ActorView } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 function MenuRow({
   icon,
@@ -93,7 +93,7 @@ export function MoreScreen() {
           style={({ pressed }) => [styles.workspaceCard, pressed && styles.pressed]}>
           <View style={styles.wsTop}>
             <View style={styles.wsMeta}>
-              <AppText size={11} tone="ash">
+              <AppText mono size={11} tone="ash">
                 WORKSPACE
               </AppText>
               <AppText size={16} weight="medium" tone="chalk" numberOfLines={1}>
@@ -105,7 +105,7 @@ export function MoreScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <AppText size={16} weight="medium" tone="chalk">
+              <AppText mono size={16} weight="medium" tone="chalk">
                 {projects.length}
               </AppText>
               <AppText size={11} tone="ash">
@@ -113,7 +113,7 @@ export function MoreScreen() {
               </AppText>
             </View>
             <View style={styles.statItem}>
-              <AppText size={16} weight="medium" tone="chalk">
+              <AppText mono size={16} weight="medium" tone="chalk">
                 {agents.length}
               </AppText>
               <AppText size={11} tone="ash">
@@ -121,7 +121,7 @@ export function MoreScreen() {
               </AppText>
             </View>
             <View style={styles.statItem}>
-              <AppText size={16} weight="medium" tone="chalk">
+              <AppText mono size={16} weight="medium" tone="chalk">
                 {members.length}
               </AppText>
               <AppText size={11} tone="ash">
@@ -145,7 +145,7 @@ export function MoreScreen() {
           </View>
         ) : null}
 
-        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+        <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
           APP
         </AppText>
 
@@ -170,7 +170,7 @@ export function MoreScreen() {
           />
         </View>
 
-        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+        <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
           SESSION
         </AppText>
 
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 96, gap: 14 },
   workspaceCard: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
   accountMeta: { flex: 1, gap: 2 },
   sectionLabel: { letterSpacing: 0.7, marginTop: 4, marginLeft: 2 },
   group: {
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -241,8 +241,8 @@ const styles = StyleSheet.create({
   menuIcon: {
     width: 32,
     height: 32,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.md,
+    backgroundColor: colors.field,
     alignItems: 'center',
     justifyContent: 'center',
   },

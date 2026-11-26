@@ -41,7 +41,7 @@ import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
 import { Toggle } from '@/components/toggle';
 import { useToastStore } from '@/store/toast-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 type Tone = 'chalk' | 'ash' | 'slate' | 'berry' | 'azure' | 'amber' | 'verdant' | 'danger';
 
@@ -130,7 +130,7 @@ function isStaleTimestamp(iso: string | null | undefined, nowMs: number): boolea
 function StatusBadge({ label, tone = 'ash' }: { label: string; tone?: Tone }) {
   return (
     <View style={styles.badge}>
-      <AppText size={11} weight="medium" tone={tone}>
+      <AppText mono size={11} weight="medium" tone={tone}>
         {label}
       </AppText>
     </View>
@@ -276,7 +276,7 @@ export function ModelTiersPanel({
       {!state.loading && !state.error && state.data ? (
         <>
           <View style={styles.rowBetween}>
-            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
               MODEL TIERS
             </AppText>
             <StatusBadge
@@ -297,7 +297,7 @@ export function ModelTiersPanel({
                       <AppText size={14} weight="medium" tone="chalk">
                         {tierName}
                       </AppText>
-                      <AppText size={11} tone="slate">
+                      <AppText mono size={11} tone="slate">
                         {tier}
                       </AppText>
                     </View>
@@ -313,10 +313,10 @@ export function ModelTiersPanel({
                   <View style={styles.modelList}>
                     {models.map((model, index) => (
                       <View key={`${tier}-${model}-${index}`} style={styles.modelRow}>
-                        <AppText size={12} tone="slate" style={styles.modelIndex}>
+                        <AppText mono size={12} tone="slate" style={styles.modelIndex}>
                           {index + 1}.
                         </AppText>
-                        <AppText size={12} tone="chalk" style={styles.flexCopy}>
+                        <AppText mono size={12} tone="chalk" style={styles.flexCopy}>
                           {model}
                         </AppText>
                       </View>
@@ -475,7 +475,7 @@ export function SkillLabelsPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         ADD SKILL LABEL
       </AppText>
       <View style={styles.card}>
@@ -483,7 +483,7 @@ export function SkillLabelsPanel({
           value={newName}
           onChangeText={setNewName}
           placeholder="Label name (e.g. security, frontend)"
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={styles.input}
           returnKeyType="done"
           onSubmitEditing={() => void handleCreate()}
@@ -516,14 +516,14 @@ export function SkillLabelsPanel({
             !canCreate && styles.disabledBtn,
             pressed && styles.pressed,
           ]}>
-          <Icon name="plus" size={15} color={colors.white} />
+          <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
           <AppText size={13} weight="medium" style={styles.primaryText}>
             {creating ? 'Adding...' : 'Add label'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         SKILL LABELS ({activeLabels.length})
       </AppText>
 
@@ -762,7 +762,7 @@ export function IssuePropertiesPanel({
       }>
       <View style={styles.card}>
         <View style={styles.rowBetween}>
-          <AppText size={13} tone="chalk" weight="medium">
+          <AppText mono size={13} tone="chalk" weight="medium">
             {activeProperties.length} / {MAX_ACTIVE_PROPERTIES} active
           </AppText>
           <View style={styles.switchRow}>
@@ -778,7 +778,7 @@ export function IssuePropertiesPanel({
         </View>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         ADD PROPERTY
       </AppText>
       <View style={[styles.card, atLimit && styles.disabledCard]}>
@@ -787,7 +787,7 @@ export function IssuePropertiesPanel({
           onChangeText={setNewName}
           editable={!atLimit}
           placeholder="Property name (e.g. Customer tier)"
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={styles.input}
           returnKeyType="done"
           onSubmitEditing={() => void handleCreate()}
@@ -809,7 +809,11 @@ export function IssuePropertiesPanel({
                   styles.chip,
                   active && styles.chipActive,
                 ]}>
-                <AppText size={12} weight="medium" tone={active ? 'chalk' : 'ash'}>
+                <AppText
+                  size={12}
+                  weight="medium"
+                  tone={active ? 'chalk' : 'ash'}
+                  style={active ? styles.chipActiveText : undefined}>
                   {PROPERTY_KIND_LABELS[kind]}
                 </AppText>
               </Pressable>
@@ -823,7 +827,7 @@ export function IssuePropertiesPanel({
             onChangeText={setOptionsText}
             editable={!atLimit}
             placeholder="Options (comma-separated, e.g. High, Medium, Low)"
-            placeholderTextColor={colors.slate}
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             returnKeyType="done"
             onSubmitEditing={() => void handleCreate()}
@@ -845,14 +849,14 @@ export function IssuePropertiesPanel({
             !canCreate && styles.disabledBtn,
             pressed && styles.pressed,
           ]}>
-          <Icon name="plus" size={15} color={colors.white} />
+          <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
           <AppText size={13} weight="medium" style={styles.primaryText}>
             {creating ? 'Adding...' : 'Add property'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         PROPERTIES ({visibleProperties.length})
       </AppText>
 
@@ -1088,7 +1092,7 @@ export function QuickActionsPanel({
       }>
       <View style={styles.card}>
         <View style={styles.rowBetween}>
-          <AppText size={13} tone="chalk" weight="medium">
+          <AppText mono size={13} tone="chalk" weight="medium">
             {activeActions.length} active
           </AppText>
           <View style={styles.switchRow}>
@@ -1104,7 +1108,7 @@ export function QuickActionsPanel({
         </View>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         QUICK ACTIONS ({visibleActions.length})
       </AppText>
 
@@ -1255,7 +1259,7 @@ export function McpServersPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
         MCP SERVERS ({state.items.length})
       </AppText>
 
@@ -1276,7 +1280,7 @@ export function McpServersPanel({
                   <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
                     {server.name}
                   </AppText>
-                  <AppText size={11} tone="ash" numberOfLines={2}>
+                  <AppText mono size={11} tone="ash" numberOfLines={2}>
                     {server.url}
                   </AppText>
                 </View>
@@ -1312,19 +1316,19 @@ const styles = StyleSheet.create({
   sectionLabel: { letterSpacing: 0.7, marginTop: 4, marginLeft: 2 },
   card: {
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     gap: 10,
   },
   disabledCard: { opacity: 0.65 },
   stateCard: {
     padding: 20,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -1339,10 +1343,10 @@ const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -1377,15 +1381,16 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 11,
     paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   chipActive: {
-    backgroundColor: colors.berry,
-    borderColor: colors.berry,
+    backgroundColor: colors.buttonPrimary,
+    borderColor: colors.buttonPrimary,
   },
+  chipActiveText: { color: colors.buttonPrimaryInk },
   optionChipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1395,27 +1400,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 4,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   promptPreviewBox: {
     padding: 10,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.md,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   input: {
     height: 40,
-    borderRadius: 9,
-    paddingHorizontal: 12,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.regular,
     fontSize: 13,
@@ -1423,10 +1428,10 @@ const styles = StyleSheet.create({
   actionBtn: {
     marginTop: 4,
     height: 38,
-    borderRadius: 9,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
@@ -1435,34 +1440,34 @@ const styles = StyleSheet.create({
   primaryBtn: {
     marginTop: 2,
     height: 40,
-    borderRadius: 9,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   disabledBtn: { opacity: 0.45 },
-  primaryText: { color: colors.white },
+  primaryText: { color: colors.buttonPrimaryInk },
   dangerOutlineBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   restoreBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.verdant,
   },

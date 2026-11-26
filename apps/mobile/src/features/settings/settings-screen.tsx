@@ -11,7 +11,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import {
   IntegrationsPanel,
@@ -224,12 +224,12 @@ export function SettingsScreen() {
       default:
         return (
           <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}>
-            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
               WORKSPACE
             </AppText>
             <View style={styles.card}>
               <KeyValueRow label="Active workspace" value={workspace?.name ?? 'None'} />
-              <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} />
+              <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} monoValue />
               <KeyValueRow label="Role" value={workspace?.role ?? '—'} />
               {workspaces.length > 1 ? (
                 <Pressable
@@ -243,7 +243,7 @@ export function SettingsScreen() {
               ) : null}
             </View>
 
-            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
               NOTIFICATIONS
             </AppText>
             <View style={styles.card}>
@@ -273,18 +273,18 @@ export function SettingsScreen() {
                 disabled={sendingTest || permission === 'unsupported'}
                 onPress={() => void handleTestNotification()}
                 style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
-                <Icon name="bell" size={15} color={colors.white} />
+                <Icon name="bell" size={15} color={colors.buttonPrimaryInk} />
                 <AppText size={13} weight="medium" style={styles.primaryText}>
                   {sendingTest ? 'Scheduling...' : 'Send test notification (2s)'}
                 </AppText>
               </Pressable>
             </View>
 
-            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
               SERVER
             </AppText>
             <View style={styles.card}>
-              <KeyValueRow label="Endpoint" value={baseUrl} />
+              <KeyValueRow label="Endpoint" value={baseUrl} monoValue />
               <KeyValueRow
                 label="Realtime"
                 value={capabilities?.realtime ? 'Available' : 'Unavailable'}
@@ -302,7 +302,7 @@ export function SettingsScreen() {
               />
             </View>
 
-            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
               ACCOUNT
             </AppText>
             <View style={styles.card}>
@@ -334,7 +334,7 @@ export function SettingsScreen() {
           style={styles.iconBtn}>
           <Icon name="arrowLeft" size={20} color={colors.chalk} />
         </Pressable>
-        <AppText size={16} weight="medium" tone="chalk" style={styles.topTitle}>
+        <AppText mono size={16} weight="semibold" tone="chalk" style={styles.topTitle}>
           Settings
         </AppText>
         <View style={styles.iconBtn} />
@@ -348,7 +348,7 @@ export function SettingsScreen() {
           style={({ pressed }) => [styles.selectTrigger, pressed && styles.pressed]}>
           <View style={styles.selectLeft}>
             <View style={styles.groupBadge}>
-              <AppText size={10} weight="medium" tone="berry">
+              <AppText mono size={10} weight="medium" tone="berryText">
                 {currentSection.group.toUpperCase()}
               </AppText>
             </View>
@@ -381,13 +381,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 8,
     borderBottomWidth: 1,
-    borderBottomColor: colors.hair,
+    borderBottomColor: colors.divider,
     gap: 6,
   },
   iconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -396,16 +396,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.hair,
-    backgroundColor: colors.ink,
+    borderBottomColor: colors.divider,
+    backgroundColor: colors.void,
   },
   selectTrigger: {
     height: 42,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: colors.base,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -418,51 +418,51 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   groupBadge: {
-    paddingHorizontal: 7,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   selectLabel: { flex: 1 },
   content: { padding: 16, gap: 12 },
   sectionLabel: { letterSpacing: 0.7, marginTop: 4, marginLeft: 2 },
   card: {
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     gap: 10,
   },
   kvRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   actionBtn: {
     marginTop: 4,
     height: 38,
-    borderRadius: 9,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
   },
   primaryBtn: {
     marginTop: 4,
     height: 40,
-    borderRadius: 9,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  primaryText: { color: colors.white },
+  primaryText: { color: colors.buttonPrimaryInk },
   dangerBtn: {
     marginTop: 8,
     height: 44,
-    borderRadius: 10,
-    backgroundColor: colors.base,
+    borderRadius: radii.pill,
+    backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: colors.danger,
     flexDirection: 'row',

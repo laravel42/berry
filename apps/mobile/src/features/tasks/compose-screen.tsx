@@ -30,7 +30,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 const FIELDS: { id: SuggestField; label: string }[] = [
   { id: 'assignee', label: 'Assignee' },
@@ -148,14 +148,18 @@ export function ComposeScreen() {
             <Icon name="close" />
           </Pressable>
         )}
-        <AppText size={16} weight="medium">
+        <AppText mono size={16} weight="semibold">
           {ios ? 'New Task' : 'New task'}
         </AppText>
-        <Pressable accessibilityRole="button" onPress={() => void submit()} disabled={!canSubmit}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => void submit()}
+          disabled={!canSubmit}
+          style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}>
           {submitting ? (
-            <ActivityIndicator color={colors.berry} />
+            <ActivityIndicator size="small" color={colors.buttonPrimaryInk} />
           ) : (
-            <AppText size={16} weight="medium" tone={canSubmit ? 'berry' : 'slate'}>
+            <AppText size={13} weight="medium" style={styles.submitBtnText}>
               {suggestion.isAgent && start && canSubmit ? 'Start' : ios ? 'Add' : 'Create'}
             </AppText>
           )}
@@ -186,19 +190,19 @@ export function ComposeScreen() {
             setError(null);
           }}
           placeholder="Describe the task. Berry fills in the rest."
-          placeholderTextColor={colors.ash}
+          placeholderTextColor={colors.placeholder}
           multiline
           editable={!submitting}
           style={styles.prompt}
         />
 
         {suggestion.canCreate ? (
-          <AppText size={12} tone="azure">
+          <AppText mono size={12} tone="azure">
             {workspace?.settings.issuePrefix ?? 'TASK'} · {suggestion.title}
           </AppText>
         ) : (
-          <AppText size={13} tone="ash">
-            {ios ? 'Try' : 'One or two sentences is enough.'}
+          <AppText mono size={11} weight="medium" tone="ash" style={styles.hintLabel}>
+            {ios ? 'TRY' : 'ONE OR TWO SENTENCES IS ENOUGH.'}
           </AppText>
         )}
 
@@ -212,8 +216,8 @@ export function ComposeScreen() {
           </View>
         ) : (
           <View style={styles.suggest}>
-            <AppText size={12} tone="azure">
-              Berry suggests
+            <AppText mono size={11} weight="medium" tone="ash" style={styles.hintLabel}>
+              BERRY SUGGESTS
             </AppText>
             {FIELDS.map((field) => {
               const expanded = open === field.id;
@@ -290,21 +294,56 @@ export function ComposeScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.ink },
+  screen: { flex: 1, backgroundColor: colors.void },
   grabber: { alignSelf: 'center', width: 36, height: 5, borderRadius: 3, backgroundColor: colors.line, marginTop: 8 },
   nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 52 },
+  submitBtn: {
+    minHeight: 32,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  submitBtnDisabled: { opacity: 0.45 },
+  submitBtnText: { color: colors.buttonPrimaryInk },
   body: { padding: 16, gap: 12 },
   errorBox: {
     padding: 12,
-    borderRadius: 10,
+    borderRadius: radii.card,
     backgroundColor: '#241616',
     borderWidth: 1,
     borderColor: 'rgba(224,106,88,0.4)',
   },
-  prompt: { minHeight: 96, color: colors.chalk, fontSize: 16, textAlignVertical: 'top' },
+  prompt: {
+    minHeight: 112,
+    padding: 14,
+    borderRadius: radii.card,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    color: colors.chalk,
+    fontFamily: fonts.regular,
+    fontSize: 15,
+    textAlignVertical: 'top',
+  },
+  hintLabel: { letterSpacing: 0.7, marginLeft: 2 },
   examples: { gap: 8 },
-  example: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.hair },
-  suggest: { gap: 8 },
+  example: {
+    padding: 14,
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  suggest: {
+    padding: 14,
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    gap: 8,
+  },
   field: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.hair },
   copy: { flex: 1, gap: 2 },
   options: { paddingVertical: 4 },

@@ -35,7 +35,7 @@ import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 type Tone = 'chalk' | 'ash' | 'slate' | 'berry' | 'azure' | 'amber' | 'verdant' | 'danger';
 
@@ -43,17 +43,19 @@ export function KeyValueRow({
   label,
   value,
   tone = 'chalk',
+  monoValue = false,
 }: {
   label: string;
   value: string;
   tone?: Tone;
+  monoValue?: boolean;
 }) {
   return (
     <View style={panelStyles.kvRow}>
       <AppText size={13} tone="ash">
         {label}
       </AppText>
-      <AppText size={13} tone={tone} numberOfLines={1} style={panelStyles.kvValue}>
+      <AppText mono={monoValue} size={13} tone={tone} numberOfLines={1} style={panelStyles.kvValue}>
         {value}
       </AppText>
     </View>
@@ -63,7 +65,7 @@ export function KeyValueRow({
 function StatusBadge({ label, tone = 'ash' }: { label: string; tone?: Tone }) {
   return (
     <View style={panelStyles.badge}>
-      <AppText size={11} weight="medium" tone={tone}>
+      <AppText mono size={11} weight="medium" tone={tone}>
         {label}
       </AppText>
     </View>
@@ -192,7 +194,7 @@ export function ProfilePanel({
 
   return (
     <ScrollView contentContainerStyle={[panelStyles.content, { paddingBottom: bottomPadding }]}>
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         PROFILE
       </AppText>
       <View style={panelStyles.card}>
@@ -203,7 +205,7 @@ export function ProfilePanel({
           value={nameInput}
           onChangeText={setNameInput}
           placeholder="Your name"
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={panelStyles.input}
           autoCapitalize="words"
           returnKeyType="done"
@@ -224,15 +226,15 @@ export function ProfilePanel({
         </Pressable>
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         ACCOUNT DETAILS
       </AppText>
       <View style={panelStyles.card}>
         <KeyValueRow label="Name" value={user?.name ?? '—'} />
         <KeyValueRow label="Email" value={user?.email ?? '—'} />
-        <KeyValueRow label="User ID" value={user?.id ?? '—'} tone="ash" />
+        <KeyValueRow label="User ID" value={user?.id ?? '—'} tone="ash" monoValue />
         <KeyValueRow label="Workspace role" value={workspace?.role ?? '—'} />
-        <KeyValueRow label="Server URL" value={baseUrl || '—'} tone="ash" />
+        <KeyValueRow label="Server URL" value={baseUrl || '—'} tone="ash" monoValue />
       </View>
 
       <Pressable
@@ -379,7 +381,7 @@ export function TokensPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         CREATE TOKEN
       </AppText>
       <View style={panelStyles.card}>
@@ -387,7 +389,7 @@ export function TokensPanel({
           value={newName}
           onChangeText={setNewName}
           placeholder="Token name (e.g. Android Pixel)"
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={panelStyles.input}
           returnKeyType="done"
           onSubmitEditing={() => void handleCreate()}
@@ -401,7 +403,7 @@ export function TokensPanel({
             (newName.trim().length === 0 || creating || !client) && panelStyles.disabledBtn,
             pressed && panelStyles.pressed,
           ]}>
-          <Icon name="plus" size={15} color={colors.white} />
+          <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
           <AppText size={13} weight="medium" style={panelStyles.primaryText}>
             {creating ? 'Creating...' : 'Create personal token'}
           </AppText>
@@ -435,7 +437,7 @@ export function TokensPanel({
         </View>
       ) : null}
 
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         ACTIVE TOKENS ({activeTokens.length})
       </AppText>
 
@@ -456,7 +458,7 @@ export function TokensPanel({
                   <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
                     {token.name}
                   </AppText>
-                  <AppText size={12} tone="ash">
+                  <AppText mono size={12} tone="ash">
                     {token.prefix}•••
                   </AppText>
                 </View>
@@ -507,13 +509,13 @@ export function WorkspacePanel({
 }) {
   return (
     <ScrollView contentContainerStyle={[panelStyles.content, { paddingBottom: bottomPadding }]}>
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         WORKSPACE DETAILS
       </AppText>
       <View style={panelStyles.card}>
         <KeyValueRow label="Name" value={workspace?.name ?? 'None'} />
-        <KeyValueRow label="Slug" value={workspace?.slug ?? '—'} tone="ash" />
-        <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} />
+        <KeyValueRow label="Slug" value={workspace?.slug ?? '—'} tone="ash" monoValue />
+        <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} monoValue />
         <KeyValueRow label="Your role" value={workspace?.role ?? '—'} />
         <KeyValueRow
           label="Member invites"
@@ -522,13 +524,13 @@ export function WorkspacePanel({
         />
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         RESOURCES
       </AppText>
       <View style={panelStyles.card}>
-        <KeyValueRow label="Boards" value={String(boardsCount)} />
-        <KeyValueRow label="Projects" value={String(projectsCount)} />
-        <KeyValueRow label="Active agents" value={String(agentsCount)} />
+        <KeyValueRow label="Boards" value={String(boardsCount)} monoValue />
+        <KeyValueRow label="Projects" value={String(projectsCount)} monoValue />
+        <KeyValueRow label="Active agents" value={String(agentsCount)} monoValue />
       </View>
 
       {workspacesCount > 1 ? (
@@ -632,7 +634,7 @@ export function MembersPanel({
           value={query}
           onChangeText={setQuery}
           placeholder="Filter members by name, email, or role..."
-          placeholderTextColor={colors.slate}
+          placeholderTextColor={colors.placeholder}
           style={panelStyles.searchInput}
           autoCapitalize="none"
           autoCorrect={false}
@@ -644,7 +646,7 @@ export function MembersPanel({
         ) : null}
       </View>
 
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         MEMBERS ({filtered.length})
       </AppText>
 
@@ -766,7 +768,7 @@ export function RuntimesPanel({
 
       {!state.loading && !state.error && aiConnections.length > 0 ? (
         <>
-          <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             AI RUNTIME CONNECTIONS ({aiConnections.length})
           </AppText>
           {aiConnections.map((conn) => {
@@ -805,7 +807,7 @@ export function RuntimesPanel({
 
       {!state.loading && !state.error && computeRuntimes.length > 0 ? (
         <>
-          <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             COMPUTE RUNTIMES ({computeRuntimes.length})
           </AppText>
           {computeRuntimes.map((runtime) => {
@@ -915,7 +917,7 @@ export function LabelsPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         ISSUE LABELS ({activeLabels.length})
       </AppText>
 
@@ -1045,7 +1047,7 @@ export function IntegrationsPanel({
 
       {!state.loading && !state.error && state.providers.length > 0 ? (
         <>
-          <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             PROVIDERS ({state.providers.length})
           </AppText>
           {state.providers.map((provider) => {
@@ -1186,7 +1188,7 @@ export function UsagePanel({
 
       {!state.loading && !state.error && state.usage ? (
         <>
-          <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             LAST {state.usage.days} DAYS SUMMARY
           </AppText>
           <View style={panelStyles.card}>
@@ -1194,28 +1196,33 @@ export function UsagePanel({
               label="Total spend"
               value={formatUsdFromMicros(state.usage.totals.costMicros)}
               tone="verdant"
+              monoValue
             />
             <KeyValueRow
               label="Runs"
               value={`${state.usage.runs.runs} (${state.usage.runs.failed} failed)`}
+              monoValue
             />
             <KeyValueRow
               label="Input tokens"
               value={formatCompactCount(state.usage.totals.inputTokens)}
+              monoValue
             />
             <KeyValueRow
               label="Output tokens"
               value={formatCompactCount(state.usage.totals.outputTokens)}
+              monoValue
             />
             <KeyValueRow
               label="Model calls"
               value={formatCompactCount(state.usage.totals.events)}
+              monoValue
             />
           </View>
 
           {state.usage.byModel.length > 0 ? (
             <>
-              <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+              <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
                 BY MODEL
               </AppText>
               <View style={panelStyles.card}>
@@ -1224,6 +1231,7 @@ export function UsagePanel({
                     key={bucket.key}
                     label={bucket.key}
                     value={`${formatUsdFromMicros(bucket.costMicros)} · ${formatCompactCount(bucket.inputTokens + bucket.outputTokens)} tok`}
+                    monoValue
                   />
                 ))}
               </View>
@@ -1234,7 +1242,7 @@ export function UsagePanel({
 
       {!state.loading && !state.error ? (
         <>
-          <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             RECENT PROMPT LOGS ({state.logs.length})
           </AppText>
           {state.logs.length === 0 ? (
@@ -1269,7 +1277,7 @@ export function UsagePanel({
                     <StatusBadge label={entry.status} tone={statusTone} />
                   </View>
                   <View style={panelStyles.metaRow}>
-                    <AppText size={11} tone="slate">
+                    <AppText mono size={11} tone="slate">
                       {formatCompactCount(entry.inputTokens + entry.outputTokens)} tok
                       {entry.costMicros !== null ? ` · ${formatUsdFromMicros(entry.costMicros)}` : ''}
                     </AppText>
@@ -1292,10 +1300,10 @@ const panelStyles = StyleSheet.create({
   sectionLabel: { letterSpacing: 0.7, marginTop: 4, marginLeft: 2 },
   card: {
     padding: 14,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     gap: 10,
   },
   secretCard: {
@@ -1303,20 +1311,20 @@ const panelStyles = StyleSheet.create({
   },
   secretBox: {
     padding: 10,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.md,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     color: colors.chalk,
-    fontFamily: fonts.regular,
+    fontFamily: fonts.monoRegular,
     fontSize: 12,
   },
   stateCard: {
     padding: 20,
-    borderRadius: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.card,
+    backgroundColor: colors.panel,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
@@ -1332,29 +1340,29 @@ const panelStyles = StyleSheet.create({
   badge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   input: {
     height: 40,
-    borderRadius: 9,
-    paddingHorizontal: 12,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.regular,
     fontSize: 13,
   },
   searchBox: {
     height: 42,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.base,
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -1369,10 +1377,10 @@ const panelStyles = StyleSheet.create({
   actionBtn: {
     marginTop: 4,
     height: 38,
-    borderRadius: 9,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.divider,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
@@ -1381,32 +1389,32 @@ const panelStyles = StyleSheet.create({
   primaryBtn: {
     marginTop: 2,
     height: 40,
-    borderRadius: 9,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   disabledBtn: { opacity: 0.45 },
-  primaryText: { color: colors.white },
+  primaryText: { color: colors.buttonPrimaryInk },
   revokeBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: colors.hair,
+    borderColor: colors.divider,
   },
   smallIconBtn: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   dangerBtn: {
     marginTop: 8,
     height: 44,
-    borderRadius: 10,
-    backgroundColor: colors.base,
+    borderRadius: radii.pill,
+    backgroundColor: colors.panel,
     borderWidth: 1,
     borderColor: colors.danger,
     flexDirection: 'row',
