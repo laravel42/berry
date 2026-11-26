@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -18,6 +18,7 @@ import { BerryMark } from '@/components/berry-mark';
 import { Fab } from '@/components/fab';
 import { Icon, type IconName } from '@/components/icon';
 import { HeaderIconButton, ScreenHeader } from '@/components/screen-header';
+import { SearchFilterBar, type FilterOption } from '@/components/search-filter-bar';
 import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
 import { formatRelativeTime } from '@/model/mappers';
@@ -25,6 +26,8 @@ import type { NotifKind } from '@/model/types';
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { colors } from '@/theme/tokens';
+
+import { filterInboxEntries, type InboxFilter } from './inbox-helpers';
 
 const KIND: Record<NotifKind, { label: string; icon: IconName; color: string }> = {
   review: { label: 'Review requested', icon: 'review', color: colors.amber },
@@ -56,19 +59,79 @@ export function InboxScreen() {
   const loadMore = useInboxStore((state) => state.loadMore);
   const markAllRead = useInboxStore((state) => state.markAllRead);
 
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<InboxFilter>('all');
+
   useEffect(() => {
     if (!client || !workspaceId) return;
     void load(client, workspaceId);
   }, [client, workspaceId, view, load]);
 
   const archiveView = view === 'archived';
-  const mapped = items.map((item) => ({ item, meta: mapInboxKind(item) }));
-  const needs = archiveView ? [] : mapped.filter((entry) => entry.meta.needs);
-  const visible = !archiveView && onlyNeeds ? needs : mapped;
+  const mapped = useMemo(() => items.map((item) => ({ item, meta: mapInboxKind(item) })), [items]);
+  const needs = useMemo(() => (archiveView ? [] : mapped.filter((entry) => entry.meta.needs)), [archiveView, mapped]);
+
+  const effectiveFilter: InboxFilter = !archiveView && onlyNeeds && filter === 'all' ? 'needs' : filter;
+  const visible = useMemo(
+    () => filterInboxEntries(mapped, query, effectiveFilter),
+    [mapped, query, effectiveFilter],
+  );
+  const hasActiveFilters = query.trim().length > 0 || effectiveFilter !== 'all';
+
+  const filterOptions = useMemo<FilterOption<InboxFilter>[]>(() => {
+    const unreadInView = mapped.filter((entry) => !entry.item.read).length;
+    const countKind = (kind: NotifKind) => mapped.filter((entry) => entry.meta.kind === kind).length;
+    const options: FilterOption<InboxFilter>[] = [
+      { id: 'all', label: 'All' },
+      { id: 'unread', label: 'Unread', count: unreadInView },
+    ];
+    if (!archiveView) {
+      options.push({ id: 'needs', label: 'Waiting', count: needs.length });
+    }
+    options.push(
+      { id: 'review', label: 'Reviews', count: countKind('review') },
+      { id: 'approval', label: 'Approvals', count: countKind('approval') },
+      { id: 'failed', label: 'Failed', count: countKind('failed') },
+      { id: 'blocked', label: 'Blocked', count: countKind('blocked') },
+      { id: 'mention', label: 'Mentions', count: countKind('mention') },
+      { id: 'assigned', label: 'Assigned', count: countKind('assigned') },
+    );
+    return options;
+  }, [archiveView, mapped, needs.length]);
 
   const figures = (['review', 'approval', 'failed', 'blocked'] as const)
     .map((kind) => ({ kind, n: needs.filter((entry) => entry.meta.kind === kind).length }))
     .filter((entry) => entry.n > 0);
+
+  const onChangeView = (nextView: 'active' | 'archived') => {
+    setView(nextView);
+    if (nextView === 'archived' && filter === 'needs') {
+      setFilter('all');
+    }
+  };
+
+  const onChangeFilter = (next: InboxFilter) => {
+    setFilter(next);
+    if (next === 'needs' && !onlyNeeds) {
+      toggleOnlyNeeds();
+    } else if (next !== 'needs' && onlyNeeds) {
+      toggleOnlyNeeds();
+    }
+  };
+
+  const onToggleBandNeeds = () => {
+    const nextOnlyNeeds = !onlyNeeds;
+    toggleOnlyNeeds();
+    setFilter(nextOnlyNeeds ? 'needs' : 'all');
+  };
+
+  const onClearFilters = () => {
+    setQuery('');
+    setFilter('all');
+    if (onlyNeeds) {
+      toggleOnlyNeeds();
+    }
+  };
 
   const onRefresh = () => {
     if (!client || !workspaceId) return;
@@ -110,9 +173,17 @@ export function InboxScreen() {
             { id: 'archived' as const, label: 'Archive' },
           ]}
           value={view}
-          onChange={setView}
+          onChange={onChangeView}
         />
       </View>
+      <SearchFilterBar
+        query={query}
+        onChangeQuery={setQuery}
+        placeholder="Search notifications..."
+        filters={filterOptions}
+        activeFilter={effectiveFilter}
+        onChangeFilter={onChangeFilter}
+      />
       <ScrollView
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
@@ -144,13 +215,13 @@ export function InboxScreen() {
         ) : null}
 
         {!error && !archiveView && needs.length > 0 ? (
-          <Pressable accessibilityRole="button" onPress={toggleOnlyNeeds} style={styles.band}>
+          <Pressable accessibilityRole="button" onPress={onToggleBandNeeds} style={styles.band}>
             <View style={styles.bandTop}>
               <AppText size={12} weight="medium" tone="amber">
                 Waiting on you
               </AppText>
               <AppText size={12} tone="ash">
-                {onlyNeeds ? 'Show everything' : 'Show only these'}
+                {effectiveFilter === 'needs' ? 'Show everything' : 'Show only these'}
               </AppText>
             </View>
             <AppText size={22} weight="medium">
@@ -179,17 +250,34 @@ export function InboxScreen() {
           : null}
 
         {!error && !loading && visible.length === 0 ? (
-          <View style={styles.empty}>
-            <BerryMark size={36} dot={colors.verdant} />
-            <AppText size={16} weight="medium">
-              {archiveView ? 'Nothing archived' : 'You’re caught up.'}
-            </AppText>
-            <AppText size={13} tone="ash" style={styles.center}>
-              {archiveView
-                ? 'Swipe a notification left to archive it.'
-                : 'New reviews, approvals and agent questions show up here.'}
-            </AppText>
-          </View>
+          hasActiveFilters ? (
+            <View style={styles.empty}>
+              <Icon name="search" size={28} color={colors.ash} />
+              <AppText size={16} weight="medium">
+                No matching notifications
+              </AppText>
+              <AppText size={13} tone="ash" style={styles.center}>
+                Try a different search term or filter.
+              </AppText>
+              <Pressable accessibilityRole="button" onPress={onClearFilters} style={styles.clearBtn}>
+                <AppText size={13} weight="medium" style={styles.retryText}>
+                  Clear filters
+                </AppText>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <BerryMark size={36} dot={colors.verdant} />
+              <AppText size={16} weight="medium">
+                {archiveView ? 'Nothing archived' : 'You’re caught up.'}
+              </AppText>
+              <AppText size={13} tone="ash" style={styles.center}>
+                {archiveView
+                  ? 'Swipe a notification left to archive it.'
+                  : 'New reviews, approvals and agent questions show up here.'}
+              </AppText>
+            </View>
+          )
         ) : null}
 
         {!error && visible.length > 0 ? (
@@ -350,6 +438,13 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+    marginTop: 4,
+  },
+  clearBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,

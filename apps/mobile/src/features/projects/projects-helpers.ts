@@ -3,6 +3,15 @@ import { mapApiStatus } from '@/model/mappers';
 
 export type ProjectHealthTone = 'verdant' | 'amber' | 'danger' | 'ash';
 
+export type ProjectFilter = 'all' | 'active' | 'planned' | 'completed' | 'at_risk';
+
+function normalizeToken(raw: string | null | undefined): string {
+  return (raw ?? '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
 function humanizeToken(raw: string): string {
   const spaced = raw
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -34,9 +43,34 @@ export function formatProjectHealth(
 }
 
 export function filterProjects(projects: ApiProject[], query: string): ApiProject[] {
+  return filterProjectsByCriteria(projects, query, 'all');
+}
+
+export function matchesProjectFilter(project: ApiProject, filter: ProjectFilter): boolean {
+  if (filter === 'all') return true;
+  const status = normalizeToken(project.status);
+  const health = normalizeToken(project.health);
+  if (filter === 'active') {
+    return status === 'in_progress' || status === 'active' || status === 'started';
+  }
+  if (filter === 'planned') {
+    return status === 'planned' || status === 'backlog';
+  }
+  if (filter === 'completed') {
+    return status === 'completed' || status === 'done';
+  }
+  return health === 'at_risk' || health === 'atrisk' || health === 'off_track' || health === 'offtrack';
+}
+
+export function filterProjectsByCriteria(
+  projects: readonly ApiProject[],
+  query: string,
+  filter: ProjectFilter,
+): ApiProject[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return projects;
   return projects.filter((project) => {
+    if (!matchesProjectFilter(project, filter)) return false;
+    if (!needle) return true;
     const name = project.name.toLowerCase();
     const description = (project.description ?? '').toLowerCase();
     const status = formatProjectStatus(project.status).toLowerCase();

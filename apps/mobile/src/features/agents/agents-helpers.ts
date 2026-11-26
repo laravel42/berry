@@ -1,6 +1,8 @@
 import type { ApiConversation } from '@/api/types';
 import type { ActorView } from '@/model/mappers';
 
+export type AgentFilter = 'all' | 'working' | 'unread' | 'active_chat';
+
 export type AgentRosterEntry = {
   agent: ActorView;
   roleLabel: string;
@@ -59,9 +61,20 @@ export function buildAgentRoster(
 }
 
 export function filterAgentRoster(entries: AgentRosterEntry[], query: string): AgentRosterEntry[] {
+  return filterAgentRosterByCriteria(entries, query, 'all');
+}
+
+export function filterAgentRosterByCriteria(
+  roster: readonly AgentRosterEntry[],
+  query: string,
+  filter: AgentFilter,
+): AgentRosterEntry[] {
   const needle = query.trim().toLowerCase();
-  if (!needle) return entries;
-  return entries.filter((entry) => {
+  return roster.filter((entry) => {
+    if (filter === 'working' && !entry.working) return false;
+    if (filter === 'unread' && entry.unread <= 0) return false;
+    if (filter === 'active_chat' && !entry.conversationId) return false;
+    if (!needle) return true;
     const name = entry.agent.name.toLowerCase();
     const role = entry.roleLabel.toLowerCase();
     const desc = (entry.agent.description ?? '').toLowerCase();

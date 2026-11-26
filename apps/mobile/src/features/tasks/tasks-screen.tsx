@@ -18,6 +18,7 @@ import { Fab } from '@/components/fab';
 import { Icon } from '@/components/icon';
 import { PriorityBars } from '@/components/priority-bars';
 import { HeaderIconButton, ScreenHeader } from '@/components/screen-header';
+import { SearchFilterBar, type FilterOption } from '@/components/search-filter-bar';
 import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
 import {
@@ -32,11 +33,18 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
-import { isGroupCollapsed, toggleGroupCollapsed } from './tasks-helpers';
+import {
+  filterTasks,
+  isGroupCollapsed,
+  toggleGroupCollapsed,
+  type TaskPriorityFilter,
+} from './tasks-helpers';
 
 export function TasksScreen() {
   const insets = useSafeAreaInsets();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [query, setQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>('all');
   const client = useAuthStore((state) => state.client);
   const user = useAuthStore((state) => state.user);
   const boards = useWorkspaceStore((state) => state.boards);
@@ -67,14 +75,32 @@ export function TasksScreen() {
   );
   const scoped = mineTab === 'assigned' ? assigned : created;
 
+  const filterOptions = useMemo<FilterOption<TaskPriorityFilter>[]>(() => {
+    const countPriority = (priority: Exclude<TaskPriorityFilter, 'all'>) =>
+      scoped.filter((issue) => mapApiPriority(issue.priority) === priority).length;
+    return [
+      { id: 'all', label: 'All' },
+      { id: 'urgent', label: 'Urgent', count: countPriority('urgent') },
+      { id: 'high', label: 'High', count: countPriority('high') },
+      { id: 'medium', label: 'Medium', count: countPriority('medium') },
+      { id: 'low', label: 'Low', count: countPriority('low') },
+    ];
+  }, [scoped]);
+
+  const filtered = useMemo(
+    () => filterTasks(scoped, query, priorityFilter),
+    [scoped, query, priorityFilter],
+  );
+  const hasActiveFilters = query.trim().length > 0 || priorityFilter !== 'all';
+
   const groups = useMemo(
     () =>
       STATUS_ORDER_UI.map((status) => ({
         status,
         label: STATUS_META[status].label,
-        rows: scoped.filter((issue) => mapApiStatus(issue.status) === status),
+        rows: filtered.filter((issue) => mapApiStatus(issue.status) === status),
       })).filter((group) => group.rows.length > 0),
-    [scoped],
+    [filtered],
   );
 
   const onRefresh = () => {
@@ -106,6 +132,14 @@ export function TasksScreen() {
           onChange={setMineTab}
         />
       </View>
+      <SearchFilterBar
+        query={query}
+        onChangeQuery={setQuery}
+        placeholder="Search tasks..."
+        filters={filterOptions}
+        activeFilter={priorityFilter}
+        onChangeFilter={setPriorityFilter}
+      />
       <ScrollView
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
@@ -189,17 +223,40 @@ export function TasksScreen() {
           : null}
 
         {!error && !loading && !workspaceLoading && groups.length === 0 ? (
-          <View style={styles.empty}>
-            <BerryMark size={32} dot={colors.ash} />
-            <AppText size={15} weight="medium">
-              No tasks here yet
-            </AppText>
-            <AppText size={13} tone="ash" style={styles.center}>
-              {mineTab === 'assigned'
-                ? 'Tasks assigned to you appear here.'
-                : 'Tasks you create in this workspace appear here.'}
-            </AppText>
-          </View>
+          hasActiveFilters ? (
+            <View style={styles.empty}>
+              <Icon name="search" size={28} color={colors.ash} />
+              <AppText size={15} weight="medium">
+                No matching tasks
+              </AppText>
+              <AppText size={13} tone="ash" style={styles.center}>
+                Try a different search term or priority filter.
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setQuery('');
+                  setPriorityFilter('all');
+                }}
+                style={styles.clearBtn}>
+                <AppText size={13} weight="medium" style={styles.retryText}>
+                  Clear filters
+                </AppText>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <BerryMark size={32} dot={colors.ash} />
+              <AppText size={15} weight="medium">
+                No tasks here yet
+              </AppText>
+              <AppText size={13} tone="ash" style={styles.center}>
+                {mineTab === 'assigned'
+                  ? 'Tasks assigned to you appear here.'
+                  : 'Tasks you create in this workspace appear here.'}
+              </AppText>
+            </View>
+          )
         ) : null}
       </ScrollView>
       {Platform.OS === 'android' ? <Fab label="New task" onPress={() => router.push('/compose')} /> : null}
@@ -243,6 +300,13 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+    marginTop: 4,
+  },
+  clearBtn: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 8,

@@ -5,6 +5,7 @@ import type { ApiIssue, ApiProject } from '@/api/types';
 import {
   filterIssuesByProject,
   filterProjects,
+  filterProjectsByCriteria,
   formatProjectHealth,
   formatProjectStatus,
   summarizeProjectIssues,
@@ -66,6 +67,23 @@ describe('projects helpers', () => {
     expect(filterProjects([baseProject, second], '')).toHaveLength(2);
     expect(filterProjects([baseProject, second], 'expo').map((p) => p.id)).toEqual(['proj-1']);
     expect(filterProjects([baseProject, second], 'BILLING').map((p) => p.id)).toEqual(['proj-2']);
+  });
+
+  test('filters projects by status and health criteria combined with query', () => {
+    const projects: ApiProject[] = [
+      { ...baseProject, id: 'p-active', name: 'Mobile', status: 'in_progress', health: 'on_track' },
+      { ...baseProject, id: 'p-started', name: 'Sync', status: 'started', health: 'at_risk' },
+      { ...baseProject, id: 'p-planned', name: 'Roadmap', status: 'planned', health: 'on_track' },
+      { ...baseProject, id: 'p-backlog', name: 'Ideas', status: 'backlog', health: 'off_track' },
+      { ...baseProject, id: 'p-done', name: 'Launch', status: 'completed', health: 'on_track' },
+    ];
+
+    expect(filterProjectsByCriteria(projects, '', 'all')).toHaveLength(5);
+    expect(filterProjectsByCriteria(projects, '', 'active').map((p) => p.id)).toEqual(['p-active', 'p-started']);
+    expect(filterProjectsByCriteria(projects, '', 'planned').map((p) => p.id)).toEqual(['p-planned', 'p-backlog']);
+    expect(filterProjectsByCriteria(projects, '', 'completed').map((p) => p.id)).toEqual(['p-done']);
+    expect(filterProjectsByCriteria(projects, '', 'at_risk').map((p) => p.id)).toEqual(['p-started', 'p-backlog']);
+    expect(filterProjectsByCriteria(projects, 'sync', 'at_risk').map((p) => p.id)).toEqual(['p-started']);
   });
 
   test('filters issues by project and summarizes open vs done counts', () => {

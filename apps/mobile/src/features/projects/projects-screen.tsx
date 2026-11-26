@@ -7,7 +7,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,16 +14,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Fab } from '@/components/fab';
 import { Icon } from '@/components/icon';
 import { HeaderIconButton, ScreenHeader } from '@/components/screen-header';
+import { SearchFilterBar, type FilterOption } from '@/components/search-filter-bar';
 import { AppText } from '@/components/text';
 import { formatRelativeTime } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors } from '@/theme/tokens';
 
 import {
-  filterProjects,
+  filterProjectsByCriteria,
   formatProjectHealth,
   formatProjectStatus,
+  matchesProjectFilter,
+  type ProjectFilter,
   type ProjectHealthTone,
 } from './projects-helpers';
 
@@ -45,9 +47,25 @@ export function ProjectsScreen() {
   const loadWorkspace = useWorkspaceStore((state) => state.loadWorkspace);
 
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<ProjectFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  const filtered = useMemo(() => filterProjects(projects, query), [projects, query]);
+  const filterOptions = useMemo<FilterOption<ProjectFilter>[]>(() => {
+    const countFor = (f: ProjectFilter) => projects.filter((project) => matchesProjectFilter(project, f)).length;
+    return [
+      { id: 'all', label: 'All' },
+      { id: 'active', label: 'Active', count: countFor('active') },
+      { id: 'planned', label: 'Planned', count: countFor('planned') },
+      { id: 'completed', label: 'Completed', count: countFor('completed') },
+      { id: 'at_risk', label: 'At risk', count: countFor('at_risk') },
+    ];
+  }, [projects]);
+
+  const filtered = useMemo(
+    () => filterProjectsByCriteria(projects, query, filter),
+    [projects, query, filter],
+  );
+  const hasActiveFilters = query.trim().length > 0 || filter !== 'all';
 
   const onRefresh = async () => {
     if (!client || !currentWorkspaceId) return;
@@ -70,23 +88,14 @@ export function ProjectsScreen() {
         }
       />
 
-      <View style={styles.searchWrap}>
-        <Icon name="search" size={16} color={colors.ash} />
-        <TextInput
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Filter projects..."
-          placeholderTextColor={colors.ash}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.searchInput}
-        />
-        {query.length > 0 ? (
-          <Pressable accessibilityLabel="Clear filter" onPress={() => setQuery('')} hitSlop={8}>
-            <Icon name="close" size={15} color={colors.ash} />
-          </Pressable>
-        ) : null}
-      </View>
+      <SearchFilterBar
+        query={query}
+        onChangeQuery={setQuery}
+        placeholder="Filter projects..."
+        filters={filterOptions}
+        activeFilter={filter}
+        onChangeFilter={setFilter}
+      />
 
       <ScrollView
         contentContainerStyle={styles.list}
@@ -114,13 +123,26 @@ export function ProjectsScreen() {
           <View style={styles.empty}>
             <Icon name="projects" size={28} color={colors.ash} />
             <AppText size={15} weight="medium" tone="chalk">
-              {query.trim() ? 'No matching projects' : 'No projects yet'}
+              {hasActiveFilters ? 'No matching projects' : 'No projects yet'}
             </AppText>
             <AppText size={13} tone="ash" style={styles.emptySub}>
-              {query.trim()
-                ? 'Try a different search term.'
+              {hasActiveFilters
+                ? 'Try a different search term or filter.'
                 : 'Projects created in this workspace will appear here.'}
             </AppText>
+            {hasActiveFilters ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setQuery('');
+                  setFilter('all');
+                }}
+                style={styles.clearBtn}>
+                <AppText size={13} weight="medium" style={styles.clearText}>
+                  Clear filters
+                </AppText>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           filtered.map((project) => {
@@ -175,30 +197,18 @@ export function ProjectsScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.void },
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: colors.base,
-    borderWidth: 1,
-    borderColor: colors.hair,
-  },
-  searchInput: {
-    flex: 1,
-    color: colors.chalk,
-    fontFamily: fonts.regular,
-    fontSize: 13,
-    paddingVertical: 0,
-  },
   list: { paddingHorizontal: 16, paddingBottom: 96, gap: 10 },
   center: { paddingVertical: 48, alignItems: 'center' },
   empty: { paddingVertical: 56, alignItems: 'center', gap: 8, paddingHorizontal: 24 },
   emptySub: { textAlign: 'center' },
+  clearBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+    marginTop: 4,
+  },
+  clearText: { color: colors.white },
   errorCard: {
     padding: 14,
     borderRadius: 12,
