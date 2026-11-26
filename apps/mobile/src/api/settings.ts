@@ -135,6 +135,164 @@ export type ApiPromptLog = {
   createdAt: string;
 };
 
+export type ApiUserSettings = {
+  theme: string;
+  timezone: string;
+  reducedMotion: boolean;
+  locale: string;
+};
+
+export const NOTIFICATION_KEYS = [
+  'assignments',
+  'mentions',
+  'comments',
+  'statusChanges',
+  'approvals',
+  'agentActivity',
+  'milestones',
+  'updates',
+] as const;
+
+export type NotificationKey = (typeof NOTIFICATION_KEYS)[number];
+export type NotificationSwitches = Record<NotificationKey, boolean>;
+
+export type ApiAccountSession = {
+  id: string;
+  userAgent: string | null;
+  ip: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string;
+};
+
+export const CHANNEL_TYPES = [
+  'EMAIL',
+  'SMS',
+  'WHATSAPP',
+  'TELEGRAM',
+  'VIBER',
+  'LIVE_CHAT',
+] as const;
+
+export type ChannelType = (typeof CHANNEL_TYPES)[number];
+
+export type ApiChannelIdentity = {
+  id: string;
+  channel: string;
+  address: string;
+  displayName: string | null;
+  verified: boolean;
+  preferred: boolean;
+  createdAt: string;
+};
+
+export const TIER_KEYS = [
+  'berry_max',
+  'berry_xhigh',
+  'berry_high',
+  'berry_mid',
+  'berry_low',
+] as const;
+
+export type TierKey = (typeof TIER_KEYS)[number];
+
+export type ApiTierModels = {
+  source: 'workspace' | 'unset';
+  tiers: Record<TierKey, string[]>;
+  names: Record<TierKey, string>;
+};
+
+export type ApiSkillLabel = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string | null;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+  usageCount?: number;
+};
+
+export const PROPERTY_KINDS = [
+  'text',
+  'number',
+  'boolean',
+  'date',
+  'url',
+  'select',
+  'multi_select',
+  'person',
+  'multi_person',
+] as const;
+
+export type PropertyKind = (typeof PROPERTY_KINDS)[number];
+
+export type ApiPropertyOption = {
+  id: string;
+  name: string;
+  color: string;
+};
+
+export type ApiPropertyDefinition = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string | null;
+  kind: PropertyKind;
+  options: ApiPropertyOption[];
+  icon: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  archivedAt: string | null;
+};
+
+export const MAX_ACTIVE_PROPERTIES = 20;
+
+export type ApiQuickAction = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description: string | null;
+  targetAgentId: string;
+  prompt: string;
+  visibility: 'private' | 'workspace';
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  useCount?: number;
+  lastUsedAt?: string | null;
+  archivedAt?: string | null;
+};
+
+const DEFAULT_TIER_NAMES: Record<TierKey, string> = {
+  berry_max: 'BerryMax',
+  berry_xhigh: 'BerryXHigh',
+  berry_high: 'BerryHigh',
+  berry_mid: 'BerryMid',
+  berry_low: 'BerryLow',
+};
+
+function normalizeUserSettings(res: Partial<ApiUserSettings> | null | undefined): ApiUserSettings {
+  return {
+    theme: typeof res?.theme === 'string' ? res.theme : 'system',
+    timezone: typeof res?.timezone === 'string' ? res.timezone : 'UTC',
+    reducedMotion: Boolean(res?.reducedMotion),
+    locale: typeof res?.locale === 'string' && res.locale.length > 0 ? res.locale : 'en',
+  };
+}
+
+function normalizeNotificationSwitches(
+  inApp: Record<string, boolean> | null | undefined,
+): NotificationSwitches {
+  const result = {} as NotificationSwitches;
+  for (const key of NOTIFICATION_KEYS) {
+    result[key] = typeof inApp?.[key] === 'boolean' ? inApp[key] : true;
+  }
+  return result;
+}
+
 function safeNodes<T>(response: { nodes?: T[] } | null | undefined): T[] {
   return Array.isArray(response?.nodes) ? response.nodes : [];
 }
@@ -291,4 +449,231 @@ export async function listCompletionLogs(
     `/api/v1/logs/${encodeURIComponent(workspaceId)}/prompts?first=${safeFirst}`,
   );
   return safeNodes(res);
+}
+
+export async function getUserSettings(client: BerryClient): Promise<ApiUserSettings> {
+  const res = await client.get<Partial<ApiUserSettings>>('/api/v1/me/settings');
+  return normalizeUserSettings(res);
+}
+
+export async function updateUserSettings(
+  client: BerryClient,
+  patch: Partial<ApiUserSettings>,
+): Promise<ApiUserSettings> {
+  const res = await client.patch<Partial<ApiUserSettings>>('/api/v1/me/settings', patch);
+  return normalizeUserSettings(res);
+}
+
+export async function getPlatformNotifications(
+  client: BerryClient,
+  workspaceId: string,
+): Promise<NotificationSwitches> {
+  const res = await client.get<{ workspaceId?: string; inApp?: Record<string, boolean> }>(
+    `/api/v1/me/notifications?workspaceId=${encodeURIComponent(workspaceId)}`,
+  );
+  return normalizeNotificationSwitches(res?.inApp);
+}
+
+export async function updatePlatformNotification(
+  client: BerryClient,
+  workspaceId: string,
+  key: NotificationKey,
+  enabled: boolean,
+): Promise<NotificationSwitches> {
+  const res = await client.patch<{ workspaceId?: string; inApp?: Record<string, boolean> }>(
+    '/api/v1/me/notifications',
+    { workspaceId, inApp: { [key]: enabled } },
+  );
+  return normalizeNotificationSwitches(res?.inApp);
+}
+
+export async function listSessions(client: BerryClient): Promise<ApiAccountSession[]> {
+  const res = await client.get<{ nodes?: ApiAccountSession[] }>('/api/v1/me/sessions');
+  return safeNodes(res);
+}
+
+export async function revokeSession(client: BerryClient, sessionId: string): Promise<void> {
+  await client.del(`/api/v1/me/sessions/${encodeURIComponent(sessionId)}`);
+}
+
+export function describeDevice(userAgent: string | null): string {
+  if (!userAgent) return 'Unknown device';
+  const browser = /Edg\//.test(userAgent)
+    ? 'Edge'
+    : /OPR\//.test(userAgent)
+      ? 'Opera'
+      : /Chrome\//.test(userAgent)
+        ? 'Chrome'
+        : /Safari\//.test(userAgent)
+          ? 'Safari'
+          : /Firefox\//.test(userAgent)
+            ? 'Firefox'
+            : 'A browser';
+  const platform = /iPhone|iPad/.test(userAgent)
+    ? 'iOS'
+    : /Mac OS X|Macintosh/.test(userAgent)
+      ? 'macOS'
+      : /Windows/.test(userAgent)
+        ? 'Windows'
+        : /Android/.test(userAgent)
+          ? 'Android'
+          : /Linux/.test(userAgent)
+            ? 'Linux'
+            : null;
+  return platform ? `${browser} on ${platform}` : browser;
+}
+
+export async function listChannels(client: BerryClient): Promise<ApiChannelIdentity[]> {
+  const res = await client.get<{ nodes?: ApiChannelIdentity[] }>('/api/v1/me/channels');
+  return safeNodes(res);
+}
+
+export async function addChannel(
+  client: BerryClient,
+  input: { channel: string; address: string; preferred?: boolean },
+): Promise<ApiChannelIdentity> {
+  return client.post<ApiChannelIdentity>('/api/v1/me/channels', {
+    ...input,
+    address: input.address.trim(),
+  });
+}
+
+export async function removeChannel(client: BerryClient, channelId: string): Promise<void> {
+  await client.del(`/api/v1/me/channels/${encodeURIComponent(channelId)}`);
+}
+
+export async function getTierModels(client: BerryClient): Promise<ApiTierModels> {
+  const res = await client.get<{
+    source?: 'workspace' | 'unset';
+    tiers?: Partial<Record<TierKey, string[]>>;
+    names?: Partial<Record<TierKey, string>>;
+  }>('/api/v1/runtimes/tier-models');
+
+  const tiers = {} as Record<TierKey, string[]>;
+  const names = {} as Record<TierKey, string>;
+  for (const key of TIER_KEYS) {
+    const models = res?.tiers?.[key];
+    tiers[key] = Array.isArray(models) ? models : [];
+    const name = res?.names?.[key];
+    names[key] = typeof name === 'string' && name.length > 0 ? name : DEFAULT_TIER_NAMES[key];
+  }
+
+  return {
+    source: res?.source === 'workspace' ? 'workspace' : 'unset',
+    tiers,
+    names,
+  };
+}
+
+export async function listSkillLabels(
+  client: BerryClient,
+  workspaceId: string,
+): Promise<ApiSkillLabel[]> {
+  const res = await client.get<Connection<ApiSkillLabel>>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/skill-labels?first=100`,
+  );
+  return safeNodes(res).filter((label) => !label.archivedAt);
+}
+
+export async function createSkillLabel(
+  client: BerryClient,
+  workspaceId: string,
+  input: { name: string; color: string },
+): Promise<ApiSkillLabel> {
+  return client.post<ApiSkillLabel>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/skill-labels`,
+    { name: input.name.trim(), color: input.color },
+  );
+}
+
+export async function archiveSkillLabel(
+  client: BerryClient,
+  workspaceId: string,
+  labelId: string,
+): Promise<void> {
+  await client.del(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/skill-labels/${encodeURIComponent(labelId)}`,
+  );
+}
+
+export async function listIssueProperties(
+  client: BerryClient,
+  workspaceId: string,
+  includeArchived = true,
+): Promise<ApiPropertyDefinition[]> {
+  const query = includeArchived ? '?includeArchived=true' : '';
+  const res = await client.get<{ nodes?: ApiPropertyDefinition[] }>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/issue-properties${query}`,
+  );
+  return safeNodes(res);
+}
+
+export async function createIssueProperty(
+  client: BerryClient,
+  workspaceId: string,
+  input: {
+    name: string;
+    kind: PropertyKind;
+    options?: ApiPropertyOption[];
+    description?: string | null;
+  },
+): Promise<ApiPropertyDefinition> {
+  return client.post<ApiPropertyDefinition>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/issue-properties`,
+    { ...input, name: input.name.trim() },
+  );
+}
+
+export async function restoreIssueProperty(
+  client: BerryClient,
+  workspaceId: string,
+  propertyId: string,
+): Promise<ApiPropertyDefinition> {
+  return client.patch<ApiPropertyDefinition>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/issue-properties/${encodeURIComponent(propertyId)}`,
+    { archived: false },
+  );
+}
+
+export async function archiveIssueProperty(
+  client: BerryClient,
+  workspaceId: string,
+  propertyId: string,
+): Promise<void> {
+  await client.del(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/issue-properties/${encodeURIComponent(propertyId)}`,
+  );
+}
+
+export async function listQuickActions(
+  client: BerryClient,
+  workspaceId: string,
+  includeArchived = true,
+): Promise<ApiQuickAction[]> {
+  const query = includeArchived ? '?includeArchived=true' : '';
+  const res = await client.get<{ nodes?: ApiQuickAction[] }>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/quick-actions${query}`,
+  );
+  return safeNodes(res);
+}
+
+export async function restoreQuickAction(
+  client: BerryClient,
+  workspaceId: string,
+  actionId: string,
+): Promise<ApiQuickAction> {
+  return client.patch<ApiQuickAction>(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/quick-actions/${encodeURIComponent(actionId)}`,
+    { archived: false },
+  );
+}
+
+export async function archiveQuickAction(
+  client: BerryClient,
+  workspaceId: string,
+  actionId: string,
+): Promise<void> {
+  await client.del(
+    `/api/v1/catalogs/${encodeURIComponent(workspaceId)}/quick-actions/${encodeURIComponent(actionId)}`,
+  );
 }
