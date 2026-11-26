@@ -31,6 +31,13 @@ import {
 } from './settings-personal-panels';
 import { SettingsPickerSheet } from './settings-picker-sheet';
 import { getSettingsSection, type SettingsSectionId } from './settings-sections';
+import {
+  IssuePropertiesPanel,
+  McpServersPanel,
+  ModelTiersPanel,
+  QuickActionsPanel,
+  SkillLabelsPanel,
+} from './settings-workspace-panels';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -160,6 +167,8 @@ export function SettingsScreen() {
             bottomPadding={bottomPadding}
           />
         );
+      case 'modelTiers':
+        return <ModelTiersPanel client={client} bottomPadding={bottomPadding} />;
       case 'labels':
         return (
           <LabelsPanel
@@ -168,9 +177,25 @@ export function SettingsScreen() {
             bottomPadding={bottomPadding}
           />
         );
-      case 'integrations':
+      case 'skillLabels':
         return (
-          <IntegrationsPanel
+          <SkillLabelsPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'properties':
+        return (
+          <IssuePropertiesPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'quickActions':
+        return (
+          <QuickActionsPanel
             client={client}
             workspaceId={resolvedWorkspaceId}
             bottomPadding={bottomPadding}
@@ -184,6 +209,16 @@ export function SettingsScreen() {
             bottomPadding={bottomPadding}
           />
         );
+      case 'integrations':
+        return (
+          <IntegrationsPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'mcp':
+        return <McpServersPanel client={client} bottomPadding={bottomPadding} />;
       case 'overview':
       default:
         return (

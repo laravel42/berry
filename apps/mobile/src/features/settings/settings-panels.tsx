@@ -17,7 +17,6 @@ import {
   getWorkspaceUsage,
   listCompletionLogs,
   listIntegrations,
-  listMcpServers,
   listRuntimes,
   listTokens,
   listWorkspaceLabels,
@@ -26,7 +25,6 @@ import {
   updateProfile,
   type ApiIntegrationProvider,
   type ApiIssueLabel,
-  type ApiMcpServer,
   type ApiPersonalToken,
   type ApiPromptLog,
   type ApiUsageSummary,
@@ -959,7 +957,7 @@ export function LabelsPanel({
   );
 }
 
-// ------------------------------------------------------------------ Integrations & MCP
+// ------------------------------------------------------------------ Integrations
 
 export function IntegrationsPanel({
   client,
@@ -975,39 +973,32 @@ export function IntegrationsPanel({
   const [state, setState] = useState<{
     loading: boolean;
     providers: ApiIntegrationProvider[];
-    mcpServers: ApiMcpServer[];
     error: string | null;
-  }>({ loading: true, providers: [], mcpServers: [], error: null });
+  }>({ loading: true, providers: [], error: null });
 
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       if (!client) {
         if (!cancelled) {
-          setState({ loading: false, providers: [], mcpServers: [], error: 'Sign in to view integrations.' });
+          setState({ loading: false, providers: [], error: 'Sign in to view integrations.' });
         }
         return;
       }
-      const [providersRes, mcpRes] = await Promise.allSettled([
-        listIntegrations(client, workspaceId ?? undefined),
-        listMcpServers(client, workspaceId ?? undefined),
-      ]);
-      if (cancelled) return;
-      if (providersRes.status === 'rejected' && mcpRes.status === 'rejected') {
-        setState({
-          loading: false,
-          providers: [],
-          mcpServers: [],
-          error: formatApiError(providersRes.reason, 'Could not load integrations.'),
-        });
-        return;
+      try {
+        const providers = await listIntegrations(client, workspaceId ?? undefined);
+        if (!cancelled) {
+          setState({ loading: false, providers, error: null });
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setState({
+            loading: false,
+            providers: [],
+            error: formatApiError(caught, 'Could not load integrations.'),
+          });
+        }
       }
-      setState({
-        loading: false,
-        providers: providersRes.status === 'fulfilled' ? providersRes.value : [],
-        mcpServers: mcpRes.status === 'fulfilled' ? mcpRes.value : [],
-        error: null,
-      });
     };
     void run();
     return () => {
@@ -1018,30 +1009,22 @@ export function IntegrationsPanel({
   const handleRefresh = useCallback(async () => {
     if (!client) return;
     setRefreshing(true);
-    const [providersRes, mcpRes] = await Promise.allSettled([
-      listIntegrations(client, workspaceId ?? undefined),
-      listMcpServers(client, workspaceId ?? undefined),
-    ]);
-    if (providersRes.status === 'rejected' && mcpRes.status === 'rejected') {
+    try {
+      const providers = await listIntegrations(client, workspaceId ?? undefined);
+      setState({ loading: false, providers, error: null });
+    } catch (caught) {
       setState({
         loading: false,
         providers: [],
-        mcpServers: [],
-        error: formatApiError(providersRes.reason, 'Could not load integrations.'),
+        error: formatApiError(caught, 'Could not load integrations.'),
       });
-    } else {
-      setState({
-        loading: false,
-        providers: providersRes.status === 'fulfilled' ? providersRes.value : [],
-        mcpServers: mcpRes.status === 'fulfilled' ? mcpRes.value : [],
-        error: null,
-      });
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   }, [client, workspaceId]);
 
   const handleRetry = () => {
-    setState({ loading: true, providers: [], mcpServers: [], error: null });
+    setState({ loading: true, providers: [], error: null });
     setReloadSeq((n) => n + 1);
   };
 
@@ -1054,9 +1037,9 @@ export function IntegrationsPanel({
       <PanelStateCard
         loading={state.loading}
         error={state.error}
-        empty={!state.loading && !state.error && state.providers.length === 0 && state.mcpServers.length === 0}
+        empty={!state.loading && !state.error && state.providers.length === 0}
         emptyTitle="No integrations configured"
-        emptyHint="Connect GitHub, GitLab, or MCP servers from Berry web Settings."
+        emptyHint="Connect workspace providers like GitHub from Berry web Settings."
         onRetry={handleRetry}
       />
 
@@ -1097,43 +1080,6 @@ export function IntegrationsPanel({
               </View>
             );
           })}
-        </>
-      ) : null}
-
-      {!state.loading && !state.error ? (
-        <>
-          <AppText size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
-            MCP SERVERS ({state.mcpServers.length})
-          </AppText>
-          {state.mcpServers.length === 0 ? (
-            <View style={panelStyles.card}>
-              <AppText size={12} tone="ash">
-                No MCP servers registered in this workspace.
-              </AppText>
-            </View>
-          ) : (
-            state.mcpServers.map((server) => (
-              <View key={server.id} style={panelStyles.card}>
-                <View style={panelStyles.rowBetween}>
-                  <View style={panelStyles.flexCopy}>
-                    <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
-                      {server.name}
-                    </AppText>
-                    <AppText size={11} tone="ash" numberOfLines={1}>
-                      {server.url}
-                    </AppText>
-                  </View>
-                  <StatusBadge
-                    label={server.enabled ? 'Enabled' : 'Disabled'}
-                    tone={server.enabled ? 'verdant' : 'ash'}
-                  />
-                </View>
-                <AppText size={11} tone="slate">
-                  Transport: {server.transport}
-                </AppText>
-              </View>
-            ))
-          )}
         </>
       ) : null}
     </ScrollView>
