@@ -168,6 +168,7 @@ export function InboxScreen() {
       />
       <View style={styles.pad}>
         <Segmented
+          variant="underline"
           items={[
             { id: 'active' as const, label: unreadCount > 0 ? `Inbox · ${unreadCount}` : 'Inbox' },
             { id: 'archived' as const, label: 'Archive' },

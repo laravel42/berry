@@ -124,6 +124,7 @@ export function TasksScreen() {
       />
       <View style={styles.pad}>
         <Segmented
+          variant="underline"
           items={[
             { id: 'assigned' as const, label: `Assigned · ${assigned.length}` },
             { id: 'created' as const, label: `Created · ${created.length}` },
