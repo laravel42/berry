@@ -50,36 +50,42 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
           <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
             {SETTINGS_GROUPS.map((group) => (
               <View key={group.id} style={styles.group}>
-                <AppText size={11} weight="medium" tone="ash" style={styles.groupTitle}>
-                  {group.title.toUpperCase()}
-                </AppText>
-                {group.items.map((item) => {
-                  const active = item.id === activeSection;
-                  return (
-                    <Pressable
-                      key={item.id}
-                      accessibilityRole="button"
-                      onPress={() => handleSelect(item.id)}
-                      style={({ pressed }) => [
-                        styles.row,
-                        active && styles.rowActive,
-                        pressed && styles.pressed,
-                      ]}>
-                      <View style={styles.rowCopy}>
-                        <AppText
-                          size={14}
-                          weight={active ? 'medium' : 'regular'}
-                          tone={active ? 'chalk' : 'chalk'}>
-                          {item.label}
-                        </AppText>
-                        <AppText size={11} tone="ash" numberOfLines={2}>
-                          {item.description}
-                        </AppText>
-                      </View>
-                      {active ? <Icon name="check" size={16} color={colors.berry} /> : null}
-                    </Pressable>
-                  );
-                })}
+                <View style={styles.groupHeader}>
+                  <AppText size={11} weight="medium" tone="berry" style={styles.groupTitle}>
+                    {group.title.toUpperCase()}
+                  </AppText>
+                  <View style={styles.groupRule} />
+                </View>
+                <View style={styles.groupCard}>
+                  {group.items.map((item, index) => {
+                    const active = item.id === activeSection;
+                    return (
+                      <Pressable
+                        key={item.id}
+                        accessibilityRole="button"
+                        onPress={() => handleSelect(item.id)}
+                        style={({ pressed }) => [
+                          styles.row,
+                          index > 0 && styles.rowDivider,
+                          active && styles.rowActive,
+                          pressed && styles.pressed,
+                        ]}>
+                        <View style={styles.rowCopy}>
+                          <AppText
+                            size={14}
+                            weight={active ? 'medium' : 'regular'}
+                            tone={active ? 'berry' : 'chalk'}>
+                            {item.label}
+                          </AppText>
+                          <AppText size={11} tone="ash" numberOfLines={2}>
+                            {item.description}
+                          </AppText>
+                        </View>
+                        {active ? <Icon name="check" size={16} color={colors.berry} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
             ))}
           </ScrollView>
@@ -124,22 +130,40 @@ const styles = StyleSheet.create({
   headerCopy: { flex: 1, gap: 2 },
   closeBtn: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   list: { maxHeight: 460 },
-  listContent: { gap: 14, paddingBottom: 8 },
-  group: { gap: 4 },
-  groupTitle: { letterSpacing: 0.7, paddingHorizontal: 10, paddingBottom: 2 },
+  listContent: { gap: 16, paddingTop: 4, paddingBottom: 10 },
+  group: { gap: 8 },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  groupTitle: { letterSpacing: 1.0 },
+  groupRule: {
+    flex: 1,
+    height: 1,
+    backgroundColor: colors.hair,
+  },
+  groupCard: {
+    backgroundColor: colors.base,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    overflow: 'hidden',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'transparent',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+  },
+  rowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
   },
   rowActive: {
-    backgroundColor: colors.base,
-    borderColor: colors.hair,
+    backgroundColor: 'rgba(217, 74, 91, 0.12)',
   },
   rowCopy: { flex: 1, gap: 2 },
   pressed: { opacity: 0.85 },
