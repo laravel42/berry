@@ -6,18 +6,47 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
+  TextInput,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { listAllBoardIssues } from '@/api/issues';
+import {
+  createProjectUpdate,
+  listProjectMilestones,
+  listProjectUpdates,
+  type ApiMilestone,
+  type ApiProjectUpdate,
+  type ProjectUpdateHealthApi,
+} from '@/api/projects';
 import type { ApiIssue } from '@/api/types';
+import { Avatar } from '@/components/avatar';
+import { StatusMark } from '@/components/berry-mark';
 import { Icon } from '@/components/icon';
+import { PriorityBars } from '@/components/priority-bars';
+import { SearchFilterBar, type FilterOption } from '@/components/search-filter-bar';
+import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
-import { formatRelativeTime, mapApiStatus, STATUS_META, TONE_COLOR_MAP } from '@/model/mappers';
+import {
+  filterTasks,
+  isGroupCollapsed,
+  toggleGroupCollapsed,
+  type TaskPriorityFilter,
+} from '@/features/tasks/tasks-helpers';
+import {
+  actorFromRef,
+  formatRelativeTime,
+  mapApiPriority,
+  mapApiStatus,
+  PRIORITY_META,
+  STATUS_META,
+  STATUS_ORDER_UI,
+} from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
+import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 import {
   filterIssuesByProject,
@@ -26,57 +55,167 @@ import {
   summarizeProjectIssues,
 } from './projects-helpers';
 
+type ProjectTab = 'overview' | 'tasks' | 'updates';
+type MilestoneTone = 'ash' | 'azure' | 'amber' | 'verdant';
+
+const HEALTH_OPTIONS: readonly {
+  id: ProjectUpdateHealthApi;
+  label: string;
+  tone: 'verdant' | 'amber' | 'danger';
+}[] = [
+  { id: 'onTrack', label: 'On track', tone: 'verdant' },
+  { id: 'atRisk', label: 'At risk', tone: 'amber' },
+  { id: 'offTrack', label: 'Off track', tone: 'danger' },
+];
+
+function formatMilestoneStatus(status: string | null | undefined): {
+  label: string;
+  tone: MilestoneTone;
+} {
+  const normalized = (status ?? '').toLowerCase();
+  if (normalized === 'completed' || normalized === 'done') {
+    return { label: 'Completed', tone: 'verdant' };
+  }
+  if (normalized === 'active' || normalized === 'in_progress' || normalized === 'inprogress') {
+    return { label: 'Active', tone: 'azure' };
+  }
+  if (normalized === 'blocked') {
+    return { label: 'Blocked', tone: 'amber' };
+  }
+  if (normalized === 'planned' || normalized === 'draft' || !normalized) {
+    return { label: 'Planned', tone: 'ash' };
+  }
+  return { label: formatProjectStatus(status), tone: 'ash' };
+}
+
+function formatShortDate(raw: string | null | undefined): string | null {
+  const trimmed = (raw ?? '').trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+    return trimmed.slice(0, 10);
+  }
+  return trimmed;
+}
+
 export function ProjectDetailScreen({ projectId }: { projectId: string }) {
   const insets = useSafeAreaInsets();
   const client = useAuthStore((state) => state.client);
-  const project = useWorkspaceStore((state) => state.projects.find((p) => p.id === projectId) ?? null);
+  const showToast = useToastStore((state) => state.showToast);
+  const workspace = useWorkspaceStore((state) => state.workspace);
+  const project = useWorkspaceStore(
+    (state) => state.projects.find((p) => p.id === projectId) ?? null,
+  );
   const boards = useWorkspaceStore((state) => state.boards);
+  const members = useWorkspaceStore((state) => state.members);
+  const agents = useWorkspaceStore((state) => state.agents);
 
+  const [activeTab, setActiveTab] = useState<ProjectTab>('overview');
   const [issues, setIssues] = useState<ApiIssue[]>([]);
+  const [milestones, setMilestones] = useState<ApiMilestone[]>([]);
+  const [updates, setUpdates] = useState<ApiProjectUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProjectIssues = useCallback(async () => {
-    if (!client || boards.length === 0) return [] as ApiIssue[];
-    const pages = await Promise.all(boards.map((board) => listAllBoardIssues(client, board.id)));
-    const map = new Map<string, ApiIssue>();
-    for (const list of pages) {
-      for (const issue of list) {
-        map.set(issue.id, issue);
-      }
-    }
-    return filterIssuesByProject(Array.from(map.values()), projectId);
-  }, [client, boards, projectId]);
+  // Tasks tab state
+  const [query, setQuery] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityFilter>('all');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [milestoneFilter, setMilestoneFilter] = useState<{ id: string; title: string } | null>(
+    null,
+  );
 
-  const reloadIssues = useCallback(
+  // Updates composer state
+  const [updateHealth, setUpdateHealth] = useState<ProjectUpdateHealthApi>('onTrack');
+  const [updateBody, setUpdateBody] = useState('');
+  const [postingUpdate, setPostingUpdate] = useState(false);
+
+  const workspaceId = project?.workspaceId ?? workspace?.id ?? null;
+
+  const fetchAllData = useCallback(async () => {
+    if (!client) {
+      return {
+        issues: [] as ApiIssue[],
+        milestones: [] as ApiMilestone[],
+        updates: [] as ApiProjectUpdate[],
+      };
+    }
+
+    const fetchTasks = async (): Promise<ApiIssue[]> => {
+      if (boards.length === 0) return [];
+      const pages = await Promise.all(boards.map((board) => listAllBoardIssues(client, board.id)));
+      const map = new Map<string, ApiIssue>();
+      for (const list of pages) {
+        for (const issue of list) {
+          map.set(issue.id, issue);
+        }
+      }
+      return filterIssuesByProject(Array.from(map.values()), projectId);
+    };
+
+    const fetchMilestones = async (): Promise<ApiMilestone[]> => {
+      if (!workspaceId) return [];
+      try {
+        return await listProjectMilestones(client, workspaceId, projectId);
+      } catch {
+        return [];
+      }
+    };
+
+    const fetchUpdates = async (): Promise<ApiProjectUpdate[]> => {
+      try {
+        return await listProjectUpdates(client, projectId);
+      } catch {
+        return [];
+      }
+    };
+
+    const [nextIssues, nextMilestones, nextUpdates] = await Promise.all([
+      fetchTasks(),
+      fetchMilestones(),
+      fetchUpdates(),
+    ]);
+
+    return {
+      issues: nextIssues,
+      milestones: nextMilestones,
+      updates: nextUpdates,
+    };
+  }, [client, boards, workspaceId, projectId]);
+
+  const reloadAll = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (opts?.silent) setRefreshing(true);
       else setLoading(true);
       setError(null);
       try {
-        setIssues(await fetchProjectIssues());
+        const result = await fetchAllData();
+        setIssues(result.issues);
+        setMilestones(result.milestones);
+        setUpdates(result.updates);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : 'Could not load project tasks.');
+        setError(caught instanceof Error ? caught.message : 'Could not load project data.');
       } finally {
         setLoading(false);
         setRefreshing(false);
       }
     },
-    [fetchProjectIssues],
+    [fetchAllData],
   );
 
   useEffect(() => {
     let active = true;
-    fetchProjectIssues()
-      .then((next) => {
+    fetchAllData()
+      .then((result) => {
         if (!active) return;
-        setIssues(next);
+        setIssues(result.issues);
+        setMilestones(result.milestones);
+        setUpdates(result.updates);
         setError(null);
       })
       .catch((caught: unknown) => {
         if (!active) return;
-        setError(caught instanceof Error ? caught.message : 'Could not load project tasks.');
+        setError(caught instanceof Error ? caught.message : 'Could not load project data.');
       })
       .finally(() => {
         if (!active) return;
@@ -85,16 +224,100 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
     return () => {
       active = false;
     };
-  }, [fetchProjectIssues]);
+  }, [fetchAllData]);
 
   const summary = useMemo(() => summarizeProjectIssues(issues), [issues]);
+  const progressPct = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;
   const health = formatProjectHealth(project?.health);
   const statusLabel = formatProjectStatus(project?.status);
+  const priorityLabel = PRIORITY_META[mapApiPriority(project?.priority)].label;
+
+  const leadActor = useMemo(() => {
+    const leadId = project?.lead?.id;
+    if (!leadId) return null;
+    return (
+      members.find((m) => m.id === leadId) ?? agents.find((a) => a.id === leadId) ?? null
+    );
+  }, [project?.lead?.id, members, agents]);
+
+  const startDateLabel = formatShortDate(project?.startDate);
+  const targetDateLabel = formatShortDate(project?.targetDate);
+  const repoLabel = project?.githubRepo || project?.gitlabRepo || null;
+
+  const milestoneScopedIssues = useMemo(() => {
+    if (!milestoneFilter) return issues;
+    return issues.filter((issue) => issue.milestone?.id === milestoneFilter.id);
+  }, [issues, milestoneFilter]);
+
+  const priorityFilterOptions = useMemo<FilterOption<TaskPriorityFilter>[]>(() => {
+    const countPriority = (priority: Exclude<TaskPriorityFilter, 'all'>) =>
+      milestoneScopedIssues.filter((issue) => mapApiPriority(issue.priority) === priority).length;
+    return [
+      { id: 'all', label: 'All' },
+      { id: 'urgent', label: 'Urgent', count: countPriority('urgent') },
+      { id: 'high', label: 'High', count: countPriority('high') },
+      { id: 'medium', label: 'Medium', count: countPriority('medium') },
+      { id: 'low', label: 'Low', count: countPriority('low') },
+    ];
+  }, [milestoneScopedIssues]);
+
+  const filteredIssues = useMemo(
+    () => filterTasks(milestoneScopedIssues, query, priorityFilter),
+    [milestoneScopedIssues, query, priorityFilter],
+  );
+
+  const hasActiveTaskFilters =
+    query.trim().length > 0 || priorityFilter !== 'all' || milestoneFilter !== null;
+
+  const taskGroups = useMemo(
+    () =>
+      STATUS_ORDER_UI.map((status) => ({
+        status,
+        label: STATUS_META[status].label,
+        rows: filteredIssues.filter((issue) => mapApiStatus(issue.status) === status),
+      })).filter((group) => group.rows.length > 0),
+    [filteredIssues],
+  );
+
+  const handlePostUpdate = async () => {
+    const trimmed = updateBody.trim();
+    if (!client || !trimmed || postingUpdate) return;
+    setPostingUpdate(true);
+    try {
+      const created = await createProjectUpdate(client, projectId, {
+        health: updateHealth,
+        body: trimmed,
+      });
+      setUpdates((prev) => [created, ...prev]);
+      setUpdateBody('');
+      showToast('Project update posted', 'verdant');
+    } catch (caught) {
+      showToast(
+        caught instanceof Error ? caught.message : 'Could not post project update.',
+        'danger',
+      );
+    } finally {
+      setPostingUpdate(false);
+    }
+  };
+
+  const tabItems = useMemo(
+    () => [
+      { id: 'overview' as const, label: 'Overview' },
+      { id: 'tasks' as const, label: `Tasks · ${issues.length}` },
+      { id: 'updates' as const, label: `Updates · ${updates.length}` },
+    ],
+    [issues.length, updates.length],
+  );
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconBtn}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => router.back()}
+          style={styles.iconBtn}>
           <Icon name="arrowLeft" size={20} color={colors.chalk} />
         </Pressable>
         <AppText size={16} weight="medium" tone="chalk" numberOfLines={1} style={styles.topTitle}>
@@ -109,74 +332,60 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
         </Pressable>
       </View>
 
+      <View style={styles.tabsWrap}>
+        <Segmented variant="underline" items={tabItems} value={activeTab} onChange={setActiveTab} />
+      </View>
+
+      {activeTab === 'tasks' ? (
+        <View style={styles.tasksHeaderWrap}>
+          {milestoneFilter ? (
+            <View style={styles.milestoneBanner}>
+              <AppText size={12} tone="chalk" numberOfLines={1} style={styles.milestoneBannerText}>
+                Milestone: {milestoneFilter.title}
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear milestone filter"
+                onPress={() => setMilestoneFilter(null)}
+                style={styles.milestoneClearBtn}>
+                <AppText size={11} weight="medium" tone="berry">
+                  Clear
+                </AppText>
+              </Pressable>
+            </View>
+          ) : null}
+          <SearchFilterBar
+            query={query}
+            onChangeQuery={setQuery}
+            placeholder="Search project tasks..."
+            filters={priorityFilterOptions}
+            activeFilter={priorityFilter}
+            onChangeFilter={setPriorityFilter}
+          />
+        </View>
+      ) : null}
+
       <ScrollView
-        contentContainerStyle={[styles.body, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}
+        contentContainerStyle={[
+          activeTab === 'tasks' ? styles.tasksBody : styles.body,
+          { paddingBottom: Math.max(insets.bottom, 24) + 24 },
+        ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => void reloadIssues({ silent: true })} tintColor={colors.berry} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void reloadAll({ silent: true })}
+            tintColor={colors.berry}
+          />
         }>
-        {project ? (
-          <View style={styles.summaryCard}>
-            <View style={styles.badgesRow}>
-              <View style={styles.pill}>
-                <AppText size={11} tone="chalk">
-                  {statusLabel}
-                </AppText>
-              </View>
-              <View style={styles.pill}>
-                <AppText size={11} tone={health.tone}>
-                  {health.label}
-                </AppText>
-              </View>
-              <AppText size={11} tone="ash" style={styles.updated}>
-                Updated {formatRelativeTime(project.updatedAt)}
-              </AppText>
-            </View>
-
-            {project.description ? (
-              <AppText size={13} tone="ash" style={styles.desc}>
-                {project.description}
-              </AppText>
-            ) : null}
-
-            <View style={styles.statsRow}>
-              <View style={styles.statBox}>
-                <AppText size={18} weight="medium" tone="chalk">
-                  {summary.total}
-                </AppText>
-                <AppText size={11} tone="ash">
-                  Tasks
-                </AppText>
-              </View>
-              <View style={styles.statBox}>
-                <AppText size={18} weight="medium" tone="chalk">
-                  {summary.active}
-                </AppText>
-                <AppText size={11} tone="ash">
-                  Active
-                </AppText>
-              </View>
-              <View style={styles.statBox}>
-                <AppText size={18} weight="medium" tone="verdant">
-                  {summary.done}
-                </AppText>
-                <AppText size={11} tone="ash">
-                  Done
-                </AppText>
-              </View>
-            </View>
-          </View>
-        ) : null}
-
-        <AppText size={12} weight="medium" tone="ash" style={styles.sectionLabel}>
-          PROJECT TASKS
-        </AppText>
-
         {error ? (
-          <View style={styles.errorCard}>
+          <View style={[styles.errorCard, activeTab === 'tasks' && styles.errorCardInset]}>
             <AppText size={13} tone="danger">
               {error}
             </AppText>
-            <Pressable accessibilityRole="button" onPress={() => void reloadIssues()} style={styles.retryBtn}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void reloadAll()}
+              style={styles.retryBtn}>
               <AppText size={12} weight="medium" tone="chalk">
                 Retry
               </AppText>
@@ -184,59 +393,472 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
           </View>
         ) : null}
 
-        {loading && issues.length === 0 ? (
-          <View style={styles.center}>
-            <ActivityIndicator color={colors.berry} />
-          </View>
-        ) : issues.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <AppText size={14} weight="medium" tone="chalk">
-              No tasks linked to this project
-            </AppText>
-            <AppText size={12} tone="ash">
-              Create a task or link one from the board to track it here.
-            </AppText>
-          </View>
-        ) : (
-          <View style={styles.taskList}>
-            {issues.map((issue) => {
-              const uiStatus = mapApiStatus(issue.status);
-              const meta = STATUS_META[uiStatus];
-              const dotColor = TONE_COLOR_MAP[meta.tone];
-              return (
-                <Pressable
-                  key={issue.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${issue.identifier} ${issue.title}`}
-                  onPress={() => router.push(`/issue/${issue.id}`)}
-                  style={({ pressed }) => [styles.taskRow, pressed && styles.taskRowPressed]}>
-                  <View
-                    style={[
-                      styles.statusDot,
-                      meta.hollow ? { borderWidth: 1.5, borderColor: dotColor } : { backgroundColor: dotColor },
-                    ]}
-                  />
-                  <View style={styles.taskMeta}>
-                    <View style={styles.taskTopLine}>
-                      <AppText size={11} tone="ash">
-                        {issue.identifier}
+        {activeTab === 'overview' ? (
+          <>
+            {project ? (
+              <View style={styles.card}>
+                <AppText size={11} weight="medium" tone="ash" style={styles.cardHeader}>
+                  PROPERTIES
+                </AppText>
+
+                <View style={styles.propList}>
+                  <View style={styles.propRow}>
+                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                      Status
+                    </AppText>
+                    <View style={styles.pill}>
+                      <AppText size={11} tone="chalk">
+                        {statusLabel}
                       </AppText>
-                      {issue.assignee ? (
-                        <AppText size={11} tone="ash" numberOfLines={1}>
-                          · {issue.assignee.name}
-                        </AppText>
-                      ) : null}
                     </View>
-                    <AppText size={14} tone="chalk" numberOfLines={2}>
-                      {issue.title}
+                  </View>
+
+                  <View style={styles.propRow}>
+                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                      Health
+                    </AppText>
+                    <View style={styles.healthValue}>
+                      <View
+                        style={[styles.healthDot, { backgroundColor: colors[health.tone] }]}
+                      />
+                      <AppText size={12} tone={health.tone}>
+                        {health.label}
+                      </AppText>
+                    </View>
+                  </View>
+
+                  <View style={styles.propRow}>
+                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                      Priority
+                    </AppText>
+                    <View style={styles.priorityValue}>
+                      <PriorityBars priority={mapApiPriority(project.priority)} />
+                      <AppText size={12} tone="chalk">
+                        {priorityLabel}
+                      </AppText>
+                    </View>
+                  </View>
+
+                  <View style={styles.propProgressBlock}>
+                    <View style={styles.propRow}>
+                      <AppText size={12} tone="ash" style={styles.propLabel}>
+                        Progress
+                      </AppText>
+                      <AppText size={12} tone="chalk">
+                        {summary.done} / {summary.total} done
+                      </AppText>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View
+                        style={[styles.progressFill, { width: `${progressPct}%` }]}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.propRow}>
+                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                      Lead
+                    </AppText>
+                    {leadActor ? (
+                      <View style={styles.leadValue}>
+                        <Avatar actor={leadActor} size={20} />
+                        <AppText size={12} tone="chalk" numberOfLines={1}>
+                          {leadActor.name}
+                        </AppText>
+                      </View>
+                    ) : (
+                      <AppText size={12} tone="slate">
+                        Unassigned
+                      </AppText>
+                    )}
+                  </View>
+
+                  {startDateLabel || targetDateLabel ? (
+                    <View style={styles.propRow}>
+                      <AppText size={12} tone="ash" style={styles.propLabel}>
+                        Dates
+                      </AppText>
+                      <AppText size={12} tone="chalk">
+                        {startDateLabel && targetDateLabel
+                          ? `${startDateLabel} → ${targetDateLabel}`
+                          : startDateLabel
+                            ? `Start ${startDateLabel}`
+                            : `Target ${targetDateLabel}`}
+                      </AppText>
+                    </View>
+                  ) : null}
+
+                  {repoLabel ? (
+                    <View style={styles.propRow}>
+                      <AppText size={12} tone="ash" style={styles.propLabel}>
+                        Repository
+                      </AppText>
+                      <AppText
+                        size={12}
+                        tone="chalk"
+                        numberOfLines={1}
+                        style={styles.propValueTruncate}>
+                        {repoLabel}
+                      </AppText>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.propRow}>
+                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                      Updated
+                    </AppText>
+                    <AppText size={12} tone="ash">
+                      {formatRelativeTime(project.updatedAt)}
                     </AppText>
                   </View>
-                  <Icon name="chevronRight" size={16} color={colors.ash} />
-                </Pressable>
-              );
-            })}
-          </View>
-        )}
+                </View>
+              </View>
+            ) : null}
+
+            {project?.description?.trim() ? (
+              <View style={styles.card}>
+                <AppText size={11} weight="medium" tone="ash" style={styles.cardHeader}>
+                  DESCRIPTION
+                </AppText>
+                <AppText size={13} tone="chalk" style={styles.desc}>
+                  {project.description}
+                </AppText>
+              </View>
+            ) : null}
+
+            <View style={styles.sectionBlock}>
+              <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+                MILESTONES ({milestones.length})
+              </AppText>
+
+              {loading && milestones.length === 0 ? (
+                <View style={styles.center}>
+                  <ActivityIndicator color={colors.berry} />
+                </View>
+              ) : milestones.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <AppText size={13} weight="medium" tone="chalk">
+                    No milestones yet
+                  </AppText>
+                  <AppText size={12} tone="ash">
+                    Milestones added to this project will appear here with progress tracking.
+                  </AppText>
+                </View>
+              ) : (
+                <View style={styles.milestoneList}>
+                  {milestones.map((milestone) => {
+                    const mStatus = formatMilestoneStatus(milestone.status);
+                    const mDate = formatShortDate(milestone.targetDate);
+                    const progress = milestone.progress;
+                    const mPct = progress
+                      ? Math.max(
+                          0,
+                          Math.min(
+                            100,
+                            progress.percent ??
+                              (progress.issuesTotal > 0
+                                ? Math.round((progress.issuesDone / progress.issuesTotal) * 100)
+                                : 0),
+                          ),
+                        )
+                      : 0;
+                    return (
+                      <Pressable
+                        key={milestone.id}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Filter tasks by milestone ${milestone.title}`}
+                        onPress={() => {
+                          setMilestoneFilter({ id: milestone.id, title: milestone.title });
+                          setActiveTab('tasks');
+                        }}
+                        style={({ pressed }) => [
+                          styles.milestoneCard,
+                          pressed && styles.rowPressed,
+                        ]}>
+                        <View style={styles.milestoneTop}>
+                          <AppText
+                            size={14}
+                            weight="medium"
+                            tone="chalk"
+                            numberOfLines={2}
+                            style={styles.milestoneTitle}>
+                            {milestone.title}
+                          </AppText>
+                          <View style={styles.pill}>
+                            <AppText size={11} tone={mStatus.tone}>
+                              {mStatus.label}
+                            </AppText>
+                          </View>
+                        </View>
+
+                        {mDate ? (
+                          <AppText size={11} tone="ash">
+                            Target {mDate}
+                          </AppText>
+                        ) : null}
+
+                        {progress ? (
+                          <View style={styles.milestoneProgressWrap}>
+                            <View style={styles.progressTrack}>
+                              <View
+                                style={[styles.progressFill, { width: `${mPct}%` }]}
+                              />
+                            </View>
+                            <AppText size={11} tone="ash" style={styles.milestoneCount}>
+                              {progress.issuesDone}/{progress.issuesTotal} ({mPct}%)
+                            </AppText>
+                          </View>
+                        ) : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        ) : null}
+
+        {activeTab === 'tasks' ? (
+          <>
+            {loading && issues.length === 0 ? (
+              <View style={styles.center}>
+                <ActivityIndicator color={colors.berry} />
+              </View>
+            ) : taskGroups.length === 0 ? (
+              hasActiveTaskFilters ? (
+                <View style={styles.tasksEmpty}>
+                  <Icon name="search" size={26} color={colors.ash} />
+                  <AppText size={14} weight="medium" tone="chalk">
+                    No matching tasks
+                  </AppText>
+                  <AppText size={12} tone="ash" style={styles.centerText}>
+                    Try a different search term, priority, or milestone filter.
+                  </AppText>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setQuery('');
+                      setPriorityFilter('all');
+                      setMilestoneFilter(null);
+                    }}
+                    style={styles.clearFiltersBtn}>
+                    <AppText size={12} weight="medium" style={styles.whiteText}>
+                      Clear filters
+                    </AppText>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={[styles.emptyCard, styles.emptyCardInset]}>
+                  <AppText size={14} weight="medium" tone="chalk">
+                    No tasks linked to this project
+                  </AppText>
+                  <AppText size={12} tone="ash">
+                    Create a task or link one from the board to track it here.
+                  </AppText>
+                </View>
+              )
+            ) : (
+              <View>
+                {taskGroups.map((group) => {
+                  const isCollapsed = isGroupCollapsed(collapsed, group.status);
+                  return (
+                    <View key={group.status}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: !isCollapsed }}
+                        android_ripple={{ color: colors.hair }}
+                        onPress={() =>
+                          setCollapsed((prev) => toggleGroupCollapsed(prev, group.status))
+                        }
+                        style={styles.groupHeader}>
+                        <StatusMark status={group.status} />
+                        <AppText size={13} weight="medium" tone="chalk">
+                          {group.label}
+                        </AppText>
+                        <View style={styles.countBadge}>
+                          <AppText size={11} tone="ash">
+                            {group.rows.length}
+                          </AppText>
+                        </View>
+                        <View style={styles.chevronWrap}>
+                          <Icon
+                            name={isCollapsed ? 'chevronRight' : 'chevronDown'}
+                            size={14}
+                            color={colors.ash}
+                          />
+                        </View>
+                      </Pressable>
+
+                      {!isCollapsed
+                        ? group.rows.map((issue) => (
+                            <Pressable
+                              key={issue.id}
+                              accessibilityRole="button"
+                              accessibilityLabel={`${issue.identifier} ${issue.title}`}
+                              android_ripple={{ color: colors.hair }}
+                              onPress={() => router.push(`/issue/${issue.id}`)}
+                              style={({ pressed }) => [
+                                styles.taskRow,
+                                pressed && styles.rowPressed,
+                              ]}>
+                              <PriorityBars priority={mapApiPriority(issue.priority)} />
+                              <AppText
+                                size={12}
+                                tone="ash"
+                                numberOfLines={1}
+                                style={styles.taskIdentifier}>
+                                {issue.identifier}
+                              </AppText>
+                              <AppText
+                                size={14}
+                                tone="chalk"
+                                numberOfLines={2}
+                                style={styles.taskTitle}>
+                                {issue.title}
+                              </AppText>
+                              {issue.assignee ? (
+                                <Avatar actor={actorFromRef(issue.assignee)} size={24} />
+                              ) : null}
+                            </Pressable>
+                          ))
+                        : null}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        ) : null}
+
+        {activeTab === 'updates' ? (
+          <>
+            <View style={styles.card}>
+              <AppText size={11} weight="medium" tone="ash" style={styles.cardHeader}>
+                POST AN UPDATE
+              </AppText>
+
+              <View style={styles.healthPillsRow}>
+                {HEALTH_OPTIONS.map((option) => {
+                  const selected = updateHealth === option.id;
+                  return (
+                    <Pressable
+                      key={option.id}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => setUpdateHealth(option.id)}
+                      style={[
+                        styles.healthPill,
+                        selected && {
+                          borderColor: colors[option.tone],
+                          backgroundColor: colors.ink,
+                        },
+                      ]}>
+                      <View
+                        style={[styles.healthDot, { backgroundColor: colors[option.tone] }]}
+                      />
+                      <AppText
+                        size={12}
+                        weight={selected ? 'medium' : 'regular'}
+                        tone={selected ? option.tone : 'ash'}>
+                        {option.label}
+                      </AppText>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <TextInput
+                value={updateBody}
+                onChangeText={setUpdateBody}
+                placeholder="Share progress, risks, or next steps..."
+                placeholderTextColor={colors.ash}
+                multiline
+                textAlignVertical="top"
+                style={styles.updateInput}
+              />
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={!client || postingUpdate || updateBody.trim().length === 0}
+                onPress={() => void handlePostUpdate()}
+                style={({ pressed }) => [
+                  styles.postBtn,
+                  (!client || postingUpdate || updateBody.trim().length === 0) &&
+                    styles.postBtnDisabled,
+                  pressed && styles.rowPressed,
+                ]}>
+                {postingUpdate ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <AppText size={13} weight="medium" style={styles.whiteText}>
+                    Post update
+                  </AppText>
+                )}
+              </Pressable>
+            </View>
+
+            <View style={styles.sectionBlock}>
+              <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+                HISTORY ({updates.length})
+              </AppText>
+
+              {loading && updates.length === 0 ? (
+                <View style={styles.center}>
+                  <ActivityIndicator color={colors.berry} />
+                </View>
+              ) : updates.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <AppText size={13} weight="medium" tone="chalk">
+                    No updates yet
+                  </AppText>
+                  <AppText size={12} tone="ash">
+                    Post a status update above to keep the team aligned on progress and risks.
+                  </AppText>
+                </View>
+              ) : (
+                <View style={styles.updatesList}>
+                  {updates.map((item) => {
+                    const itemHealth = formatProjectHealth(item.health);
+                    return (
+                      <View key={item.id} style={styles.updateCard}>
+                        <View style={styles.updateHeader}>
+                          <Avatar actor={actorFromRef(item.author)} size={24} />
+                          <AppText
+                            size={12}
+                            weight="medium"
+                            tone="chalk"
+                            numberOfLines={1}
+                            style={styles.updateAuthor}>
+                            {item.author.name}
+                          </AppText>
+                          <View style={styles.pill}>
+                            <View style={styles.healthValue}>
+                              <View
+                                style={[
+                                  styles.healthDot,
+                                  { backgroundColor: colors[itemHealth.tone] },
+                                ]}
+                              />
+                              <AppText size={11} tone={itemHealth.tone}>
+                                {itemHealth.label}
+                              </AppText>
+                            </View>
+                          </View>
+                          <AppText size={11} tone="ash">
+                            {formatRelativeTime(item.createdAt)}
+                          </AppText>
+                        </View>
+                        <AppText size={13} tone="chalk" style={styles.updateBody}>
+                          {item.body}
+                        </AppText>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -249,8 +871,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hair,
     gap: 6,
   },
   iconBtn: {
@@ -261,8 +881,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   topTitle: { flex: 1 },
+  tabsWrap: {
+    paddingHorizontal: 16,
+  },
+  tasksHeaderWrap: {
+    paddingTop: 10,
+    gap: 8,
+  },
+  milestoneBanner: {
+    marginHorizontal: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.berry,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  milestoneBannerText: { flex: 1 },
+  milestoneClearBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    backgroundColor: colors.ink,
+  },
   body: { padding: 16, gap: 14 },
-  summaryCard: {
+  tasksBody: { gap: 0 },
+  card: {
     padding: 14,
     borderRadius: 12,
     backgroundColor: colors.base,
@@ -270,7 +917,28 @@ const styles = StyleSheet.create({
     borderColor: colors.hair,
     gap: 12,
   },
-  badgesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  cardHeader: { letterSpacing: 0.6 },
+  propList: { gap: 10 },
+  propRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  propLabel: { flexShrink: 0 },
+  propValueTruncate: { flex: 1, textAlign: 'right' },
+  propProgressBlock: { gap: 6 },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.hair,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: colors.verdant,
+  },
   pill: {
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -279,18 +947,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.hair,
   },
-  updated: { marginLeft: 'auto' },
-  desc: { lineHeight: 19 },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.hair,
-  },
-  statBox: { flex: 1, alignItems: 'center', gap: 2 },
-  sectionLabel: { letterSpacing: 0.6, marginTop: 4 },
-  center: { paddingVertical: 36, alignItems: 'center' },
+  healthValue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  healthDot: { width: 7, height: 7, borderRadius: 4 },
+  priorityValue: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  leadValue: { flexDirection: 'row', alignItems: 'center', gap: 6, flexShrink: 1 },
+  desc: { lineHeight: 20 },
+  sectionBlock: { gap: 10 },
+  sectionLabel: { letterSpacing: 0.6, marginTop: 2 },
+  center: { paddingVertical: 32, alignItems: 'center' },
   errorCard: {
     padding: 12,
     borderRadius: 10,
@@ -299,6 +963,7 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
     gap: 8,
   },
+  errorCardInset: { margin: 16 },
   retryBtn: {
     alignSelf: 'flex-start',
     paddingHorizontal: 12,
@@ -307,26 +972,135 @@ const styles = StyleSheet.create({
     backgroundColor: colors.hair,
   },
   emptyCard: {
-    padding: 20,
+    padding: 18,
     borderRadius: 12,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
     gap: 6,
   },
-  taskList: { gap: 8 },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
+  emptyCardInset: { margin: 16 },
+  milestoneList: { gap: 8 },
+  milestoneCard: {
+    padding: 14,
     borderRadius: 12,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
+    gap: 8,
   },
-  taskRowPressed: { opacity: 0.85 },
-  statusDot: { width: 9, height: 9, borderRadius: 5 },
-  taskMeta: { flex: 1, gap: 3 },
-  taskTopLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  milestoneTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  milestoneTitle: { flex: 1 },
+  milestoneProgressWrap: { gap: 5 },
+  milestoneCount: { alignSelf: 'flex-end' },
+  groupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: colors.base,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  countBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: 999,
+    backgroundColor: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  chevronWrap: { marginLeft: 'auto' },
+  taskRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  taskIdentifier: {
+    flexShrink: 0,
+  },
+  taskTitle: {
+    flex: 1,
+  },
+  rowPressed: { opacity: 0.8 },
+  tasksEmpty: {
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 32,
+    paddingTop: 48,
+  },
+  centerText: { textAlign: 'center' },
+  clearFiltersBtn: {
+    marginTop: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+  },
+  whiteText: { color: colors.white },
+  healthPillsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  healthPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.void,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  updateInput: {
+    minHeight: 88,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: colors.void,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    color: colors.chalk,
+    fontFamily: fonts.regular,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  postBtn: {
+    alignSelf: 'flex-end',
+    minWidth: 112,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 8,
+    backgroundColor: colors.berry,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  postBtnDisabled: { opacity: 0.45 },
+  updatesList: { gap: 10 },
+  updateCard: {
+    padding: 14,
+    borderRadius: 12,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    gap: 10,
+  },
+  updateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  updateAuthor: { flex: 1 },
+  updateBody: { lineHeight: 20 },
 });

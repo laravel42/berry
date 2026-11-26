@@ -127,6 +127,11 @@ export type ApiProject = {
   status: string;
   priority: string;
   health: string;
+  startDate?: string | null;
+  targetDate?: string | null;
+  githubRepo?: string | null;
+  gitlabRepo?: string | null;
+  lead?: { type: string; id?: string | null } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -164,6 +169,7 @@ export type ApiIssue = {
   assignee: ApiActorRef | null;
   activeRunId: string | null;
   project?: { id: string; name: string } | null;
+  milestone?: { id: string; title: string } | null;
   createdBy: ApiActorRef | null;
   createdAt: string;
   updatedAt: string;
