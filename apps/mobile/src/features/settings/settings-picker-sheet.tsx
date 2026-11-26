@@ -56,8 +56,8 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
                   </AppText>
                   <View style={styles.groupRule} />
                 </View>
-                <View style={styles.groupCard}>
-                  {group.items.map((item, index) => {
+                <View style={styles.groupItems}>
+                  {group.items.map((item) => {
                     const active = item.id === activeSection;
                     return (
                       <Pressable
@@ -66,7 +66,6 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
                         onPress={() => handleSelect(item.id)}
                         style={({ pressed }) => [
                           styles.row,
-                          index > 0 && styles.rowDivider,
                           active && styles.rowActive,
                           pressed && styles.pressed,
                         ]}>
@@ -74,14 +73,14 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
                           <AppText
                             size={14}
                             weight={active ? 'medium' : 'regular'}
-                            tone={active ? 'berry' : 'chalk'}>
+                            tone="chalk">
                             {item.label}
                           </AppText>
                           <AppText size={11} tone="ash" numberOfLines={2}>
                             {item.description}
                           </AppText>
                         </View>
-                        {active ? <Icon name="check" size={16} color={colors.berry} /> : null}
+                        {active ? <Icon name="check" size={16} color={colors.chalk} /> : null}
                       </Pressable>
                     );
                   })}
@@ -144,26 +143,22 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: colors.hair,
   },
-  groupCard: {
-    backgroundColor: colors.base,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.hair,
-    overflow: 'hidden',
+  groupItems: {
+    gap: 2,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 11,
+    paddingVertical: 10,
     paddingHorizontal: 12,
-  },
-  rowDivider: {
-    borderTopWidth: 1,
-    borderTopColor: colors.hair,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   rowActive: {
-    backgroundColor: 'rgba(217, 74, 91, 0.12)',
+    backgroundColor: colors.base,
+    borderColor: colors.hair,
   },
   rowCopy: { flex: 1, gap: 2 },
   pressed: { opacity: 0.85 },
