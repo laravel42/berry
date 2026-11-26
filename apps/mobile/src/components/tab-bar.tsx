@@ -24,6 +24,10 @@ type TabBarProps = {
   navigateToTab: (routeKey: string) => void;
 };
 
+function formatBadgeCount(count: number): string {
+  return count > 99 ? '99+' : String(count);
+}
+
 export function BerryTabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const inbox = useInboxStore((store) => store.unreadCount);
@@ -54,8 +58,8 @@ export function BerryTabBar({ state, emitter, navigateToTab }: TabBarProps) {
               <Icon name={meta.icon} size={20} color={color} />
               {badge > 0 ? (
                 <View style={styles.badge}>
-                  <AppText size={10} weight="medium" style={styles.badgeText}>
-                    {badge}
+                  <AppText size={9} weight="medium" style={styles.badgeText}>
+                    {formatBadgeCount(badge)}
                   </AppText>
                 </View>
               ) : null}
@@ -82,15 +86,15 @@ const styles = StyleSheet.create({
   pill: { backgroundColor: colors.hair },
   badge: {
     position: 'absolute',
-    top: 0,
-    right: 2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 1,
+    right: 4,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: colors.berry,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
-  badgeText: { color: colors.white, lineHeight: 12 },
+  badgeText: { color: colors.white, lineHeight: 11 },
 });

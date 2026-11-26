@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -32,8 +32,11 @@ import { useIssuesStore } from '@/store/issues-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
+import { isGroupCollapsed, toggleGroupCollapsed } from './tasks-helpers';
+
 export function TasksScreen() {
   const insets = useSafeAreaInsets();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const client = useAuthStore((state) => state.client);
   const user = useAuthStore((state) => state.user);
   const boards = useWorkspaceStore((state) => state.boards);
@@ -140,36 +143,49 @@ export function TasksScreen() {
         ) : null}
 
         {!error
-          ? groups.map((group) => (
-              <View key={group.status}>
-                <View style={styles.group}>
-                  <StatusMark status={group.status} />
-                  <AppText size={13} weight="medium">
-                    {group.label}
-                  </AppText>
-                  <AppText size={12} tone="ash">
-                    {group.rows.length}
-                  </AppText>
-                </View>
-                {group.rows.map((issue) => (
+          ? groups.map((group) => {
+              const isCollapsed = isGroupCollapsed(collapsed, group.status);
+              return (
+                <View key={group.status}>
                   <Pressable
-                    key={issue.id}
                     accessibilityRole="button"
+                    accessibilityState={{ expanded: !isCollapsed }}
                     android_ripple={{ color: colors.hair }}
-                    onPress={() => router.push({ pathname: '/issue/[id]', params: { id: issue.id } })}
-                    style={styles.row}>
-                    <View style={styles.copy}>
-                      <AppText size={12} tone="ash">
-                        {issue.identifier}
-                      </AppText>
-                      <AppText size={14}>{issue.title}</AppText>
+                    onPress={() => setCollapsed((prev) => toggleGroupCollapsed(prev, group.status))}
+                    style={styles.group}>
+                    <StatusMark status={group.status} />
+                    <AppText size={13} weight="medium">
+                      {group.label}
+                    </AppText>
+                    <AppText size={12} tone="ash">
+                      {group.rows.length}
+                    </AppText>
+                    <View style={styles.chevron}>
+                      <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={14} color={colors.ash} />
                     </View>
-                    <PriorityBars priority={mapApiPriority(issue.priority)} />
-                    <Avatar actor={actorFromRef(issue.assignee)} />
                   </Pressable>
-                ))}
-              </View>
-            ))
+                  {!isCollapsed
+                    ? group.rows.map((issue) => (
+                        <Pressable
+                          key={issue.id}
+                          accessibilityRole="button"
+                          android_ripple={{ color: colors.hair }}
+                          onPress={() => router.push({ pathname: '/issue/[id]', params: { id: issue.id } })}
+                          style={styles.row}>
+                          <View style={styles.copy}>
+                            <AppText size={12} tone="ash">
+                              {issue.identifier}
+                            </AppText>
+                            <AppText size={14}>{issue.title}</AppText>
+                          </View>
+                          <PriorityBars priority={mapApiPriority(issue.priority)} />
+                          <Avatar actor={actorFromRef(issue.assignee)} />
+                        </Pressable>
+                      ))
+                    : null}
+                </View>
+              );
+            })
           : null}
 
         {!error && !loading && !workspaceLoading && groups.length === 0 ? (
@@ -203,6 +219,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: colors.base,
   },
+  chevron: { marginLeft: 'auto' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
