@@ -4,7 +4,7 @@ import { useEffect, useState, type Ref } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Layers, LogOut, MessageSquare, Play, Search, Settings, X } from 'lucide-react';
+import { Layers, LogOut, MessageCircle, Play, Search, Settings, X } from 'lucide-react';
 import { useSignOut } from '@/components/auth/use-sign-out';
 import { WORKSPACE_SLUG } from '@/lib/config';
 import {
@@ -329,7 +329,7 @@ export function ShellRail({
                      <ul className="flex flex-col gap-0 px-3">
                         {(
                            [
-                              { path: '/chat', label: 'chat', Icon: MessageSquare },
+                              { path: '/chat', label: 'chat', Icon: MessageCircle },
                               { path: '/views', label: 'views', Icon: Layers },
                               { path: '/runs', label: 'runs', Icon: Play },
                            ] as const

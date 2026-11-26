@@ -17,18 +17,18 @@ import {
    useSidebarPrefsStore,
 } from '@/store/sidebar-prefs-store';
 import {
-   Bot,
-   FolderKanban,
    Blocks,
    Atom,
    RotateCw,
    ChartColumn,
    Check,
    ChevronDown,
-   Folders,
+   Folder,
    GripVertical,
    Lightbulb,
+   List,
    LucideIcon,
+   Sparkles,
 } from 'lucide-react';
 import { Fragment, useRef, useState, type PointerEvent } from 'react';
 
@@ -41,14 +41,14 @@ interface ItemConfig {
 }
 
 export const WORKSPACE_ITEMS: ItemConfig[] = [
-   { key: 'projects', label: 'Projects', icon: FolderKanban },
+   { key: 'projects', label: 'Projects', icon: Folder },
    { key: 'cycles', label: 'Cycles', icon: RotateCw },
-   { key: 'my-issues', label: 'Tasks', icon: Folders },
+   { key: 'my-issues', label: 'Tasks', icon: List },
    { key: 'loops', label: 'Loops', icon: Atom },
 ];
 
 export const CONFIGURE_ITEMS: ItemConfig[] = [
-   { key: 'agents', label: 'Agents', icon: Bot },
+   { key: 'agents', label: 'Agents', icon: Sparkles },
    { key: 'skills', label: 'Skills', icon: Lightbulb },
    { key: 'integrations', label: 'Connect', icon: Blocks },
    { key: 'usage', label: 'Usage', icon: ChartColumn },
