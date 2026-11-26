@@ -21,7 +21,7 @@ import { AppText } from '@/components/text';
 import { deriveInitials, formatRelativeTime, type ActorView } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 type ChatFilter = 'all' | 'unread' | 'working';
 
@@ -186,7 +186,7 @@ export function ChatListScreen() {
                         numberOfLines={1}>
                         {displayTitle}
                       </AppText>
-                      <AppText size={12} tone="ash">
+                      <AppText mono size={11} tone="slate">
                         {formatRelativeTime(chat.updatedAt)}
                       </AppText>
                     </View>
@@ -244,7 +244,7 @@ export function ChatListScreen() {
                 setActiveFilter('all');
               }}
               style={styles.clearBtn}>
-              <AppText size={13} weight="medium" tone="chalk">
+              <AppText size={13} weight="medium" style={styles.primaryBtnText}>
                 Clear filters
               </AppText>
             </Pressable>
@@ -275,7 +275,7 @@ const styles = StyleSheet.create({
     width: 11,
     height: 11,
     borderRadius: 6,
-    backgroundColor: colors.azure,
+    backgroundColor: colors.chalk,
     borderWidth: 2,
     borderColor: colors.void,
   },
@@ -284,10 +284,10 @@ const styles = StyleSheet.create({
   name: { flex: 1 },
   agentPillRow: { flexDirection: 'row', alignItems: 'center' },
   agentPill: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: colors.base,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.hair,
   },
@@ -297,35 +297,33 @@ const styles = StyleSheet.create({
   errorCard: {
     margin: 16,
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#241616',
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
     borderWidth: 1,
-    borderColor: 'rgba(224,106,88,0.4)',
+    borderColor: colors.danger,
     gap: 8,
   },
   primaryBtn: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
   ctaBtn: {
     paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 6,
   },
   clearBtn: {
     paddingHorizontal: 16,
     paddingVertical: 9,
-    borderRadius: 10,
-    backgroundColor: colors.base,
-    borderWidth: 1,
-    borderColor: colors.hair,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
-  primaryBtnText: { color: colors.white },
+  primaryBtnText: { color: colors.buttonPrimaryInk },
 });

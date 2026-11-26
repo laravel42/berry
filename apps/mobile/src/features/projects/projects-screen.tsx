@@ -19,7 +19,7 @@ import { AppText } from '@/components/text';
 import { formatRelativeTime } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import {
   filterProjectsByCriteria,
@@ -31,10 +31,10 @@ import {
 } from './projects-helpers';
 
 const HEALTH_DOT_COLOR: Record<ProjectHealthTone, string> = {
-  verdant: colors.verdant,
-  amber: colors.amber,
-  danger: colors.danger,
-  ash: colors.ash,
+  verdant: colors.statusSuccess,
+  amber: colors.statusWarning,
+  danger: colors.statusDanger,
+  ash: colors.statusNeutral,
 };
 
 export function ProjectsScreen() {
@@ -108,7 +108,7 @@ export function ProjectsScreen() {
               {error}
             </AppText>
             <Pressable accessibilityRole="button" onPress={() => void onRefresh()} style={styles.retryBtn}>
-              <AppText size={13} weight="medium" tone="chalk">
+              <AppText size={13} weight="medium" style={styles.primaryBtnText}>
                 Retry
               </AppText>
             </Pressable>
@@ -138,7 +138,7 @@ export function ProjectsScreen() {
                   setFilter('all');
                 }}
                 style={styles.clearBtn}>
-                <AppText size={13} weight="medium" style={styles.clearText}>
+                <AppText size={13} weight="medium" style={styles.primaryBtnText}>
                   Clear filters
                 </AppText>
               </Pressable>
@@ -177,10 +177,10 @@ export function ProjectsScreen() {
                       {statusLabel}
                     </AppText>
                   </View>
-                  <AppText size={11} tone={health.tone}>
+                  <AppText size={11} tone={health.tone === 'verdant' ? 'ash' : health.tone}>
                     {health.label}
                   </AppText>
-                  <AppText size={11} tone="ash" style={styles.updated}>
+                  <AppText mono size={11} tone="slate" style={styles.updated}>
                     {formatRelativeTime(project.updatedAt)}
                   </AppText>
                 </View>
@@ -202,16 +202,16 @@ const styles = StyleSheet.create({
   empty: { paddingVertical: 56, alignItems: 'center', gap: 8, paddingHorizontal: 24 },
   emptySub: { textAlign: 'center' },
   clearBtn: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
-  clearText: { color: colors.white },
+  primaryBtnText: { color: colors.buttonPrimaryInk },
   errorCard: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.danger,
@@ -219,14 +219,14 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.hair,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
   },
   card: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -240,10 +240,10 @@ const styles = StyleSheet.create({
   desc: { lineHeight: 18 },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 2 },
   pill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.hair,
   },

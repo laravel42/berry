@@ -46,7 +46,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 import {
   filterIssuesByProject,
@@ -62,11 +62,19 @@ const HEALTH_OPTIONS: readonly {
   id: ProjectUpdateHealthApi;
   label: string;
   tone: 'verdant' | 'amber' | 'danger';
+  dotColor: string;
 }[] = [
-  { id: 'onTrack', label: 'On track', tone: 'verdant' },
-  { id: 'atRisk', label: 'At risk', tone: 'amber' },
-  { id: 'offTrack', label: 'Off track', tone: 'danger' },
+  { id: 'onTrack', label: 'On track', tone: 'verdant', dotColor: colors.statusSuccess },
+  { id: 'atRisk', label: 'At risk', tone: 'amber', dotColor: colors.statusWarning },
+  { id: 'offTrack', label: 'Off track', tone: 'danger', dotColor: colors.statusDanger },
 ];
+
+function healthDotColor(tone: 'verdant' | 'amber' | 'danger' | 'ash'): string {
+  if (tone === 'verdant') return colors.statusSuccess;
+  if (tone === 'amber') return colors.statusWarning;
+  if (tone === 'danger') return colors.statusDanger;
+  return colors.statusNeutral;
+}
 
 function formatMilestoneStatus(status: string | null | undefined): {
   label: string;
@@ -320,7 +328,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
           style={styles.iconBtn}>
           <Icon name="arrowLeft" size={20} color={colors.chalk} />
         </Pressable>
-        <AppText size={16} weight="medium" tone="chalk" numberOfLines={1} style={styles.topTitle}>
+        <AppText mono size={16} weight="semibold" tone="chalk" numberOfLines={1} style={styles.topTitle}>
           {project?.name ?? 'Project'}
         </AppText>
         <Pressable
@@ -348,7 +356,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                 accessibilityLabel="Clear milestone filter"
                 onPress={() => setMilestoneFilter(null)}
                 style={styles.milestoneClearBtn}>
-                <AppText size={11} weight="medium" tone="berry">
+                <AppText size={11} weight="medium" tone="chalk">
                   Clear
                 </AppText>
               </Pressable>
@@ -386,7 +394,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
               accessibilityRole="button"
               onPress={() => void reloadAll()}
               style={styles.retryBtn}>
-              <AppText size={12} weight="medium" tone="chalk">
+              <AppText size={12} weight="medium" style={styles.primaryBtnText}>
                 Retry
               </AppText>
             </Pressable>
@@ -397,7 +405,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
           <>
             {project ? (
               <View style={styles.card}>
-                <AppText size={11} weight="medium" tone="ash" style={styles.cardHeader}>
+                <AppText mono size={11} weight="medium" tone="slate" style={styles.cardHeader}>
                   PROPERTIES
                 </AppText>
 
@@ -419,9 +427,9 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                     </AppText>
                     <View style={styles.healthValue}>
                       <View
-                        style={[styles.healthDot, { backgroundColor: colors[health.tone] }]}
+                        style={[styles.healthDot, { backgroundColor: healthDotColor(health.tone) }]}
                       />
-                      <AppText size={12} tone={health.tone}>
+                      <AppText size={12} tone={health.tone === 'verdant' ? 'ash' : health.tone}>
                         {health.label}
                       </AppText>
                     </View>
@@ -444,8 +452,8 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                       <AppText size={12} tone="ash" style={styles.propLabel}>
                         Progress
                       </AppText>
-                      <AppText size={12} tone="chalk">
-                        {summary.done} / {summary.total} done
+                      <AppText mono size={12} tone="chalk">
+                        {summary.done}/{summary.total} ({progressPct}%)
                       </AppText>
                     </View>
                     <View style={styles.progressTrack}>
@@ -478,7 +486,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                       <AppText size={12} tone="ash" style={styles.propLabel}>
                         Dates
                       </AppText>
-                      <AppText size={12} tone="chalk">
+                      <AppText mono size={11} tone="chalk">
                         {startDateLabel && targetDateLabel
                           ? `${startDateLabel} → ${targetDateLabel}`
                           : startDateLabel
@@ -494,7 +502,8 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                         Repository
                       </AppText>
                       <AppText
-                        size={12}
+                        mono
+                        size={11}
                         tone="chalk"
                         numberOfLines={1}
                         style={styles.propValueTruncate}>
@@ -507,7 +516,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                     <AppText size={12} tone="ash" style={styles.propLabel}>
                       Updated
                     </AppText>
-                    <AppText size={12} tone="ash">
+                    <AppText mono size={11} tone="slate">
                       {formatRelativeTime(project.updatedAt)}
                     </AppText>
                   </View>
@@ -517,7 +526,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
 
             {project?.description?.trim() ? (
               <View style={styles.card}>
-                <AppText size={11} weight="medium" tone="ash" style={styles.cardHeader}>
+                <AppText mono size={11} weight="medium" tone="slate" style={styles.cardHeader}>
                   DESCRIPTION
                 </AppText>
                 <AppText size={13} tone="chalk" style={styles.desc}>
@@ -527,7 +536,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
             ) : null}
 
             <View style={styles.sectionBlock}>
-              <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+              <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
                 MILESTONES ({milestones.length})
               </AppText>
 
@@ -585,14 +594,14 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                             {milestone.title}
                           </AppText>
                           <View style={styles.pill}>
-                            <AppText size={11} tone={mStatus.tone}>
+                            <AppText size={11} tone={mStatus.tone === 'verdant' ? 'chalk' : mStatus.tone}>
                               {mStatus.label}
                             </AppText>
                           </View>
                         </View>
 
                         {mDate ? (
-                          <AppText size={11} tone="ash">
+                          <AppText mono size={11} tone="slate">
                             Target {mDate}
                           </AppText>
                         ) : null}
@@ -604,7 +613,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                                 style={[styles.progressFill, { width: `${mPct}%` }]}
                               />
                             </View>
-                            <AppText size={11} tone="ash" style={styles.milestoneCount}>
+                            <AppText mono size={11} tone="slate" style={styles.milestoneCount}>
                               {progress.issuesDone}/{progress.issuesTotal} ({mPct}%)
                             </AppText>
                           </View>
@@ -642,7 +651,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                       setMilestoneFilter(null);
                     }}
                     style={styles.clearFiltersBtn}>
-                    <AppText size={12} weight="medium" style={styles.whiteText}>
+                    <AppText size={12} weight="medium" style={styles.primaryBtnText}>
                       Clear filters
                     </AppText>
                   </Pressable>
@@ -676,7 +685,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                           {group.label}
                         </AppText>
                         <View style={styles.countBadge}>
-                          <AppText size={11} tone="ash">
+                          <AppText mono size={11} tone="slate">
                             {group.rows.length}
                           </AppText>
                         </View>
@@ -703,8 +712,9 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                               ]}>
                               <PriorityBars priority={mapApiPriority(issue.priority)} />
                               <AppText
+                                mono
                                 size={12}
-                                tone="ash"
+                                tone="slate"
                                 numberOfLines={1}
                                 style={styles.taskIdentifier}>
                                 {issue.identifier}
@@ -733,7 +743,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
         {activeTab === 'updates' ? (
           <>
             <View style={styles.card}>
-              <AppText size={11} weight="medium" tone="ash" style={styles.cardHeader}>
+              <AppText mono size={11} weight="medium" tone="slate" style={styles.cardHeader}>
                 POST AN UPDATE
               </AppText>
 
@@ -749,17 +759,17 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                       style={[
                         styles.healthPill,
                         selected && {
-                          borderColor: colors[option.tone],
-                          backgroundColor: colors.ink,
+                          borderColor: option.dotColor,
+                          backgroundColor: colors.surface,
                         },
                       ]}>
                       <View
-                        style={[styles.healthDot, { backgroundColor: colors[option.tone] }]}
+                        style={[styles.healthDot, { backgroundColor: option.dotColor }]}
                       />
                       <AppText
                         size={12}
                         weight={selected ? 'medium' : 'regular'}
-                        tone={selected ? option.tone : 'ash'}>
+                        tone={selected ? (option.tone === 'verdant' ? 'chalk' : option.tone) : 'ash'}>
                         {option.label}
                       </AppText>
                     </Pressable>
@@ -771,7 +781,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                 value={updateBody}
                 onChangeText={setUpdateBody}
                 placeholder="Share progress, risks, or next steps..."
-                placeholderTextColor={colors.ash}
+                placeholderTextColor={colors.placeholder}
                 multiline
                 textAlignVertical="top"
                 style={styles.updateInput}
@@ -788,9 +798,9 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                   pressed && styles.rowPressed,
                 ]}>
                 {postingUpdate ? (
-                  <ActivityIndicator size="small" color={colors.white} />
+                  <ActivityIndicator size="small" color={colors.buttonPrimaryInk} />
                 ) : (
-                  <AppText size={13} weight="medium" style={styles.whiteText}>
+                  <AppText size={13} weight="medium" style={styles.primaryBtnText}>
                     Post update
                   </AppText>
                 )}
@@ -798,7 +808,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
             </View>
 
             <View style={styles.sectionBlock}>
-              <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+              <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
                 HISTORY ({updates.length})
               </AppText>
 
@@ -836,15 +846,17 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                               <View
                                 style={[
                                   styles.healthDot,
-                                  { backgroundColor: colors[itemHealth.tone] },
+                                  { backgroundColor: healthDotColor(itemHealth.tone) },
                                 ]}
                               />
-                              <AppText size={11} tone={itemHealth.tone}>
+                              <AppText
+                                size={11}
+                                tone={itemHealth.tone === 'verdant' ? 'ash' : itemHealth.tone}>
                                 {itemHealth.label}
                               </AppText>
                             </View>
                           </View>
-                          <AppText size={11} tone="ash">
+                          <AppText mono size={11} tone="slate">
                             {formatRelativeTime(item.createdAt)}
                           </AppText>
                         </View>
@@ -876,7 +888,7 @@ const styles = StyleSheet.create({
   iconBtn: {
     width: 40,
     height: 40,
-    borderRadius: 10,
+    borderRadius: radii.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -892,26 +904,28 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
-    borderColor: colors.berry,
+    borderColor: colors.line,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   milestoneBannerText: { flex: 1 },
   milestoneClearBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: colors.ink,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
   },
   body: { padding: 16, gap: 14 },
   tasksBody: { gap: 0 },
   card: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -930,20 +944,20 @@ const styles = StyleSheet.create({
   propProgressBlock: { gap: 6 },
   progressTrack: {
     height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.hair,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 3,
-    backgroundColor: colors.verdant,
+    borderRadius: radii.pill,
+    backgroundColor: colors.chalk,
   },
   pill: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 9,
     paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.hair,
   },
@@ -956,8 +970,8 @@ const styles = StyleSheet.create({
   sectionLabel: { letterSpacing: 0.6, marginTop: 2 },
   center: { paddingVertical: 32, alignItems: 'center' },
   errorCard: {
-    padding: 12,
-    borderRadius: 10,
+    padding: 14,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.danger,
@@ -966,14 +980,14 @@ const styles = StyleSheet.create({
   errorCardInset: { margin: 16 },
   retryBtn: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.hair,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
   },
   emptyCard: {
     padding: 18,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -983,7 +997,7 @@ const styles = StyleSheet.create({
   milestoneList: { gap: 8 },
   milestoneCard: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
@@ -1004,15 +1018,15 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.base,
+    backgroundColor: colors.panel,
     borderBottomWidth: 1,
     borderBottomColor: colors.hair,
   },
   countBadge: {
     paddingHorizontal: 7,
     paddingVertical: 1,
-    borderRadius: 999,
-    backgroundColor: colors.ink,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
   },
@@ -1023,6 +1037,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
     paddingVertical: 13,
+    backgroundColor: colors.base,
     borderBottomWidth: 1,
     borderBottomColor: colors.hair,
   },
@@ -1042,12 +1057,12 @@ const styles = StyleSheet.create({
   centerText: { textAlign: 'center' },
   clearFiltersBtn: {
     marginTop: 4,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
   },
-  whiteText: { color: colors.white },
+  primaryBtnText: { color: colors.buttonPrimaryInk },
   healthPillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1059,16 +1074,16 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 999,
-    backgroundColor: colors.void,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.hair,
   },
   updateInput: {
     minHeight: 88,
     padding: 12,
-    borderRadius: 10,
-    backgroundColor: colors.void,
+    borderRadius: radii.card,
+    backgroundColor: colors.field,
     borderWidth: 1,
     borderColor: colors.hair,
     color: colors.chalk,
@@ -1079,10 +1094,10 @@ const styles = StyleSheet.create({
   postBtn: {
     alignSelf: 'flex-end',
     minWidth: 112,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1090,7 +1105,7 @@ const styles = StyleSheet.create({
   updatesList: { gap: 10 },
   updateCard: {
     padding: 14,
-    borderRadius: 12,
+    borderRadius: radii.card,
     backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,

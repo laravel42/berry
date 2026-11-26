@@ -31,7 +31,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import {
   filterTasks,
@@ -192,9 +192,11 @@ export function TasksScreen() {
                     <AppText size={13} weight="medium">
                       {group.label}
                     </AppText>
-                    <AppText size={12} tone="ash">
-                      {group.rows.length}
-                    </AppText>
+                    <View style={styles.countBadge}>
+                      <AppText mono size={11} tone="slate">
+                        {group.rows.length}
+                      </AppText>
+                    </View>
                     <View style={styles.chevron}>
                       <Icon name={isCollapsed ? 'chevronRight' : 'chevronDown'} size={14} color={colors.ash} />
                     </View>
@@ -208,10 +210,12 @@ export function TasksScreen() {
                           onPress={() => router.push({ pathname: '/issue/[id]', params: { id: issue.id } })}
                           style={styles.row}>
                           <View style={styles.copy}>
-                            <AppText size={12} tone="ash">
+                            <AppText mono size={12} tone="slate">
                               {issue.identifier}
                             </AppText>
-                            <AppText size={14}>{issue.title}</AppText>
+                            <AppText size={14} tone="chalk">
+                              {issue.title}
+                            </AppText>
                           </View>
                           <PriorityBars priority={mapApiPriority(issue.priority)} />
                           <Avatar actor={actorFromRef(issue.assignee)} />
@@ -275,7 +279,17 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
+    backgroundColor: colors.panel,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  countBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 1,
+    borderRadius: radii.pill,
     backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
   },
   chevron: { marginLeft: 'auto' },
   row: {
@@ -284,6 +298,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
+    backgroundColor: colors.base,
     borderBottomWidth: 1,
     borderBottomColor: colors.hair,
   },
@@ -293,26 +308,26 @@ const styles = StyleSheet.create({
   errorCard: {
     margin: 16,
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#241616',
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
     borderWidth: 1,
-    borderColor: 'rgba(224,106,88,0.4)',
+    borderColor: colors.danger,
     gap: 8,
   },
   retryBtn: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
   clearBtn: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
-  retryText: { color: colors.white },
+  retryText: { color: colors.buttonPrimaryInk },
 });

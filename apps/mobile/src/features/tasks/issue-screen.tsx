@@ -32,7 +32,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
-import { colors } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 type TimelineRow = {
   id: string;
@@ -134,7 +134,7 @@ export function IssueScreen() {
                   if (client && workspaceId && id) void loadIssueDetail(client, workspaceId, id);
                 }}
                 style={styles.retryBtn}>
-                <AppText size={13} weight="medium" style={styles.primaryText}>
+                <AppText size={13} weight="medium" style={styles.retryBtnText}>
                   Retry
                 </AppText>
               </Pressable>
@@ -170,7 +170,7 @@ export function IssueScreen() {
           <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
           {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
         </Pressable>
-        <AppText size={13} tone="ash">
+        <AppText mono size={13} weight="medium" tone="chalk">
           {issue.identifier}
         </AppText>
         {from && client && workspaceId ? (
@@ -227,21 +227,21 @@ export function IssueScreen() {
         </View>
 
         {showReview ? (
-          <Callout tone="amber" title="Waiting on your review">
+          <Callout tone="berryText" title="Waiting on your review">
             The work is delivered. Only you can approve and move this task to Done.
           </Callout>
         ) : null}
 
         {pendingApproval ? (
-          <Callout tone="amber" title={`Approval needed · ${pendingApproval.title}`}>
+          <Callout tone="berryText" title={`Approval needed · ${pendingApproval.title}`}>
             {pendingApproval.description ?? 'This task is waiting on your approval before proceeding.'}
           </Callout>
         ) : null}
 
         {review?.pullRequest ? (
           <View style={styles.block}>
-            <AppText size={12} tone="ash">
-              Delivered
+            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              DELIVERED
             </AppText>
             <Pressable
               accessibilityRole="button"
@@ -250,28 +250,31 @@ export function IssueScreen() {
               }}
               style={styles.card}>
               <View style={styles.prTop}>
-                <Icon name="git" size={16} color={colors.azure} />
+                <Icon name="git" size={16} color={colors.ash} />
                 <View style={styles.copy}>
                   <AppText size={14} weight="medium">
-                    Pull request #{review.pullRequest.number}
+                    Pull request{' '}
+                    <AppText mono size={13} weight="medium">
+                      #{review.pullRequest.number}
+                    </AppText>
                   </AppText>
                   {review.pullRequest.branch ? (
-                    <AppText size={12} tone="ash">
+                    <AppText mono size={11} tone="slate">
                       {review.pullRequest.branch}
                     </AppText>
                   ) : null}
                 </View>
                 {review.pullRequest.url ? (
-                  <AppText size={12} tone="ash">
+                  <AppText mono size={11} tone="slate">
                     GitHub ↗
                   </AppText>
                 ) : null}
               </View>
-              <AppText size={12} tone="ash">
+              <AppText mono size={11} tone="slate">
                 {review.delivery.filesChanged} files · +{review.delivery.insertions} · −{review.delivery.deletions}
               </AppText>
               {review.checks ? (
-                <AppText size={12} tone={review.checks.passed ? 'verdant' : 'danger'}>
+                <AppText size={12} tone={review.checks.passed ? 'ash' : 'danger'}>
                   {review.checks.passed ? 'Checks passed' : 'Checks failed'}
                 </AppText>
               ) : null}
@@ -281,8 +284,8 @@ export function IssueScreen() {
 
         {review?.run.summary ? (
           <View style={styles.block}>
-            <AppText size={12} tone="ash">
-              Handoff summary
+            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              HANDOFF SUMMARY
             </AppText>
             <AppText size={14}>{review.run.summary}</AppText>
           </View>
@@ -290,16 +293,16 @@ export function IssueScreen() {
 
         {issue.description ? (
           <View style={styles.block}>
-            <AppText size={12} tone="ash">
-              Description
+            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              DESCRIPTION
             </AppText>
             <AppText size={14}>{issue.description}</AppText>
           </View>
         ) : null}
 
         <View style={styles.block}>
-          <AppText size={12} tone="ash">
-            Activity
+          <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+            ACTIVITY
           </AppText>
           {detail?.loading && timeline.length === 0 ? (
             <ActivityIndicator color={colors.berry} />
@@ -313,7 +316,7 @@ export function IssueScreen() {
                 </AppText>
                 {entry.text}
               </AppText>
-              <AppText size={12} tone="ash">
+              <AppText mono size={11} tone="slate">
                 {formatRelativeTime(entry.occurredAt)}
               </AppText>
             </View>
@@ -334,7 +337,7 @@ export function IssueScreen() {
               disabled={busyAction}
               onPress={() => setSendBackOpen(true)}
               style={[styles.secondary, busyAction && styles.disabled]}>
-              <AppText>Send back</AppText>
+              <AppText weight="medium">Send back</AppText>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -346,7 +349,9 @@ export function IssueScreen() {
               {busyAction ? (
                 <ActivityIndicator color={colors.white} />
               ) : (
-                <AppText style={styles.primaryText}>Approve</AppText>
+                <AppText weight="medium" style={styles.primaryText}>
+                  Approve
+                </AppText>
               )}
             </Pressable>
           </View>
@@ -358,7 +363,7 @@ export function IssueScreen() {
               value={note}
               onChangeText={setNote}
               placeholder="What should change? The agent reads this on its next run."
-              placeholderTextColor={colors.ash}
+              placeholderTextColor={colors.placeholder}
               multiline
               style={styles.input}
             />
@@ -369,7 +374,7 @@ export function IssueScreen() {
                   setNote('');
                 }}
                 style={styles.secondary}>
-                <AppText>Cancel</AppText>
+                <AppText weight="medium">Cancel</AppText>
               </Pressable>
               <Pressable
                 disabled={!note.trim() || busyAction}
@@ -381,7 +386,9 @@ export function IssueScreen() {
                   }
                 }}
                 style={[styles.primary, (!note.trim() || busyAction) && styles.disabled]}>
-                <AppText style={styles.primaryText}>Send back</AppText>
+                <AppText weight="medium" style={styles.primaryText}>
+                  Send back
+                </AppText>
               </Pressable>
             </View>
           </View>
@@ -393,13 +400,15 @@ export function IssueScreen() {
               disabled={busyAction}
               onPress={() => void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'reject')}
               style={[styles.secondary, busyAction && styles.disabled]}>
-              <AppText>Reject</AppText>
+              <AppText weight="medium">Reject</AppText>
             </Pressable>
             <Pressable
               disabled={busyAction}
               onPress={() => void decideApproval(client, workspaceId, issue.id, pendingApproval.id, 'approve')}
               style={[styles.primary, busyAction && styles.disabled]}>
-              <AppText style={styles.primaryText}>Approve</AppText>
+              <AppText weight="medium" style={styles.primaryText}>
+                Approve
+              </AppText>
             </Pressable>
           </View>
         ) : null}
@@ -409,7 +418,7 @@ export function IssueScreen() {
             disabled={busyAction}
             onPress={() => void retryRun(client, workspaceId, issue.id)}
             style={[styles.retryBar, busyAction && styles.disabled]}>
-            <AppText size={13} tone="azure">
+            <AppText size={13} weight="medium" tone="chalk">
               Restart agent run
             </AppText>
           </Pressable>
@@ -421,7 +430,7 @@ export function IssueScreen() {
               value={draft}
               onChangeText={setDraft}
               placeholder="Comment or @mention an agent"
-              placeholderTextColor={colors.ash}
+              placeholderTextColor={colors.placeholder}
               style={styles.comment}
               editable={!busyAction}
               onSubmitEditing={() => void handleComment()}
@@ -431,7 +440,7 @@ export function IssueScreen() {
               disabled={!draft.trim() || busyAction}
               onPress={() => void handleComment()}
               style={[styles.send, (!draft.trim() || busyAction) && styles.disabled]}>
-              <Icon name="send" size={18} />
+              <Icon name="send" size={16} color={colors.buttonPrimaryInk} />
             </Pressable>
           </View>
         ) : null}
@@ -451,7 +460,15 @@ function Prop({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Callout({ title, children, tone }: { title: string; children: string | undefined; tone: 'amber' | 'danger' }) {
+function Callout({
+  title,
+  children,
+  tone,
+}: {
+  title: string;
+  children: string | undefined;
+  tone: 'berryText' | 'danger';
+}) {
   return (
     <View style={[styles.callout, tone === 'danger' && styles.calloutDanger]}>
       <AppText size={13} weight="medium" tone={tone}>
@@ -467,44 +484,122 @@ const styles = StyleSheet.create({
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   errorBox: { alignItems: 'center', gap: 12 },
   retryBtn: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
   },
-  nav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, minHeight: 48 },
+  retryBtnText: { color: colors.buttonPrimaryInk },
+  nav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    minHeight: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
   back: { flexDirection: 'row', alignItems: 'center', minWidth: 72 },
   navActions: { flexDirection: 'row', gap: 16, minWidth: 72, justifyContent: 'flex-end' },
   navSpacer: { width: 72 },
   body: { padding: 16, gap: 14, paddingBottom: 24 },
   title: { letterSpacing: -0.3 },
+  sectionLabel: { letterSpacing: 0.6 },
   props: { borderTopWidth: 1, borderTopColor: colors.hair },
-  prop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.hair },
+  prop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
   propValue: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  callout: { gap: 6, padding: 12, borderRadius: 12, backgroundColor: '#1C1811', borderWidth: 1, borderColor: 'rgba(217,164,65,0.35)' },
-  calloutDanger: { backgroundColor: '#241616', borderColor: 'rgba(224,106,88,0.4)' },
+  callout: {
+    gap: 6,
+    padding: 14,
+    borderRadius: radii.card,
+    backgroundColor: colors.berrySoft,
+    borderWidth: 1,
+    borderColor: 'rgba(201,50,92,0.4)',
+  },
+  calloutDanger: { backgroundColor: colors.base, borderColor: colors.danger },
   block: { gap: 8 },
-  card: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: colors.base, borderWidth: 1, borderColor: colors.hair },
+  card: {
+    gap: 8,
+    padding: 14,
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
   prTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   copy: { flex: 1 },
   activity: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  bar: { borderTopWidth: 1, borderTopColor: colors.hair, padding: 12, backgroundColor: colors.ink, gap: 8 },
+  bar: { borderTopWidth: 1, borderTopColor: colors.hair, padding: 12, backgroundColor: colors.base, gap: 8 },
   barRow: { flexDirection: 'row', gap: 8 },
   stack: { gap: 8 },
-  secondary: { flex: 1, minHeight: 44, borderRadius: 12, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
-  primary: { flex: 1, minHeight: 44, borderRadius: 12, backgroundColor: colors.berry, alignItems: 'center', justifyContent: 'center' },
-  primaryText: { color: colors.white },
-  disabled: { opacity: 0.45 },
-  retryBar: {
-    minHeight: 36,
-    borderRadius: 10,
+  secondary: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
     borderWidth: 1,
-    borderColor: 'rgba(90,146,201,0.4)',
+    borderColor: colors.hair,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  input: { minHeight: 72, color: colors.chalk, fontSize: 14, textAlignVertical: 'top' },
+  primary: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.pill,
+    backgroundColor: colors.berry,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryText: { color: colors.white },
+  disabled: { opacity: 0.45 },
+  retryBar: {
+    minHeight: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  input: {
+    minHeight: 76,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: radii.card,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    color: colors.chalk,
+    fontFamily: fonts.regular,
+    fontSize: 14,
+    textAlignVertical: 'top',
+  },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  comment: { flex: 1, minHeight: 44, color: colors.chalk, fontSize: 14 },
-  send: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  comment: {
+    flex: 1,
+    minHeight: 42,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    color: colors.chalk,
+    fontFamily: fonts.regular,
+    fontSize: 14,
+  },
+  send: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

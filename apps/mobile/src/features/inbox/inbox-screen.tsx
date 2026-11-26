@@ -25,18 +25,18 @@ import { formatRelativeTime } from '@/model/mappers';
 import type { NotifKind } from '@/model/types';
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { filterInboxEntries, type InboxFilter } from './inbox-helpers';
 
 const KIND: Record<NotifKind, { label: string; icon: IconName; color: string }> = {
-  review: { label: 'Review requested', icon: 'review', color: colors.amber },
-  approval: { label: 'Approval needed', icon: 'approval', color: colors.amber },
-  failed: { label: 'Run failed', icon: 'failed', color: colors.danger },
-  blocked: { label: 'Agent blocked', icon: 'blocked', color: colors.amber },
-  mention: { label: 'Mention', icon: 'mention', color: colors.amber },
-  assigned: { label: 'Assigned to you', icon: 'addUser', color: colors.amber },
-  done: { label: 'Done', icon: 'done', color: colors.verdant },
+  review: { label: 'Review requested', icon: 'review', color: colors.berryText },
+  approval: { label: 'Approval needed', icon: 'approval', color: colors.berryText },
+  failed: { label: 'Run failed', icon: 'failed', color: colors.statusDanger },
+  blocked: { label: 'Agent blocked', icon: 'blocked', color: colors.berryText },
+  mention: { label: 'Mention', icon: 'mention', color: colors.statusInfo },
+  assigned: { label: 'Assigned to you', icon: 'addUser', color: colors.statusInfo },
+  done: { label: 'Done', icon: 'done', color: colors.statusSuccess },
 };
 
 export function InboxScreen() {
@@ -218,14 +218,14 @@ export function InboxScreen() {
         {!error && !archiveView && needs.length > 0 ? (
           <Pressable accessibilityRole="button" onPress={onToggleBandNeeds} style={styles.band}>
             <View style={styles.bandTop}>
-              <AppText size={12} weight="medium" tone="amber">
-                Waiting on you
+              <AppText mono size={11} weight="medium" tone="berryText">
+                WAITING ON YOU
               </AppText>
               <AppText size={12} tone="ash">
                 {effectiveFilter === 'needs' ? 'Show everything' : 'Show only these'}
               </AppText>
             </View>
-            <AppText size={22} weight="medium">
+            <AppText mono size={22} weight="medium">
               {needs.length}{' '}
               <AppText size={14} tone="ash">
                 {needs.length === 1 ? 'task is waiting on a decision' : 'tasks are waiting on a decision'}
@@ -234,7 +234,7 @@ export function InboxScreen() {
             <View style={styles.figures}>
               {figures.map((figure) => (
                 <AppText key={figure.kind} size={12} tone="ash">
-                  <AppText size={12} weight="medium">
+                  <AppText mono size={12} weight="medium">
                     {figure.n}
                   </AppText>{' '}
                   {labelFor(figure.kind, figure.n)}
@@ -268,7 +268,7 @@ export function InboxScreen() {
             </View>
           ) : (
             <View style={styles.empty}>
-              <BerryMark size={36} dot={colors.verdant} />
+              <BerryMark size={36} dot={colors.statusSuccess} />
               <AppText size={16} weight="medium">
                 {archiveView ? 'Nothing archived' : 'You’re caught up.'}
               </AppText>
@@ -362,13 +362,13 @@ function InboxRow({ item, kind }: { item: ApiInboxItem; kind: NotifKind }) {
           <View style={styles.rowTop}>
             <AppText size={13} weight={item.read ? 'regular' : 'medium'} style={styles.title} numberOfLines={1}>
               {item.issueIdentifier ? (
-                <AppText size={13} tone="ash">
+                <AppText mono size={12} tone="slate">
                   {item.issueIdentifier}{' '}
                 </AppText>
               ) : null}
               {item.title}
             </AppText>
-            <AppText size={12} tone="ash">
+            <AppText mono size={11} tone="slate">
               {formatRelativeTime(item.createdAt)}
             </AppText>
           </View>
@@ -390,10 +390,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     padding: 14,
-    borderRadius: 14,
-    backgroundColor: '#1C1811',
+    borderRadius: radii.card,
+    backgroundColor: colors.berrySoft,
     borderWidth: 1,
-    borderColor: 'rgba(217,164,65,0.35)',
+    borderColor: 'rgba(201,50,92,0.4)',
     gap: 8,
   },
   bandTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -424,33 +424,34 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     marginHorizontal: 16,
     marginTop: 8,
-    borderRadius: 10,
+    borderRadius: radii.pill,
+    backgroundColor: colors.base,
     borderWidth: 1,
     borderColor: colors.hair,
   },
   errorCard: {
     margin: 16,
     padding: 16,
-    borderRadius: 12,
-    backgroundColor: '#241616',
+    borderRadius: radii.card,
+    backgroundColor: colors.base,
     borderWidth: 1,
-    borderColor: 'rgba(224,106,88,0.4)',
+    borderColor: colors.danger,
     gap: 8,
   },
   retryBtn: {
     alignSelf: 'flex-start',
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
   clearBtn: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: colors.berry,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
     marginTop: 4,
   },
-  retryText: { color: colors.white },
+  retryText: { color: colors.buttonPrimaryInk },
 });

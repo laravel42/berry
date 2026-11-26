@@ -19,7 +19,7 @@ import { AppText } from '@/components/text';
 import { deriveInitials, formatRelativeTime, type ActorView } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
-import { colors } from '@/theme/tokens';
+import { colors, fonts, radii } from '@/theme/tokens';
 
 const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_TICKS = 24;
@@ -97,12 +97,12 @@ export function ConversationScreen() {
       style={[styles.screen, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.nav}>
-        <Pressable accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.backBtn}>
           <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
         </Pressable>
         <Avatar actor={actor} size={32} />
         <View style={styles.copy}>
-          <AppText size={14} weight="medium" numberOfLines={1}>
+          <AppText mono size={15} weight="semibold" numberOfLines={1}>
             {title}
           </AppText>
           <AppText size={11} tone={waitingForAgent ? 'azure' : 'ash'} numberOfLines={1}>
@@ -138,7 +138,7 @@ export function ConversationScreen() {
             value={draft}
             onChangeText={setDraft}
             placeholder={`Message ${title}`}
-            placeholderTextColor={colors.ash}
+            placeholderTextColor={colors.placeholder}
             style={styles.input}
             editable={!sending}
             onSubmitEditing={() => void handleSend()}
@@ -148,7 +148,11 @@ export function ConversationScreen() {
             disabled={!draft.trim() || sending}
             onPress={() => void handleSend()}
             style={[styles.send, (!draft.trim() || sending) && styles.disabled]}>
-            {sending ? <ActivityIndicator color={colors.berry} size="small" /> : <Icon name="send" size={18} />}
+            {sending ? (
+              <ActivityIndicator color={colors.buttonPrimaryInk} size="small" />
+            ) : (
+              <Icon name="send" size={16} color={colors.buttonPrimaryInk} />
+            )}
           </Pressable>
         </View>
       </View>
@@ -168,7 +172,7 @@ function MessageBubble({ message }: { message: ApiConversationMessage }) {
       <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
         <AppText size={14}>{message.body}</AppText>
       </View>
-      <AppText size={11} tone="slate">
+      <AppText mono size={11} tone="slate">
         {formatRelativeTime(message.createdAt)}
       </AppText>
     </View>
@@ -179,18 +183,69 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.void },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.void },
   loader: { paddingTop: 32, alignItems: 'center' },
-  nav: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, minHeight: 56 },
+  nav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    minHeight: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   copy: { flex: 1 },
   messages: { padding: 16, gap: 10 },
   bubbleWrap: { maxWidth: '86%', gap: 4 },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
   theirs: { alignSelf: 'flex-start' },
-  bubble: { paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-  bubbleMine: { backgroundColor: colors.hair, borderRadius: 14, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: colors.base, borderRadius: 14, borderBottomLeftRadius: 4 },
-  composer: { borderTopWidth: 1, borderTopColor: colors.hair, paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.ink },
+  bubble: { paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
+  bubbleMine: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.card,
+    borderBottomRightRadius: 4,
+  },
+  bubbleTheirs: {
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    borderRadius: radii.card,
+    borderBottomLeftRadius: 4,
+  },
+  composer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    backgroundColor: colors.base,
+  },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, minHeight: 40, color: colors.chalk, fontSize: 15 },
-  send: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  input: {
+    flex: 1,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    color: colors.chalk,
+    fontFamily: fonts.regular,
+    fontSize: 14,
+  },
+  send: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   disabled: { opacity: 0.45 },
 });
