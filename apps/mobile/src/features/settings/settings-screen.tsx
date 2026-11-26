@@ -12,35 +12,33 @@ import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors } from '@/theme/tokens';
 
-function KeyValueRow({
-  label,
-  value,
-  tone = 'chalk',
-}: {
-  label: string;
-  value: string;
-  tone?: 'chalk' | 'ash' | 'verdant' | 'amber';
-}) {
-  return (
-    <View style={styles.kvRow}>
-      <AppText size={13} tone="ash">
-        {label}
-      </AppText>
-      <AppText size={13} tone={tone} numberOfLines={1} style={styles.kvValue}>
-        {value}
-      </AppText>
-    </View>
-  );
-}
+import {
+  IntegrationsPanel,
+  KeyValueRow,
+  LabelsPanel,
+  MembersPanel,
+  ProfilePanel,
+  RuntimesPanel,
+  TokensPanel,
+  UsagePanel,
+  WorkspacePanel,
+} from './settings-panels';
+import { SettingsPickerSheet } from './settings-picker-sheet';
+import { getSettingsSection, type SettingsSectionId } from './settings-sections';
 
 export function SettingsScreen() {
   const insets = useSafeAreaInsets();
+  const client = useAuthStore((state) => state.client);
   const user = useAuthStore((state) => state.user);
   const baseUrl = useAuthStore((state) => state.baseUrl);
   const capabilities = useAuthStore((state) => state.capabilities);
   const workspaces = useAuthStore((state) => state.workspaces);
+  const currentWorkspaceId = useAuthStore((state) => state.currentWorkspaceId);
   const logout = useAuthStore((state) => state.logout);
   const workspace = useWorkspaceStore((state) => state.workspace);
+  const boards = useWorkspaceStore((state) => state.boards);
+  const projects = useWorkspaceStore((state) => state.projects);
+  const agents = useWorkspaceStore((state) => state.agents);
   const permission = useNotificationsStore((state) => state.permission);
   const inboxAlertsEnabled = useNotificationsStore((state) => state.inboxAlertsEnabled);
   const sendingTest = useNotificationsStore((state) => state.sendingTest);
@@ -51,6 +49,8 @@ export function SettingsScreen() {
   const showToast = useToastStore((state) => state.showToast);
 
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<SettingsSectionId>('overview');
 
   useEffect(() => {
     void refreshPermission();
@@ -92,10 +92,190 @@ export function SettingsScreen() {
     ]);
   };
 
+  const currentSection = getSettingsSection(activeSection);
+  const resolvedWorkspaceId = workspace?.id ?? currentWorkspaceId;
+  const bottomPadding = Math.max(insets.bottom, 24) + 24;
+
+  const renderSection = () => {
+    switch (activeSection) {
+      case 'profile':
+        return (
+          <ProfilePanel
+            client={client}
+            user={user}
+            workspace={workspace}
+            baseUrl={baseUrl}
+            onSignOut={confirmSignOut}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'tokens':
+        return <TokensPanel client={client} bottomPadding={bottomPadding} />;
+      case 'workspace':
+        return (
+          <WorkspacePanel
+            workspace={workspace}
+            workspacesCount={workspaces.length}
+            boardsCount={boards.length}
+            projectsCount={projects.length}
+            agentsCount={agents.length}
+            onOpenSwitcher={() => setSwitcherOpen(true)}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'members':
+        return (
+          <MembersPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'runtimes':
+        return (
+          <RuntimesPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'labels':
+        return (
+          <LabelsPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'integrations':
+        return (
+          <IntegrationsPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'usage':
+        return (
+          <UsagePanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'overview':
+      default:
+        return (
+          <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}>
+            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+              WORKSPACE
+            </AppText>
+            <View style={styles.card}>
+              <KeyValueRow label="Active workspace" value={workspace?.name ?? 'None'} />
+              <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} />
+              <KeyValueRow label="Role" value={workspace?.role ?? '—'} />
+              {workspaces.length > 1 ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setSwitcherOpen(true)}
+                  style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+                  <AppText size={13} weight="medium" tone="chalk">
+                    Switch workspace
+                  </AppText>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+              NOTIFICATIONS
+            </AppText>
+            <View style={styles.card}>
+              <KeyValueRow label="System permission" value={permissionLabel} tone={permissionTone} />
+              <View style={styles.kvRow}>
+                <AppText size={13} tone="ash">
+                  Alert on new Inbox items
+                </AppText>
+                <Switch
+                  value={inboxAlertsEnabled}
+                  onValueChange={setInboxAlertsEnabled}
+                  trackColor={{ false: colors.hair, true: colors.berry }}
+                  thumbColor={colors.chalk}
+                />
+              </View>
+              {permission !== 'granted' && permission !== 'unsupported' ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => void handleEnableNotifications()}
+                  style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
+                  <AppText size={13} weight="medium" tone="chalk">
+                    Enable notifications
+                  </AppText>
+                </Pressable>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                disabled={sendingTest || permission === 'unsupported'}
+                onPress={() => void handleTestNotification()}
+                style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
+                <Icon name="bell" size={15} color={colors.white} />
+                <AppText size={13} weight="medium" style={styles.primaryText}>
+                  {sendingTest ? 'Scheduling...' : 'Send test notification (2s)'}
+                </AppText>
+              </Pressable>
+            </View>
+
+            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+              SERVER
+            </AppText>
+            <View style={styles.card}>
+              <KeyValueRow label="Endpoint" value={baseUrl} />
+              <KeyValueRow
+                label="Realtime"
+                value={capabilities?.realtime ? 'Available' : 'Unavailable'}
+                tone={capabilities?.realtime ? 'verdant' : 'ash'}
+              />
+              <KeyValueRow
+                label="Agent execution"
+                value={capabilities?.agentExecution ? 'Enabled' : 'Disabled'}
+                tone={capabilities?.agentExecution ? 'verdant' : 'ash'}
+              />
+              <KeyValueRow
+                label="Two-factor auth"
+                value={capabilities?.twoFactor ? 'Supported' : 'Unavailable'}
+                tone={capabilities?.twoFactor ? 'verdant' : 'ash'}
+              />
+            </View>
+
+            <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+              ACCOUNT
+            </AppText>
+            <View style={styles.card}>
+              <KeyValueRow label="Name" value={user?.name ?? '—'} />
+              <KeyValueRow label="Email" value={user?.email ?? '—'} />
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={confirmSignOut}
+              style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}>
+              <Icon name="logOut" size={16} color={colors.danger} />
+              <AppText size={14} weight="medium" tone="danger">
+                Sign out
+              </AppText>
+            </Pressable>
+          </ScrollView>
+        );
+    }
+  };
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.topBar}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} style={styles.iconBtn}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => router.back()}
+          style={styles.iconBtn}>
           <Icon name="arrowLeft" size={20} color={colors.chalk} />
         </Pressable>
         <AppText size={16} weight="medium" tone="chalk" style={styles.topTitle}>
@@ -104,105 +284,34 @@ export function SettingsScreen() {
         <View style={styles.iconBtn} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 24) + 24 }]}>
-        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
-          WORKSPACE
-        </AppText>
-        <View style={styles.card}>
-          <KeyValueRow label="Active workspace" value={workspace?.name ?? 'None'} />
-          <KeyValueRow label="Issue prefix" value={workspace?.settings.issuePrefix ?? '—'} />
-          <KeyValueRow label="Role" value={workspace?.role ?? '—'} />
-          {workspaces.length > 1 ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setSwitcherOpen(true)}
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
-              <AppText size={13} weight="medium" tone="chalk">
-                Switch workspace
-              </AppText>
-            </Pressable>
-          ) : null}
-        </View>
-
-        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
-          NOTIFICATIONS
-        </AppText>
-        <View style={styles.card}>
-          <KeyValueRow label="System permission" value={permissionLabel} tone={permissionTone} />
-          <View style={styles.kvRow}>
-            <AppText size={13} tone="ash">
-              Alert on new Inbox items
-            </AppText>
-            <Switch
-              value={inboxAlertsEnabled}
-              onValueChange={setInboxAlertsEnabled}
-              trackColor={{ false: colors.hair, true: colors.berry }}
-              thumbColor={colors.chalk}
-            />
-          </View>
-          {permission !== 'granted' && permission !== 'unsupported' ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => void handleEnableNotifications()}
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
-              <AppText size={13} weight="medium" tone="chalk">
-                Enable notifications
-              </AppText>
-            </Pressable>
-          ) : null}
-          <Pressable
-            accessibilityRole="button"
-            disabled={sendingTest || permission === 'unsupported'}
-            onPress={() => void handleTestNotification()}
-            style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
-            <Icon name="bell" size={15} color={colors.white} />
-            <AppText size={13} weight="medium" style={styles.primaryText}>
-              {sendingTest ? 'Scheduling...' : 'Send test notification (2s)'}
-            </AppText>
-          </Pressable>
-        </View>
-
-        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
-          SERVER
-        </AppText>
-        <View style={styles.card}>
-          <KeyValueRow label="Endpoint" value={baseUrl} />
-          <KeyValueRow
-            label="Realtime"
-            value={capabilities?.realtime ? 'Available' : 'Unavailable'}
-            tone={capabilities?.realtime ? 'verdant' : 'ash'}
-          />
-          <KeyValueRow
-            label="Agent execution"
-            value={capabilities?.agentExecution ? 'Enabled' : 'Disabled'}
-            tone={capabilities?.agentExecution ? 'verdant' : 'ash'}
-          />
-          <KeyValueRow
-            label="Two-factor auth"
-            value={capabilities?.twoFactor ? 'Supported' : 'Unavailable'}
-            tone={capabilities?.twoFactor ? 'verdant' : 'ash'}
-          />
-        </View>
-
-        <AppText size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
-          ACCOUNT
-        </AppText>
-        <View style={styles.card}>
-          <KeyValueRow label="Name" value={user?.name ?? '—'} />
-          <KeyValueRow label="Email" value={user?.email ?? '—'} />
-        </View>
-
+      <View style={styles.selectorBar}>
         <Pressable
           accessibilityRole="button"
-          onPress={confirmSignOut}
-          style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}>
-          <Icon name="logOut" size={16} color={colors.danger} />
-          <AppText size={14} weight="medium" tone="danger">
-            Sign out
-          </AppText>
+          accessibilityLabel={`Settings section: ${currentSection.label}`}
+          onPress={() => setPickerOpen(true)}
+          style={({ pressed }) => [styles.selectTrigger, pressed && styles.pressed]}>
+          <View style={styles.selectLeft}>
+            <View style={styles.groupBadge}>
+              <AppText size={10} weight="medium" tone="berry">
+                {currentSection.group.toUpperCase()}
+              </AppText>
+            </View>
+            <AppText size={14} weight="medium" tone="chalk" numberOfLines={1} style={styles.selectLabel}>
+              {currentSection.label}
+            </AppText>
+          </View>
+          <Icon name="chevronDown" size={16} color={colors.ash} />
         </Pressable>
-      </ScrollView>
+      </View>
 
+      {renderSection()}
+
+      <SettingsPickerSheet
+        visible={pickerOpen}
+        activeSection={activeSection}
+        onSelect={setActiveSection}
+        onClose={() => setPickerOpen(false)}
+      />
       <WorkspaceSheet visible={switcherOpen} onClose={() => setSwitcherOpen(false)} />
     </View>
   );
@@ -227,6 +336,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   topTitle: { flex: 1, textAlign: 'center' },
+  selectorBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+    backgroundColor: colors.ink,
+  },
+  selectTrigger: {
+    height: 42,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.line,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  selectLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  groupBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: colors.ink,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  selectLabel: { flex: 1 },
   content: { padding: 16, gap: 12 },
   sectionLabel: { letterSpacing: 0.7, marginTop: 4, marginLeft: 2 },
   card: {
@@ -238,7 +381,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   kvRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  kvValue: { flex: 1, textAlign: 'right' },
   actionBtn: {
     marginTop: 4,
     height: 38,
