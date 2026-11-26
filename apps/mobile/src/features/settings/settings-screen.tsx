@@ -17,12 +17,18 @@ import {
   KeyValueRow,
   LabelsPanel,
   MembersPanel,
-  ProfilePanel,
   RuntimesPanel,
   TokensPanel,
   UsagePanel,
   WorkspacePanel,
 } from './settings-panels';
+import {
+  ConnectedAccountsPanel,
+  PlatformNotificationsPanel,
+  PreferencesProfilePanel,
+  SecurityPanel,
+  ShortcutsPanel,
+} from './settings-personal-panels';
 import { SettingsPickerSheet } from './settings-picker-sheet';
 import { getSettingsSection, type SettingsSectionId } from './settings-sections';
 
@@ -100,7 +106,7 @@ export function SettingsScreen() {
     switch (activeSection) {
       case 'profile':
         return (
-          <ProfilePanel
+          <PreferencesProfilePanel
             client={client}
             user={user}
             workspace={workspace}
@@ -109,8 +115,23 @@ export function SettingsScreen() {
             bottomPadding={bottomPadding}
           />
         );
+      case 'notifications':
+        return (
+          <PlatformNotificationsPanel
+            client={client}
+            workspaceId={resolvedWorkspaceId}
+            workspaceName={workspace?.name ?? null}
+            bottomPadding={bottomPadding}
+          />
+        );
+      case 'shortcuts':
+        return <ShortcutsPanel bottomPadding={bottomPadding} />;
+      case 'security':
+        return <SecurityPanel client={client} bottomPadding={bottomPadding} />;
       case 'tokens':
         return <TokensPanel client={client} bottomPadding={bottomPadding} />;
+      case 'connectedAccounts':
+        return <ConnectedAccountsPanel client={client} bottomPadding={bottomPadding} />;
       case 'workspace':
         return (
           <WorkspacePanel
