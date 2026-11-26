@@ -3,7 +3,11 @@ import { describe, expect, test } from 'bun:test';
 import { createBerryClient } from '@/api/client';
 import { createChatStore } from '@/store/chat-store';
 
-import { openAgentConversation, sendConversationMessage } from './conversations';
+import {
+  createAgentConversation,
+  openAgentConversation,
+  sendConversationMessage,
+} from './conversations';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -28,6 +32,125 @@ describe('conversations API & store', () => {
     const id = await openAgentConversation(client, 'agent-se');
     expect(seenPath).toBe('/api/v1/conversations/agents/agent-se');
     expect(id).toBe('conv-1');
+  });
+
+  test('createAgentConversation posts { agentId } to /api/v1/conversations when title is omitted', async () => {
+    let seenPath = '';
+    let seenBody: unknown = null;
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input, init) => {
+        expect(init?.method).toBe('POST');
+        seenPath = new URL(String(input)).pathname;
+        seenBody = JSON.parse(String(init?.body ?? '{}'));
+        return jsonResponse({ id: 'conv-new-1' }, 201);
+      },
+    });
+
+    const id = await createAgentConversation(client, 'agent-orch');
+    expect(seenPath).toBe('/api/v1/conversations');
+    expect(seenBody).toEqual({ agentId: 'agent-orch' });
+    expect(id).toBe('conv-new-1');
+  });
+
+  test('createAgentConversation posts { agentId, title } to /api/v1/conversations when title is provided', async () => {
+    let seenPath = '';
+    let seenBody: unknown = null;
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input, init) => {
+        expect(init?.method).toBe('POST');
+        seenPath = new URL(String(input)).pathname;
+        seenBody = JSON.parse(String(init?.body ?? '{}'));
+        return jsonResponse({ id: 'conv-new-2' }, 201);
+      },
+    });
+
+    const id = await createAgentConversation(client, 'agent-orch', '  Sprint planning  ');
+    expect(seenPath).toBe('/api/v1/conversations');
+    expect(seenBody).toEqual({ agentId: 'agent-orch', title: 'Sprint planning' });
+    expect(id).toBe('conv-new-2');
+  });
+
+  test('chat store createWithAgent creates a fresh thread and reloads conversations', async () => {
+    const requests: { method: string; path: string; body?: unknown }[] = [];
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input, init) => {
+        const url = new URL(String(input));
+        const method = init?.method ?? 'GET';
+        requests.push({
+          method,
+          path: url.pathname,
+          body: init?.body ? JSON.parse(String(init.body)) : undefined,
+        });
+        if (method === 'POST' && url.pathname === '/api/v1/conversations') {
+          return jsonResponse({ id: 'conv-fresh' }, 201);
+        }
+        return jsonResponse({
+          nodes: [
+            {
+              id: 'conv-fresh',
+              kind: 'agent',
+              topic: 'Release prep',
+              agentId: 'agent-orch',
+              agentName: 'Orchestrator',
+              messageCount: 0,
+              updatedAt: '2026-11-26T12:00:00.000Z',
+              pinned: false,
+              archived: false,
+              unread: 0,
+              activeRunId: null,
+              draft: '',
+              lastMessage: null,
+              lastMessageAuthor: null,
+            },
+          ],
+        });
+      },
+    });
+
+    const store = createChatStore(() => undefined);
+    const id = await store.getState().createWithAgent(client, 'agent-orch', 'Release prep');
+    expect(id).toBe('conv-fresh');
+    expect(requests[0]).toEqual({
+      method: 'POST',
+      path: '/api/v1/conversations',
+      body: { agentId: 'agent-orch', title: 'Release prep' },
+    });
+    expect(requests[1]?.method).toBe('GET');
+    expect(requests[1]?.path).toBe('/api/v1/conversations');
+    expect(store.getState().conversations).toHaveLength(1);
+    expect(store.getState().conversations[0]?.id).toBe('conv-fresh');
+  });
+
+  test('chat store createWithAgent notifies danger toast and returns null on error', async () => {
+    const toasts: { message: string; tone?: string }[] = [];
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async () =>
+        jsonResponse(
+          {
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: 'Could not start thread.',
+              requestId: 'req-500',
+              details: null,
+            },
+          },
+          500,
+        ),
+    });
+
+    const store = createChatStore((message, tone) => toasts.push({ message, tone }));
+    const id = await store.getState().createWithAgent(client, 'agent-orch');
+    expect(id).toBeNull();
+    expect(toasts[0]?.tone).toBe('danger');
+    expect(toasts[0]?.message).toContain('Could not start thread');
   });
 
   test('sendConversationMessage posts { body } and handles 202 queued response', async () => {

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import type { BerryClient } from '@/api/client';
 import {
+  createAgentConversation,
   listConversationMessages,
   listConversations,
   markConversationRead,
@@ -24,6 +25,7 @@ export type ChatState = {
   loadConversations: (client: BerryClient, options?: { silent?: boolean }) => Promise<void>;
   loadMessages: (client: BerryClient, conversationId: string) => Promise<void>;
   openWithAgent: (client: BerryClient, agentId: string) => Promise<string | null>;
+  createWithAgent: (client: BerryClient, agentId: string, title?: string) => Promise<string | null>;
   sendMessage: (client: BerryClient, conversationId: string, body: string) => Promise<boolean>;
   markRead: (client: BerryClient, conversationId: string) => Promise<void>;
   reset: () => void;
@@ -78,6 +80,17 @@ export function createChatStore(notify: NotifyFn = (m, t) => useToastStore.getSt
         return id;
       } catch (caught) {
         notify(caught instanceof Error ? caught.message : 'Could not open conversation.', 'danger');
+        return null;
+      }
+    },
+
+    createWithAgent: async (client, agentId, title) => {
+      try {
+        const id = await createAgentConversation(client, agentId, title);
+        await get().loadConversations(client, { silent: true });
+        return id;
+      } catch (caught) {
+        notify(caught instanceof Error ? caught.message : 'Could not create conversation.', 'danger');
         return null;
       }
     },

@@ -12,7 +12,7 @@ const TABS: { route: string; label: string; icon: IconName }[] = [
   { route: 'index', label: 'Inbox', icon: 'inbox' },
   { route: 'tasks', label: 'Tasks', icon: 'tasks' },
   { route: 'projects', label: 'Projects', icon: 'projects' },
-  { route: 'agents', label: 'Agents', icon: 'agents' },
+  { route: 'agents', label: 'Chat', icon: 'chat' },
   { route: 'more', label: 'More', icon: 'more' },
 ];
 

@@ -1,5 +1,5 @@
-import { AgentsScreen } from '@/features/agents/agents-screen';
+import { ChatListScreen } from '@/features/chat/chat-list-screen';
 
 export default function AgentsTab() {
-  return <AgentsScreen />;
+  return <ChatListScreen />;
 }
