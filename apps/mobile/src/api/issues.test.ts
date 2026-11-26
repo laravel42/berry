@@ -8,9 +8,12 @@ import {
   createIssueComment,
   listAllBoardIssues,
   listBoardIssues,
+  listCommentReactions,
   listIssueLabels,
   sendBackIssue,
+  setCommentResolved,
   splitMyIssues,
+  toggleCommentReaction,
 } from './issues';
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -222,5 +225,100 @@ describe('issues API', () => {
     // 6 days and 4 hours ago -> stays 6d
     const sixDaysFourHoursAgo = new Date(now - (6 * 24 + 4) * 3600 * 1000).toISOString();
     expect(formatRelativeTime(sixDaysFourHoursAgo, now)).toBe('6d');
+  });
+
+  test('createIssueComment includes parentId when replying to a comment', async () => {
+    let seenBody: unknown = null;
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (_input, init) => {
+        seenBody = JSON.parse(String(init?.body ?? '{}'));
+        return jsonResponse(
+          {
+            id: 'c-reply',
+            issueId: 'issue-1',
+            body: 'On it',
+            author: { type: 'user', id: 'user-me', name: 'Me', avatarUrl: null },
+            parentId: 'c-root',
+            createdAt: '2026-11-26T12:00:00.000Z',
+            updatedAt: '2026-11-26T12:00:00.000Z',
+          },
+          201,
+        );
+      },
+    });
+
+    const reply = await createIssueComment(client, 'issue-1', ' On it ', 'c-root');
+    expect(seenBody).toEqual({ body: 'On it', parentId: 'c-root' });
+    expect(reply.parentId).toBe('c-root');
+  });
+
+  test('setCommentResolved posts to resolve and deletes to reopen', async () => {
+    const calls: { method: string; path: string }[] = [];
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input, init) => {
+        const url = new URL(String(input));
+        const method = init?.method ?? 'GET';
+        calls.push({ method, path: url.pathname });
+        return jsonResponse({
+          id: 'c-1',
+          issueId: 'issue-1',
+          body: 'Thread root',
+          author: { type: 'user', id: 'user-me', name: 'Me', avatarUrl: null },
+          parentId: null,
+          resolvedAt: method === 'POST' ? '2026-11-26T12:05:00.000Z' : null,
+          createdAt: '2026-11-26T12:00:00.000Z',
+          updatedAt: '2026-11-26T12:05:00.000Z',
+        });
+      },
+    });
+
+    const resolved = await setCommentResolved(client, 'c-1', true);
+    const reopened = await setCommentResolved(client, 'c-1', false);
+    expect(calls).toEqual([
+      { method: 'POST', path: '/api/v1/comments/c-1/resolution' },
+      { method: 'DELETE', path: '/api/v1/comments/c-1/resolution' },
+    ]);
+    expect(resolved.resolvedAt).toBe('2026-11-26T12:05:00.000Z');
+    expect(reopened.resolvedAt).toBeNull();
+  });
+
+  test('listCommentReactions and toggleCommentReaction hit comment reaction endpoints', async () => {
+    const calls: { method: string; path: string; body: unknown }[] = [];
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input, init) => {
+        const url = new URL(String(input));
+        const method = init?.method ?? 'GET';
+        calls.push({
+          method,
+          path: url.pathname,
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        });
+        return jsonResponse({
+          nodes: [{ emoji: '👍', count: method === 'DELETE' ? 0 : 1, reactedByMe: method !== 'DELETE', actorIds: ['user-me'] }],
+        });
+      },
+    });
+
+    const initial = await listCommentReactions(client, 'c-1');
+    const added = await toggleCommentReaction(client, 'c-1', '👍', false);
+    await toggleCommentReaction(client, 'c-1', '👍', true);
+
+    expect(initial[0]?.emoji).toBe('👍');
+    expect(added[0]?.reactedByMe).toBe(true);
+    expect(calls).toEqual([
+      { method: 'GET', path: '/api/v1/comments/c-1/reactions', body: null },
+      { method: 'POST', path: '/api/v1/comments/c-1/reactions', body: { emoji: '👍' } },
+      {
+        method: 'DELETE',
+        path: `/api/v1/comments/c-1/reactions/${encodeURIComponent('👍')}`,
+        body: null,
+      },
+    ]);
   });
 });

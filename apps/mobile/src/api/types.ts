@@ -195,8 +195,19 @@ export type ApiComment = {
   body: string;
   author: ApiActorRef;
   parentId: string | null;
+  revision?: number;
+  resolvedAt?: string | null;
+  resolvedBy?: ApiActorRef | null;
+  runId?: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type ApiReactionGroup = {
+  emoji: string;
+  count: number;
+  reactedByMe: boolean;
+  actorIds: string[];
 };
 
 export type ApiActivityItem = {

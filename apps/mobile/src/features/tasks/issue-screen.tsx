@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentRef, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ApiIssuePriority } from '@/api/types';
+import type { ApiComment, ApiIssuePriority, ApiReactionGroup } from '@/api/types';
 import { Avatar } from '@/components/avatar';
 import { StatusMark } from '@/components/berry-mark';
 import { Icon } from '@/components/icon';
@@ -38,15 +38,26 @@ import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { colors, fonts, radii } from '@/theme/tokens';
 
-type TimelineRow = {
-  id: string;
-  kind: 'comment' | 'event';
-  actor: ActorView;
-  text: string;
-  occurredAt: string;
-};
+type TimelineRow =
+  | {
+      id: string;
+      kind: 'comment';
+      comment: ApiComment;
+      replies: ApiComment[];
+      actor: ActorView;
+      occurredAt: string;
+    }
+  | {
+      id: string;
+      kind: 'event';
+      actor: ActorView;
+      text: string;
+      occurredAt: string;
+    };
 
 type ActivityFilter = 'all' | 'comments';
+
+const QUICK_EMOJI = ['👍', '🎉', '❤️', '👀', '🚀', '😄'] as const;
 
 const STATUS_PICKER_ORDER: IssueStatusUi[] = [
   'backlog',
@@ -119,6 +130,8 @@ export function IssueScreen() {
   const loadIssueDetail = useIssuesStore((state) => state.loadIssueDetail);
   const updateIssue = useIssuesStore((state) => state.updateIssue);
   const addComment = useIssuesStore((state) => state.addComment);
+  const toggleResolveComment = useIssuesStore((state) => state.toggleResolveComment);
+  const toggleCommentReaction = useIssuesStore((state) => state.toggleCommentReaction);
   const approveIssue = useIssuesStore((state) => state.approveIssue);
   const sendBack = useIssuesStore((state) => state.sendBack);
   const decideApproval = useIssuesStore((state) => state.decideApproval);
@@ -127,11 +140,16 @@ export function IssueScreen() {
   const setRead = useInboxStore((state) => state.setRead);
   const archive = useInboxStore((state) => state.archive);
 
+  const commentInputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const [note, setNote] = useState('');
   const [draft, setDraft] = useState('');
+  const [replyingTo, setReplyingTo] = useState<ApiComment | null>(null);
+  const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const [picker, setPicker] = useState<'status' | 'priority' | null>(null);
+  const [inboxBusy, setInboxBusy] = useState(false);
 
   useEffect(() => {
     if (!client || !workspaceId || !id) return;
@@ -140,17 +158,38 @@ export function IssueScreen() {
 
   const issue = detail?.issue?.id ? detail.issue : fallbackIssue;
   const labels = detail?.labels ?? [];
+  const reactionsByCommentId = detail?.reactionsByCommentId ?? {};
   const pendingApproval = detail?.approvals.find((a) => a.status === 'pending') ?? null;
   const review = detail?.review ?? null;
 
   const timeline = useMemo<TimelineRow[]>(() => {
+    const allComments = detail?.comments ?? [];
+    const byId = new Map<string, ApiComment>();
+    for (const c of allComments) byId.set(c.id, c);
+
+    const repliesByParent = new Map<string, ApiComment[]>();
+    const roots: ApiComment[] = [];
+    for (const c of allComments) {
+      if (c.parentId && byId.has(c.parentId)) {
+        const list = repliesByParent.get(c.parentId) ?? [];
+        list.push(c);
+        repliesByParent.set(c.parentId, list);
+      } else {
+        roots.push(c);
+      }
+    }
+
     const rows: TimelineRow[] = [];
-    for (const comment of detail?.comments ?? []) {
+    for (const comment of roots) {
+      const replies = (repliesByParent.get(comment.id) ?? []).sort((a, b) =>
+        a.createdAt.localeCompare(b.createdAt),
+      );
       rows.push({
         id: `comment-${comment.id}`,
         kind: 'comment',
+        comment,
+        replies,
         actor: actorFromRef(comment.author),
-        text: comment.body,
         occurredAt: comment.createdAt,
       });
     }
@@ -176,10 +215,7 @@ export function IssueScreen() {
     return rows.sort((a, b) => a.occurredAt.localeCompare(b.occurredAt));
   }, [detail?.comments, detail?.activity]);
 
-  const commentCount = useMemo(
-    () => timeline.filter((entry) => entry.kind === 'comment').length,
-    [timeline],
-  );
+  const commentCount = (detail?.comments ?? []).length;
 
   const visibleTimeline = useMemo(
     () =>
@@ -254,8 +290,34 @@ export function IssueScreen() {
 
   const handleComment = async () => {
     if (!client || !draft.trim() || busyAction) return;
-    const ok = await addComment(client, issue.id, draft);
-    if (ok) setDraft('');
+    const ok = await addComment(client, issue.id, draft, replyingTo?.id ?? null);
+    if (ok) {
+      setDraft('');
+      setReplyingTo(null);
+    }
+  };
+
+  const handleStartReply = (comment: ApiComment) => {
+    setReplyingTo(comment);
+    setTimeout(() => {
+      commentInputRef.current?.focus();
+    }, 60);
+  };
+
+  const handleMarkUnread = async () => {
+    if (!from || !client || !workspaceId || inboxBusy) return;
+    setInboxBusy(true);
+    await setRead(client, workspaceId, from, false);
+    setInboxBusy(false);
+    close();
+  };
+
+  const handleArchiveNotif = async () => {
+    if (!from || !client || !workspaceId || inboxBusy) return;
+    setInboxBusy(true);
+    await archive(client, workspaceId, from);
+    setInboxBusy(false);
+    close();
   };
 
   const handleStatusSelect = (next: IssueStatusUi) => {
@@ -436,20 +498,28 @@ export function IssueScreen() {
         {from && client && workspaceId ? (
           <View style={styles.navActions}>
             <Pressable
-              accessibilityLabel="Mark unread"
-              onPress={() => {
-                void setRead(client, workspaceId, from, false);
-                close();
-              }}>
-              <Icon name="mail" size={20} />
+              accessibilityRole="button"
+              accessibilityLabel="Mark notification unread"
+              disabled={inboxBusy}
+              hitSlop={6}
+              onPress={() => void handleMarkUnread()}
+              style={({ pressed }) => [
+                styles.navIconBtn,
+                (pressed || inboxBusy) && styles.navIconBtnPressed,
+              ]}>
+              <Icon name="mail" size={19} color={colors.ash} />
             </Pressable>
             <Pressable
-              accessibilityLabel="Archive"
-              onPress={() => {
-                void archive(client, workspaceId, from);
-                close();
-              }}>
-              <Icon name="archive" size={20} />
+              accessibilityRole="button"
+              accessibilityLabel="Archive notification"
+              disabled={inboxBusy}
+              hitSlop={6}
+              onPress={() => void handleArchiveNotif()}
+              style={({ pressed }) => [
+                styles.navIconBtn,
+                (pressed || inboxBusy) && styles.navIconBtnPressed,
+              ]}>
+              <Icon name="archive" size={19} color={colors.ash} />
             </Pressable>
           </View>
         ) : (
@@ -469,19 +539,49 @@ export function IssueScreen() {
         </View>
 
         <View style={styles.block}>
-          <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
-            PROPERTIES
-          </AppText>
-          <View style={styles.propsCard}>
-            {propertyRows.map((row, index) => (
-              <View key={row.key} style={index > 0 ? styles.propDivider : undefined}>
-                {row.node}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ expanded: propertiesOpen }}
+            accessibilityLabel={propertiesOpen ? 'Collapse properties' : 'Expand properties'}
+            onPress={() => setPropertiesOpen((prev) => !prev)}
+            style={({ pressed }) => [
+              styles.propsHeader,
+              pressed && styles.propsHeaderPressed,
+            ]}>
+            <View style={styles.propsHeaderLeft}>
+              <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+                PROPERTIES
+              </AppText>
+              {!propertiesOpen ? (
+                <View style={styles.propsCollapsedSummary}>
+                  <StatusMark status={statusUi} />
+                  <AppText size={12} tone="ash" numberOfLines={1}>
+                    {`${statusMeta.label} · ${PRIORITY_META[priorityUi].label}`}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
+            <Icon
+              name={propertiesOpen ? 'chevronDown' : 'chevronRight'}
+              size={15}
+              color={colors.slate}
+            />
+          </Pressable>
+
+          {propertiesOpen ? (
+            <>
+              <View style={styles.propsCard}>
+                {propertyRows.map((row, index) => (
+                  <View key={row.key} style={index > 0 ? styles.propDivider : undefined}>
+                    {row.node}
+                  </View>
+                ))}
               </View>
-            ))}
-          </View>
-          <AppText mono size={11} tone="slate" style={styles.timestamps}>
-            {`Created ${formatShortDate(issue.createdAt)} · Updated ${formatRelativeTime(issue.updatedAt)}`}
-          </AppText>
+              <AppText mono size={11} tone="slate" style={styles.timestamps}>
+                {`Created ${formatShortDate(issue.createdAt)} · Updated ${formatRelativeTime(issue.updatedAt)}`}
+              </AppText>
+            </>
+          ) : null}
         </View>
 
         {showReview ? (
@@ -609,9 +709,35 @@ export function IssueScreen() {
           ) : null}
 
           <View style={styles.timelineList}>
-            {visibleTimeline.map((entry) =>
-              entry.kind === 'comment' ? (
-                <View key={entry.id} style={styles.commentCard}>
+            {visibleTimeline.map((entry) => {
+              if (entry.kind === 'event') {
+                return (
+                  <View key={entry.id} style={styles.eventRow}>
+                    <View style={styles.eventRailCol}>
+                      <View style={styles.eventRailLine} />
+                      <View style={styles.eventDot} />
+                    </View>
+                    <AppText size={12} tone="slate" style={styles.copy}>
+                      <AppText size={12} weight="medium" tone="ash">
+                        {entry.actor.name}{' '}
+                      </AppText>
+                      {entry.text}
+                    </AppText>
+                    <AppText mono size={11} tone="slate">
+                      {formatRelativeTime(entry.occurredAt)}
+                    </AppText>
+                  </View>
+                );
+              }
+
+              const comment = entry.comment;
+              const isResolved = Boolean(comment.resolvedAt);
+              const rootReactions = reactionsByCommentId[comment.id] ?? [];
+
+              return (
+                <View
+                  key={entry.id}
+                  style={[styles.commentCard, isResolved && styles.commentCardResolved]}>
                   <View style={styles.commentHeader}>
                     <Avatar actor={entry.actor} size={24} />
                     <View style={styles.commentAuthorWrap}>
@@ -625,33 +751,158 @@ export function IssueScreen() {
                           </AppText>
                         </View>
                       ) : null}
+                      {isResolved ? (
+                        <View style={styles.resolvedPill}>
+                          <Icon name="check" size={10} color={colors.statusSuccess} strokeWidth={2.4} />
+                          <AppText mono size={10} weight="medium" style={styles.resolvedPillText}>
+                            Resolved
+                          </AppText>
+                        </View>
+                      ) : null}
                     </View>
                     <AppText mono size={11} tone="slate">
                       {formatRelativeTime(entry.occurredAt)}
                     </AppText>
                   </View>
-                  <AppText size={14} tone="chalk" style={styles.commentBody}>
-                    {entry.text}
+
+                  <AppText
+                    size={14}
+                    tone={isResolved ? 'ash' : 'chalk'}
+                    style={styles.commentBody}>
+                    {comment.body}
                   </AppText>
+
+                  {rootReactions.length > 0 ? (
+                    <ReactionsRow
+                      groups={rootReactions}
+                      onToggle={(emoji) => {
+                        if (client) void toggleCommentReaction(client, issue.id, comment.id, emoji);
+                      }}
+                      onAdd={() => setReactionTargetId(comment.id)}
+                    />
+                  ) : null}
+
+                  {client ? (
+                    <View style={styles.commentActions}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Reply to ${entry.actor.name}`}
+                        onPress={() => handleStartReply(comment)}
+                        style={({ pressed }) => [
+                          styles.commentActionBtn,
+                          pressed && styles.commentActionBtnPressed,
+                        ]}>
+                        <Icon name="reply" size={13} color={colors.slate} />
+                        <AppText size={11} weight="medium" tone="ash">
+                          Reply
+                        </AppText>
+                      </Pressable>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={isResolved ? 'Reopen thread' : 'Resolve thread'}
+                        disabled={busyAction}
+                        onPress={() =>
+                          void toggleResolveComment(client, issue.id, comment.id, !isResolved)
+                        }
+                        style={({ pressed }) => [
+                          styles.commentActionBtn,
+                          pressed && styles.commentActionBtnPressed,
+                        ]}>
+                        <Icon
+                          name="done"
+                          size={13}
+                          color={isResolved ? colors.statusSuccess : colors.slate}
+                        />
+                        <AppText
+                          size={11}
+                          weight="medium"
+                          tone={isResolved ? 'chalk' : 'ash'}>
+                          {isResolved ? 'Reopen' : 'Resolve'}
+                        </AppText>
+                      </Pressable>
+
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Add reaction"
+                        onPress={() => setReactionTargetId(comment.id)}
+                        style={({ pressed }) => [
+                          styles.commentActionBtn,
+                          pressed && styles.commentActionBtnPressed,
+                        ]}>
+                        <Icon name="smile" size={13} color={colors.slate} />
+                        <AppText size={11} weight="medium" tone="ash">
+                          React
+                        </AppText>
+                      </Pressable>
+                    </View>
+                  ) : null}
+
+                  {entry.replies.length > 0 ? (
+                    <View style={styles.repliesWrap}>
+                      {entry.replies.map((reply) => {
+                        const replyActor = actorFromRef(reply.author);
+                        const replyReactions = reactionsByCommentId[reply.id] ?? [];
+                        return (
+                          <View key={reply.id} style={styles.replyItem}>
+                            <View style={styles.commentHeader}>
+                              <Avatar actor={replyActor} size={20} />
+                              <View style={styles.commentAuthorWrap}>
+                                <AppText size={12} weight="medium" tone="chalk" numberOfLines={1}>
+                                  {replyActor.name}
+                                </AppText>
+                                {replyActor.type === 'agent' ? (
+                                  <View style={styles.metaPill}>
+                                    <AppText mono size={10} weight="medium" tone="ash">
+                                      Agent
+                                    </AppText>
+                                  </View>
+                                ) : null}
+                              </View>
+                              <AppText mono size={10} tone="slate">
+                                {formatRelativeTime(reply.createdAt)}
+                              </AppText>
+                            </View>
+                            <AppText
+                              size={13}
+                              tone={isResolved ? 'ash' : 'chalk'}
+                              style={styles.replyBody}>
+                              {reply.body}
+                            </AppText>
+                            <View style={styles.replyFooter}>
+                              {replyReactions.length > 0 ? (
+                                <ReactionsRow
+                                  groups={replyReactions}
+                                  onToggle={(emoji) => {
+                                    if (client)
+                                      void toggleCommentReaction(client, issue.id, reply.id, emoji);
+                                  }}
+                                  onAdd={() => setReactionTargetId(reply.id)}
+                                />
+                              ) : client ? (
+                                <Pressable
+                                  accessibilityRole="button"
+                                  accessibilityLabel="React to reply"
+                                  onPress={() => setReactionTargetId(reply.id)}
+                                  style={({ pressed }) => [
+                                    styles.commentActionBtn,
+                                    pressed && styles.commentActionBtnPressed,
+                                  ]}>
+                                  <Icon name="smile" size={12} color={colors.slate} />
+                                  <AppText size={11} tone="slate">
+                                    React
+                                  </AppText>
+                                </Pressable>
+                              ) : null}
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ) : null}
                 </View>
-              ) : (
-                <View key={entry.id} style={styles.eventRow}>
-                  <View style={styles.eventRailCol}>
-                    <View style={styles.eventRailLine} />
-                    <View style={styles.eventDot} />
-                  </View>
-                  <AppText size={12} tone="slate" style={styles.copy}>
-                    <AppText size={12} weight="medium" tone="ash">
-                      {entry.actor.name}{' '}
-                    </AppText>
-                    {entry.text}
-                  </AppText>
-                  <AppText mono size={11} tone="slate">
-                    {formatRelativeTime(entry.occurredAt)}
-                  </AppText>
-                </View>
-              ),
-            )}
+              );
+            })}
           </View>
 
           {!detail?.loading && visibleTimeline.length === 0 ? (
@@ -767,23 +1018,46 @@ export function IssueScreen() {
         ) : null}
 
         {!showReview && !showApproval ? (
-          <View style={styles.composer}>
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Comment or @mention an agent"
-              placeholderTextColor={colors.placeholder}
-              style={styles.comment}
-              editable={!busyAction}
-              onSubmitEditing={() => void handleComment()}
-            />
-            <Pressable
-              accessibilityLabel="Send"
-              disabled={!draft.trim() || busyAction}
-              onPress={() => void handleComment()}
-              style={[styles.send, (!draft.trim() || busyAction) && styles.disabled]}>
-              <Icon name="send" size={18} strokeWidth={2.2} color={colors.buttonPrimaryInk} />
-            </Pressable>
+          <View style={styles.composerWrap}>
+            {replyingTo ? (
+              <View style={styles.replyBanner}>
+                <Icon name="reply" size={13} color={colors.ash} />
+                <AppText size={12} tone="ash" numberOfLines={1} style={styles.copy}>
+                  {`Replying to ${actorFromRef(replyingTo.author).name}`}
+                </AppText>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel reply"
+                  hitSlop={8}
+                  onPress={() => setReplyingTo(null)}
+                  style={styles.replyBannerClose}>
+                  <Icon name="close" size={14} color={colors.slate} />
+                </Pressable>
+              </View>
+            ) : null}
+            <View style={styles.composer}>
+              <TextInput
+                ref={commentInputRef}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={
+                  replyingTo
+                    ? `Reply to ${actorFromRef(replyingTo.author).name}…`
+                    : 'Comment or @mention an agent'
+                }
+                placeholderTextColor={colors.placeholder}
+                style={styles.comment}
+                editable={!busyAction}
+                onSubmitEditing={() => void handleComment()}
+              />
+              <Pressable
+                accessibilityLabel="Send"
+                disabled={!draft.trim() || busyAction}
+                onPress={() => void handleComment()}
+                style={[styles.send, (!draft.trim() || busyAction) && styles.disabled]}>
+                <Icon name="send" size={18} strokeWidth={2.2} color={colors.buttonPrimaryInk} />
+              </Pressable>
+            </View>
           </View>
         ) : null}
       </View>
@@ -864,7 +1138,106 @@ export function IssueScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      <Modal
+        visible={reactionTargetId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReactionTargetId(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setReactionTargetId(null)}>
+          <Pressable
+            style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
+            onPress={() => undefined}>
+            <View style={styles.sheetGrabber} />
+            <View style={styles.sheetHeader}>
+              <AppText size={15} weight="medium" tone="chalk">
+                Add reaction
+              </AppText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+                onPress={() => setReactionTargetId(null)}
+                style={styles.sheetCloseBtn}>
+                <Icon name="close" size={18} color={colors.ash} />
+              </Pressable>
+            </View>
+            <View style={styles.emojiGrid}>
+              {QUICK_EMOJI.map((emoji) => {
+                const targetGroups = reactionTargetId
+                  ? (reactionsByCommentId[reactionTargetId] ?? [])
+                  : [];
+                const active = targetGroups.some((g) => g.emoji === emoji && g.reactedByMe);
+                return (
+                  <Pressable
+                    key={emoji}
+                    accessibilityRole="button"
+                    accessibilityLabel={`React with ${emoji}`}
+                    onPress={() => {
+                      const targetId = reactionTargetId;
+                      setReactionTargetId(null);
+                      if (client && targetId) {
+                        void toggleCommentReaction(client, issue.id, targetId, emoji);
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.emojiOption,
+                      active && styles.emojiOptionActive,
+                      pressed && styles.sheetOptionPressed,
+                    ]}>
+                    <AppText size={22}>{emoji}</AppText>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
+  );
+}
+
+function ReactionsRow({
+  groups,
+  onToggle,
+  onAdd,
+}: {
+  groups: ApiReactionGroup[];
+  onToggle: (emoji: string) => void;
+  onAdd: () => void;
+}) {
+  return (
+    <View style={styles.reactionsRow}>
+      {groups.map((group) => (
+        <Pressable
+          key={group.emoji}
+          accessibilityRole="button"
+          accessibilityState={{ selected: group.reactedByMe }}
+          onPress={() => onToggle(group.emoji)}
+          style={({ pressed }) => [
+            styles.reactionChip,
+            group.reactedByMe && styles.reactionChipActive,
+            pressed && styles.commentActionBtnPressed,
+          ]}>
+          <AppText size={13}>{group.emoji}</AppText>
+          <AppText
+            mono
+            size={11}
+            weight={group.reactedByMe ? 'medium' : 'regular'}
+            tone={group.reactedByMe ? 'chalk' : 'ash'}>
+            {group.count}
+          </AppText>
+        </Pressable>
+      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add reaction"
+        onPress={onAdd}
+        style={({ pressed }) => [
+          styles.reactionAddBtn,
+          pressed && styles.commentActionBtnPressed,
+        ]}>
+        <Icon name="plus" size={12} color={colors.slate} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -951,12 +1324,53 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.hair,
   },
   back: { flexDirection: 'row', alignItems: 'center', minWidth: 72 },
-  navActions: { flexDirection: 'row', gap: 16, minWidth: 72, justifyContent: 'flex-end' },
+  navActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 72,
+    justifyContent: 'flex-end',
+  },
+  navIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navIconBtnPressed: {
+    backgroundColor: colors.panel,
+    opacity: 0.7,
+  },
   navSpacer: { width: 72 },
   body: { padding: 16, gap: 16, paddingBottom: 24 },
   headerBlock: { gap: 4 },
   title: { letterSpacing: -0.3 },
   sectionLabel: { letterSpacing: 0.6 },
+  propsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+    borderRadius: radii.md,
+  },
+  propsHeaderPressed: {
+    opacity: 0.7,
+  },
+  propsHeaderLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  propsCollapsedSummary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   propsCard: {
     backgroundColor: colors.base,
     borderWidth: 1,
@@ -1093,6 +1507,9 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 8,
   },
+  commentCardResolved: {
+    opacity: 0.72,
+  },
   commentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1103,9 +1520,93 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flexWrap: 'wrap',
   },
   commentBody: {
     lineHeight: 20,
+  },
+  resolvedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  resolvedPillText: {
+    color: colors.statusSuccess,
+  },
+  reactionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+  },
+  reactionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  reactionChipActive: {
+    backgroundColor: colors.panel,
+    borderColor: colors.line,
+  },
+  reactionAddBtn: {
+    width: 26,
+    height: 24,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
+  },
+  commentActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 3,
+  },
+  commentActionBtnPressed: {
+    opacity: 0.65,
+  },
+  repliesWrap: {
+    marginTop: 4,
+    paddingTop: 10,
+    paddingLeft: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
+    borderLeftWidth: 2,
+    borderLeftColor: colors.hair,
+    gap: 10,
+  },
+  replyItem: {
+    gap: 5,
+  },
+  replyBody: {
+    lineHeight: 19,
+  },
+  replyFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   eventRow: {
     flexDirection: 'row',
@@ -1182,6 +1683,24 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     fontSize: 14,
     textAlignVertical: 'top',
+  },
+  composerWrap: { gap: 8 },
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.md,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+  },
+  replyBannerClose: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   composer: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   comment: {
@@ -1260,5 +1779,25 @@ const styles = StyleSheet.create({
   },
   sheetOptionPressed: {
     opacity: 0.85,
+  },
+  emojiGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  emojiOption: {
+    flex: 1,
+    height: 48,
+    borderRadius: radii.md,
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiOptionActive: {
+    backgroundColor: colors.field,
+    borderColor: colors.line,
   },
 });

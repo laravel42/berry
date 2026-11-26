@@ -11,12 +11,15 @@ import {
   createIssueComment,
   getIssue,
   listAllBoardIssues,
+  listCommentReactions,
   listIssueActivity,
   listIssueComments,
   listIssueLabels,
   patchIssue,
   restartIssueRun,
   sendBackIssue,
+  setCommentResolved,
+  toggleCommentReaction as toggleCommentReactionApi,
 } from '@/api/issues';
 import type {
   ApiActivityItem,
@@ -24,6 +27,7 @@ import type {
   ApiComment,
   ApiIssue,
   ApiIssueLabel,
+  ApiReactionGroup,
   ApiReviewItem,
 } from '@/api/types';
 import { useToastStore } from '@/store/toast-store';
@@ -34,6 +38,7 @@ export type IssueDetailBundle = {
   issue: ApiIssue;
   labels: ApiIssueLabel[];
   comments: ApiComment[];
+  reactionsByCommentId: Record<string, ApiReactionGroup[]>;
   activity: ApiActivityItem[];
   approvals: ApiApproval[];
   review: ApiReviewItem | null;
@@ -62,7 +67,24 @@ type IssuesState = {
     issueId: string,
     patch: Record<string, unknown>,
   ) => Promise<boolean>;
-  addComment: (client: BerryClient, issueId: string, body: string) => Promise<boolean>;
+  addComment: (
+    client: BerryClient,
+    issueId: string,
+    body: string,
+    parentId?: string | null,
+  ) => Promise<boolean>;
+  toggleResolveComment: (
+    client: BerryClient,
+    issueId: string,
+    commentId: string,
+    resolved: boolean,
+  ) => Promise<boolean>;
+  toggleCommentReaction: (
+    client: BerryClient,
+    issueId: string,
+    commentId: string,
+    emoji: string,
+  ) => Promise<void>;
   approveIssue: (client: BerryClient, workspaceId: string, issueId: string, mergeRunId?: string | null) => Promise<boolean>;
   sendBack: (client: BerryClient, workspaceId: string, issueId: string, note: string) => Promise<boolean>;
   decideApproval: (
@@ -145,10 +167,23 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
         listOpenReviews(client, workspaceId).catch(() => []),
       ]);
       const review = reviews.find((entry) => entry.issue.id === issue.id) ?? null;
+      const reactionEntries = await Promise.all(
+        comments.map(async (comment) => [
+          comment.id,
+          await listCommentReactions(client, comment.id).catch(() => []),
+        ] as const),
+      );
+      const reactionsByCommentId: Record<string, ApiReactionGroup[]> = {};
+      for (const [commentId, groups] of reactionEntries) {
+        if (groups.length > 0) {
+          reactionsByCommentId[commentId] = groups;
+        }
+      }
       const bundle: IssueDetailBundle = {
         issue,
         labels,
         comments,
+        reactionsByCommentId,
         activity,
         approvals,
         review,
@@ -174,6 +209,7 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
             issue: existing?.issue ?? ({} as ApiIssue),
             labels: existing?.labels ?? [],
             comments: existing?.comments ?? [],
+            reactionsByCommentId: existing?.reactionsByCommentId ?? {},
             activity: existing?.activity ?? [],
             approvals: existing?.approvals ?? [],
             review: existing?.review ?? null,
@@ -222,21 +258,22 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
     }
   },
 
-  addComment: async (client, issueId, body) => {
+  addComment: async (client, issueId, body, parentId) => {
     const trimmed = body.trim();
     if (!trimmed) return false;
     set({ busyAction: true });
     try {
-      const created = await createIssueComment(client, issueId, trimmed);
+      const created = await createIssueComment(client, issueId, trimmed, parentId);
       set((state) => {
-        const current = state.detailsById[issueId];
-        if (!current) return { busyAction: false };
+        const nextDetails = { ...state.detailsById };
+        for (const [key, bundle] of Object.entries(nextDetails)) {
+          if (key === issueId || bundle.issue?.id === issueId) {
+            nextDetails[key] = { ...bundle, comments: [...bundle.comments, created] };
+          }
+        }
         return {
           busyAction: false,
-          detailsById: {
-            ...state.detailsById,
-            [issueId]: { ...current, comments: [...current.comments, created] },
-          },
+          detailsById: nextDetails,
         };
       });
       return true;
@@ -246,6 +283,96 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
         .getState()
         .showToast(caught instanceof Error ? caught.message : 'Could not post comment.', 'danger');
       return false;
+    }
+  },
+
+  toggleResolveComment: async (client, issueId, commentId, resolved) => {
+    set({ busyAction: true });
+    try {
+      const updated = await setCommentResolved(client, commentId, resolved);
+      set((state) => {
+        const nextDetails = { ...state.detailsById };
+        for (const [key, bundle] of Object.entries(nextDetails)) {
+          if (key === issueId || bundle.issue?.id === issueId) {
+            nextDetails[key] = {
+              ...bundle,
+              comments: bundle.comments.map((entry) =>
+                entry.id === updated.id ? updated : entry,
+              ),
+            };
+          }
+        }
+        return {
+          busyAction: false,
+          detailsById: nextDetails,
+        };
+      });
+      useToastStore.getState().showToast(resolved ? 'Thread resolved' : 'Thread reopened');
+      return true;
+    } catch (caught) {
+      set({ busyAction: false });
+      useToastStore
+        .getState()
+        .showToast(
+          caught instanceof Error ? caught.message : 'Could not update thread status.',
+          'danger',
+        );
+      return false;
+    }
+  },
+
+  toggleCommentReaction: async (client, issueId, commentId, emoji) => {
+    const currentBundle = get().detailsById[issueId];
+    const currentGroups = currentBundle?.reactionsByCommentId[commentId] ?? [];
+    const existing = currentGroups.find((group) => group.emoji === emoji);
+    const alreadyReacted = Boolean(existing?.reactedByMe);
+
+    const optimisticGroups: ApiReactionGroup[] = alreadyReacted
+      ? currentGroups
+          .map((group) =>
+            group.emoji === emoji
+              ? { ...group, count: Math.max(0, group.count - 1), reactedByMe: false }
+              : group,
+          )
+          .filter((group) => group.count > 0)
+      : existing
+        ? currentGroups.map((group) =>
+            group.emoji === emoji
+              ? { ...group, count: group.count + 1, reactedByMe: true }
+              : group,
+          )
+        : [...currentGroups, { emoji, count: 1, reactedByMe: true, actorIds: [] }];
+
+    const patchReactions = (groups: ApiReactionGroup[]) => {
+      set((state) => {
+        const nextDetails = { ...state.detailsById };
+        for (const [key, bundle] of Object.entries(nextDetails)) {
+          if (key === issueId || bundle.issue?.id === issueId) {
+            nextDetails[key] = {
+              ...bundle,
+              reactionsByCommentId: {
+                ...bundle.reactionsByCommentId,
+                [commentId]: groups,
+              },
+            };
+          }
+        }
+        return { detailsById: nextDetails };
+      });
+    };
+
+    patchReactions(optimisticGroups);
+    try {
+      const serverGroups = await toggleCommentReactionApi(client, commentId, emoji, alreadyReacted);
+      patchReactions(serverGroups);
+    } catch (caught) {
+      patchReactions(currentGroups);
+      useToastStore
+        .getState()
+        .showToast(
+          caught instanceof Error ? caught.message : 'Could not update reaction.',
+          'danger',
+        );
     }
   },
 

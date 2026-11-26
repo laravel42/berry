@@ -5,6 +5,7 @@ import type {
   ApiIssue,
   ApiIssueLabel,
   ApiIssuePriority,
+  ApiReactionGroup,
   Connection,
 } from '@/api/types';
 
@@ -113,12 +114,52 @@ export async function createIssueComment(
   client: BerryClient,
   issueRef: string,
   body: string,
+  parentId?: string | null,
 ): Promise<ApiComment> {
+  const payload = parentId ? { body: body.trim(), parentId } : { body: body.trim() };
   return client.post<ApiComment>(
     `/api/v1/issues/${encodeURIComponent(issueRef)}/comments`,
-    { body: body.trim() },
+    payload,
     { idempotent: true },
   );
+}
+
+export async function setCommentResolved(
+  client: BerryClient,
+  commentId: string,
+  resolved: boolean,
+): Promise<ApiComment> {
+  const path = `/api/v1/comments/${encodeURIComponent(commentId)}/resolution`;
+  if (resolved) {
+    return client.post<ApiComment>(path, undefined, { emptyBody: true });
+  }
+  return client.request<ApiComment>(path, { method: 'DELETE', emptyBody: true });
+}
+
+export async function listCommentReactions(
+  client: BerryClient,
+  commentId: string,
+): Promise<ApiReactionGroup[]> {
+  const res = await client.get<{ nodes: ApiReactionGroup[] }>(
+    `/api/v1/comments/${encodeURIComponent(commentId)}/reactions`,
+  );
+  return Array.isArray(res?.nodes) ? res.nodes : [];
+}
+
+export async function toggleCommentReaction(
+  client: BerryClient,
+  commentId: string,
+  emoji: string,
+  reacted: boolean,
+): Promise<ApiReactionGroup[]> {
+  const base = `/api/v1/comments/${encodeURIComponent(commentId)}/reactions`;
+  const res = reacted
+    ? await client.request<{ nodes: ApiReactionGroup[] }>(
+        `${base}/${encodeURIComponent(emoji)}`,
+        { method: 'DELETE', emptyBody: true },
+      )
+    : await client.post<{ nodes: ApiReactionGroup[] }>(base, { emoji });
+  return Array.isArray(res?.nodes) ? res.nodes : [];
 }
 
 export async function listIssueActivity(

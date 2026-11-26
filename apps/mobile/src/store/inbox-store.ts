@@ -126,16 +126,21 @@ export function createInboxStore(notify: NotifyFn = (m, t) => useToastStore.getS
       const snapshotItems = get().items;
       const snapshotUnread = get().unreadCount;
       const target = snapshotItems.find((entry) => entry.id === itemId);
-      if (!target || target.read === read) return;
+      if (target && target.read === read) return;
 
-      const delta = target.archived ? 0 : read ? -1 : 1;
-      set({
-        items: snapshotItems.map((entry) => (entry.id === itemId ? { ...entry, read } : entry)),
-        unreadCount: Math.max(0, snapshotUnread + delta),
-      });
+      if (target) {
+        const delta = target.archived ? 0 : read ? -1 : 1;
+        set({
+          items: snapshotItems.map((entry) => (entry.id === itemId ? { ...entry, read } : entry)),
+          unreadCount: Math.max(0, snapshotUnread + delta),
+        });
+      }
 
       try {
         await applyInboxItemAction(client, itemId, read ? 'read' : 'unread', workspaceId);
+        if (!read) {
+          notify('Marked unread');
+        }
       } catch (caught) {
         set({ items: snapshotItems, unreadCount: snapshotUnread });
         notify(caught instanceof Error ? caught.message : 'Could not update notification.', 'danger');
@@ -146,14 +151,15 @@ export function createInboxStore(notify: NotifyFn = (m, t) => useToastStore.getS
       const snapshotItems = get().items;
       const snapshotUnread = get().unreadCount;
       const target = snapshotItems.find((entry) => entry.id === itemId);
-      if (!target) return;
 
-      const archiving = !target.archived;
-      const delta = !target.read ? (archiving ? -1 : 1) : 0;
-      set({
-        items: snapshotItems.filter((entry) => entry.id !== itemId),
-        unreadCount: Math.max(0, snapshotUnread + delta),
-      });
+      const archiving = target ? !target.archived : true;
+      if (target) {
+        const delta = !target.read ? (archiving ? -1 : 1) : 0;
+        set({
+          items: snapshotItems.filter((entry) => entry.id !== itemId),
+          unreadCount: Math.max(0, snapshotUnread + delta),
+        });
+      }
 
       try {
         await applyInboxItemAction(client, itemId, archiving ? 'archive' : 'unarchive', workspaceId);
