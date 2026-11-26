@@ -6,7 +6,7 @@ import { colors } from '@/theme/tokens';
 
 export function PriorityBars({ priority, size = 16 }: { priority: ApiIssuePriority; size?: number }) {
   const level = PRIORITY_META[priority]?.bars ?? 0;
-  const on = level === 4 ? colors.amber : colors.chalk;
+  const on = level === 4 ? colors.berryText : colors.ash;
   const fill = (index: number) => (level >= index ? on : colors.line);
   return (
     <Svg width={size} height={size} viewBox="0 0 16 16" accessibilityLabel={PRIORITY_META[priority]?.label ?? 'Priority'}>

@@ -51,11 +51,11 @@ export const STATUS_ORDER_UI: IssueStatusUi[] = [
 ];
 
 export const TONE_COLOR_MAP: Record<Tone, string> = {
-  neutral: colors.ash,
-  working: colors.azure,
-  attention: colors.amber,
-  complete: colors.verdant,
-  danger: colors.danger,
+  neutral: colors.statusNeutral,
+  working: colors.statusInfo,
+  attention: colors.statusWarning,
+  complete: colors.statusSuccess,
+  danger: colors.statusDanger,
 };
 
 export const PRIORITY_META: Record<ApiIssuePriority, { bars: number; label: string }> = {

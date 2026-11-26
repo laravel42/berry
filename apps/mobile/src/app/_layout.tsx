@@ -1,6 +1,10 @@
-import { useFonts } from 'expo-font';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { JetBrainsMono_400Regular } from '@expo-google-fonts/jetbrains-mono/400Regular';
 import { JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono/500Medium';
+import { JetBrainsMono_600SemiBold } from '@expo-google-fonts/jetbrains-mono/600SemiBold';
+import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments, type Href } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -25,14 +29,18 @@ import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useNotificationsStore } from '@/store/notifications-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
     JetBrainsMono_400Regular,
     JetBrainsMono_500Medium,
+    JetBrainsMono_600SemiBold,
   });
   const status = useAuthStore((state) => state.status);
   const client = useAuthStore((state) => state.client);
@@ -171,7 +179,7 @@ const styles = StyleSheet.create({
   primary: {
     minWidth: 140,
     minHeight: 42,
-    borderRadius: 10,
+    borderRadius: radii.pill,
     backgroundColor: colors.berry,
     alignItems: 'center',
     justifyContent: 'center',
