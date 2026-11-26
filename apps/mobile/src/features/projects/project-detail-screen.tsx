@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { listBoardIssues } from '@/api/issues';
+import { listAllBoardIssues } from '@/api/issues';
 import type { ApiIssue } from '@/api/types';
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
@@ -39,12 +39,14 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
 
   const fetchProjectIssues = useCallback(async () => {
     if (!client || boards.length === 0) return [] as ApiIssue[];
-    const collected: ApiIssue[] = [];
-    for (const board of boards) {
-      const page = await listBoardIssues(client, board.id);
-      collected.push(...page.nodes);
+    const pages = await Promise.all(boards.map((board) => listAllBoardIssues(client, board.id)));
+    const map = new Map<string, ApiIssue>();
+    for (const list of pages) {
+      for (const issue of list) {
+        map.set(issue.id, issue);
+      }
     }
-    return filterIssuesByProject(collected, projectId);
+    return filterIssuesByProject(Array.from(map.values()), projectId);
   }, [client, boards, projectId]);
 
   const reloadIssues = useCallback(

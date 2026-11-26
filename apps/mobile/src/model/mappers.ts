@@ -122,13 +122,13 @@ export function formatRelativeTime(iso: string | null | undefined, nowMs: number
   if (!iso) return '';
   const ts = Date.parse(iso);
   if (Number.isNaN(ts)) return '';
-  const diffSec = Math.max(0, Math.floor((nowMs - ts) / 1000));
-  if (diffSec < 60) return 'now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m`;
-  const diffHours = Math.floor(diffMin / 60);
+  const diffSec = Math.max(0, Math.round((nowMs - ts) / 1000));
+  if (diffSec < 45) return 'now';
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 45) return `${diffMin}m`;
+  const diffHours = Math.round(diffMin / 60);
   if (diffHours < 24) return `${diffHours}h`;
-  const diffDays = Math.floor(diffHours / 24);
+  const diffDays = Math.round(diffHours / 24);
   return `${diffDays}d`;
 }
 

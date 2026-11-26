@@ -54,6 +54,8 @@ export type ListBoardIssuesOptions = {
   assigneeId?: string;
 };
 
+export const MAX_ISSUE_PAGES = 20;
+
 export async function listBoardIssues(
   client: BerryClient,
   boardId: string,
@@ -66,6 +68,25 @@ export async function listBoardIssues(
     params.set('assigneeId', options.assigneeId);
   }
   return client.get<Connection<ApiIssue>>(`/api/v1/issues?${params.toString()}`);
+}
+
+export async function listAllBoardIssues(
+  client: BerryClient,
+  boardId: string,
+  options?: Omit<ListBoardIssuesOptions, 'after'>,
+): Promise<ApiIssue[]> {
+  const collected: ApiIssue[] = [];
+  let after: string | null | undefined = undefined;
+  for (let page = 0; page < MAX_ISSUE_PAGES; page += 1) {
+    const res = await listBoardIssues(client, boardId, { ...options, after });
+    collected.push(...res.nodes);
+    const nextCursor = res.pageInfo?.endCursor ?? null;
+    if (!res.pageInfo?.hasNextPage || !nextCursor || res.nodes.length === 0) {
+      break;
+    }
+    after = nextCursor;
+  }
+  return collected;
 }
 
 export async function getIssue(client: BerryClient, issueRef: string): Promise<ApiIssue> {

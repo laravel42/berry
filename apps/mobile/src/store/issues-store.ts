@@ -10,7 +10,7 @@ import {
 import {
   createIssueComment,
   getIssue,
-  listBoardIssues,
+  listAllBoardIssues,
   listIssueActivity,
   listIssueComments,
   restartIssueRun,
@@ -87,10 +87,10 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
     set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
     try {
       const requests = boardIds.flatMap((boardId) => {
-        const calls = [listBoardIssues(client, boardId)];
+        const calls = [listAllBoardIssues(client, boardId)];
         if (options?.userId) {
           calls.push(
-            listBoardIssues(client, boardId, {
+            listAllBoardIssues(client, boardId, {
               assigneeType: 'user',
               assigneeId: options.userId,
             }),
@@ -100,8 +100,8 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
       });
       const pages = await Promise.all(requests);
       const map = new Map<string, ApiIssue>();
-      for (const page of pages) {
-        for (const issue of page.nodes) {
+      for (const list of pages) {
+        for (const issue of list) {
           map.set(issue.id, issue);
         }
       }

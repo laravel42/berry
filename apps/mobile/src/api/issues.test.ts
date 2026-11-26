@@ -2,8 +2,15 @@ import { describe, expect, test } from 'bun:test';
 
 import { createBerryClient } from '@/api/client';
 import type { ApiIssue } from '@/api/types';
+import { formatRelativeTime } from '@/model/mappers';
 
-import { createIssueComment, listBoardIssues, sendBackIssue, splitMyIssues } from './issues';
+import {
+  createIssueComment,
+  listAllBoardIssues,
+  listBoardIssues,
+  sendBackIssue,
+  splitMyIssues,
+} from './issues';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -142,5 +149,42 @@ describe('issues API', () => {
       { method: 'PATCH', path: '/api/v1/issues/issue-1', body: { status: 'todo' } },
     ]);
     expect(updated.status).toBe('todo');
+  });
+
+  test('listAllBoardIssues follows cursor pagination until hasNextPage is false', async () => {
+    const seenAfter: (string | null)[] = [];
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input) => {
+        const url = new URL(String(input));
+        const after = url.searchParams.get('after');
+        seenAfter.push(after);
+        if (!after) {
+          return jsonResponse({
+            nodes: [makeIssue({ id: 'i-1' }), makeIssue({ id: 'i-2' })],
+            pageInfo: { hasNextPage: true, endCursor: 'cursor-2' },
+          });
+        }
+        return jsonResponse({
+          nodes: [makeIssue({ id: 'i-3' })],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        });
+      },
+    });
+
+    const all = await listAllBoardIssues(client, 'board-1');
+    expect(seenAfter).toEqual([null, 'cursor-2']);
+    expect(all.map((i) => i.id)).toEqual(['i-1', 'i-2', 'i-3']);
+  });
+
+  test('formatRelativeTime rounds days to match web date-fns formatDistanceToNow', () => {
+    const now = Date.parse('2026-11-26T18:00:00.000Z');
+    // 6 days and 14 hours ago -> rounds to 7d (matching "7 days ago" on web)
+    const sixDaysFourteenHoursAgo = new Date(now - (6 * 24 + 14) * 3600 * 1000).toISOString();
+    expect(formatRelativeTime(sixDaysFourteenHoursAgo, now)).toBe('7d');
+    // 6 days and 4 hours ago -> stays 6d
+    const sixDaysFourHoursAgo = new Date(now - (6 * 24 + 4) * 3600 * 1000).toISOString();
+    expect(formatRelativeTime(sixDaysFourHoursAgo, now)).toBe('6d');
   });
 });
