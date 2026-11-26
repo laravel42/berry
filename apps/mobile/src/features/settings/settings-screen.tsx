@@ -1,10 +1,11 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
+import { Toggle } from '@/components/toggle';
 import { WorkspaceSheet } from '@/components/workspace-sheet';
 import { useAuthStore } from '@/store/auth-store';
 import { useNotificationsStore } from '@/store/notifications-store';
@@ -251,11 +252,10 @@ export function SettingsScreen() {
                 <AppText size={13} tone="ash">
                   Alert on new Inbox items
                 </AppText>
-                <Switch
+                <Toggle
                   value={inboxAlertsEnabled}
                   onValueChange={setInboxAlertsEnabled}
-                  trackColor={{ false: colors.hair, true: colors.berry }}
-                  thumbColor={colors.chalk}
+                  accessibilityLabel="Alert on new Inbox items"
                 />
               </View>
               {permission !== 'granted' && permission !== 'unsupported' ? (

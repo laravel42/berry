@@ -6,7 +6,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from 'react-native';
@@ -40,6 +39,7 @@ import {
 } from '@/api/settings';
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
+import { Toggle } from '@/components/toggle';
 import { useToastStore } from '@/store/toast-store';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -769,11 +769,10 @@ export function IssuePropertiesPanel({
             <AppText size={12} tone="ash">
               Show archived
             </AppText>
-            <Switch
+            <Toggle
               value={showArchived}
               onValueChange={setShowArchived}
-              trackColor={{ false: colors.hair, true: colors.berry }}
-              thumbColor={colors.chalk}
+              accessibilityLabel="Show archived"
             />
           </View>
         </View>
@@ -1096,11 +1095,10 @@ export function QuickActionsPanel({
             <AppText size={12} tone="ash">
               Show archived
             </AppText>
-            <Switch
+            <Toggle
               value={showArchived}
               onValueChange={setShowArchived}
-              trackColor={{ false: colors.hair, true: colors.berry }}
-              thumbColor={colors.chalk}
+              accessibilityLabel="Show archived"
             />
           </View>
         </View>

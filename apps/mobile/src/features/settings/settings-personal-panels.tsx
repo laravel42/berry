@@ -6,7 +6,6 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from 'react-native';
@@ -36,6 +35,7 @@ import {
 import type { ApiProfile, ApiWorkspace } from '@/api/types';
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
+import { Toggle } from '@/components/toggle';
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
 import { colors, fonts } from '@/theme/tokens';
@@ -424,12 +424,11 @@ export function PreferencesProfilePanel({
                 Minimize transitions and decorative animations across Berry.
               </AppText>
             </View>
-            <Switch
+            <Toggle
               value={settings.reducedMotion}
               disabled={updatingPref}
               onValueChange={(value) => void handlePatchPreferences({ reducedMotion: value })}
-              trackColor={{ false: colors.hair, true: colors.berry }}
-              thumbColor={colors.chalk}
+              accessibilityLabel="Reduced motion"
             />
           </View>
         </View>
@@ -638,11 +637,10 @@ export function PlatformNotificationsPanel({
                     {item.description}
                   </AppText>
                 </View>
-                <Switch
+                <Toggle
                   value={state.switches?.[item.key] ?? true}
                   onValueChange={(value) => void handleToggle(item.key, value)}
-                  trackColor={{ false: colors.hair, true: colors.berry }}
-                  thumbColor={colors.chalk}
+                  accessibilityLabel={item.title}
                 />
               </View>
             </View>

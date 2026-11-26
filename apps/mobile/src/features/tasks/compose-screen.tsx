@@ -6,7 +6,6 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   TextInput,
   View,
 } from 'react-native';
@@ -18,6 +17,7 @@ import type { ApiIssuePriority } from '@/api/types';
 import { Avatar } from '@/components/avatar';
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
+import { Toggle } from '@/components/toggle';
 import {
   COMPOSE_EXAMPLES,
   PRIORITY_OPTIONS,
@@ -274,12 +274,11 @@ export function ComposeScreen() {
                       : 'The task waits in the backlog until someone starts it.'}
                   </AppText>
                 </View>
-                <Switch
+                <Toggle
                   value={start}
                   onValueChange={setStart}
-                  trackColor={{ false: colors.hair, true: colors.verdant }}
-                  thumbColor={colors.chalk}
-                  ios_backgroundColor={colors.hair}
+                  activeColor={colors.verdant}
+                  accessibilityLabel="Start right away"
                 />
               </View>
             ) : null}
