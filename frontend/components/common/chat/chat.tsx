@@ -583,22 +583,27 @@ export function Chat() {
                         }}
                         className="min-w-0 flex-1 rounded border border-transparent bg-[var(--shell-surface)] px-2 py-1 text-[var(--shell-text)] [--input-color:var(--shell-text)] [--placeholder-color:var(--shell-text-dim)] outline-none focus-visible:border-ring"
                      />
-                  ) : agentName && !topicIsAgentName ? (
-                     // The conversation's own name, one step back from the
-                     // agent's; the click is how it is renamed in place.
-                     <button
-                        type="button"
-                        onClick={() => {
-                           setTitle(active.topic);
-                           setRenaming(true);
-                        }}
-                        title={t('rename')}
-                        className="h-(--field-h) min-w-0 flex-1 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
-                     >
-                        {active.topic}
-                     </button>
                   ) : (
-                     <span className="min-w-0 flex-1" aria-hidden />
+                     <div className="flex min-w-0 flex-1 items-center gap-2">
+                        {agentName && !topicIsAgentName ? (
+                           <button
+                              type="button"
+                              onClick={() => {
+                                 setTitle(active.topic);
+                                 setRenaming(true);
+                              }}
+                              title={t('rename')}
+                              className="h-(--field-h) min-w-0 truncate rounded text-left text-[var(--shell-text-dim)] transition-colors hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ring)]"
+                           >
+                              {active.topic}
+                           </button>
+                        ) : null}
+                        {agentName ? (
+                           <span className="flex-none rounded-full border border-[var(--shell-line)] bg-[var(--shell-surface)] px-2.5 py-0.5 font-medium text-[var(--shell-text)]">
+                              {agentName}
+                           </span>
+                        ) : null}
+                     </div>
                   )}
 
                   {active.pinned ? (
