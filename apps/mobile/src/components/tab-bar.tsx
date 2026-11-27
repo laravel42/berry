@@ -1,41 +1,48 @@
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { chatUnreadCount, unreadInboxCount, useApp } from '@/store/app-store';
-import { colors } from '@/theme/tokens';
+import { chatUnreadTotal, useChatStore } from '@/store/chat-store';
+import { useInboxStore } from '@/store/inbox-store';
+import { colors, radii } from '@/theme/tokens';
 
 import { Icon, type IconName } from './icon';
 import { AppText } from './text';
 
 const TABS: { route: string; label: string; icon: IconName }[] = [
   { route: 'index', label: 'Inbox', icon: 'inbox' },
-  { route: 'tasks', label: 'My tasks', icon: 'tasks' },
-  { route: 'chat', label: 'Chat', icon: 'chat' },
+  { route: 'tasks', label: 'Tasks', icon: 'tasks' },
+  { route: 'projects', label: 'Projects', icon: 'projects' },
+  { route: 'agents', label: 'Chat', icon: 'chat' },
+  { route: 'more', label: 'More', icon: 'more' },
 ];
 
 type TabBarProps = {
   state: { index: number; routes: { key: string; name: string }[] };
-  navigation: {
+  emitter: {
     emit: (event: { type: 'tabPress'; target?: string; canPreventDefault: true }) => { defaultPrevented: boolean };
-    navigate: (name: string) => void;
   };
+  navigateToTab: (routeKey: string) => void;
 };
 
-export function BerryTabBar({ state, navigation }: TabBarProps) {
+function formatBadgeCount(count: number): string {
+  return count > 99 ? '99+' : String(count);
+}
+
+export function BerryTabBar({ state, emitter, navigateToTab }: TabBarProps) {
   const insets = useSafeAreaInsets();
-  const inbox = useApp((store) => unreadInboxCount(store.notifications));
-  const chat = useApp((store) => chatUnreadCount(store.chats));
-  const badges: Record<string, number> = { index: inbox, chat };
+  const inbox = useInboxStore((store) => store.unreadCount);
+  const chat = useChatStore((store) => chatUnreadTotal(store.conversations));
+  const badges: Record<string, number> = { index: inbox, agents: chat };
   const ios = Platform.OS === 'ios';
 
   return (
-    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, ios ? 8 : 6), backgroundColor: ios ? colors.ink : colors.void }]}>
+    <View style={[styles.bar, { paddingBottom: Math.max(insets.bottom, ios ? 8 : 6) }]}>
       {state.routes.map((route, index) => {
         const meta = TABS.find((tab) => tab.route === route.name);
         if (!meta) return null;
         const focused = state.index === index;
         const badge = badges[route.name] ?? 0;
-        const color = focused ? colors.chalk : colors.ash;
+        const color = focused ? colors.chalk : colors.slate;
         return (
           <Pressable
             key={route.key}
@@ -43,21 +50,21 @@ export function BerryTabBar({ state, navigation }: TabBarProps) {
             accessibilityState={{ selected: focused }}
             accessibilityLabel={meta.label}
             onPress={() => {
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+              const event = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+              if (!focused && !event.defaultPrevented) navigateToTab(route.key);
             }}
             style={styles.tab}>
-            <View style={[styles.iconWrap, focused && ios && styles.pill]}>
-              <Icon name={meta.icon} size={22} color={color} />
+            <View style={[styles.iconWrap, focused && styles.pill]}>
+              <Icon name={meta.icon} size={20} color={color} />
               {badge > 0 ? (
                 <View style={styles.badge}>
-                  <AppText size={10} weight="medium" style={styles.badgeText}>
-                    {badge}
+                  <AppText mono variant="micro" weight="medium" style={styles.badgeText}>
+                    {formatBadgeCount(badge)}
                   </AppText>
                 </View>
               ) : null}
             </View>
-            <AppText size={11} tone={focused ? 'chalk' : 'ash'}>
+            <AppText variant="micro" weight={focused ? 'medium' : 'regular'} tone={focused ? 'chalk' : 'slate'} numberOfLines={1}>
               {meta.label}
             </AppText>
           </Pressable>
@@ -70,24 +77,25 @@ export function BerryTabBar({ state, navigation }: TabBarProps) {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
+    backgroundColor: colors.ink,
     borderTopWidth: 1,
-    borderTopColor: colors.hair,
+    borderTopColor: colors.railBorder,
     paddingTop: 6,
   },
   tab: { flex: 1, alignItems: 'center', gap: 2, minHeight: 48 },
-  iconWrap: { paddingHorizontal: 16, paddingVertical: 4, borderRadius: 16 },
-  pill: { backgroundColor: colors.hair },
+  iconWrap: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.pill },
+  pill: { backgroundColor: colors.surface },
   badge: {
     position: 'absolute',
-    top: 0,
-    right: 6,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
+    top: 1,
+    right: 4,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: colors.berry,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: 3,
   },
-  badgeText: { color: colors.white, lineHeight: 12 },
+  badgeText: { color: colors.white, lineHeight: 11 },
 });

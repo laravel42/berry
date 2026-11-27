@@ -47,7 +47,10 @@ function IssueDragPreview({ issue }: { issue: Issue }) {
          className="w-full overflow-hidden rounded-lg border border-[var(--board-card-line)] bg-[var(--board-card)] px-3.5 py-2 text-[var(--board-card-foreground)] shadow-lg"
       >
          <div className="mb-1.5 flex min-w-0 items-center gap-1.5">
-            <span data-identifier className="min-w-0 truncate text-subtle-foreground">
+            <span
+               data-identifier
+               className="shrink-0 whitespace-nowrap tabular-nums text-subtle-foreground"
+            >
                {issue.identifier}
             </span>
             {issue.autoGate ? <AutoGateMark /> : null}
@@ -245,7 +248,7 @@ function IssueGridCard({
                               down a column. */
                            <span
                               data-identifier
-                              className="min-w-0 truncate whitespace-nowrap text-subtle-foreground"
+                              className="shrink-0 whitespace-nowrap tabular-nums text-subtle-foreground"
                            >
                               {issue.identifier}
                            </span>

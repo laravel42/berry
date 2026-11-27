@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { ADDABLE_AGENTS, AGENT_REPLIES, PEOPLE, VOICE_TRANSCRIPTS, person } from '@/data/people';
+import { ADDABLE_AGENTS, AGENT_REPLIES, VOICE_TRANSCRIPTS, person } from '@/data/people';
 import { CHATS, DUE, ISSUES, NOTIFICATIONS } from '@/data/seed';
 import type {
   Activity,

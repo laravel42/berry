@@ -126,6 +126,12 @@ function SessionRow({
                   />
                ) : null}
                <span className="min-w-0 flex-1 truncate">{thread.topic}</span>
+               {thread.agentName &&
+               thread.agentName.trim().toLowerCase() !== thread.topic.trim().toLowerCase() ? (
+                  <span className="max-w-28 flex-none truncate rounded-sm border border-[var(--shell-line)] px-1.5 py-0.5 leading-none text-[var(--shell-text-dim)]">
+                     {thread.agentName}
+                  </span>
+               ) : null}
                {thread.pinned ? (
                   <Pin
                      className="size-3 flex-none fill-current text-[var(--shell-text-dim)]"

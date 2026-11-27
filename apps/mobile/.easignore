@@ -1,0 +1,7 @@
+node_modules
+.expo
+.claude
+dist
+build
+*.log
+.DS_Store

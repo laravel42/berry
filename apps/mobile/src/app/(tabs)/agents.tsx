@@ -1,5 +1,5 @@
 import { ChatListScreen } from '@/features/chat/chat-list-screen';
 
-export default function ChatRoute() {
+export default function AgentsTab() {
   return <ChatListScreen />;
 }

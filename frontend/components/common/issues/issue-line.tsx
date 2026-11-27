@@ -96,7 +96,7 @@ function IssueLineView({
                {displayProperties.id && (
                   <span
                      data-identifier
-                     className="mr-1 hidden w-[72px] shrink-0 truncate text-subtle-foreground sm:inline-block"
+                     className="mr-1 hidden min-w-[72px] shrink-0 whitespace-nowrap tabular-nums text-subtle-foreground sm:inline-block"
                   >
                      {issue.identifier}
                   </span>

@@ -12,15 +12,16 @@ import prettier from 'eslint-config-prettier/flat';
    `text-balance` deliberately fall outside it. */
 const FONT_SIZE_UTILITY = String.raw`(^|\s)([^\s]*:)?text-(xs|sm|base|lg|xl|[2-9]xl|\[[0-9.]+(px|rem|em|pt)\])(\s|$)`;
 
-/* Type size is decided by the element, in the base layer of app/globals.css:
-   h1 text-xl, h2 text-lg, h3 text-base, h4 text-sm, everything else text-xs.
-   Utilities live in a later cascade layer, so a single `text-lg` in a
-   component silently outranks that whole scheme -- which is why none are
-   allowed rather than only the wrong ones. Reach for the right element
-   instead; if a case genuinely needs its own size, it belongs in globals.css
-   next to the rest of the scale, not inline. */
+/* Type size is decided by the element, in the base layer of app/globals.css,
+   via the 7-step semantic scale (--type-micro 11px, --type-caption 12px,
+   --type-body 14px, --type-h3 15px, --type-h2 16px, --type-h1 20px,
+   --type-display 28px). Utilities live in a later cascade layer, so a single
+   `text-lg` in a component silently outranks that whole scheme -- which is why
+   none are allowed rather than only the wrong ones. Reach for the right element
+   or data-* role instead; if a case genuinely needs its own size, it belongs in
+   globals.css next to the rest of the scale, not inline. */
 const TYPE_SCALE_MESSAGE =
-   'Font sizes come from the element (h1-h4, else text-xs) via the base layer in app/globals.css. Use the right element, or add the exception to globals.css -- do not set a text-* size utility here.';
+   'Font sizes come from the semantic type scale in app/globals.css (h1-h4, data-caption, or 14px body). Use the right element or data-* role -- do not set a text-* size utility here.';
 
 /* Fixture collections and surfaces with no backend. The frontend talks to
    Berry only; an import from this list would render an empty fake instead of

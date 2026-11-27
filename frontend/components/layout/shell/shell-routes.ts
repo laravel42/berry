@@ -90,8 +90,8 @@ const WORK: ShellRouteDef[] = [
       href: '/projects',
       match: ['/project/'],
       prefsKey: 'projects',
-      // Lucide FolderKanban, the project mark used across the app.
-      icon: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" /><path d="M8 10v4" /><path d="M12 10v2" /><path d="M16 10v6" />',
+      // Lucide Folder, matching the mobile Projects icon.
+      icon: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
    },
    {
       id: 'cycles',
@@ -113,8 +113,8 @@ const WORK: ShellRouteDef[] = [
       href: '/tasks',
       match: ['/issue/'],
       prefsKey: 'my-issues',
-      // Lucide Folders — stacked double folder.
-      icon: '<path d="M20 5a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5a1.5 1.5 0 0 1 1.2.6l.6.8a1.5 1.5 0 0 0 1.2.6z" /><path d="M3 8.268a2 2 0 0 0-1 1.738V19a2 2 0 0 0 2 2h11a2 2 0 0 0 1.732-1" />',
+      // Lucide List, matching the mobile Tasks icon.
+      icon: '<path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01" />',
    },
    {
       id: 'loops',
@@ -138,7 +138,7 @@ const OFF_RAIL: ShellRouteDef[] = [
       labelKey: 'reviews',
       href: '/reviews',
       match: ['/review/'],
-      icon: '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />',
+      icon: '<path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12M21 18a3 3 0 1 1-6 0a3 3 0 1 1 6 0M9 6a3 3 0 1 1-6 0a3 3 0 1 1 6 0" />',
    },
    {
       // Every model call Berry made: the structured prompt it sent and what
@@ -159,8 +159,8 @@ const MANAGE: ShellRouteDef[] = [
       labelKey: 'agents',
       href: '/agents',
       prefsKey: 'agents',
-      // Lucide Cpu — same glyph run tabs use for a runtime without a logo.
-      icon: '<path d="M12 20v2" /><path d="M12 2v2" /><path d="M17 20v2" /><path d="M17 2v2" /><path d="M2 12h2" /><path d="M2 17h2" /><path d="M2 7h2" /><path d="M20 12h2" /><path d="M20 17h2" /><path d="M20 7h2" /><path d="M7 20v2" /><path d="M7 2v2" /><rect x="4" y="4" width="16" height="16" rx="2" /><rect x="8" y="8" width="8" height="8" rx="1" />',
+      // Lucide Sparkles, matching the mobile Agents icon.
+      icon: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z" />',
    },
    {
       id: 'skills',

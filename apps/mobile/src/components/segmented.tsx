@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { AppText } from './text';
 
@@ -13,9 +13,41 @@ type Props<T extends string> = {
   items: Item<T>[];
   value: T;
   onChange: (id: T) => void;
+  variant?: 'pill' | 'underline';
 };
 
-export function Segmented<T extends string>({ items, value, onChange }: Props<T>) {
+export function Segmented<T extends string>({
+  items,
+  value,
+  onChange,
+  variant = 'pill',
+}: Props<T>) {
+  if (variant === 'underline') {
+    return (
+      <View style={styles.underlineTrack}>
+        {items.map((item) => {
+          const selected = item.id === value;
+          return (
+            <Pressable
+              key={item.id}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              onPress={() => onChange(item.id)}
+              style={styles.underlineItem}>
+              <AppText
+                variant="body"
+                weight={selected ? 'medium' : 'regular'}
+                tone={selected ? 'chalk' : 'slate'}>
+                {item.label}
+              </AppText>
+              <View style={[styles.indicator, selected && styles.indicatorActive]} />
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.track}>
       {items.map((item) => {
@@ -27,7 +59,7 @@ export function Segmented<T extends string>({ items, value, onChange }: Props<T>
             accessibilityState={{ selected }}
             onPress={() => onChange(item.id)}
             style={[styles.item, selected && styles.selected]}>
-            <AppText size={12} weight={selected ? 'medium' : 'regular'} tone={selected ? 'chalk' : 'ash'}>
+            <AppText variant="caption" weight={selected ? 'medium' : 'regular'} tone={selected ? 'chalk' : 'slate'}>
               {item.label}
             </AppText>
           </Pressable>
@@ -40,8 +72,10 @@ export function Segmented<T extends string>({ items, value, onChange }: Props<T>
 const styles = StyleSheet.create({
   track: {
     flexDirection: 'row',
-    backgroundColor: colors.ink,
-    borderRadius: 10,
+    backgroundColor: colors.field,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.hair,
     padding: 3,
     gap: 2,
   },
@@ -50,10 +84,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 32,
-    borderRadius: 8,
+    borderRadius: radii.pill,
     paddingHorizontal: 8,
   },
   selected: {
-    backgroundColor: colors.hair,
+    backgroundColor: colors.surface,
+    borderRadius: radii.pill,
+  },
+  underlineTrack: {
+    flexDirection: 'row',
+    gap: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  underlineItem: {
+    paddingTop: 4,
+    paddingBottom: 9,
+    position: 'relative',
+  },
+  indicator: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -1,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  indicatorActive: {
+    backgroundColor: colors.chalk,
   },
 });

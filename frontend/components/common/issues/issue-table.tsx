@@ -661,7 +661,10 @@ export function IssueTable({
       switch (column as BuiltInColumn) {
          case 'identifier':
             return (
-               <span data-identifier className="truncate text-muted-foreground">
+               <span
+                  data-identifier
+                  className="shrink-0 whitespace-nowrap tabular-nums text-muted-foreground"
+               >
                   {issue.identifier}
                </span>
             );

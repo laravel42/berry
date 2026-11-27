@@ -17,7 +17,7 @@ const PATHS = {
   arrowLeft: 'M19 12H5M12 19l-7-7 7-7',
   close: 'M18 6 6 18M6 6l12 12',
   search: 'M21 21l-4.3-4.3M19 11a8 8 0 1 1-16 0a8 8 0 1 1 16 0',
-  send: 'M22 2 11 13M22 2l-7 20-4-9-9-4z',
+  send: 'M12 19V5M5 12l7-7 7 7',
   mic: 'M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v3',
   micOff: 'M2 2l20 20M18.89 13.23A7 7 0 0 0 19 12v-2M5 10v2a7 7 0 0 0 12 5M15 9.34V5a3 3 0 0 0-5.68-1.33M9 9v3a3 3 0 0 0 5.12 2.12M12 19v3',
   cam: 'M16 13l5.22 3.48a.5.5 0 0 0 .78-.42V7.94a.5.5 0 0 0-.76-.43L16 10.5M4 6h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
@@ -41,6 +41,15 @@ const PATHS = {
   play: 'M8 5v14l11-7z',
   pause: 'M6 4h4v16H6zM14 4h4v16h-4z',
   git: 'M13 6h3a2 2 0 0 1 2 2v7M6 9v12M18 18a3 3 0 1 0 0.01 0M6 6a3 3 0 1 0 0.01 0',
+  projects: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  agents: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
+  more: 'M4 7h16M4 12h16M4 17h16',
+  settings:
+    'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
+  bell: 'M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0',
+  logOut: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
+  reply: 'M9 17l-5-5 5-5M20 18v-2a4 4 0 0 0-4-4H4',
+  smile: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;
@@ -50,15 +59,22 @@ type Props = {
   size?: number;
   color?: string;
   fill?: boolean;
+  strokeWidth?: number;
 };
 
-export function Icon({ name, size = 22, color = colors.chalk, fill = false }: Props) {
+export function Icon({
+  name,
+  size = 22,
+  color = colors.chalk,
+  fill = false,
+  strokeWidth = 1.8,
+}: Props) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <Path
         d={PATHS[name]}
         stroke={fill ? 'none' : color}
-        strokeWidth={1.8}
+        strokeWidth={strokeWidth}
         strokeLinecap="round"
         strokeLinejoin="round"
         fill={fill ? color : 'none'}

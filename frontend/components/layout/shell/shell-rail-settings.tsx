@@ -45,9 +45,9 @@ export function ShellRailSettings({ orgId, trailing }: { orgId: string; trailing
             <Link
                prefetch={false}
                href={`/${orgId}/tasks`}
-               className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-[7px] bg-segment-track px-2.5 text-[var(--shell-text-muted)] transition-colors hover:bg-[var(--brand-hairline)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)] md:h-[30px] md:min-h-0"
+               className="inline-flex h-(--field-h) w-full flex-1 items-center gap-1.5 rounded-full border border-[var(--shell-line)] bg-[var(--shell-surface)] px-3 font-medium text-[var(--shell-text-muted)] transition-colors hover:border-[var(--shell-line-strong)] hover:bg-[var(--shell-hover)] hover:text-[var(--shell-text)] focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--ring)]"
             >
-               <ChevronLeft className="size-3" strokeWidth={2.2} />
+               <ChevronLeft className="size-3.5 shrink-0" strokeWidth={2} />
                Back to app
             </Link>
             {trailing}

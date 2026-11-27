@@ -45,7 +45,7 @@ function BootScreen({ error, onRetry }: { error: string | null; onRetry: () => v
             {error ? (
                <button
                   type="button"
-                  className="cursor-pointer text-sm text-foreground underline underline-offset-4"
+                  className="cursor-pointer text-foreground underline underline-offset-4"
                   onClick={onRetry}
                >
                   Try again

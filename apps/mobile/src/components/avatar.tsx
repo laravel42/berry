@@ -1,19 +1,26 @@
 import { StyleSheet, View } from 'react-native';
 
 import { person } from '@/data/people';
+import { UNASSIGNED_ACTOR, type ActorView } from '@/model/mappers';
 import type { PersonId } from '@/model/types';
-import { colors } from '@/theme/tokens';
+import { colors, radii } from '@/theme/tokens';
 
 import { AppText } from './text';
 
 type Props = {
-  id: PersonId;
+  actor?: ActorView | null;
+  id?: PersonId;
   size?: number;
 };
 
-export function Avatar({ id, size = 28 }: Props) {
-  const who = person(id);
-  const radius = who.agent ? 6 : size / 2;
+export function Avatar({ actor, id, size = 28 }: Props) {
+  const who = actor
+    ? { name: actor.name, initials: actor.initials, agent: actor.type === 'agent' }
+    : id
+      ? person(id)
+      : { name: UNASSIGNED_ACTOR.name, initials: UNASSIGNED_ACTOR.initials, agent: false };
+  const radius = who.agent ? radii.sm : size / 2;
+  const surfaceColor = who.agent ? colors.avatarAgent : colors.avatarPerson;
   return (
     <View
       accessibilityLabel={who.name}
@@ -23,11 +30,14 @@ export function Avatar({ id, size = 28 }: Props) {
           width: size,
           height: size,
           borderRadius: radius,
-          backgroundColor: who.agent ? colors.deep : colors.hair,
-          borderColor: who.agent ? 'rgba(90,146,201,0.45)' : colors.hair,
+          backgroundColor: surfaceColor,
         },
       ]}>
-      <AppText size={Math.max(10, Math.round(size * 0.36))} weight="medium" tone={who.agent ? 'azure' : 'chalk'}>
+      <AppText
+        mono
+        size={Math.max(10, Math.round(size * 0.36))}
+        weight="semibold"
+        style={styles.initials}>
         {who.initials}
       </AppText>
     </View>
@@ -38,6 +48,8 @@ const styles = StyleSheet.create({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+  },
+  initials: {
+    color: colors.avatarInk,
   },
 });

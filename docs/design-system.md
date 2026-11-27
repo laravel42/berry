@@ -98,25 +98,29 @@ non-color cue communicate the state.
 
 ### Typography
 
-The app ships one face, loaded in `app/layout.tsx`: JetBrains Mono (100-800).
-`--font-sans`, `--font-mono` and `--font-display` all resolve to it.
+The app ships two self-hosted faces, loaded in `app/layout.tsx`: **Inter** for
+interface copy (`--font-sans`) and **JetBrains Mono** for headings, identifiers,
+figures, and code (`--font-mono`, `--font-display`).
 
-| Role | Current implementation | Guidance |
+All UI text maps onto a single 7-step semantic scale in `frontend/app/globals.css`
+(Option A: Compact Workspace, `14px` base), aligned 1:1 with Mobile's `typeScale`:
+
+| Token | Size / Line-height | Role |
 | --- | --- | --- |
-| Interface | JetBrains Mono 400, 13 px / 1.45 | Default for controls, body, metadata, identifiers, logs, and durations |
-| Display | JetBrains Mono 600, `h2` at 700 | Page titles and the `data-heading` stand-ins; section titles are 700 |
-| Body | `text-xs` = `text-sm` = 13 px | The body size; anything without an element size sits here |
-| Page title | `h1` = 17 px / 600 | Index and detail page names |
-| Section | `h2` = 15 px / 700 | Groups inside a page |
-| Callout | 12 px | Identifiers, timestamps |
-| Label | `data-heading="label"` on an `h2` = 11.5 px / 700 | "Properties", "Status": labels, not tracked caps |
-| Display size | `data-heading="display"` = 28 px / 600 | Page display titles |
-| Sidebar menu | `[data-slot='sidebar']` keeps the inherited scale | Already compacted; do not inherit the workspace scale |
+| `--type-micro` | `11px` (`0.6875rem`) / `1.25` | 20 px avatar initials, tab bar badges |
+| `--type-caption` | `12px` (`0.75rem`) / `1.4` | Captions (`[data-caption]`), metadata, card IDs, label chips, diffs, settings captions |
+| `--type-body` | `14px` (`0.875rem`) / `1.45` | **Default UI:** rows, buttons (`.btn-primary` & secondary), inputs, tabs, rail nav, comments, prose, section labels (`[data-heading="label"]`) |
+| `--type-h3` | `15px` (`0.9375rem`) / `1.4` | `h3`, `h4`, `[data-heading="h3"]` |
+| `--type-h2` | `16px` (`1rem`) / `1.35` | `h2`, `[data-heading="h2"]` |
+| `--type-h1` | `20px` (`1.25rem`) / `1.3` | `h1`, `[data-heading="h1"]`, `[data-detail-title]`, `[data-create-title]`, `[data-settings-type="title"]` |
+| `--type-display` | `28px` (`1.75rem`) / `1.2` | `[data-heading="display"]`, `[data-auth-title]`, `[data-settings-type="stat-lg"]` |
 
-Sizes come from the element, never from a utility. `h1`-`h4` step down through the named
-scale in the base layer of `globals.css`, everything else sits at the 13 px body, and a
-`text-*` size utility in a component is refused by ESLint (`no-restricted-syntax`). A form
-field standing in for a heading - the title field of a create dialog - borrows the size
+Headline KPI numbers use `[data-figure="sm|md|lg|xl|hero"]` separately from UI copy.
+
+Sizes come from the element or semantic `data-*` role, never from a utility. `h1`-`h4` step down
+through the named scale in the base layer of `globals.css`, everything else sits at the `14px` body,
+and a `text-*` size utility in a component is refused by ESLint (`no-restricted-syntax`). A form
+field standing in for a heading — the title field of a create dialog — borrows the size
 with `data-heading="h1|h2|h3"`; `data-heading="display"` is the page display size; and
 `data-heading="label"` is the section-label role. Only the wordmark sizes outside the scale,
 through `data-wordmark`.

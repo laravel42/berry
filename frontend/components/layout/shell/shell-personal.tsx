@@ -13,11 +13,11 @@ import { ShellSectionFold } from './shell-section-fold';
 import { useInboxUnread } from './use-inbox-unread';
 import { isMyTasks, isReviews, MY_TASKS_HREF } from './shell-routes';
 
-const INBOX_ICON = '<path d="M4 13h4l1.5 3h5L16 13h4M4 13l2.5-7h11L20 13v5H4z" />';
-const TASKS_ICON =
-   '<path d="M5 7l2 2 4-4" /><path d="M5 16l2 2 4-4" /><path d="M13 7h6M13 17h6" />';
+const INBOX_ICON =
+   '<path d="M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />';
+const TASKS_ICON = '<path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01" />';
 const REVIEWS_ICON =
-   '<circle cx="7" cy="6" r="2" /><circle cx="7" cy="18" r="2" /><circle cx="17" cy="12" r="2" /><path d="M7 8v8M9 18h4a2 2 0 002-2v-2" />';
+   '<path d="M13 6h3a2 2 0 0 1 2 2v7M6 9v12M21 18a3 3 0 1 1-6 0a3 3 0 1 1 6 0M9 6a3 3 0 1 1-6 0a3 3 0 1 1 6 0" />';
 
 /**
  * The rail's "personal" section: the places that are about you rather than

@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ComponentRef } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -11,233 +12,168 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import type { ApiConversationMessage } from '@/api/types';
 import { Avatar } from '@/components/avatar';
-import { StatusMark } from '@/components/berry-mark';
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
-import { PRESENCE_COLOR, issueKey, person } from '@/data/people';
-import { formatDuration } from '@/lib/dates';
-import type { ChatMessage } from '@/model/types';
-import { useApp } from '@/store/app-store';
-import { colors } from '@/theme/tokens';
+import { deriveInitials, formatRelativeTime, type ActorView } from '@/model/mappers';
+import { useAuthStore } from '@/store/auth-store';
+import { useChatStore } from '@/store/chat-store';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
-import { chatName } from './chat-list-screen';
+const POLL_INTERVAL_MS = 2500;
+const MAX_POLL_TICKS = 24;
 
 export function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const chat = useApp((state) => state.chats.find((item) => item.id === id));
-  const issues = useApp((state) => state.issues);
-  const typing = useApp((state) => state.typing);
-  const sendText = useApp((state) => state.sendText);
-  const sendVoice = useApp((state) => state.sendVoice);
-  const startCall = useApp((state) => state.startCall);
   const insets = useSafeAreaInsets();
+  const client = useAuthStore((state) => state.client);
+  const conversation = useChatStore((state) => state.conversations.find((item) => item.id === id));
+  const messages = useChatStore((state) => (id ? state.messagesById[id] : undefined));
+  const pendingRunId = useChatStore((state) => (id ? state.pendingRunByChat[id] : null));
+  const sending = useChatStore((state) => state.sending);
+  const loadMessages = useChatStore((state) => state.loadMessages);
+  const sendMessage = useChatStore((state) => state.sendMessage);
+  const markRead = useChatStore((state) => state.markRead);
+
   const [draft, setDraft] = useState('');
-  const [recording, setRecording] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
-  const [playing, setPlaying] = useState<{ id: string; start: number; dur: number } | null>(null);
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ComponentRef<typeof ScrollView>>(null);
 
   useEffect(() => {
-    if (!recording && !playing) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
+    if (!client || !id) return;
+    void loadMessages(client, id);
+    void markRead(client, id);
+  }, [client, id, loadMessages, markRead]);
+
+  const waitingForAgent = Boolean(pendingRunId || conversation?.activeRunId);
+
+  useEffect(() => {
+    if (!client || !id || !waitingForAgent) return;
+    let ticks = 0;
+    const timer = setInterval(() => {
+      ticks += 1;
+      if (ticks > MAX_POLL_TICKS) {
+        clearInterval(timer);
+        return;
+      }
+      void loadMessages(client, id);
+    }, POLL_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [recording, playing]);
-
-  useEffect(() => {
-    if (playing && (Date.now() - playing.start) / 1000 >= playing.dur) setPlaying(null);
-  }, [now, playing]);
+  }, [client, id, waitingForAgent, loadMessages]);
 
   useEffect(() => {
     scroll.current?.scrollToEnd({ animated: true });
-  }, [chat?.messages.length, typing]);
+  }, [messages?.length, waitingForAgent]);
 
-  if (!chat) {
+  if (!id) {
     return (
       <View style={styles.missing}>
-        <AppText>This chat is gone.</AppText>
+        <AppText>Conversation not found.</AppText>
       </View>
     );
   }
 
-  const name = chatName(chat, issues);
-  const issue = chat.issue ? issues.find((item) => item.id === chat.issue) : undefined;
-  const people = chat.type === 'thread' || chat.type === 'group' ? (chat.people ?? []).filter((who) => who !== 'me') : chat.who ? [chat.who] : [];
-  const subColor = chat.type === 'thread' || chat.type === 'group' || !chat.presence ? colors.ash : PRESENCE_COLOR[chat.presence];
+  const title = conversation?.agentName || conversation?.topic || 'Agent chat';
+  const actor: ActorView = {
+    id: conversation?.agentId ?? id,
+    type: 'agent',
+    name: title,
+    initials: deriveInitials(title),
+    avatarUrl: null,
+  };
 
-  const send = () => {
-    sendText(chat.id, draft);
+  const handleSend = async () => {
+    if (!client || !draft.trim() || sending) return;
+    const text = draft;
     setDraft('');
+    const ok = await sendMessage(client, id, text);
+    if (!ok) {
+      setDraft(text);
+    }
   };
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { paddingTop: insets.top }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={[styles.screen, { paddingTop: insets.top }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.nav}>
-        <Pressable accessibilityLabel="Back" onPress={() => router.back()}>
+        <Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.backBtn}>
           <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
         </Pressable>
-        {chat.type === 'thread' && issue ? <StatusMark status={issue.status} /> : <Avatar id={people[0] ?? 'none'} size={32} />}
+        <Avatar actor={actor} size={32} />
         <View style={styles.copy}>
-          <AppText size={14} weight="medium" numberOfLines={1}>
-            {name}
+          <AppText mono variant="h3" weight="semibold" numberOfLines={1}>
+            {title}
           </AppText>
-          <AppText size={11} style={{ color: subColor }} numberOfLines={1}>
-            {chat.status}
+          <AppText variant="micro" tone={waitingForAgent ? 'azure' : 'ash'} numberOfLines={1}>
+            {waitingForAgent ? 'Working…' : conversation?.topic || 'Agent conversation'}
           </AppText>
         </View>
-        <Pressable
-          accessibilityLabel="Voice call"
-          onPress={() => {
-            startCall('audio', name, people);
-            router.push('/call');
-          }}>
-          <Icon name="phone" size={20} />
-        </Pressable>
-        <Pressable
-          accessibilityLabel="Video call"
-          onPress={() => {
-            startCall('video', name, people);
-            router.push('/call');
-          }}>
-          <Icon name="cam" size={22} />
-        </Pressable>
       </View>
-      <ScrollView ref={scroll} contentContainerStyle={styles.messages} onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
-        <AppText size={12} tone="ash" style={styles.day}>
-          Today
-        </AppText>
-        {chat.messages.map((message) => (
-          <MessageBubble
-            key={message.id}
-            message={message}
-            showName={chat.type === 'thread' || chat.type === 'group'}
-            playing={playing?.id === message.id ? playing : null}
-            now={now}
-            onToggle={() => {
-              if (!message.voice) return;
-              setPlaying((current) =>
-                current?.id === message.id ? null : { id: message.id, start: Date.now(), dur: message.voice?.dur ?? 0 },
-              );
-            }}
-            onOpenRef={(ref) => router.push({ pathname: '/issue/[id]', params: { id: ref } })}
-          />
+
+      <ScrollView
+        ref={scroll}
+        contentContainerStyle={styles.messages}
+        onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
+        {messages === undefined ? (
+          <View style={styles.loader}>
+            <ActivityIndicator color={colors.berry} />
+          </View>
+        ) : null}
+
+        {(messages ?? []).map((message) => (
+          <MessageBubble key={message.id} message={message} />
         ))}
-        {typing === chat.id && chat.who ? (
-          <AppText size={12} tone="ash">
-            {person(chat.who).name} is typing…
+
+        {waitingForAgent ? (
+          <AppText variant="caption" tone="azure">
+            {title} is working…
           </AppText>
         ) : null}
       </ScrollView>
+
       <View style={[styles.composer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-        {recording ? (
-          <View style={styles.recRow}>
-            <Pressable accessibilityLabel="Discard recording" onPress={() => setRecording(null)}>
-              <Icon name="trash" size={18} color={colors.ash} />
-            </Pressable>
-            <AppText size={13} tone="danger">
-              {formatDuration((now - recording) / 1000)}
-            </AppText>
-            <View style={styles.bars}>
-              {Array.from({ length: 18 }, (_, index) => (
-                <View key={index} style={[styles.bar, { height: 4 + ((index * 7 + Math.floor(now / 160)) % 16) }]} />
-              ))}
-            </View>
-            <Pressable
-              accessibilityLabel="Send voice message"
-              onPress={() => {
-                sendVoice(chat.id, Math.round((Date.now() - recording) / 1000));
-                setRecording(null);
-              }}
-              style={styles.send}>
-              <Icon name="send" size={18} />
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.recRow}>
-            <TextInput
-              value={draft}
-              onChangeText={setDraft}
-              placeholder={chat.type === 'agent' && chat.who ? `Message ${person(chat.who).name}` : 'Message'}
-              placeholderTextColor={colors.ash}
-              style={styles.input}
-              onSubmitEditing={send}
-            />
-            {draft.trim() ? (
-              <Pressable accessibilityLabel="Send" onPress={send} style={styles.send}>
-                <Icon name="send" size={18} />
-              </Pressable>
+        <View style={styles.row}>
+          <TextInput
+            value={draft}
+            onChangeText={setDraft}
+            placeholder={`Message ${title}`}
+            placeholderTextColor={colors.placeholder}
+            style={styles.input}
+            editable={!sending}
+            onSubmitEditing={() => void handleSend()}
+          />
+          <Pressable
+            accessibilityLabel="Send"
+            disabled={!draft.trim() || sending}
+            onPress={() => void handleSend()}
+            style={[styles.send, (!draft.trim() || sending) && styles.disabled]}>
+            {sending ? (
+              <ActivityIndicator color={colors.buttonPrimaryInk} size="small" />
             ) : (
-              <Pressable accessibilityLabel="Record voice message" onPress={() => setRecording(Date.now())}>
-                <Icon name="mic" size={20} />
-              </Pressable>
+              <Icon name="send" size={18} strokeWidth={2.2} color={colors.buttonPrimaryInk} />
             )}
-          </View>
-        )}
+          </Pressable>
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
 }
 
-function MessageBubble({
-  message,
-  showName,
-  playing,
-  now,
-  onToggle,
-  onOpenRef,
-}: {
-  message: ChatMessage;
-  showName: boolean;
-  playing: { start: number; dur: number } | null;
-  now: number;
-  onToggle: () => void;
-  onOpenRef: (id: string) => void;
-}) {
-  const mine = message.from === 'me';
-  const elapsed = playing ? (now - playing.start) / 1000 : 0;
-  const progress = message.voice ? elapsed / message.voice.dur : 0;
+function MessageBubble({ message }: { message: ApiConversationMessage }) {
+  const mine = message.authorType === 'user';
   return (
     <View style={[styles.bubbleWrap, mine ? styles.mine : styles.theirs]}>
-      {showName && !mine ? (
-        <AppText size={11} tone="ash">
-          {person(message.from).name}
+      {!mine ? (
+        <AppText variant="micro" tone="ash">
+          {message.authorName}
         </AppText>
       ) : null}
       <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-        {message.voice ? (
-          <Pressable accessibilityLabel={playing ? 'Pause' : 'Play voice message'} onPress={onToggle} style={styles.voice}>
-            <Icon name={playing ? 'pause' : 'play'} size={14} fill />
-            <View style={styles.bars}>
-              {Array.from({ length: 18 }, (_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.bar,
-                    { height: 4 + ((index * 5 + message.id.length) % 14), backgroundColor: index / 18 < progress ? colors.chalk : colors.slate },
-                  ]}
-                />
-              ))}
-            </View>
-            <AppText size={12}>{formatDuration(playing ? message.voice.dur - elapsed : message.voice.dur)}</AppText>
-          </Pressable>
-        ) : (
-          <AppText size={14}>{message.text}</AppText>
-        )}
-        {message.transcribing || message.transcript ? (
-          <AppText size={12} tone="ash">
-            {message.transcribing ? 'Transcribing…' : message.transcript}
-          </AppText>
-        ) : null}
-        {message.ref ? (
-          <Pressable onPress={() => onOpenRef(message.ref ?? '')} style={styles.ref}>
-            <AppText size={12} tone="azure">
-              {issueKey(message.ref)}
-            </AppText>
-          </Pressable>
-        ) : null}
+        <AppText variant="body">{message.body}</AppText>
       </View>
-      <AppText size={11} tone="slate">
-        {message.time}
+      <AppText mono variant="micro" tone="slate">
+        {formatRelativeTime(message.createdAt)}
       </AppText>
     </View>
   );
@@ -246,22 +182,70 @@ function MessageBubble({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.void },
   missing: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.void },
-  nav: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, minHeight: 56 },
+  loader: { paddingTop: 32, alignItems: 'center' },
+  nav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+    minHeight: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.hair,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   copy: { flex: 1 },
   messages: { padding: 16, gap: 10 },
-  day: { textAlign: 'center' },
   bubbleWrap: { maxWidth: '86%', gap: 4 },
   mine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
   theirs: { alignSelf: 'flex-start' },
-  bubble: { paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
-  bubbleMine: { backgroundColor: colors.hair, borderRadius: 14, borderBottomRightRadius: 4 },
-  bubbleTheirs: { backgroundColor: colors.base, borderRadius: 14, borderBottomLeftRadius: 4 },
-  voice: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  bars: { flexDirection: 'row', alignItems: 'center', gap: 2, flex: 1 },
-  bar: { width: 2, borderRadius: 1, backgroundColor: colors.chalk },
-  ref: { alignSelf: 'flex-start' },
-  composer: { borderTopWidth: 1, borderTopColor: colors.hair, paddingHorizontal: 12, paddingTop: 8, backgroundColor: colors.ink },
-  recRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  input: { flex: 1, minHeight: 40, color: colors.chalk, fontSize: 15 },
-  send: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  bubble: { paddingHorizontal: 14, paddingVertical: 10, gap: 6 },
+  bubbleMine: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: radii.card,
+    borderBottomRightRadius: 4,
+  },
+  bubbleTheirs: {
+    backgroundColor: colors.base,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    borderRadius: radii.card,
+    borderBottomLeftRadius: 4,
+  },
+  composer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.hair,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    backgroundColor: colors.base,
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  input: {
+    flex: 1,
+    minHeight: 40,
+    paddingHorizontal: 14,
+    borderRadius: radii.pill,
+    backgroundColor: colors.field,
+    borderWidth: 1,
+    borderColor: colors.hair,
+    color: colors.chalk,
+    fontFamily: fonts.regular,
+    fontSize: typeScale.body.fontSize,
+  },
+  send: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    backgroundColor: colors.buttonPrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  disabled: { opacity: 0.45 },
 });
