@@ -111,10 +111,10 @@ export function ChatListScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
         {error ? (
           <View style={styles.errorCard}>
-            <AppText size={14} weight="medium" tone="danger">
+            <AppText variant="body" weight="medium" tone="danger">
               Could not load conversations
             </AppText>
-            <AppText size={13} tone="ash">
+            <AppText variant="body" tone="ash">
               {error}
             </AppText>
             <Pressable
@@ -123,7 +123,7 @@ export function ChatListScreen() {
                 if (client) void loadConversations(client);
               }}
               style={styles.primaryBtn}>
-              <AppText size={13} weight="medium" style={styles.primaryBtnText}>
+              <AppText variant="body" weight="medium" style={styles.primaryBtnText}>
                 Retry
               </AppText>
             </Pressable>
@@ -180,26 +180,26 @@ export function ChatListScreen() {
                   <View style={styles.copy}>
                     <View style={styles.top}>
                       <AppText
-                        size={14}
+                        variant="body"
                         weight={chat.unread > 0 ? 'medium' : 'regular'}
                         style={styles.name}
                         numberOfLines={1}>
                         {displayTitle}
                       </AppText>
-                      <AppText mono size={11} tone="slate">
+                      <AppText mono variant="micro" tone="slate">
                         {formatRelativeTime(chat.updatedAt)}
                       </AppText>
                     </View>
                     {showAgentBadge ? (
                       <View style={styles.agentPillRow}>
                         <View style={styles.agentPill}>
-                          <AppText size={10} tone="ash" numberOfLines={1}>
+                          <AppText variant="micro" tone="ash" numberOfLines={1}>
                             {chat.agentName}
                           </AppText>
                         </View>
                       </View>
                     ) : null}
-                    <AppText size={12} tone={chat.activeRunId ? 'azure' : 'ash'} numberOfLines={1}>
+                    <AppText variant="caption" tone={chat.activeRunId ? 'azure' : 'ash'} numberOfLines={1}>
                       {snippet}
                     </AppText>
                   </View>
@@ -212,17 +212,17 @@ export function ChatListScreen() {
         {!error && !loading && activeConversations.length === 0 ? (
           <View style={styles.empty}>
             <BerryMark size={32} dot={colors.azure} />
-            <AppText size={15} weight="medium">
+            <AppText variant="h3" weight="medium">
               No conversations yet
             </AppText>
-            <AppText size={13} tone="ash" style={styles.center}>
+            <AppText variant="body" tone="ash" style={styles.center}>
               Start a chat with Berry or any role agent in your workspace.
             </AppText>
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push('/new-chat')}
               style={styles.ctaBtn}>
-              <AppText size={13} weight="medium" style={styles.primaryBtnText}>
+              <AppText variant="body" weight="medium" style={styles.primaryBtnText}>
                 Start a new chat
               </AppText>
             </Pressable>
@@ -231,10 +231,10 @@ export function ChatListScreen() {
 
         {!error && !loading && activeConversations.length > 0 && visibleConversations.length === 0 && hasActiveFilters ? (
           <View style={styles.empty}>
-            <AppText size={15} weight="medium">
+            <AppText variant="h3" weight="medium">
               No matching conversations
             </AppText>
-            <AppText size={13} tone="ash" style={styles.center}>
+            <AppText variant="body" tone="ash" style={styles.center}>
               Try a different search or filter.
             </AppText>
             <Pressable
@@ -244,7 +244,7 @@ export function ChatListScreen() {
                 setActiveFilter('all');
               }}
               style={styles.clearBtn}>
-              <AppText size={13} weight="medium" style={styles.primaryBtnText}>
+              <AppText variant="body" weight="medium" style={styles.primaryBtnText}>
                 Clear filters
               </AppText>
             </Pressable>

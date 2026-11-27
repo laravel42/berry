@@ -123,16 +123,16 @@ export default function RootLayout() {
             <BerryMark size={36} />
             {hydrateError ? (
               <View style={styles.retryBox}>
-                <AppText size={13} tone="danger" style={styles.centerText}>
+                <AppText variant="body" tone="danger" style={styles.centerText}>
                   {hydrateError}
                 </AppText>
                 <Pressable accessibilityRole="button" onPress={() => void hydrate()} style={styles.primary}>
-                  <AppText size={14} weight="medium" style={styles.primaryText}>
+                  <AppText variant="body" weight="medium" style={styles.primaryText}>
                     Retry
                   </AppText>
                 </Pressable>
                 <Pressable accessibilityRole="button" onPress={() => void logout({ reason: 'manual' })}>
-                  <AppText size={13} tone="ash">
+                  <AppText variant="body" tone="ash">
                     Switch account
                   </AppText>
                 </Pressable>

@@ -30,7 +30,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 const FIELDS: { id: SuggestField; label: string }[] = [
   { id: 'assignee', label: 'Assignee' },
@@ -141,14 +141,14 @@ export function ComposeScreen() {
       <View style={styles.nav}>
         {ios ? (
           <Pressable accessibilityRole="button" onPress={() => router.back()}>
-            <AppText size={16}>Cancel</AppText>
+            <AppText variant="h2">Cancel</AppText>
           </Pressable>
         ) : (
           <Pressable accessibilityLabel="Close" onPress={() => router.back()}>
             <Icon name="close" />
           </Pressable>
         )}
-        <AppText mono size={16} weight="semibold">
+        <AppText mono variant="h2" weight="semibold">
           {ios ? 'New Task' : 'New task'}
         </AppText>
         <Pressable
@@ -159,7 +159,7 @@ export function ComposeScreen() {
           {submitting ? (
             <ActivityIndicator size="small" color={colors.buttonPrimaryInk} />
           ) : (
-            <AppText size={13} weight="medium" style={styles.submitBtnText}>
+            <AppText variant="body" weight="medium" style={styles.submitBtnText}>
               {suggestion.isAgent && start && canSubmit ? 'Start' : ios ? 'Add' : 'Create'}
             </AppText>
           )}
@@ -169,14 +169,14 @@ export function ComposeScreen() {
       <ScrollView contentContainerStyle={[styles.body, { paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
         {error ? (
           <View style={styles.errorBox}>
-            <AppText size={13} tone="danger">
+            <AppText variant="body" tone="danger">
               {error}
             </AppText>
           </View>
         ) : null}
 
         {!defaultBoardId ? (
-          <AppText size={13} tone="amber">
+          <AppText variant="body" tone="amber">
             Loading workspace board…
           </AppText>
         ) : null}
@@ -197,11 +197,11 @@ export function ComposeScreen() {
         />
 
         {suggestion.canCreate ? (
-          <AppText mono size={12} tone="azure">
+          <AppText mono variant="caption" tone="azure">
             {workspace?.settings.issuePrefix ?? 'TASK'} · {suggestion.title}
           </AppText>
         ) : (
-          <AppText mono size={11} weight="medium" tone="ash" style={styles.hintLabel}>
+          <AppText mono variant="micro" weight="medium" tone="ash" style={styles.hintLabel}>
             {ios ? 'TRY' : 'ONE OR TWO SENTENCES IS ENOUGH.'}
           </AppText>
         )}
@@ -210,13 +210,13 @@ export function ComposeScreen() {
           <View style={styles.examples}>
             {COMPOSE_EXAMPLES.map((example) => (
               <Pressable key={example} onPress={() => setPrompt(example)} style={styles.example}>
-                <AppText size={13}>{example}</AppText>
+                <AppText variant="body">{example}</AppText>
               </Pressable>
             ))}
           </View>
         ) : (
           <View style={styles.suggest}>
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.hintLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.hintLabel}>
               BERRY SUGGESTS
             </AppText>
             {FIELDS.map((field) => {
@@ -228,15 +228,15 @@ export function ComposeScreen() {
                     onPress={() => setOpen(expanded ? null : field.id)}
                     style={styles.field}>
                     <View style={styles.copy}>
-                      <AppText size={12} tone="ash">
+                      <AppText variant="caption" tone="ash">
                         {field.label}
                       </AppText>
-                      <AppText size={11} tone={suggestion.overridden[field.id] ? 'ash' : 'azure'}>
+                      <AppText variant="micro" tone={suggestion.overridden[field.id] ? 'ash' : 'azure'}>
                         {suggestion.reasons[field.id]}
                       </AppText>
                     </View>
                     {field.id === 'assignee' ? <Avatar actor={suggestion.assignee} size={22} /> : null}
-                    <AppText size={13}>{displayValue(field.id)}</AppText>
+                    <AppText variant="body">{displayValue(field.id)}</AppText>
                     <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={14} color={colors.ash} />
                   </Pressable>
                   {expanded ? (
@@ -257,7 +257,7 @@ export function ComposeScreen() {
                               setOpen(null);
                             }}
                             style={styles.option}>
-                            <AppText size={14}>{option.label}</AppText>
+                            <AppText variant="body">{option.label}</AppText>
                             {selected ? <Icon name="check" size={16} color={colors.berry} /> : null}
                           </Pressable>
                         );
@@ -271,8 +271,8 @@ export function ComposeScreen() {
             {suggestion.isAgent && suggestion.assignee ? (
               <View style={styles.startRow}>
                 <View style={styles.copy}>
-                  <AppText size={14}>Start right away</AppText>
-                  <AppText size={12} tone="ash">
+                  <AppText variant="body">Start right away</AppText>
+                  <AppText variant="caption" tone="ash">
                     {start
                       ? `${suggestion.assignee.name} starts as soon as you create the task.`
                       : 'The task waits in the backlog until someone starts it.'}
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hair,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 15,
+    fontSize: typeScale.h3.fontSize,
     textAlignVertical: 'top',
   },
   hintLabel: { letterSpacing: 0.7, marginLeft: 2 },

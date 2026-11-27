@@ -19,7 +19,7 @@ import { AppText } from '@/components/text';
 import { deriveInitials, formatRelativeTime, type ActorView } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_TICKS = 24;
@@ -102,10 +102,10 @@ export function ConversationScreen() {
         </Pressable>
         <Avatar actor={actor} size={32} />
         <View style={styles.copy}>
-          <AppText mono size={15} weight="semibold" numberOfLines={1}>
+          <AppText mono variant="h3" weight="semibold" numberOfLines={1}>
             {title}
           </AppText>
-          <AppText size={11} tone={waitingForAgent ? 'azure' : 'ash'} numberOfLines={1}>
+          <AppText variant="micro" tone={waitingForAgent ? 'azure' : 'ash'} numberOfLines={1}>
             {waitingForAgent ? 'Working…' : conversation?.topic || 'Agent conversation'}
           </AppText>
         </View>
@@ -126,7 +126,7 @@ export function ConversationScreen() {
         ))}
 
         {waitingForAgent ? (
-          <AppText size={12} tone="azure">
+          <AppText variant="caption" tone="azure">
             {title} is working…
           </AppText>
         ) : null}
@@ -165,14 +165,14 @@ function MessageBubble({ message }: { message: ApiConversationMessage }) {
   return (
     <View style={[styles.bubbleWrap, mine ? styles.mine : styles.theirs]}>
       {!mine ? (
-        <AppText size={11} tone="ash">
+        <AppText variant="micro" tone="ash">
           {message.authorName}
         </AppText>
       ) : null}
       <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleTheirs]}>
-        <AppText size={14}>{message.body}</AppText>
+        <AppText variant="body">{message.body}</AppText>
       </View>
-      <AppText mono size={11} tone="slate">
+      <AppText mono variant="micro" tone="slate">
         {formatRelativeTime(message.createdAt)}
       </AppText>
     </View>
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hair,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: typeScale.body.fontSize,
   },
   send: {
     width: 38,

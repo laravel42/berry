@@ -126,11 +126,11 @@ export function AgentsScreen() {
         }>
         {error ? (
           <View style={styles.errorCard}>
-            <AppText size={13} tone="danger">
+            <AppText variant="body" tone="danger">
               {error}
             </AppText>
             <Pressable accessibilityRole="button" onPress={() => void onRefresh()} style={styles.retryBtn}>
-              <AppText size={12} weight="medium" tone="chalk">
+              <AppText variant="caption" weight="medium" tone="chalk">
                 Retry
               </AppText>
             </Pressable>
@@ -144,10 +144,10 @@ export function AgentsScreen() {
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Icon name="agents" size={28} color={colors.ash} />
-            <AppText size={15} weight="medium" tone="chalk">
+            <AppText variant="h3" weight="medium" tone="chalk">
               {hasActiveFilters ? 'No matching agents' : 'No agents in this workspace'}
             </AppText>
-            <AppText size={13} tone="ash" style={styles.emptySub}>
+            <AppText variant="body" tone="ash" style={styles.emptySub}>
               {hasActiveFilters
                 ? 'Try a different name, role, or filter.'
                 : 'Workspace agents will appear here once provisioned.'}
@@ -160,7 +160,7 @@ export function AgentsScreen() {
                   setFilter('all');
                 }}
                 style={styles.clearBtn}>
-                <AppText size={13} weight="medium" style={styles.clearText}>
+                <AppText variant="body" weight="medium" style={styles.clearText}>
                   Clear filters
                 </AppText>
               </Pressable>
@@ -185,11 +185,11 @@ export function AgentsScreen() {
 
                 <View style={styles.meta}>
                   <View style={styles.topLine}>
-                    <AppText size={15} weight="medium" tone="chalk" numberOfLines={1} style={styles.name}>
+                    <AppText variant="h3" weight="medium" tone="chalk" numberOfLines={1} style={styles.name}>
                       {entry.agent.name}
                     </AppText>
                     {entry.updatedAt ? (
-                      <AppText size={11} tone="ash">
+                      <AppText variant="micro" tone="ash">
                         {formatRelativeTime(entry.updatedAt)}
                       </AppText>
                     ) : null}
@@ -197,18 +197,18 @@ export function AgentsScreen() {
 
                   <View style={styles.roleRow}>
                     <View style={styles.rolePill}>
-                      <AppText size={10} tone="ash">
+                      <AppText variant="micro" tone="ash">
                         {entry.roleLabel}
                       </AppText>
                     </View>
                     {entry.working ? (
-                      <AppText size={10} tone="azure">
+                      <AppText variant="micro" tone="azure">
                         Working
                       </AppText>
                     ) : null}
                   </View>
 
-                  <AppText size={13} tone="ash" numberOfLines={1}>
+                  <AppText variant="body" tone="ash" numberOfLines={1}>
                     {subtitle}
                   </AppText>
                 </View>
@@ -218,7 +218,7 @@ export function AgentsScreen() {
                     <ActivityIndicator size="small" color={colors.berry} />
                   ) : entry.unread > 0 ? (
                     <View style={styles.unreadBadge}>
-                      <AppText size={11} weight="medium" style={styles.unreadText}>
+                      <AppText variant="micro" weight="medium" style={styles.unreadText}>
                         {entry.unread}
                       </AppText>
                     </View>

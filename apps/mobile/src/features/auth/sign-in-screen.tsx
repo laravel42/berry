@@ -23,7 +23,7 @@ import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
 import { defaultServerUrl, normalizeServerUrl } from '@/lib/env';
 import { useAuthStore } from '@/store/auth-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 type AuthMode = 'email' | 'token';
 
@@ -176,17 +176,17 @@ export function SignInScreen() {
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         <View style={styles.brand}>
           <BerryMark size={36} />
-          <AppText mono size={24} weight="semibold">
+          <AppText mono variant="h1" weight="semibold">
             Berry
           </AppText>
-          <AppText size={13} tone="ash" style={styles.subtitle}>
+          <AppText variant="body" tone="ash" style={styles.subtitle}>
             Connect to your Berry workspace
           </AppText>
         </View>
 
         {notice ? (
           <View style={styles.notice}>
-            <AppText size={13} tone="amber">
+            <AppText variant="body" tone="amber">
               {notice}
             </AppText>
           </View>
@@ -194,14 +194,14 @@ export function SignInScreen() {
 
         {error ? (
           <View style={styles.errorBox}>
-            <AppText size={13} tone="danger">
+            <AppText variant="body" tone="danger">
               {error}
             </AppText>
           </View>
         ) : null}
 
         <View style={styles.field}>
-          <AppText size={12} tone="ash">
+          <AppText variant="caption" tone="ash">
             Server URL
           </AppText>
           <TextInput
@@ -233,7 +233,7 @@ export function SignInScreen() {
         {mode === 'email' && !twoFactorCookie ? (
           <View style={styles.stack}>
             <View style={styles.field}>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 Email
               </AppText>
               <TextInput
@@ -251,7 +251,7 @@ export function SignInScreen() {
             </View>
             <View style={styles.field}>
               <View style={styles.labelRow}>
-                <AppText size={12} tone="ash">
+                <AppText variant="caption" tone="ash">
                   Password
                 </AppText>
                 <Pressable
@@ -259,7 +259,7 @@ export function SignInScreen() {
                   accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
                   hitSlop={8}
                   onPress={() => setShowPassword((value) => !value)}>
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     {showPassword ? 'Hide' : 'Show'}
                   </AppText>
                 </Pressable>
@@ -281,7 +281,7 @@ export function SignInScreen() {
                 style={styles.input}
               />
             </View>
-            <AppText size={12} tone="slate">
+            <AppText variant="caption" tone="slate">
               Sign in with GitHub-only accounts using the API key tab (Settings › API Keys).
             </AppText>
           </View>
@@ -290,7 +290,7 @@ export function SignInScreen() {
         {mode === 'email' && twoFactorCookie ? (
           <View style={styles.stack}>
             <View style={styles.field}>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 Two-factor code
               </AppText>
               <TextInput
@@ -312,7 +312,7 @@ export function SignInScreen() {
                 setTotpCode('');
                 setError(null);
               }}>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 ← Back to email & password
               </AppText>
             </Pressable>
@@ -322,7 +322,7 @@ export function SignInScreen() {
         {mode === 'token' ? (
           <View style={styles.stack}>
             <View style={styles.field}>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 Personal access token
               </AppText>
               <TextInput
@@ -338,7 +338,7 @@ export function SignInScreen() {
                 style={styles.input}
               />
             </View>
-            <AppText size={12} tone="slate">
+            <AppText variant="caption" tone="slate">
               Create one in Berry web under Settings › API Keys. Stored securely in device keychain.
             </AppText>
           </View>
@@ -352,7 +352,7 @@ export function SignInScreen() {
           {submitting ? (
             <ActivityIndicator color={colors.buttonPrimaryInk} />
           ) : (
-            <AppText size={15} weight="medium" style={styles.primaryText}>
+            <AppText variant="h3" weight="medium" style={styles.primaryText}>
               {twoFactorCookie ? 'Verify code' : 'Sign in'}
             </AppText>
           )}
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: typeScale.body.fontSize,
   },
   notice: {
     padding: 12,

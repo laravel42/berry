@@ -64,3 +64,25 @@ export const radii = {
   cardLg: 20,
   pill: 999,
 } as const;
+
+/**
+ * 7-step semantic type scale aligned 1:1 with Web Option A (14px compact base):
+ *   micro   11px  tab bar badges, 20px avatar initials, micro tags
+ *   caption 12px  timestamps, metadata, identifiers, secondary labels
+ *   body    14px  default UI: rows, controls, buttons, inputs, prose
+ *   h3      15px  prominent row titles, sheet headers, subheadings
+ *   h2      16px  section headings, modal titles
+ *   h1      20px  page titles, detail titles, auth titles
+ *   display 28px  hero / display headings
+ */
+export const typeScale = {
+  micro: { fontSize: 11, lineHeight: 14 },
+  caption: { fontSize: 12, lineHeight: 17 },
+  body: { fontSize: 14, lineHeight: 20 },
+  h3: { fontSize: 15, lineHeight: 21 },
+  h2: { fontSize: 16, lineHeight: 22 },
+  h1: { fontSize: 20, lineHeight: 26 },
+  display: { fontSize: 28, lineHeight: 34 },
+} as const;
+
+export type TypeVariant = keyof typeof typeScale;

@@ -35,7 +35,7 @@ export function Segmented<T extends string>({
               onPress={() => onChange(item.id)}
               style={styles.underlineItem}>
               <AppText
-                size={13}
+                variant="body"
                 weight={selected ? 'medium' : 'regular'}
                 tone={selected ? 'chalk' : 'slate'}>
                 {item.label}
@@ -59,7 +59,7 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected }}
             onPress={() => onChange(item.id)}
             style={[styles.item, selected && styles.selected]}>
-            <AppText size={12} weight={selected ? 'medium' : 'regular'} tone={selected ? 'chalk' : 'slate'}>
+            <AppText variant="caption" weight={selected ? 'medium' : 'regular'} tone={selected ? 'chalk' : 'slate'}>
               {item.label}
             </AppText>
           </Pressable>

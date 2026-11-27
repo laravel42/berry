@@ -38,11 +38,11 @@ export function ScreenHeader({ title, action, trailing }: Props) {
             style={styles.androidWsBtn}>
             <BerryMark size={22} />
             <View style={styles.androidCopy}>
-              <AppText mono size={18} weight="semibold" numberOfLines={1}>
+              <AppText mono variant="h2" weight="semibold" numberOfLines={1}>
                 {title}
               </AppText>
               <View style={styles.wsSubRow}>
-                <AppText size={11} tone="ash" numberOfLines={1}>
+                <AppText variant="micro" tone="ash" numberOfLines={1}>
                   {activeName}
                 </AppText>
                 <Icon name="chevronDown" size={12} color={colors.ash} />
@@ -65,7 +65,7 @@ export function ScreenHeader({ title, action, trailing }: Props) {
             onPress={() => setSheetOpen(true)}
             style={styles.wordmark}>
             <BerryMark size={18} />
-            <AppText size={13} tone="ash">
+            <AppText variant="body" tone="ash">
               {activeName}
             </AppText>
             <Icon name="chevronDown" size={13} color={colors.ash} />
@@ -73,7 +73,7 @@ export function ScreenHeader({ title, action, trailing }: Props) {
           {action}
         </View>
         <View style={styles.iosTitleRow}>
-          <AppText mono size={24} weight="semibold" style={styles.iosTitle}>
+          <AppText mono variant="h1" weight="semibold" style={styles.iosTitle}>
             {title}
           </AppText>
           {trailing}

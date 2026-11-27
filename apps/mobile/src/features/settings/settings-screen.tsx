@@ -224,7 +224,7 @@ export function SettingsScreen() {
       default:
         return (
           <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}>
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
               WORKSPACE
             </AppText>
             <View style={styles.card}>
@@ -236,20 +236,20 @@ export function SettingsScreen() {
                   accessibilityRole="button"
                   onPress={() => setSwitcherOpen(true)}
                   style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
-                  <AppText size={13} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     Switch workspace
                   </AppText>
                 </Pressable>
               ) : null}
             </View>
 
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
               NOTIFICATIONS
             </AppText>
             <View style={styles.card}>
               <KeyValueRow label="System permission" value={permissionLabel} tone={permissionTone} />
               <View style={styles.kvRow}>
-                <AppText size={13} tone="ash">
+                <AppText variant="body" tone="ash">
                   Alert on new Inbox items
                 </AppText>
                 <Toggle
@@ -263,7 +263,7 @@ export function SettingsScreen() {
                   accessibilityRole="button"
                   onPress={() => void handleEnableNotifications()}
                   style={({ pressed }) => [styles.actionBtn, pressed && styles.pressed]}>
-                  <AppText size={13} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     Enable notifications
                   </AppText>
                 </Pressable>
@@ -274,13 +274,13 @@ export function SettingsScreen() {
                 onPress={() => void handleTestNotification()}
                 style={({ pressed }) => [styles.primaryBtn, pressed && styles.pressed]}>
                 <Icon name="bell" size={15} color={colors.buttonPrimaryInk} />
-                <AppText size={13} weight="medium" style={styles.primaryText}>
+                <AppText variant="body" weight="medium" style={styles.primaryText}>
                   {sendingTest ? 'Scheduling...' : 'Send test notification (2s)'}
                 </AppText>
               </Pressable>
             </View>
 
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
               SERVER
             </AppText>
             <View style={styles.card}>
@@ -302,7 +302,7 @@ export function SettingsScreen() {
               />
             </View>
 
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
               ACCOUNT
             </AppText>
             <View style={styles.card}>
@@ -315,7 +315,7 @@ export function SettingsScreen() {
               onPress={confirmSignOut}
               style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}>
               <Icon name="logOut" size={16} color={colors.danger} />
-              <AppText size={14} weight="medium" tone="danger">
+              <AppText variant="body" weight="medium" tone="danger">
                 Sign out
               </AppText>
             </Pressable>
@@ -334,7 +334,7 @@ export function SettingsScreen() {
           style={styles.iconBtn}>
           <Icon name="arrowLeft" size={20} color={colors.chalk} />
         </Pressable>
-        <AppText mono size={16} weight="semibold" tone="chalk" style={styles.topTitle}>
+        <AppText mono variant="h2" weight="semibold" tone="chalk" style={styles.topTitle}>
           Settings
         </AppText>
         <View style={styles.iconBtn} />
@@ -348,11 +348,11 @@ export function SettingsScreen() {
           style={({ pressed }) => [styles.selectTrigger, pressed && styles.pressed]}>
           <View style={styles.selectLeft}>
             <View style={styles.groupBadge}>
-              <AppText mono size={10} weight="medium" tone="berryText">
+              <AppText mono variant="micro" weight="medium" tone="berryText">
                 {currentSection.group.toUpperCase()}
               </AppText>
             </View>
-            <AppText size={14} weight="medium" tone="chalk" numberOfLines={1} style={styles.selectLabel}>
+            <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1} style={styles.selectLabel}>
               {currentSection.label}
             </AppText>
           </View>

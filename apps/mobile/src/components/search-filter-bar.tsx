@@ -2,7 +2,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native
 
 import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 export type FilterOption<T extends string = string> = {
   id: T;
@@ -70,7 +70,7 @@ export function SearchFilterBar<T extends string = string>({
                 onPress={() => onChangeFilter?.(option.id)}
                 style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}>
                 <AppText
-                  size={12}
+                  variant="caption"
                   weight={active ? 'medium' : 'regular'}
                   tone="ash"
                   style={active ? styles.chipTextActive : undefined}>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
     paddingVertical: 0,
   },
   chipsContent: {

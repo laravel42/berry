@@ -58,13 +58,13 @@ export function BerryTabBar({ state, emitter, navigateToTab }: TabBarProps) {
               <Icon name={meta.icon} size={20} color={color} />
               {badge > 0 ? (
                 <View style={styles.badge}>
-                  <AppText mono size={9} weight="medium" style={styles.badgeText}>
+                  <AppText mono variant="micro" weight="medium" style={styles.badgeText}>
                     {formatBadgeCount(badge)}
                   </AppText>
                 </View>
               ) : null}
             </View>
-            <AppText size={10} weight={focused ? 'medium' : 'regular'} tone={focused ? 'chalk' : 'slate'} numberOfLines={1}>
+            <AppText variant="micro" weight={focused ? 'medium' : 'regular'} tone={focused ? 'chalk' : 'slate'} numberOfLines={1}>
               {meta.label}
             </AppText>
           </Pressable>

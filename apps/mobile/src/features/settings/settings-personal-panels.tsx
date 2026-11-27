@@ -38,7 +38,7 @@ import { AppText } from '@/components/text';
 import { Toggle } from '@/components/toggle';
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 import { KeyValueRow } from './settings-panels';
 
@@ -47,7 +47,7 @@ type Tone = 'chalk' | 'ash' | 'slate' | 'berry' | 'azure' | 'amber' | 'verdant' 
 function StatusBadge({ label, tone = 'ash' }: { label: string; tone?: Tone }) {
   return (
     <View style={styles.badge}>
-      <AppText mono size={11} weight="medium" tone={tone}>
+      <AppText mono variant="micro" weight="medium" tone={tone}>
         {label}
       </AppText>
     </View>
@@ -73,7 +73,7 @@ function PanelStateCard({
     return (
       <View style={styles.stateCard}>
         <ActivityIndicator color={colors.berry} />
-        <AppText size={13} tone="ash">
+        <AppText variant="body" tone="ash">
           Loading...
         </AppText>
       </View>
@@ -82,7 +82,7 @@ function PanelStateCard({
   if (error) {
     return (
       <View style={styles.stateCard}>
-        <AppText size={13} tone="danger" style={styles.stateText}>
+        <AppText variant="body" tone="danger" style={styles.stateText}>
           {error}
         </AppText>
         {onRetry ? (
@@ -90,7 +90,7 @@ function PanelStateCard({
             accessibilityRole="button"
             onPress={onRetry}
             style={({ pressed }) => [styles.actionBtn, styles.retryBtn, pressed && styles.pressed]}>
-            <AppText size={13} weight="medium" tone="chalk">
+            <AppText variant="body" weight="medium" tone="chalk">
               Retry
             </AppText>
           </Pressable>
@@ -101,11 +101,11 @@ function PanelStateCard({
   if (empty) {
     return (
       <View style={styles.stateCard}>
-        <AppText size={13} weight="medium" tone="chalk">
+        <AppText variant="body" weight="medium" tone="chalk">
           {emptyTitle ?? 'Nothing here yet'}
         </AppText>
         {emptyHint ? (
-          <AppText size={12} tone="ash" style={styles.stateText}>
+          <AppText variant="caption" tone="ash" style={styles.stateText}>
             {emptyHint}
           </AppText>
         ) : null}
@@ -279,11 +279,11 @@ export function PreferencesProfilePanel({
           tintColor={colors.berry}
         />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         PROFILE
       </AppText>
       <View style={styles.card}>
-        <AppText size={12} tone="ash">
+        <AppText variant="caption" tone="ash">
           Display name
         </AppText>
         <TextInput
@@ -305,13 +305,13 @@ export function PreferencesProfilePanel({
             (!dirty || savingName || !client) && styles.disabledBtn,
             pressed && styles.pressed,
           ]}>
-          <AppText size={13} weight="medium" style={styles.primaryText}>
+          <AppText variant="body" weight="medium" style={styles.primaryText}>
             {savingName ? 'Saving...' : 'Save display name'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         PREFERENCES
       </AppText>
       <PanelStateCard
@@ -323,7 +323,7 @@ export function PreferencesProfilePanel({
       {!prefsState.loading && !prefsState.error && settings ? (
         <View style={styles.card}>
           <View style={styles.fieldGroup}>
-            <AppText size={12} tone="ash">
+            <AppText variant="caption" tone="ash">
               Language
             </AppText>
             <View style={styles.pillRow}>
@@ -344,7 +344,7 @@ export function PreferencesProfilePanel({
                       pressed && styles.pressed,
                     ]}>
                     <AppText
-                      size={12}
+                      variant="caption"
                       weight="medium"
                       tone={selected ? 'chalk' : 'ash'}
                       style={selected ? styles.pillActiveText : undefined}>
@@ -359,7 +359,7 @@ export function PreferencesProfilePanel({
           <View style={styles.divider} />
 
           <View style={styles.fieldGroup}>
-            <AppText size={12} tone="ash">
+            <AppText variant="caption" tone="ash">
               Theme
             </AppText>
             <View style={styles.pillRow}>
@@ -380,7 +380,7 @@ export function PreferencesProfilePanel({
                       pressed && styles.pressed,
                     ]}>
                     <AppText
-                      size={12}
+                      variant="caption"
                       weight="medium"
                       tone={selected ? 'chalk' : 'ash'}
                       style={selected ? styles.pillActiveText : undefined}>
@@ -406,7 +406,7 @@ export function PreferencesProfilePanel({
                   updatingPref && styles.disabledBtn,
                   pressed && styles.pressed,
                 ]}>
-                <AppText size={12} weight="medium" tone="chalk">
+                <AppText variant="caption" weight="medium" tone="chalk">
                   Use device timezone ({deviceTimezone})
                 </AppText>
               </Pressable>
@@ -417,10 +417,10 @@ export function PreferencesProfilePanel({
 
           <View style={styles.rowBetween}>
             <View style={styles.flexCopy}>
-              <AppText size={13} weight="medium" tone="chalk">
+              <AppText variant="body" weight="medium" tone="chalk">
                 Reduced motion
               </AppText>
-              <AppText size={11} tone="ash">
+              <AppText variant="micro" tone="ash">
                 Minimize transitions and decorative animations across Berry.
               </AppText>
             </View>
@@ -434,7 +434,7 @@ export function PreferencesProfilePanel({
         </View>
       ) : null}
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         ACCOUNT DETAILS
       </AppText>
       <View style={styles.card}>
@@ -450,7 +450,7 @@ export function PreferencesProfilePanel({
         onPress={onSignOut}
         style={({ pressed }) => [styles.dangerBtn, pressed && styles.pressed]}>
         <Icon name="logOut" size={16} color={colors.danger} />
-        <AppText size={14} weight="medium" tone="danger">
+        <AppText variant="body" weight="medium" tone="danger">
           Sign out
         </AppText>
       </Pressable>
@@ -608,16 +608,16 @@ export function PlatformNotificationsPanel({
         />
       }>
       <View style={styles.infoCard}>
-        <AppText size={13} weight="medium" tone="chalk">
+        <AppText variant="body" weight="medium" tone="chalk">
           Platform inbox notifications{workspaceName ? ` · ${workspaceName}` : ''}
         </AppText>
-        <AppText size={12} tone="ash">
+        <AppText variant="caption" tone="ash">
           Choose which events appear in your Berry inbox for this workspace. Local mobile app push
           alerts are configured separately in Overview.
         </AppText>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         INBOX EVENTS
       </AppText>
 
@@ -630,10 +630,10 @@ export function PlatformNotificationsPanel({
               {index > 0 ? <View style={styles.divider} /> : null}
               <View style={[styles.rowBetween, index > 0 && styles.rowSpaced]}>
                 <View style={styles.flexCopy}>
-                  <AppText size={13} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     {item.title}
                   </AppText>
-                  <AppText size={11} tone="ash">
+                  <AppText variant="micro" tone="ash">
                     {item.description}
                   </AppText>
                 </View>
@@ -741,7 +741,7 @@ export function ShortcutsPanel({ bottomPadding }: { bottomPadding: number }) {
         ) : null}
       </View>
 
-      <AppText size={12} tone="ash">
+      <AppText variant="caption" tone="ash">
         Reference cheatsheet for Berry on desktop and web.
       </AppText>
 
@@ -754,7 +754,7 @@ export function ShortcutsPanel({ bottomPadding }: { bottomPadding: number }) {
       ) : (
         filteredGroups.map((group) => (
           <View key={group.id} style={styles.groupBlock}>
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
               {group.title}
             </AppText>
             <View style={styles.card}>
@@ -762,13 +762,13 @@ export function ShortcutsPanel({ bottomPadding }: { bottomPadding: number }) {
                 <View key={item.id}>
                   {index > 0 ? <View style={styles.divider} /> : null}
                   <View style={[styles.rowBetween, index > 0 && styles.rowSpaced]}>
-                    <AppText size={13} tone="chalk" style={styles.flexCopy}>
+                    <AppText variant="body" tone="chalk" style={styles.flexCopy}>
                       {item.label}
                     </AppText>
                     <View style={styles.keycapRow}>
                       {item.keys.map((keyLabel, keyIndex) => (
                         <View key={`${item.id}-${keyIndex}`} style={styles.keycap}>
-                          <AppText mono size={11} weight="medium" tone="chalk">
+                          <AppText mono variant="micro" weight="medium" tone="chalk">
                             {keyLabel}
                           </AppText>
                         </View>
@@ -897,20 +897,20 @@ export function SecurityPanel({
           tintColor={colors.berry}
         />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         TWO-FACTOR AUTHENTICATION
       </AppText>
       <View style={styles.infoCard}>
-        <AppText size={13} weight="medium" tone="chalk">
+        <AppText variant="body" weight="medium" tone="chalk">
           Managed on the web
         </AppText>
-        <AppText size={12} tone="ash">
+        <AppText variant="caption" tone="ash">
           Authenticator 2FA enrollment, recovery codes, and disabling 2FA are managed in the web
           app under Settings › Security &amp; access.
         </AppText>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         ACTIVE SESSIONS ({state.items.length})
       </AppText>
 
@@ -928,10 +928,10 @@ export function SecurityPanel({
             <View key={session.id} style={styles.card}>
               <View style={styles.rowBetween}>
                 <View style={styles.flexCopy}>
-                  <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+                  <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                     {describeDevice(session.userAgent)}
                   </AppText>
-                  <AppText size={12} tone="ash" numberOfLines={1}>
+                  <AppText variant="caption" tone="ash" numberOfLines={1}>
                     {session.ip ?? 'IP address unavailable'}
                   </AppText>
                 </View>
@@ -941,16 +941,16 @@ export function SecurityPanel({
                   onPress={() => confirmRevoke(session)}
                   style={({ pressed }) => [styles.revokeBtn, pressed && styles.pressed]}>
                   <Icon name="logOut" size={14} color={colors.danger} />
-                  <AppText size={12} weight="medium" tone="danger">
+                  <AppText variant="caption" weight="medium" tone="danger">
                     {revokingId === session.id ? 'Signing out...' : 'Sign out'}
                   </AppText>
                 </Pressable>
               </View>
               <View style={styles.metaRow}>
-                <AppText size={11} tone="slate">
+                <AppText variant="micro" tone="slate">
                   Created {formatShortDate(session.createdAt)}
                 </AppText>
-                <AppText size={11} tone="slate">
+                <AppText variant="micro" tone="slate">
                   Last used {formatShortDate(session.lastUsedAt ?? session.createdAt)}
                 </AppText>
               </View>
@@ -1138,7 +1138,7 @@ export function ConnectedAccountsPanel({
           tintColor={colors.berry}
         />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         ADD ADDRESS
       </AppText>
       <View style={styles.card}>
@@ -1160,7 +1160,7 @@ export function ConnectedAccountsPanel({
                   pressed && styles.pressed,
                 ]}>
                 <AppText
-                  size={12}
+                  variant="caption"
                   weight="medium"
                   tone={selected ? 'chalk' : 'ash'}
                   style={selected ? styles.pillActiveText : undefined}>
@@ -1194,13 +1194,13 @@ export function ConnectedAccountsPanel({
             pressed && styles.pressed,
           ]}>
           <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
-          <AppText size={13} weight="medium" style={styles.primaryText}>
+          <AppText variant="body" weight="medium" style={styles.primaryText}>
             {adding ? 'Adding...' : 'Add address'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         CONNECTED ADDRESSES ({state.items.length})
       </AppText>
 
@@ -1218,10 +1218,10 @@ export function ConnectedAccountsPanel({
             <View key={item.id} style={styles.card}>
               <View style={styles.rowBetween}>
                 <View style={styles.flexCopy}>
-                  <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+                  <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                     {item.address}
                   </AppText>
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     {getChannelLabel(item.channel)}
                   </AppText>
                 </View>
@@ -1231,7 +1231,7 @@ export function ConnectedAccountsPanel({
                   onPress={() => confirmRemove(item)}
                   style={({ pressed }) => [styles.revokeBtn, pressed && styles.pressed]}>
                   <Icon name="trash" size={14} color={colors.danger} />
-                  <AppText size={12} weight="medium" tone="danger">
+                  <AppText variant="caption" weight="medium" tone="danger">
                     {removingId === item.id ? 'Removing...' : 'Remove'}
                   </AppText>
                 </Pressable>
@@ -1347,7 +1347,7 @@ const styles = StyleSheet.create({
     borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
   },
   searchBox: {
     height: 42,
@@ -1364,7 +1364,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
     paddingVertical: 0,
   },
   actionBtn: {

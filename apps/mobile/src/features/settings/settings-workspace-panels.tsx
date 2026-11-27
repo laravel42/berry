@@ -41,7 +41,7 @@ import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
 import { Toggle } from '@/components/toggle';
 import { useToastStore } from '@/store/toast-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 type Tone = 'chalk' | 'ash' | 'slate' | 'berry' | 'azure' | 'amber' | 'verdant' | 'danger';
 
@@ -130,7 +130,7 @@ function isStaleTimestamp(iso: string | null | undefined, nowMs: number): boolea
 function StatusBadge({ label, tone = 'ash' }: { label: string; tone?: Tone }) {
   return (
     <View style={styles.badge}>
-      <AppText mono size={11} weight="medium" tone={tone}>
+      <AppText mono variant="micro" weight="medium" tone={tone}>
         {label}
       </AppText>
     </View>
@@ -156,7 +156,7 @@ function PanelStateCard({
     return (
       <View style={styles.stateCard}>
         <ActivityIndicator color={colors.berry} />
-        <AppText size={13} tone="ash">
+        <AppText variant="body" tone="ash">
           Loading...
         </AppText>
       </View>
@@ -165,7 +165,7 @@ function PanelStateCard({
   if (error) {
     return (
       <View style={styles.stateCard}>
-        <AppText size={13} tone="danger" style={styles.stateText}>
+        <AppText variant="body" tone="danger" style={styles.stateText}>
           {error}
         </AppText>
         {onRetry ? (
@@ -173,7 +173,7 @@ function PanelStateCard({
             accessibilityRole="button"
             onPress={onRetry}
             style={({ pressed }) => [styles.actionBtn, styles.retryBtn, pressed && styles.pressed]}>
-            <AppText size={13} weight="medium" tone="chalk">
+            <AppText variant="body" weight="medium" tone="chalk">
               Retry
             </AppText>
           </Pressable>
@@ -184,11 +184,11 @@ function PanelStateCard({
   if (empty) {
     return (
       <View style={styles.stateCard}>
-        <AppText size={13} weight="medium" tone="chalk">
+        <AppText variant="body" weight="medium" tone="chalk">
           {emptyTitle ?? 'Nothing here yet'}
         </AppText>
         {emptyHint ? (
-          <AppText size={12} tone="ash" style={styles.stateText}>
+          <AppText variant="caption" tone="ash" style={styles.stateText}>
             {emptyHint}
           </AppText>
         ) : null}
@@ -276,7 +276,7 @@ export function ModelTiersPanel({
       {!state.loading && !state.error && state.data ? (
         <>
           <View style={styles.rowBetween}>
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
               MODEL TIERS
             </AppText>
             <StatusBadge
@@ -294,10 +294,10 @@ export function ModelTiersPanel({
                   <View style={styles.titleDotRow}>
                     <View style={[styles.colorDot, { backgroundColor: TIER_DOT_COLORS[tier] }]} />
                     <View style={styles.flexCopy}>
-                      <AppText size={14} weight="medium" tone="chalk">
+                      <AppText variant="body" weight="medium" tone="chalk">
                         {tierName}
                       </AppText>
-                      <AppText mono size={11} tone="slate">
+                      <AppText mono variant="micro" tone="slate">
                         {tier}
                       </AppText>
                     </View>
@@ -306,17 +306,17 @@ export function ModelTiersPanel({
                 </View>
 
                 {models.length === 0 ? (
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     No models placed
                   </AppText>
                 ) : (
                   <View style={styles.modelList}>
                     {models.map((model, index) => (
                       <View key={`${tier}-${model}-${index}`} style={styles.modelRow}>
-                        <AppText mono size={12} tone="slate" style={styles.modelIndex}>
+                        <AppText mono variant="caption" tone="slate" style={styles.modelIndex}>
                           {index + 1}.
                         </AppText>
-                        <AppText mono size={12} tone="chalk" style={styles.flexCopy}>
+                        <AppText mono variant="caption" tone="chalk" style={styles.flexCopy}>
                           {model}
                         </AppText>
                       </View>
@@ -475,7 +475,7 @@ export function SkillLabelsPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         ADD SKILL LABEL
       </AppText>
       <View style={styles.card}>
@@ -517,13 +517,13 @@ export function SkillLabelsPanel({
             pressed && styles.pressed,
           ]}>
           <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
-          <AppText size={13} weight="medium" style={styles.primaryText}>
+          <AppText variant="body" weight="medium" style={styles.primaryText}>
             {creating ? 'Adding...' : 'Add label'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         SKILL LABELS ({activeLabels.length})
       </AppText>
 
@@ -549,7 +549,7 @@ export function SkillLabelsPanel({
                         { backgroundColor: label.color || colors.ash },
                       ]}
                     />
-                    <AppText size={14} weight="medium" tone="chalk" numberOfLines={1} style={styles.flexCopy}>
+                    <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1} style={styles.flexCopy}>
                       {label.name}
                     </AppText>
                   </View>
@@ -561,14 +561,14 @@ export function SkillLabelsPanel({
                       onPress={() => confirmArchive(label)}
                       style={({ pressed }) => [styles.dangerOutlineBtn, pressed && styles.pressed]}>
                       <Icon name="archive" size={13} color={colors.danger} />
-                      <AppText size={12} weight="medium" tone="danger">
+                      <AppText variant="caption" weight="medium" tone="danger">
                         {archivingId === label.id ? 'Archiving...' : 'Archive'}
                       </AppText>
                     </Pressable>
                   </View>
                 </View>
                 {label.description ? (
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     {label.description}
                   </AppText>
                 ) : null}
@@ -762,11 +762,11 @@ export function IssuePropertiesPanel({
       }>
       <View style={styles.card}>
         <View style={styles.rowBetween}>
-          <AppText mono size={13} tone="chalk" weight="medium">
+          <AppText mono variant="body" tone="chalk" weight="medium">
             {activeProperties.length} / {MAX_ACTIVE_PROPERTIES} active
           </AppText>
           <View style={styles.switchRow}>
-            <AppText size={12} tone="ash">
+            <AppText variant="caption" tone="ash">
               Show archived
             </AppText>
             <Toggle
@@ -778,7 +778,7 @@ export function IssuePropertiesPanel({
         </View>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         ADD PROPERTY
       </AppText>
       <View style={[styles.card, atLimit && styles.disabledCard]}>
@@ -810,7 +810,7 @@ export function IssuePropertiesPanel({
                   active && styles.chipActive,
                 ]}>
                 <AppText
-                  size={12}
+                  variant="caption"
                   weight="medium"
                   tone={active ? 'chalk' : 'ash'}
                   style={active ? styles.chipActiveText : undefined}>
@@ -835,7 +835,7 @@ export function IssuePropertiesPanel({
         ) : null}
 
         {atLimit ? (
-          <AppText size={11} tone="amber">
+          <AppText variant="micro" tone="amber">
             Maximum of {MAX_ACTIVE_PROPERTIES} active properties reached. Archive one to add another.
           </AppText>
         ) : null}
@@ -850,13 +850,13 @@ export function IssuePropertiesPanel({
             pressed && styles.pressed,
           ]}>
           <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
-          <AppText size={13} weight="medium" style={styles.primaryText}>
+          <AppText variant="body" weight="medium" style={styles.primaryText}>
             {creating ? 'Adding...' : 'Add property'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         PROPERTIES ({visibleProperties.length})
       </AppText>
 
@@ -877,7 +877,7 @@ export function IssuePropertiesPanel({
               <View key={prop.id} style={styles.card}>
                 <View style={styles.rowBetween}>
                   <View style={styles.flexCopy}>
-                    <AppText size={14} weight="medium" tone={archived ? 'ash' : 'chalk'} numberOfLines={1}>
+                    <AppText variant="body" weight="medium" tone={archived ? 'ash' : 'chalk'} numberOfLines={1}>
                       {prop.name}
                     </AppText>
                     <View style={styles.badgeRow}>
@@ -891,7 +891,7 @@ export function IssuePropertiesPanel({
                       disabled={busy}
                       onPress={() => void handleRestore(prop)}
                       style={({ pressed }) => [styles.restoreBtn, pressed && styles.pressed]}>
-                      <AppText size={12} weight="medium" tone="verdant">
+                      <AppText variant="caption" weight="medium" tone="verdant">
                         {busy ? 'Restoring...' : 'Restore'}
                       </AppText>
                     </Pressable>
@@ -902,7 +902,7 @@ export function IssuePropertiesPanel({
                       onPress={() => confirmArchive(prop)}
                       style={({ pressed }) => [styles.dangerOutlineBtn, pressed && styles.pressed]}>
                       <Icon name="archive" size={13} color={colors.danger} />
-                      <AppText size={12} weight="medium" tone="danger">
+                      <AppText variant="caption" weight="medium" tone="danger">
                         {busy ? 'Archiving...' : 'Archive'}
                       </AppText>
                     </Pressable>
@@ -910,7 +910,7 @@ export function IssuePropertiesPanel({
                 </View>
 
                 {prop.description ? (
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     {prop.description}
                   </AppText>
                 ) : null}
@@ -925,7 +925,7 @@ export function IssuePropertiesPanel({
                             { backgroundColor: opt.color || colors.ash },
                           ]}
                         />
-                        <AppText size={11} tone="chalk">
+                        <AppText variant="micro" tone="chalk">
                           {opt.name}
                         </AppText>
                       </View>
@@ -1092,11 +1092,11 @@ export function QuickActionsPanel({
       }>
       <View style={styles.card}>
         <View style={styles.rowBetween}>
-          <AppText mono size={13} tone="chalk" weight="medium">
+          <AppText mono variant="body" tone="chalk" weight="medium">
             {activeActions.length} active
           </AppText>
           <View style={styles.switchRow}>
-            <AppText size={12} tone="ash">
+            <AppText variant="caption" tone="ash">
               Show archived
             </AppText>
             <Toggle
@@ -1108,7 +1108,7 @@ export function QuickActionsPanel({
         </View>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         QUICK ACTIONS ({visibleActions.length})
       </AppText>
 
@@ -1131,7 +1131,7 @@ export function QuickActionsPanel({
               <View key={action.id} style={styles.card}>
                 <View style={styles.rowBetween}>
                   <View style={styles.flexCopy}>
-                    <AppText size={14} weight="medium" tone={archived ? 'ash' : 'chalk'} numberOfLines={1}>
+                    <AppText variant="body" weight="medium" tone={archived ? 'ash' : 'chalk'} numberOfLines={1}>
                       {action.name}
                     </AppText>
                     <View style={styles.badgeRow}>
@@ -1153,7 +1153,7 @@ export function QuickActionsPanel({
                       disabled={busy}
                       onPress={() => void handleRestore(action)}
                       style={({ pressed }) => [styles.restoreBtn, pressed && styles.pressed]}>
-                      <AppText size={12} weight="medium" tone="verdant">
+                      <AppText variant="caption" weight="medium" tone="verdant">
                         {busy ? 'Restoring...' : 'Restore'}
                       </AppText>
                     </Pressable>
@@ -1164,7 +1164,7 @@ export function QuickActionsPanel({
                       onPress={() => confirmArchive(action)}
                       style={({ pressed }) => [styles.dangerOutlineBtn, pressed && styles.pressed]}>
                       <Icon name="archive" size={13} color={colors.danger} />
-                      <AppText size={12} weight="medium" tone="danger">
+                      <AppText variant="caption" weight="medium" tone="danger">
                         {busy ? 'Archiving...' : 'Archive'}
                       </AppText>
                     </Pressable>
@@ -1173,7 +1173,7 @@ export function QuickActionsPanel({
 
                 {action.prompt ? (
                   <View style={styles.promptPreviewBox}>
-                    <AppText size={12} tone="ash" numberOfLines={3}>
+                    <AppText variant="caption" tone="ash" numberOfLines={3}>
                       {action.prompt}
                     </AppText>
                   </View>
@@ -1259,7 +1259,7 @@ export function McpServersPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
         MCP SERVERS ({state.items.length})
       </AppText>
 
@@ -1277,10 +1277,10 @@ export function McpServersPanel({
             <View key={server.id} style={styles.card}>
               <View style={styles.rowBetween}>
                 <View style={styles.flexCopy}>
-                  <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+                  <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                     {server.name}
                   </AppText>
-                  <AppText mono size={11} tone="ash" numberOfLines={2}>
+                  <AppText mono variant="micro" tone="ash" numberOfLines={2}>
                     {server.url}
                   </AppText>
                 </View>
@@ -1300,7 +1300,7 @@ export function McpServersPanel({
               </View>
 
               {server.headerNames.length > 0 ? (
-                <AppText size={11} tone="slate" numberOfLines={2}>
+                <AppText variant="micro" tone="slate" numberOfLines={2}>
                   Headers: {server.headerNames.join(', ')}
                 </AppText>
               ) : null}
@@ -1423,7 +1423,7 @@ const styles = StyleSheet.create({
     borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
   },
   actionBtn: {
     marginTop: 4,

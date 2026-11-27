@@ -35,7 +35,7 @@ import { Icon } from '@/components/icon';
 import { AppText } from '@/components/text';
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 type Tone = 'chalk' | 'ash' | 'slate' | 'berry' | 'azure' | 'amber' | 'verdant' | 'danger';
 
@@ -52,10 +52,10 @@ export function KeyValueRow({
 }) {
   return (
     <View style={panelStyles.kvRow}>
-      <AppText size={13} tone="ash">
+      <AppText variant="body" tone="ash">
         {label}
       </AppText>
-      <AppText mono={monoValue} size={13} tone={tone} numberOfLines={1} style={panelStyles.kvValue}>
+      <AppText mono={monoValue} variant="body" tone={tone} numberOfLines={1} style={panelStyles.kvValue}>
         {value}
       </AppText>
     </View>
@@ -65,7 +65,7 @@ export function KeyValueRow({
 function StatusBadge({ label, tone = 'ash' }: { label: string; tone?: Tone }) {
   return (
     <View style={panelStyles.badge}>
-      <AppText mono size={11} weight="medium" tone={tone}>
+      <AppText mono variant="micro" weight="medium" tone={tone}>
         {label}
       </AppText>
     </View>
@@ -91,7 +91,7 @@ function PanelStateCard({
     return (
       <View style={panelStyles.stateCard}>
         <ActivityIndicator color={colors.berry} />
-        <AppText size={13} tone="ash">
+        <AppText variant="body" tone="ash">
           Loading...
         </AppText>
       </View>
@@ -100,7 +100,7 @@ function PanelStateCard({
   if (error) {
     return (
       <View style={panelStyles.stateCard}>
-        <AppText size={13} tone="danger" style={panelStyles.stateText}>
+        <AppText variant="body" tone="danger" style={panelStyles.stateText}>
           {error}
         </AppText>
         {onRetry ? (
@@ -108,7 +108,7 @@ function PanelStateCard({
             accessibilityRole="button"
             onPress={onRetry}
             style={({ pressed }) => [panelStyles.actionBtn, panelStyles.retryBtn, pressed && panelStyles.pressed]}>
-            <AppText size={13} weight="medium" tone="chalk">
+            <AppText variant="body" weight="medium" tone="chalk">
               Retry
             </AppText>
           </Pressable>
@@ -119,11 +119,11 @@ function PanelStateCard({
   if (empty) {
     return (
       <View style={panelStyles.stateCard}>
-        <AppText size={13} weight="medium" tone="chalk">
+        <AppText variant="body" weight="medium" tone="chalk">
           {emptyTitle ?? 'Nothing here yet'}
         </AppText>
         {emptyHint ? (
-          <AppText size={12} tone="ash" style={panelStyles.stateText}>
+          <AppText variant="caption" tone="ash" style={panelStyles.stateText}>
             {emptyHint}
           </AppText>
         ) : null}
@@ -194,11 +194,11 @@ export function ProfilePanel({
 
   return (
     <ScrollView contentContainerStyle={[panelStyles.content, { paddingBottom: bottomPadding }]}>
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         PROFILE
       </AppText>
       <View style={panelStyles.card}>
-        <AppText size={12} tone="ash">
+        <AppText variant="caption" tone="ash">
           Display name
         </AppText>
         <TextInput
@@ -220,13 +220,13 @@ export function ProfilePanel({
             (!dirty || saving || !client) && panelStyles.disabledBtn,
             pressed && panelStyles.pressed,
           ]}>
-          <AppText size={13} weight="medium" style={panelStyles.primaryText}>
+          <AppText variant="body" weight="medium" style={panelStyles.primaryText}>
             {saving ? 'Saving...' : 'Save display name'}
           </AppText>
         </Pressable>
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         ACCOUNT DETAILS
       </AppText>
       <View style={panelStyles.card}>
@@ -242,7 +242,7 @@ export function ProfilePanel({
         onPress={onSignOut}
         style={({ pressed }) => [panelStyles.dangerBtn, pressed && panelStyles.pressed]}>
         <Icon name="logOut" size={16} color={colors.danger} />
-        <AppText size={14} weight="medium" tone="danger">
+        <AppText variant="body" weight="medium" tone="danger">
           Sign out
         </AppText>
       </Pressable>
@@ -381,7 +381,7 @@ export function TokensPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         CREATE TOKEN
       </AppText>
       <View style={panelStyles.card}>
@@ -404,7 +404,7 @@ export function TokensPanel({
             pressed && panelStyles.pressed,
           ]}>
           <Icon name="plus" size={15} color={colors.buttonPrimaryInk} />
-          <AppText size={13} weight="medium" style={panelStyles.primaryText}>
+          <AppText variant="body" weight="medium" style={panelStyles.primaryText}>
             {creating ? 'Creating...' : 'Create personal token'}
           </AppText>
         </Pressable>
@@ -413,7 +413,7 @@ export function TokensPanel({
       {revealedToken ? (
         <View style={[panelStyles.card, panelStyles.secretCard]}>
           <View style={panelStyles.rowBetween}>
-            <AppText size={12} weight="medium" tone="verdant">
+            <AppText variant="caption" weight="medium" tone="verdant">
               New token — copy now (shown once)
             </AppText>
             <Pressable
@@ -431,13 +431,13 @@ export function TokensPanel({
             selectTextOnFocus
             style={panelStyles.secretBox}
           />
-          <AppText size={11} tone="ash">
+          <AppText variant="micro" tone="ash">
             Long-press the token above to copy. Berry will not display it again.
           </AppText>
         </View>
       ) : null}
 
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         ACTIVE TOKENS ({activeTokens.length})
       </AppText>
 
@@ -455,10 +455,10 @@ export function TokensPanel({
             <View key={token.id} style={panelStyles.card}>
               <View style={panelStyles.rowBetween}>
                 <View style={panelStyles.flexCopy}>
-                  <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+                  <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                     {token.name}
                   </AppText>
-                  <AppText mono size={12} tone="ash">
+                  <AppText mono variant="caption" tone="ash">
                     {token.prefix}•••
                   </AppText>
                 </View>
@@ -468,16 +468,16 @@ export function TokensPanel({
                   onPress={() => confirmRevoke(token)}
                   style={({ pressed }) => [panelStyles.revokeBtn, pressed && panelStyles.pressed]}>
                   <Icon name="trash" size={14} color={colors.danger} />
-                  <AppText size={12} weight="medium" tone="danger">
+                  <AppText variant="caption" weight="medium" tone="danger">
                     {revokingId === token.id ? 'Revoking...' : 'Revoke'}
                   </AppText>
                 </Pressable>
               </View>
               <View style={panelStyles.metaRow}>
-                <AppText size={11} tone="slate">
+                <AppText variant="micro" tone="slate">
                   Created {formatShortDate(token.createdAt)}
                 </AppText>
-                <AppText size={11} tone="slate">
+                <AppText variant="micro" tone="slate">
                   Last used {formatShortDate(token.lastUsedAt)}
                 </AppText>
               </View>
@@ -509,7 +509,7 @@ export function WorkspacePanel({
 }) {
   return (
     <ScrollView contentContainerStyle={[panelStyles.content, { paddingBottom: bottomPadding }]}>
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         WORKSPACE DETAILS
       </AppText>
       <View style={panelStyles.card}>
@@ -524,7 +524,7 @@ export function WorkspacePanel({
         />
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         RESOURCES
       </AppText>
       <View style={panelStyles.card}>
@@ -538,7 +538,7 @@ export function WorkspacePanel({
           accessibilityRole="button"
           onPress={onOpenSwitcher}
           style={({ pressed }) => [panelStyles.actionBtn, pressed && panelStyles.pressed]}>
-          <AppText size={13} weight="medium" tone="chalk">
+          <AppText variant="body" weight="medium" tone="chalk">
             Switch workspace
           </AppText>
         </Pressable>
@@ -646,7 +646,7 @@ export function MembersPanel({
         ) : null}
       </View>
 
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         MEMBERS ({filtered.length})
       </AppText>
 
@@ -667,10 +667,10 @@ export function MembersPanel({
               <View key={member.userId} style={panelStyles.card}>
                 <View style={panelStyles.rowBetween}>
                   <View style={panelStyles.flexCopy}>
-                    <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+                    <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                       {member.name}
                     </AppText>
-                    <AppText size={12} tone="ash" numberOfLines={1}>
+                    <AppText variant="caption" tone="ash" numberOfLines={1}>
                       {member.email}
                     </AppText>
                   </View>
@@ -768,7 +768,7 @@ export function RuntimesPanel({
 
       {!state.loading && !state.error && aiConnections.length > 0 ? (
         <>
-          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             AI RUNTIME CONNECTIONS ({aiConnections.length})
           </AppText>
           {aiConnections.map((conn) => {
@@ -785,17 +785,17 @@ export function RuntimesPanel({
               <View key={conn.id} style={panelStyles.card}>
                 <View style={panelStyles.rowBetween}>
                   <View style={panelStyles.flexCopy}>
-                    <AppText size={14} weight="medium" tone="chalk">
+                    <AppText variant="body" weight="medium" tone="chalk">
                       {conn.runtimeId}
                     </AppText>
-                    <AppText size={12} tone="ash" numberOfLines={1}>
+                    <AppText variant="caption" tone="ash" numberOfLines={1}>
                       {conn.accountName ?? conn.authMethod}
                     </AppText>
                   </View>
                   <StatusBadge label={badgeLabel} tone={badgeTone} />
                 </View>
                 {conn.lastError ? (
-                  <AppText size={11} tone="danger" numberOfLines={2}>
+                  <AppText variant="micro" tone="danger" numberOfLines={2}>
                     {conn.lastError}
                   </AppText>
                 ) : null}
@@ -807,7 +807,7 @@ export function RuntimesPanel({
 
       {!state.loading && !state.error && computeRuntimes.length > 0 ? (
         <>
-          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             COMPUTE RUNTIMES ({computeRuntimes.length})
           </AppText>
           {computeRuntimes.map((runtime) => {
@@ -818,10 +818,10 @@ export function RuntimesPanel({
               <View key={runtime.id} style={panelStyles.card}>
                 <View style={panelStyles.rowBetween}>
                   <View style={panelStyles.flexCopy}>
-                    <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+                    <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                       {runtime.name}
                     </AppText>
-                    <AppText size={12} tone="ash">
+                    <AppText variant="caption" tone="ash">
                       {runtime.driver}
                       {runtime.isDefault ? ' · Default' : ''}
                       {runtime.activeRuns > 0 ? ` · ${runtime.activeRuns} active` : ''}
@@ -830,7 +830,7 @@ export function RuntimesPanel({
                   <StatusBadge label={badgeLabel} tone={badgeTone} />
                 </View>
                 {runtime.lastHealthError ? (
-                  <AppText size={11} tone="danger" numberOfLines={2}>
+                  <AppText variant="micro" tone="danger" numberOfLines={2}>
                     {runtime.lastHealthError}
                   </AppText>
                 ) : null}
@@ -917,7 +917,7 @@ export function LabelsPanel({
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={() => void handleRefresh()} tintColor={colors.berry} />
       }>
-      <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+      <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
         ISSUE LABELS ({activeLabels.length})
       </AppText>
 
@@ -941,14 +941,14 @@ export function LabelsPanel({
                       { backgroundColor: label.color || colors.ash },
                     ]}
                   />
-                  <AppText size={14} weight="medium" tone="chalk" numberOfLines={1} style={panelStyles.flexCopy}>
+                  <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1} style={panelStyles.flexCopy}>
                     {label.name}
                   </AppText>
                 </View>
                 <StatusBadge label={`${label.usageCount} issues`} tone="ash" />
               </View>
               {label.description ? (
-                <AppText size={12} tone="ash">
+                <AppText variant="caption" tone="ash">
                   {label.description}
                 </AppText>
               ) : null}
@@ -1047,7 +1047,7 @@ export function IntegrationsPanel({
 
       {!state.loading && !state.error && state.providers.length > 0 ? (
         <>
-          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             PROVIDERS ({state.providers.length})
           </AppText>
           {state.providers.map((provider) => {
@@ -1065,18 +1065,18 @@ export function IntegrationsPanel({
               <View key={provider.id} style={panelStyles.card}>
                 <View style={panelStyles.rowBetween}>
                   <View style={panelStyles.flexCopy}>
-                    <AppText size={14} weight="medium" tone="chalk">
+                    <AppText variant="body" weight="medium" tone="chalk">
                       {provider.name}
                     </AppText>
                     {provider.accountName ? (
-                      <AppText size={12} tone="ash">
+                      <AppText variant="caption" tone="ash">
                         {provider.accountName}
                       </AppText>
                     ) : null}
                   </View>
                   <StatusBadge label={badgeLabel} tone={badgeTone} />
                 </View>
-                <AppText size={12} tone="ash">
+                <AppText variant="caption" tone="ash">
                   {provider.description}
                 </AppText>
               </View>
@@ -1188,7 +1188,7 @@ export function UsagePanel({
 
       {!state.loading && !state.error && state.usage ? (
         <>
-          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             LAST {state.usage.days} DAYS SUMMARY
           </AppText>
           <View style={panelStyles.card}>
@@ -1222,7 +1222,7 @@ export function UsagePanel({
 
           {state.usage.byModel.length > 0 ? (
             <>
-              <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+              <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
                 BY MODEL
               </AppText>
               <View style={panelStyles.card}>
@@ -1242,12 +1242,12 @@ export function UsagePanel({
 
       {!state.loading && !state.error ? (
         <>
-          <AppText mono size={11} weight="medium" tone="ash" style={panelStyles.sectionLabel}>
+          <AppText mono variant="micro" weight="medium" tone="ash" style={panelStyles.sectionLabel}>
             RECENT PROMPT LOGS ({state.logs.length})
           </AppText>
           {state.logs.length === 0 ? (
             <View style={panelStyles.card}>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 No recent prompt or completion logs recorded yet.
               </AppText>
             </View>
@@ -1265,11 +1265,11 @@ export function UsagePanel({
                 <View key={entry.id} style={panelStyles.card}>
                   <View style={panelStyles.rowBetween}>
                     <View style={panelStyles.flexCopy}>
-                      <AppText size={13} weight="medium" tone="chalk" numberOfLines={1}>
+                      <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                         {entry.purpose}
                         {entry.issueIdentifier ? ` · ${entry.issueIdentifier}` : ''}
                       </AppText>
-                      <AppText size={11} tone="ash" numberOfLines={1}>
+                      <AppText variant="micro" tone="ash" numberOfLines={1}>
                         {entry.model ?? entry.kind}
                         {entry.agentName ? ` · ${entry.agentName}` : ''}
                       </AppText>
@@ -1277,11 +1277,11 @@ export function UsagePanel({
                     <StatusBadge label={entry.status} tone={statusTone} />
                   </View>
                   <View style={panelStyles.metaRow}>
-                    <AppText mono size={11} tone="slate">
+                    <AppText mono variant="micro" tone="slate">
                       {formatCompactCount(entry.inputTokens + entry.outputTokens)} tok
                       {entry.costMicros !== null ? ` · ${formatUsdFromMicros(entry.costMicros)}` : ''}
                     </AppText>
-                    <AppText size={11} tone="slate">
+                    <AppText variant="micro" tone="slate">
                       {formatShortDate(entry.createdAt)}
                     </AppText>
                   </View>
@@ -1317,7 +1317,7 @@ const panelStyles = StyleSheet.create({
     borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.monoRegular,
-    fontSize: 12,
+    fontSize: typeScale.caption.fontSize,
   },
   stateCard: {
     padding: 20,
@@ -1354,7 +1354,7 @@ const panelStyles = StyleSheet.create({
     borderColor: colors.divider,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
   },
   searchBox: {
     height: 42,
@@ -1371,7 +1371,7 @@ const panelStyles = StyleSheet.create({
     flex: 1,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
     paddingVertical: 0,
   },
   actionBtn: {

@@ -46,7 +46,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 import {
   filterIssuesByProject,
@@ -328,7 +328,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
           style={styles.iconBtn}>
           <Icon name="arrowLeft" size={20} color={colors.chalk} />
         </Pressable>
-        <AppText mono size={16} weight="semibold" tone="chalk" numberOfLines={1} style={styles.topTitle}>
+        <AppText mono variant="h2" weight="semibold" tone="chalk" numberOfLines={1} style={styles.topTitle}>
           {project?.name ?? 'Project'}
         </AppText>
         <Pressable
@@ -348,7 +348,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
         <View style={styles.tasksHeaderWrap}>
           {milestoneFilter ? (
             <View style={styles.milestoneBanner}>
-              <AppText size={12} tone="chalk" numberOfLines={1} style={styles.milestoneBannerText}>
+              <AppText variant="caption" tone="chalk" numberOfLines={1} style={styles.milestoneBannerText}>
                 Milestone: {milestoneFilter.title}
               </AppText>
               <Pressable
@@ -356,7 +356,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                 accessibilityLabel="Clear milestone filter"
                 onPress={() => setMilestoneFilter(null)}
                 style={styles.milestoneClearBtn}>
-                <AppText size={11} weight="medium" tone="chalk">
+                <AppText variant="micro" weight="medium" tone="chalk">
                   Clear
                 </AppText>
               </Pressable>
@@ -387,14 +387,14 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
         }>
         {error ? (
           <View style={[styles.errorCard, activeTab === 'tasks' && styles.errorCardInset]}>
-            <AppText size={13} tone="danger">
+            <AppText variant="body" tone="danger">
               {error}
             </AppText>
             <Pressable
               accessibilityRole="button"
               onPress={() => void reloadAll()}
               style={styles.retryBtn}>
-              <AppText size={12} weight="medium" style={styles.primaryBtnText}>
+              <AppText variant="caption" weight="medium" style={styles.primaryBtnText}>
                 Retry
               </AppText>
             </Pressable>
@@ -405,43 +405,43 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
           <>
             {project ? (
               <View style={styles.card}>
-                <AppText mono size={11} weight="medium" tone="slate" style={styles.cardHeader}>
+                <AppText mono variant="micro" weight="medium" tone="slate" style={styles.cardHeader}>
                   PROPERTIES
                 </AppText>
 
                 <View style={styles.propList}>
                   <View style={styles.propRow}>
-                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                    <AppText variant="caption" tone="ash" style={styles.propLabel}>
                       Status
                     </AppText>
                     <View style={styles.pill}>
-                      <AppText size={11} tone="chalk">
+                      <AppText variant="micro" tone="chalk">
                         {statusLabel}
                       </AppText>
                     </View>
                   </View>
 
                   <View style={styles.propRow}>
-                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                    <AppText variant="caption" tone="ash" style={styles.propLabel}>
                       Health
                     </AppText>
                     <View style={styles.healthValue}>
                       <View
                         style={[styles.healthDot, { backgroundColor: healthDotColor(health.tone) }]}
                       />
-                      <AppText size={12} tone={health.tone === 'verdant' ? 'ash' : health.tone}>
+                      <AppText variant="caption" tone={health.tone === 'verdant' ? 'ash' : health.tone}>
                         {health.label}
                       </AppText>
                     </View>
                   </View>
 
                   <View style={styles.propRow}>
-                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                    <AppText variant="caption" tone="ash" style={styles.propLabel}>
                       Priority
                     </AppText>
                     <View style={styles.priorityValue}>
                       <PriorityBars priority={mapApiPriority(project.priority)} />
-                      <AppText size={12} tone="chalk">
+                      <AppText variant="caption" tone="chalk">
                         {priorityLabel}
                       </AppText>
                     </View>
@@ -449,10 +449,10 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
 
                   <View style={styles.propProgressBlock}>
                     <View style={styles.propRow}>
-                      <AppText size={12} tone="ash" style={styles.propLabel}>
+                      <AppText variant="caption" tone="ash" style={styles.propLabel}>
                         Progress
                       </AppText>
-                      <AppText mono size={12} tone="chalk">
+                      <AppText mono variant="caption" tone="chalk">
                         {summary.done}/{summary.total} ({progressPct}%)
                       </AppText>
                     </View>
@@ -464,18 +464,18 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                   </View>
 
                   <View style={styles.propRow}>
-                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                    <AppText variant="caption" tone="ash" style={styles.propLabel}>
                       Lead
                     </AppText>
                     {leadActor ? (
                       <View style={styles.leadValue}>
                         <Avatar actor={leadActor} size={20} />
-                        <AppText size={12} tone="chalk" numberOfLines={1}>
+                        <AppText variant="caption" tone="chalk" numberOfLines={1}>
                           {leadActor.name}
                         </AppText>
                       </View>
                     ) : (
-                      <AppText size={12} tone="slate">
+                      <AppText variant="caption" tone="slate">
                         Unassigned
                       </AppText>
                     )}
@@ -483,10 +483,10 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
 
                   {startDateLabel || targetDateLabel ? (
                     <View style={styles.propRow}>
-                      <AppText size={12} tone="ash" style={styles.propLabel}>
+                      <AppText variant="caption" tone="ash" style={styles.propLabel}>
                         Dates
                       </AppText>
-                      <AppText mono size={11} tone="chalk">
+                      <AppText mono variant="micro" tone="chalk">
                         {startDateLabel && targetDateLabel
                           ? `${startDateLabel} → ${targetDateLabel}`
                           : startDateLabel
@@ -498,12 +498,12 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
 
                   {repoLabel ? (
                     <View style={styles.propRow}>
-                      <AppText size={12} tone="ash" style={styles.propLabel}>
+                      <AppText variant="caption" tone="ash" style={styles.propLabel}>
                         Repository
                       </AppText>
                       <AppText
                         mono
-                        size={11}
+                        variant="micro"
                         tone="chalk"
                         numberOfLines={1}
                         style={styles.propValueTruncate}>
@@ -513,10 +513,10 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                   ) : null}
 
                   <View style={styles.propRow}>
-                    <AppText size={12} tone="ash" style={styles.propLabel}>
+                    <AppText variant="caption" tone="ash" style={styles.propLabel}>
                       Updated
                     </AppText>
-                    <AppText mono size={11} tone="slate">
+                    <AppText mono variant="micro" tone="slate">
                       {formatRelativeTime(project.updatedAt)}
                     </AppText>
                   </View>
@@ -526,17 +526,17 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
 
             {project?.description?.trim() ? (
               <View style={styles.card}>
-                <AppText mono size={11} weight="medium" tone="slate" style={styles.cardHeader}>
+                <AppText mono variant="micro" weight="medium" tone="slate" style={styles.cardHeader}>
                   DESCRIPTION
                 </AppText>
-                <AppText size={13} tone="chalk" style={styles.desc}>
+                <AppText variant="body" tone="chalk" style={styles.desc}>
                   {project.description}
                 </AppText>
               </View>
             ) : null}
 
             <View style={styles.sectionBlock}>
-              <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
                 MILESTONES ({milestones.length})
               </AppText>
 
@@ -546,10 +546,10 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                 </View>
               ) : milestones.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <AppText size={13} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     No milestones yet
                   </AppText>
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     Milestones added to this project will appear here with progress tracking.
                   </AppText>
                 </View>
@@ -586,7 +586,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                         ]}>
                         <View style={styles.milestoneTop}>
                           <AppText
-                            size={14}
+                            variant="body"
                             weight="medium"
                             tone="chalk"
                             numberOfLines={2}
@@ -594,14 +594,14 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                             {milestone.title}
                           </AppText>
                           <View style={styles.pill}>
-                            <AppText size={11} tone={mStatus.tone === 'verdant' ? 'chalk' : mStatus.tone}>
+                            <AppText variant="micro" tone={mStatus.tone === 'verdant' ? 'chalk' : mStatus.tone}>
                               {mStatus.label}
                             </AppText>
                           </View>
                         </View>
 
                         {mDate ? (
-                          <AppText mono size={11} tone="slate">
+                          <AppText mono variant="micro" tone="slate">
                             Target {mDate}
                           </AppText>
                         ) : null}
@@ -613,7 +613,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                                 style={[styles.progressFill, { width: `${mPct}%` }]}
                               />
                             </View>
-                            <AppText mono size={11} tone="slate" style={styles.milestoneCount}>
+                            <AppText mono variant="micro" tone="slate" style={styles.milestoneCount}>
                               {progress.issuesDone}/{progress.issuesTotal} ({mPct}%)
                             </AppText>
                           </View>
@@ -637,10 +637,10 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
               hasActiveTaskFilters ? (
                 <View style={styles.tasksEmpty}>
                   <Icon name="search" size={26} color={colors.ash} />
-                  <AppText size={14} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     No matching tasks
                   </AppText>
-                  <AppText size={12} tone="ash" style={styles.centerText}>
+                  <AppText variant="caption" tone="ash" style={styles.centerText}>
                     Try a different search term, priority, or milestone filter.
                   </AppText>
                   <Pressable
@@ -651,17 +651,17 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                       setMilestoneFilter(null);
                     }}
                     style={styles.clearFiltersBtn}>
-                    <AppText size={12} weight="medium" style={styles.primaryBtnText}>
+                    <AppText variant="caption" weight="medium" style={styles.primaryBtnText}>
                       Clear filters
                     </AppText>
                   </Pressable>
                 </View>
               ) : (
                 <View style={[styles.emptyCard, styles.emptyCardInset]}>
-                  <AppText size={14} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     No tasks linked to this project
                   </AppText>
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     Create a task or link one from the board to track it here.
                   </AppText>
                 </View>
@@ -681,11 +681,11 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                         }
                         style={styles.groupHeader}>
                         <StatusMark status={group.status} />
-                        <AppText size={13} weight="medium" tone="chalk">
+                        <AppText variant="body" weight="medium" tone="chalk">
                           {group.label}
                         </AppText>
                         <View style={styles.countBadge}>
-                          <AppText mono size={11} tone="slate">
+                          <AppText mono variant="micro" tone="slate">
                             {group.rows.length}
                           </AppText>
                         </View>
@@ -713,14 +713,14 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                               <PriorityBars priority={mapApiPriority(issue.priority)} />
                               <AppText
                                 mono
-                                size={12}
+                                variant="caption"
                                 tone="slate"
                                 numberOfLines={1}
                                 style={styles.taskIdentifier}>
                                 {issue.identifier}
                               </AppText>
                               <AppText
-                                size={14}
+                                variant="body"
                                 tone="chalk"
                                 numberOfLines={2}
                                 style={styles.taskTitle}>
@@ -743,7 +743,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
         {activeTab === 'updates' ? (
           <>
             <View style={styles.card}>
-              <AppText mono size={11} weight="medium" tone="slate" style={styles.cardHeader}>
+              <AppText mono variant="micro" weight="medium" tone="slate" style={styles.cardHeader}>
                 POST AN UPDATE
               </AppText>
 
@@ -767,7 +767,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                         style={[styles.healthDot, { backgroundColor: option.dotColor }]}
                       />
                       <AppText
-                        size={12}
+                        variant="caption"
                         weight={selected ? 'medium' : 'regular'}
                         tone={selected ? (option.tone === 'verdant' ? 'chalk' : option.tone) : 'ash'}>
                         {option.label}
@@ -800,7 +800,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                 {postingUpdate ? (
                   <ActivityIndicator size="small" color={colors.buttonPrimaryInk} />
                 ) : (
-                  <AppText size={13} weight="medium" style={styles.primaryBtnText}>
+                  <AppText variant="body" weight="medium" style={styles.primaryBtnText}>
                     Post update
                   </AppText>
                 )}
@@ -808,7 +808,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
             </View>
 
             <View style={styles.sectionBlock}>
-              <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
                 HISTORY ({updates.length})
               </AppText>
 
@@ -818,10 +818,10 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                 </View>
               ) : updates.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <AppText size={13} weight="medium" tone="chalk">
+                  <AppText variant="body" weight="medium" tone="chalk">
                     No updates yet
                   </AppText>
-                  <AppText size={12} tone="ash">
+                  <AppText variant="caption" tone="ash">
                     Post a status update above to keep the team aligned on progress and risks.
                   </AppText>
                 </View>
@@ -834,7 +834,7 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                         <View style={styles.updateHeader}>
                           <Avatar actor={actorFromRef(item.author)} size={24} />
                           <AppText
-                            size={12}
+                            variant="caption"
                             weight="medium"
                             tone="chalk"
                             numberOfLines={1}
@@ -850,17 +850,17 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
                                 ]}
                               />
                               <AppText
-                                size={11}
+                                variant="micro"
                                 tone={itemHealth.tone === 'verdant' ? 'ash' : itemHealth.tone}>
                                 {itemHealth.label}
                               </AppText>
                             </View>
                           </View>
-                          <AppText mono size={11} tone="slate">
+                          <AppText mono variant="micro" tone="slate">
                             {formatRelativeTime(item.createdAt)}
                           </AppText>
                         </View>
-                        <AppText size={13} tone="chalk" style={styles.updateBody}>
+                        <AppText variant="body" tone="chalk" style={styles.updateBody}>
                           {item.body}
                         </AppText>
                       </View>
@@ -1088,7 +1088,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hair,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 13,
+    fontSize: typeScale.body.fontSize,
     lineHeight: 19,
   },
   postBtn: {

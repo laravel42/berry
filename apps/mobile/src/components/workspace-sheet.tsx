@@ -45,10 +45,10 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
           <View style={styles.grabber} />
           <View style={styles.header}>
             <View style={styles.copy}>
-              <AppText mono size={15} weight="semibold">
+              <AppText mono variant="h3" weight="semibold">
                 {user?.name ?? 'Account'}
               </AppText>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 {user?.email ?? ''}
               </AppText>
             </View>
@@ -57,7 +57,7 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
             </Pressable>
           </View>
 
-          <AppText mono size={11} tone="slate" style={styles.sectionLabel}>
+          <AppText mono variant="micro" tone="slate" style={styles.sectionLabel}>
             Workspaces
           </AppText>
           <ScrollView style={styles.list}>
@@ -71,10 +71,10 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
                   style={[styles.row, active && styles.rowActive]}>
                   <BerryMark size={18} dot={active ? colors.berry : colors.slate} />
                   <View style={styles.copy}>
-                    <AppText size={14} weight={active ? 'medium' : 'regular'}>
+                    <AppText variant="body" weight={active ? 'medium' : 'regular'}>
                       {ws.name}
                     </AppText>
-                    <AppText size={11} tone="slate">
+                    <AppText variant="micro" tone="slate">
                       {ws.slug} · {ws.role}
                     </AppText>
                   </View>
@@ -85,7 +85,7 @@ export function WorkspaceSheet({ visible, onClose }: Props) {
           </ScrollView>
 
           <Pressable accessibilityRole="button" onPress={() => void handleLogout()} style={styles.logoutRow}>
-            <AppText size={14} weight="medium" tone="danger">
+            <AppText variant="body" weight="medium" tone="danger">
               Log out
             </AppText>
           </Pressable>

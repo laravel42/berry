@@ -36,7 +36,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 type TimelineRow =
   | {
@@ -237,13 +237,13 @@ export function IssueScreen() {
             onPress={close}
             style={styles.back}>
             <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
-            {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
+            {Platform.OS === 'ios' ? <AppText variant="h2">Back</AppText> : null}
           </Pressable>
         </View>
         <View style={styles.missing}>
           {detail?.error ? (
             <View style={styles.errorBox}>
-              <AppText size={14} tone="danger">
+              <AppText variant="body" tone="danger">
                 {detail.error}
               </AppText>
               <Pressable
@@ -252,7 +252,7 @@ export function IssueScreen() {
                   if (client && workspaceId && id) void loadIssueDetail(client, workspaceId, id);
                 }}
                 style={styles.retryBtn}>
-                <AppText size={13} weight="medium" style={styles.retryBtnText}>
+                <AppText variant="body" weight="medium" style={styles.retryBtnText}>
                   Retry
                 </AppText>
               </Pressable>
@@ -341,7 +341,7 @@ export function IssueScreen() {
           onPress={client && !busyAction ? () => setPicker('status') : undefined}
           chevron>
           <StatusMark status={statusUi} />
-          <AppText size={13}>{statusMeta.label}</AppText>
+          <AppText variant="body">{statusMeta.label}</AppText>
         </PropRow>
       ),
     },
@@ -353,7 +353,7 @@ export function IssueScreen() {
           onPress={client && !busyAction ? () => setPicker('priority') : undefined}
           chevron>
           <PriorityBars priority={priorityUi} />
-          <AppText size={13}>{PRIORITY_META[priorityUi].label}</AppText>
+          <AppText variant="body">{PRIORITY_META[priorityUi].label}</AppText>
         </PropRow>
       ),
     },
@@ -362,10 +362,10 @@ export function IssueScreen() {
       node: (
         <PropRow label="Assignee">
           <Avatar actor={assigneeActor} size={22} />
-          <AppText size={13}>{assigneeActor.name}</AppText>
+          <AppText variant="body">{assigneeActor.name}</AppText>
           {assigneeActor.type === 'agent' ? (
             <View style={styles.metaPill}>
-              <AppText mono size={10} weight="medium" tone="ash">
+              <AppText mono variant="micro" weight="medium" tone="ash">
                 Agent
               </AppText>
             </View>
@@ -384,7 +384,7 @@ export function IssueScreen() {
           label="Project"
           onPress={() => router.push(`/project/${project.id}` as Href)}
           chevron>
-          <AppText size={13} numberOfLines={1}>
+          <AppText variant="body" numberOfLines={1}>
             {project.name}
           </AppText>
         </PropRow>
@@ -397,7 +397,7 @@ export function IssueScreen() {
       key: 'milestone',
       node: (
         <PropRow label="Milestone">
-          <AppText size={13} numberOfLines={1}>
+          <AppText variant="body" numberOfLines={1}>
             {issue.milestone.title}
           </AppText>
         </PropRow>
@@ -414,7 +414,7 @@ export function IssueScreen() {
             {labels.map((label) => (
               <View key={label.id} style={styles.labelChip}>
                 <View style={[styles.labelDot, { backgroundColor: label.color }]} />
-                <AppText size={11} tone="chalk">
+                <AppText variant="micro" tone="chalk">
                   {label.name}
                 </AppText>
               </View>
@@ -430,7 +430,7 @@ export function IssueScreen() {
       key: 'dates',
       node: (
         <PropRow label="Dates">
-          <AppText mono size={12} tone="chalk">
+          <AppText mono variant="caption" tone="chalk">
             {datesText}
           </AppText>
         </PropRow>
@@ -443,7 +443,7 @@ export function IssueScreen() {
       key: 'repository',
       node: (
         <PropRow label="Repository">
-          <AppText mono size={12} tone="chalk" numberOfLines={1}>
+          <AppText mono variant="caption" tone="chalk" numberOfLines={1}>
             {repoName}
           </AppText>
         </PropRow>
@@ -456,7 +456,7 @@ export function IssueScreen() {
       key: 'subtasks',
       node: (
         <PropRow label="Sub-tasks">
-          <AppText mono size={12} tone="chalk">
+          <AppText mono variant="caption" tone="chalk">
             {`${childDone}/${childTotal} done`}
           </AppText>
         </PropRow>
@@ -470,7 +470,7 @@ export function IssueScreen() {
       node: (
         <PropRow label="AutoGate">
           <View style={styles.metaPill}>
-            <AppText mono size={10} weight="medium" tone="ash">
+            <AppText mono variant="micro" weight="medium" tone="ash">
               Enabled
             </AppText>
           </View>
@@ -490,9 +490,9 @@ export function IssueScreen() {
           onPress={close}
           style={styles.back}>
           <Icon name={Platform.OS === 'ios' ? 'chevronLeft' : 'arrowLeft'} size={22} />
-          {Platform.OS === 'ios' ? <AppText size={16}>Back</AppText> : null}
+          {Platform.OS === 'ios' ? <AppText variant="h2">Back</AppText> : null}
         </Pressable>
-        <AppText mono size={13} weight="medium" tone="chalk">
+        <AppText mono variant="body" weight="medium" tone="chalk">
           {issue.identifier}
         </AppText>
         {from && client && workspaceId ? (
@@ -529,11 +529,11 @@ export function IssueScreen() {
 
       <ScrollView contentContainerStyle={styles.body}>
         <View style={styles.headerBlock}>
-          <AppText size={12} tone="ash">
+          <AppText variant="caption" tone="ash">
             {issue.project?.name ?? 'Workspace'}
             {issue.createdBy ? ` · opened by ${issue.createdBy.name}` : ''}
           </AppText>
-          <AppText size={22} weight="medium" style={styles.title}>
+          <AppText variant="h1" weight="medium" style={styles.title}>
             {issue.title}
           </AppText>
         </View>
@@ -549,13 +549,13 @@ export function IssueScreen() {
               pressed && styles.propsHeaderPressed,
             ]}>
             <View style={styles.propsHeaderLeft}>
-              <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+              <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
                 PROPERTIES
               </AppText>
               {!propertiesOpen ? (
                 <View style={styles.propsCollapsedSummary}>
                   <StatusMark status={statusUi} />
-                  <AppText size={12} tone="ash" numberOfLines={1}>
+                  <AppText variant="caption" tone="ash" numberOfLines={1}>
                     {`${statusMeta.label} · ${PRIORITY_META[priorityUi].label}`}
                   </AppText>
                 </View>
@@ -577,7 +577,7 @@ export function IssueScreen() {
                   </View>
                 ))}
               </View>
-              <AppText mono size={11} tone="slate" style={styles.timestamps}>
+              <AppText mono variant="micro" tone="slate" style={styles.timestamps}>
                 {`Created ${formatShortDate(issue.createdAt)} · Updated ${formatRelativeTime(issue.updatedAt)}`}
               </AppText>
             </>
@@ -599,7 +599,7 @@ export function IssueScreen() {
 
         {review?.pullRequest ? (
           <View style={styles.block}>
-            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
               DELIVERED
             </AppText>
             <Pressable
@@ -611,30 +611,30 @@ export function IssueScreen() {
               <View style={styles.prTop}>
                 <Icon name="git" size={16} color={colors.ash} />
                 <View style={styles.copy}>
-                  <AppText size={14} weight="medium">
+                  <AppText variant="body" weight="medium">
                     Pull request{' '}
-                    <AppText mono size={13} weight="medium">
+                    <AppText mono variant="body" weight="medium">
                       #{review.pullRequest.number}
                     </AppText>
                   </AppText>
                   {review.pullRequest.branch ? (
-                    <AppText mono size={11} tone="slate">
+                    <AppText mono variant="micro" tone="slate">
                       {review.pullRequest.branch}
                     </AppText>
                   ) : null}
                 </View>
                 {review.pullRequest.url ? (
-                  <AppText mono size={11} tone="slate">
+                  <AppText mono variant="micro" tone="slate">
                     GitHub ↗
                   </AppText>
                 ) : null}
               </View>
-              <AppText mono size={11} tone="slate">
+              <AppText mono variant="micro" tone="slate">
                 {review.delivery.filesChanged} files · +{review.delivery.insertions} · −
                 {review.delivery.deletions}
               </AppText>
               {review.checks ? (
-                <AppText size={12} tone={review.checks.passed ? 'ash' : 'danger'}>
+                <AppText variant="caption" tone={review.checks.passed ? 'ash' : 'danger'}>
                   {review.checks.passed ? 'Checks passed' : 'Checks failed'}
                 </AppText>
               ) : null}
@@ -644,22 +644,22 @@ export function IssueScreen() {
 
         {review?.run.summary ? (
           <View style={styles.block}>
-            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
               HANDOFF SUMMARY
             </AppText>
             <View style={styles.card}>
-              <AppText size={14}>{review.run.summary}</AppText>
+              <AppText variant="body">{review.run.summary}</AppText>
             </View>
           </View>
         ) : null}
 
         {issue.description ? (
           <View style={styles.block}>
-            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
               DESCRIPTION
             </AppText>
             <View style={styles.card}>
-              <AppText size={14} style={styles.descriptionText}>
+              <AppText variant="body" style={styles.descriptionText}>
                 {issue.description}
               </AppText>
             </View>
@@ -668,7 +668,7 @@ export function IssueScreen() {
 
         <View style={styles.block}>
           <View style={styles.activityHeader}>
-            <AppText mono size={11} weight="medium" tone="slate" style={styles.sectionLabel}>
+            <AppText mono variant="micro" weight="medium" tone="slate" style={styles.sectionLabel}>
               ACTIVITY
             </AppText>
             <View style={styles.filterGroup}>
@@ -679,7 +679,7 @@ export function IssueScreen() {
                 style={[styles.filterPill, activityFilter === 'all' && styles.filterPillActive]}>
                 <AppText
                   mono
-                  size={11}
+                  variant="micro"
                   weight={activityFilter === 'all' ? 'medium' : 'regular'}
                   tone={activityFilter === 'all' ? 'chalk' : 'slate'}>
                   {`All · ${timeline.length}`}
@@ -695,7 +695,7 @@ export function IssueScreen() {
                 ]}>
                 <AppText
                   mono
-                  size={11}
+                  variant="micro"
                   weight={activityFilter === 'comments' ? 'medium' : 'regular'}
                   tone={activityFilter === 'comments' ? 'chalk' : 'slate'}>
                   {`Comments · ${commentCount}`}
@@ -717,13 +717,13 @@ export function IssueScreen() {
                       <View style={styles.eventRailLine} />
                       <View style={styles.eventDot} />
                     </View>
-                    <AppText size={12} tone="slate" style={styles.copy}>
-                      <AppText size={12} weight="medium" tone="ash">
+                    <AppText variant="caption" tone="slate" style={styles.copy}>
+                      <AppText variant="caption" weight="medium" tone="ash">
                         {entry.actor.name}{' '}
                       </AppText>
                       {entry.text}
                     </AppText>
-                    <AppText mono size={11} tone="slate">
+                    <AppText mono variant="micro" tone="slate">
                       {formatRelativeTime(entry.occurredAt)}
                     </AppText>
                   </View>
@@ -741,12 +741,12 @@ export function IssueScreen() {
                   <View style={styles.commentHeader}>
                     <Avatar actor={entry.actor} size={24} />
                     <View style={styles.commentAuthorWrap}>
-                      <AppText size={13} weight="medium" tone="chalk" numberOfLines={1}>
+                      <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                         {entry.actor.name}
                       </AppText>
                       {entry.actor.type === 'agent' ? (
                         <View style={styles.metaPill}>
-                          <AppText mono size={10} weight="medium" tone="ash">
+                          <AppText mono variant="micro" weight="medium" tone="ash">
                             Agent
                           </AppText>
                         </View>
@@ -754,19 +754,19 @@ export function IssueScreen() {
                       {isResolved ? (
                         <View style={styles.resolvedPill}>
                           <Icon name="check" size={10} color={colors.statusSuccess} strokeWidth={2.4} />
-                          <AppText mono size={10} weight="medium" style={styles.resolvedPillText}>
+                          <AppText mono variant="micro" weight="medium" style={styles.resolvedPillText}>
                             Resolved
                           </AppText>
                         </View>
                       ) : null}
                     </View>
-                    <AppText mono size={11} tone="slate">
+                    <AppText mono variant="micro" tone="slate">
                       {formatRelativeTime(entry.occurredAt)}
                     </AppText>
                   </View>
 
                   <AppText
-                    size={14}
+                    variant="body"
                     tone={isResolved ? 'ash' : 'chalk'}
                     style={styles.commentBody}>
                     {comment.body}
@@ -793,7 +793,7 @@ export function IssueScreen() {
                           pressed && styles.commentActionBtnPressed,
                         ]}>
                         <Icon name="reply" size={13} color={colors.slate} />
-                        <AppText size={11} weight="medium" tone="ash">
+                        <AppText variant="micro" weight="medium" tone="ash">
                           Reply
                         </AppText>
                       </Pressable>
@@ -815,7 +815,7 @@ export function IssueScreen() {
                           color={isResolved ? colors.statusSuccess : colors.slate}
                         />
                         <AppText
-                          size={11}
+                          variant="micro"
                           weight="medium"
                           tone={isResolved ? 'chalk' : 'ash'}>
                           {isResolved ? 'Reopen' : 'Resolve'}
@@ -831,7 +831,7 @@ export function IssueScreen() {
                           pressed && styles.commentActionBtnPressed,
                         ]}>
                         <Icon name="smile" size={13} color={colors.slate} />
-                        <AppText size={11} weight="medium" tone="ash">
+                        <AppText variant="micro" weight="medium" tone="ash">
                           React
                         </AppText>
                       </Pressable>
@@ -848,23 +848,23 @@ export function IssueScreen() {
                             <View style={styles.commentHeader}>
                               <Avatar actor={replyActor} size={20} />
                               <View style={styles.commentAuthorWrap}>
-                                <AppText size={12} weight="medium" tone="chalk" numberOfLines={1}>
+                                <AppText variant="caption" weight="medium" tone="chalk" numberOfLines={1}>
                                   {replyActor.name}
                                 </AppText>
                                 {replyActor.type === 'agent' ? (
                                   <View style={styles.metaPill}>
-                                    <AppText mono size={10} weight="medium" tone="ash">
+                                    <AppText mono variant="micro" weight="medium" tone="ash">
                                       Agent
                                     </AppText>
                                   </View>
                                 ) : null}
                               </View>
-                              <AppText mono size={10} tone="slate">
+                              <AppText mono variant="micro" tone="slate">
                                 {formatRelativeTime(reply.createdAt)}
                               </AppText>
                             </View>
                             <AppText
-                              size={13}
+                              variant="body"
                               tone={isResolved ? 'ash' : 'chalk'}
                               style={styles.replyBody}>
                               {reply.body}
@@ -889,7 +889,7 @@ export function IssueScreen() {
                                     pressed && styles.commentActionBtnPressed,
                                   ]}>
                                   <Icon name="smile" size={12} color={colors.slate} />
-                                  <AppText size={11} tone="slate">
+                                  <AppText variant="micro" tone="slate">
                                     React
                                   </AppText>
                                 </Pressable>
@@ -906,7 +906,7 @@ export function IssueScreen() {
           </View>
 
           {!detail?.loading && visibleTimeline.length === 0 ? (
-            <AppText size={13} tone="slate">
+            <AppText variant="body" tone="slate">
               {activityFilter === 'comments' ? 'No comments yet.' : 'No comments or activity yet.'}
             </AppText>
           ) : null}
@@ -1011,7 +1011,7 @@ export function IssueScreen() {
             disabled={busyAction}
             onPress={() => void retryRun(client, workspaceId, issue.id)}
             style={[styles.retryBar, busyAction && styles.disabled]}>
-            <AppText size={13} weight="medium" tone="chalk">
+            <AppText variant="body" weight="medium" tone="chalk">
               Restart agent run
             </AppText>
           </Pressable>
@@ -1022,7 +1022,7 @@ export function IssueScreen() {
             {replyingTo ? (
               <View style={styles.replyBanner}>
                 <Icon name="reply" size={13} color={colors.ash} />
-                <AppText size={12} tone="ash" numberOfLines={1} style={styles.copy}>
+                <AppText variant="caption" tone="ash" numberOfLines={1} style={styles.copy}>
                   {`Replying to ${actorFromRef(replyingTo.author).name}`}
                 </AppText>
                 <Pressable
@@ -1073,7 +1073,7 @@ export function IssueScreen() {
             onPress={() => undefined}>
             <View style={styles.sheetGrabber} />
             <View style={styles.sheetHeader}>
-              <AppText size={15} weight="medium" tone="chalk">
+              <AppText variant="h3" weight="medium" tone="chalk">
                 {picker === 'status' ? 'Set status' : 'Set priority'}
               </AppText>
               <Pressable
@@ -1100,7 +1100,7 @@ export function IssueScreen() {
                         ]}>
                         <StatusMark status={candidate} />
                         <AppText
-                          size={14}
+                          variant="body"
                           weight={active ? 'medium' : 'regular'}
                           tone="chalk"
                           style={styles.copy}>
@@ -1124,7 +1124,7 @@ export function IssueScreen() {
                         ]}>
                         <PriorityBars priority={candidate} />
                         <AppText
-                          size={14}
+                          variant="body"
                           weight={active ? 'medium' : 'regular'}
                           tone="chalk"
                           style={styles.copy}>
@@ -1149,7 +1149,7 @@ export function IssueScreen() {
             onPress={() => undefined}>
             <View style={styles.sheetGrabber} />
             <View style={styles.sheetHeader}>
-              <AppText size={15} weight="medium" tone="chalk">
+              <AppText variant="h3" weight="medium" tone="chalk">
                 Add reaction
               </AppText>
               <Pressable
@@ -1183,7 +1183,7 @@ export function IssueScreen() {
                       active && styles.emojiOptionActive,
                       pressed && styles.sheetOptionPressed,
                     ]}>
-                    <AppText size={22}>{emoji}</AppText>
+                    <AppText variant="h1">{emoji}</AppText>
                   </Pressable>
                 );
               })}
@@ -1217,10 +1217,10 @@ function ReactionsRow({
             group.reactedByMe && styles.reactionChipActive,
             pressed && styles.commentActionBtnPressed,
           ]}>
-          <AppText size={13}>{group.emoji}</AppText>
+          <AppText variant="body">{group.emoji}</AppText>
           <AppText
             mono
-            size={11}
+            variant="micro"
             weight={group.reactedByMe ? 'medium' : 'regular'}
             tone={group.reactedByMe ? 'chalk' : 'ash'}>
             {group.count}
@@ -1256,7 +1256,7 @@ function PropRow({
 }) {
   const content = (
     <>
-      <AppText size={12} tone="ash" style={alignTop ? styles.propLabelTop : undefined}>
+      <AppText variant="caption" tone="ash" style={alignTop ? styles.propLabelTop : undefined}>
         {label}
       </AppText>
       <View style={styles.propRight}>
@@ -1295,10 +1295,10 @@ function Callout({
 }) {
   return (
     <View style={[styles.callout, tone === 'danger' && styles.calloutDanger]}>
-      <AppText size={13} weight="medium" tone={tone}>
+      <AppText variant="body" weight="medium" tone={tone}>
         {title}
       </AppText>
-      {children ? <AppText size={13}>{children}</AppText> : null}
+      {children ? <AppText variant="body">{children}</AppText> : null}
     </View>
   );
 }
@@ -1681,7 +1681,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hair,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: typeScale.body.fontSize,
     textAlignVertical: 'top',
   },
   composerWrap: { gap: 8 },
@@ -1713,7 +1713,7 @@ const styles = StyleSheet.create({
     borderColor: colors.hair,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: typeScale.body.fontSize,
   },
   send: {
     width: 38,

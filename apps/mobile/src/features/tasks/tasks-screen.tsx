@@ -146,10 +146,10 @@ export function TasksScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
         {error ? (
           <View style={styles.errorCard}>
-            <AppText size={14} weight="medium" tone="danger">
+            <AppText variant="body" weight="medium" tone="danger">
               Could not load tasks
             </AppText>
-            <AppText size={13} tone="ash">
+            <AppText variant="body" tone="ash">
               {error}
             </AppText>
             <Pressable
@@ -164,7 +164,7 @@ export function TasksScreen() {
                 }
               }}
               style={styles.retryBtn}>
-              <AppText size={13} weight="medium" style={styles.retryText}>
+              <AppText variant="body" weight="medium" style={styles.retryText}>
                 Retry
               </AppText>
             </Pressable>
@@ -189,11 +189,11 @@ export function TasksScreen() {
                     onPress={() => setCollapsed((prev) => toggleGroupCollapsed(prev, group.status))}
                     style={styles.group}>
                     <StatusMark status={group.status} />
-                    <AppText size={13} weight="medium">
+                    <AppText variant="body" weight="medium">
                       {group.label}
                     </AppText>
                     <View style={styles.countBadge}>
-                      <AppText mono size={11} tone="slate">
+                      <AppText mono variant="micro" tone="slate">
                         {group.rows.length}
                       </AppText>
                     </View>
@@ -210,10 +210,10 @@ export function TasksScreen() {
                           onPress={() => router.push({ pathname: '/issue/[id]', params: { id: issue.id } })}
                           style={styles.row}>
                           <View style={styles.copy}>
-                            <AppText mono size={12} tone="slate">
+                            <AppText mono variant="caption" tone="slate">
                               {issue.identifier}
                             </AppText>
-                            <AppText size={14} tone="chalk">
+                            <AppText variant="body" tone="chalk">
                               {issue.title}
                             </AppText>
                           </View>
@@ -231,10 +231,10 @@ export function TasksScreen() {
           hasActiveFilters ? (
             <View style={styles.empty}>
               <Icon name="search" size={28} color={colors.ash} />
-              <AppText size={15} weight="medium">
+              <AppText variant="h3" weight="medium">
                 No matching tasks
               </AppText>
-              <AppText size={13} tone="ash" style={styles.center}>
+              <AppText variant="body" tone="ash" style={styles.center}>
                 Try a different search term or priority filter.
               </AppText>
               <Pressable
@@ -244,7 +244,7 @@ export function TasksScreen() {
                   setPriorityFilter('all');
                 }}
                 style={styles.clearBtn}>
-                <AppText size={13} weight="medium" style={styles.retryText}>
+                <AppText variant="body" weight="medium" style={styles.retryText}>
                   Clear filters
                 </AppText>
               </Pressable>
@@ -252,10 +252,10 @@ export function TasksScreen() {
           ) : (
             <View style={styles.empty}>
               <BerryMark size={32} dot={colors.ash} />
-              <AppText size={15} weight="medium">
+              <AppText variant="h3" weight="medium">
                 No tasks here yet
               </AppText>
-              <AppText size={13} tone="ash" style={styles.center}>
+              <AppText variant="body" tone="ash" style={styles.center}>
                 {mineTab === 'assigned'
                   ? 'Tasks assigned to you appear here.'
                   : 'Tasks you create in this workspace appear here.'}

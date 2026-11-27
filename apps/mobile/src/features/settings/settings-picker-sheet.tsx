@@ -31,10 +31,10 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
           <View style={styles.grabber} />
           <View style={styles.header}>
             <View style={styles.headerCopy}>
-              <AppText size={15} weight="medium" tone="chalk">
+              <AppText variant="h3" weight="medium" tone="chalk">
                 Settings sections
               </AppText>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 Choose a section to view or manage
               </AppText>
             </View>
@@ -51,7 +51,7 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
             {SETTINGS_GROUPS.map((group) => (
               <View key={group.id} style={styles.group}>
                 <View style={styles.groupHeader}>
-                  <AppText size={11} weight="medium" tone="berry" style={styles.groupTitle}>
+                  <AppText variant="micro" weight="medium" tone="berry" style={styles.groupTitle}>
                     {group.title.toUpperCase()}
                   </AppText>
                   <View style={styles.groupRule} />
@@ -71,12 +71,12 @@ export function SettingsPickerSheet({ visible, activeSection, onSelect, onClose 
                         ]}>
                         <View style={styles.rowCopy}>
                           <AppText
-                            size={14}
+                            variant="body"
                             weight={active ? 'medium' : 'regular'}
                             tone="chalk">
                             {item.label}
                           </AppText>
-                          <AppText size={11} tone="ash" numberOfLines={2}>
+                          <AppText variant="micro" tone="ash" numberOfLines={2}>
                             {item.description}
                           </AppText>
                         </View>

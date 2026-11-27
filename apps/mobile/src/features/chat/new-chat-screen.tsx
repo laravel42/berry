@@ -17,7 +17,7 @@ import { AppText } from '@/components/text';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
-import { colors, fonts, radii } from '@/theme/tokens';
+import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 const DEFAULT_ORCHESTRATOR_SUBTITLE =
   'Ask Berry about your workspace, plan tasks, or coordinate work';
@@ -76,14 +76,14 @@ export function NewChatScreen() {
       <View style={styles.nav}>
         {ios ? (
           <Pressable onPress={() => router.back()}>
-            <AppText size={16}>Cancel</AppText>
+            <AppText variant="h2">Cancel</AppText>
           </Pressable>
         ) : (
           <Pressable accessibilityLabel="Close" onPress={() => router.back()}>
             <Icon name="close" />
           </Pressable>
         )}
-        <AppText mono size={16} weight="semibold">
+        <AppText mono variant="h2" weight="semibold">
           {ios ? 'New Chat' : 'New chat'}
         </AppText>
         <View style={styles.spacer} />
@@ -135,7 +135,7 @@ export function NewChatScreen() {
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>
         {platformAssistants.length > 0 ? (
           <View>
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.section}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.section}>
               PLATFORM ASSISTANT
             </AppText>
             {platformAssistants.map((agent) => (
@@ -148,16 +148,16 @@ export function NewChatScreen() {
                 <Avatar actor={agent} size={40} />
                 <View style={styles.copy}>
                   <View style={styles.titleRow}>
-                    <AppText size={14} weight="medium" numberOfLines={1} style={styles.agentName}>
+                    <AppText variant="body" weight="medium" numberOfLines={1} style={styles.agentName}>
                       {agent.name}
                     </AppText>
                     <View style={styles.berryBadge}>
-                      <AppText mono size={10} weight="medium" tone="berryText">
+                      <AppText mono variant="micro" weight="medium" tone="berryText">
                         Platform assistant
                       </AppText>
                     </View>
                   </View>
-                  <AppText size={12} tone="ash" numberOfLines={2}>
+                  <AppText variant="caption" tone="ash" numberOfLines={2}>
                     {agent.description?.trim() ? agent.description : DEFAULT_ORCHESTRATOR_SUBTITLE}
                   </AppText>
                 </View>
@@ -173,7 +173,7 @@ export function NewChatScreen() {
 
         {otherRoleAgents.length > 0 ? (
           <View>
-            <AppText mono size={11} weight="medium" tone="ash" style={styles.section}>
+            <AppText mono variant="micro" weight="medium" tone="ash" style={styles.section}>
               OTHER ROLE AGENTS
             </AppText>
             <View style={styles.agentListCard}>
@@ -186,11 +186,11 @@ export function NewChatScreen() {
                   style={[styles.row, index > 0 && styles.rowDivider]}>
                   <Avatar actor={agent} size={36} />
                   <View style={styles.copy}>
-                    <AppText size={14} weight="medium" numberOfLines={1}>
+                    <AppText variant="body" weight="medium" numberOfLines={1}>
                       {agent.name}
                     </AppText>
                     {agent.description ? (
-                      <AppText size={12} tone="ash" numberOfLines={1}>
+                      <AppText variant="caption" tone="ash" numberOfLines={1}>
                         {agent.description}
                       </AppText>
                     ) : null}
@@ -207,7 +207,7 @@ export function NewChatScreen() {
         ) : null}
 
         {!hasResults ? (
-          <AppText size={14} tone="ash" style={styles.empty}>
+          <AppText variant="body" tone="ash" style={styles.empty}>
             {query ? `No agent matches “${query}”.` : 'No agents found in this workspace.'}
           </AppText>
         ) : null}
@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.chalk,
     fontFamily: fonts.regular,
-    fontSize: 14,
+    fontSize: typeScale.body.fontSize,
     minHeight: 40,
   },
   section: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6, letterSpacing: 0.7 },

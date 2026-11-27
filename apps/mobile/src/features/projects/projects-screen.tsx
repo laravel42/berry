@@ -104,11 +104,11 @@ export function ProjectsScreen() {
         }>
         {error ? (
           <View style={styles.errorCard}>
-            <AppText size={14} weight="medium" tone="danger">
+            <AppText variant="body" weight="medium" tone="danger">
               {error}
             </AppText>
             <Pressable accessibilityRole="button" onPress={() => void onRefresh()} style={styles.retryBtn}>
-              <AppText size={13} weight="medium" style={styles.primaryBtnText}>
+              <AppText variant="body" weight="medium" style={styles.primaryBtnText}>
                 Retry
               </AppText>
             </Pressable>
@@ -122,10 +122,10 @@ export function ProjectsScreen() {
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <Icon name="projects" size={28} color={colors.ash} />
-            <AppText size={15} weight="medium" tone="chalk">
+            <AppText variant="h3" weight="medium" tone="chalk">
               {hasActiveFilters ? 'No matching projects' : 'No projects yet'}
             </AppText>
-            <AppText size={13} tone="ash" style={styles.emptySub}>
+            <AppText variant="body" tone="ash" style={styles.emptySub}>
               {hasActiveFilters
                 ? 'Try a different search term or filter.'
                 : 'Projects created in this workspace will appear here.'}
@@ -138,7 +138,7 @@ export function ProjectsScreen() {
                   setFilter('all');
                 }}
                 style={styles.clearBtn}>
-                <AppText size={13} weight="medium" style={styles.primaryBtnText}>
+                <AppText variant="body" weight="medium" style={styles.primaryBtnText}>
                   Clear filters
                 </AppText>
               </Pressable>
@@ -158,7 +158,7 @@ export function ProjectsScreen() {
                 <View style={styles.cardTop}>
                   <View style={styles.titleRow}>
                     <View style={[styles.healthDot, { backgroundColor: HEALTH_DOT_COLOR[health.tone] }]} />
-                    <AppText size={15} weight="medium" tone="chalk" numberOfLines={1} style={styles.title}>
+                    <AppText variant="h3" weight="medium" tone="chalk" numberOfLines={1} style={styles.title}>
                       {project.name}
                     </AppText>
                   </View>
@@ -166,21 +166,21 @@ export function ProjectsScreen() {
                 </View>
 
                 {project.description ? (
-                  <AppText size={13} tone="ash" numberOfLines={2} style={styles.desc}>
+                  <AppText variant="body" tone="ash" numberOfLines={2} style={styles.desc}>
                     {project.description}
                   </AppText>
                 ) : null}
 
                 <View style={styles.metaRow}>
                   <View style={styles.pill}>
-                    <AppText size={11} tone="chalk">
+                    <AppText variant="micro" tone="chalk">
                       {statusLabel}
                     </AppText>
                   </View>
-                  <AppText size={11} tone={health.tone === 'verdant' ? 'ash' : health.tone}>
+                  <AppText variant="micro" tone={health.tone === 'verdant' ? 'ash' : health.tone}>
                     {health.label}
                   </AppText>
-                  <AppText mono size={11} tone="slate" style={styles.updated}>
+                  <AppText mono variant="micro" tone="slate" style={styles.updated}>
                     {formatRelativeTime(project.updatedAt)}
                   </AppText>
                 </View>

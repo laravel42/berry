@@ -155,7 +155,7 @@ export function InboxScreen() {
         trailing={
           Platform.OS === 'ios' ? (
             <Pressable accessibilityRole="button" onPress={onMarkAllRead}>
-              <AppText size={13} tone="ash">
+              <AppText variant="body" tone="ash">
                 Mark all read
               </AppText>
             </Pressable>
@@ -190,10 +190,10 @@ export function InboxScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.berry} />}>
         {error ? (
           <View style={styles.errorCard}>
-            <AppText size={14} weight="medium" tone="danger">
+            <AppText variant="body" weight="medium" tone="danger">
               Could not load inbox
             </AppText>
-            <AppText size={13} tone="ash">
+            <AppText variant="body" tone="ash">
               {error}
             </AppText>
             <Pressable
@@ -202,7 +202,7 @@ export function InboxScreen() {
                 if (client && workspaceId) void load(client, workspaceId);
               }}
               style={styles.retryBtn}>
-              <AppText size={13} weight="medium" style={styles.retryText}>
+              <AppText variant="body" weight="medium" style={styles.retryText}>
                 Retry
               </AppText>
             </Pressable>
@@ -218,23 +218,23 @@ export function InboxScreen() {
         {!error && !archiveView && needs.length > 0 ? (
           <Pressable accessibilityRole="button" onPress={onToggleBandNeeds} style={styles.band}>
             <View style={styles.bandTop}>
-              <AppText mono size={11} weight="medium" tone="berryText">
+              <AppText mono variant="micro" weight="medium" tone="berryText">
                 WAITING ON YOU
               </AppText>
-              <AppText size={12} tone="ash">
+              <AppText variant="caption" tone="ash">
                 {effectiveFilter === 'needs' ? 'Show everything' : 'Show only these'}
               </AppText>
             </View>
-            <AppText mono size={22} weight="medium">
+            <AppText mono variant="h1" weight="medium">
               {needs.length}{' '}
-              <AppText size={14} tone="ash">
+              <AppText variant="body" tone="ash">
                 {needs.length === 1 ? 'task is waiting on a decision' : 'tasks are waiting on a decision'}
               </AppText>
             </AppText>
             <View style={styles.figures}>
               {figures.map((figure) => (
-                <AppText key={figure.kind} size={12} tone="ash">
-                  <AppText mono size={12} weight="medium">
+                <AppText key={figure.kind} variant="caption" tone="ash">
+                  <AppText mono variant="caption" weight="medium">
                     {figure.n}
                   </AppText>{' '}
                   {labelFor(figure.kind, figure.n)}
@@ -254,14 +254,14 @@ export function InboxScreen() {
           hasActiveFilters ? (
             <View style={styles.empty}>
               <Icon name="search" size={28} color={colors.ash} />
-              <AppText size={16} weight="medium">
+              <AppText variant="h2" weight="medium">
                 No matching notifications
               </AppText>
-              <AppText size={13} tone="ash" style={styles.center}>
+              <AppText variant="body" tone="ash" style={styles.center}>
                 Try a different search term or filter.
               </AppText>
               <Pressable accessibilityRole="button" onPress={onClearFilters} style={styles.clearBtn}>
-                <AppText size={13} weight="medium" style={styles.retryText}>
+                <AppText variant="body" weight="medium" style={styles.retryText}>
                   Clear filters
                 </AppText>
               </Pressable>
@@ -269,10 +269,10 @@ export function InboxScreen() {
           ) : (
             <View style={styles.empty}>
               <BerryMark size={36} dot={colors.statusSuccess} />
-              <AppText size={16} weight="medium">
+              <AppText variant="h2" weight="medium">
                 {archiveView ? 'Nothing archived' : 'You’re caught up.'}
               </AppText>
-              <AppText size={13} tone="ash" style={styles.center}>
+              <AppText variant="body" tone="ash" style={styles.center}>
                 {archiveView
                   ? 'Swipe a notification left to archive it.'
                   : 'New reviews, approvals and agent questions show up here.'}
@@ -291,12 +291,12 @@ export function InboxScreen() {
                   if (client && workspaceId) void loadMore(client, workspaceId);
                 }}
                 style={styles.loadMore}>
-                <AppText size={13} tone="ash">
+                <AppText variant="body" tone="ash">
                   {loadingMore ? 'Loading…' : 'Load more'}
                 </AppText>
               </Pressable>
             ) : null}
-            <AppText size={12} tone="slate" style={styles.hint}>
+            <AppText variant="caption" tone="slate" style={styles.hint}>
               {archiveView ? 'Swipe left to move back to the inbox' : 'Swipe right to mark read · left to archive'}
             </AppText>
           </>
@@ -339,12 +339,12 @@ function InboxRow({ item, kind }: { item: ApiInboxItem; kind: NotifKind }) {
       friction={2}
       renderLeftActions={() => (
         <View style={[styles.under, styles.underRead]}>
-          <AppText size={12}>{item.read ? 'Mark unread' : 'Mark read'}</AppText>
+          <AppText variant="caption">{item.read ? 'Mark unread' : 'Mark read'}</AppText>
         </View>
       )}
       renderRightActions={() => (
         <View style={[styles.under, styles.underArchive]}>
-          <AppText size={12}>{item.archived ? 'Move back' : 'Archive'}</AppText>
+          <AppText variant="caption">{item.archived ? 'Move back' : 'Archive'}</AppText>
         </View>
       )}
       onSwipeableOpen={(direction) => {
@@ -360,19 +360,19 @@ function InboxRow({ item, kind }: { item: ApiInboxItem; kind: NotifKind }) {
         <Icon name={styleMeta.icon} size={18} color={styleMeta.color} />
         <View style={styles.rowBody}>
           <View style={styles.rowTop}>
-            <AppText size={13} weight={item.read ? 'regular' : 'medium'} style={styles.title} numberOfLines={1}>
+            <AppText variant="body" weight={item.read ? 'regular' : 'medium'} style={styles.title} numberOfLines={1}>
               {item.issueIdentifier ? (
-                <AppText mono size={12} tone="slate">
+                <AppText mono variant="caption" tone="slate">
                   {item.issueIdentifier}{' '}
                 </AppText>
               ) : null}
               {item.title}
             </AppText>
-            <AppText mono size={11} tone="slate">
+            <AppText mono variant="micro" tone="slate">
               {formatRelativeTime(item.createdAt)}
             </AppText>
           </View>
-          <AppText size={12} tone="ash" numberOfLines={2}>
+          <AppText variant="caption" tone="ash" numberOfLines={2}>
             {item.body || styleMeta.label}
           </AppText>
         </View>

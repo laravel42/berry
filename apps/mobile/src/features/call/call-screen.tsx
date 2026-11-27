@@ -61,10 +61,10 @@ export function CallScreen() {
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
-      <AppText size={18} weight="medium" style={styles.center}>
+      <AppText variant="h2" weight="medium" style={styles.center}>
         {call.title}
       </AppText>
-      <AppText size={13} tone="ash" style={styles.center}>
+      <AppText variant="body" tone="ash" style={styles.center}>
         {ringing ? 'Calling…' : `${formatDuration(elapsed)}${line ? ' · Live captions' : ''}`}
       </AppText>
       {call.kind === 'video' ? (
@@ -74,8 +74,8 @@ export function CallScreen() {
             const speaking = index === speakerIndex;
             return (
               <View key={id} style={[styles.tile, speaking && styles.tileOn, who.agent ? styles.tileAgent : styles.tilePerson]}>
-                {who.agent ? <BerryMark size={48} dot={colors.azure} /> : <AppText size={28}>{who.initials}</AppText>}
-                <AppText size={13}>
+                {who.agent ? <BerryMark size={48} dot={colors.azure} /> : <AppText variant="display">{who.initials}</AppText>}
+                <AppText variant="body">
                   {who.name}
                   {who.agent ? ' · agent' : ''}
                 </AppText>
@@ -83,18 +83,18 @@ export function CallScreen() {
             );
           })}
           <View style={styles.self}>
-            <AppText size={12}>{call.cam ? 'You' : 'Camera off'}</AppText>
+            <AppText variant="caption">{call.cam ? 'You' : 'Camera off'}</AppText>
           </View>
         </View>
       ) : (
         <View style={styles.audio}>
           <View style={[styles.orb, speakerIndex === 0 && styles.orbOn]}>
-            <AppText size={28}>{person(call.people[0] ?? 'none').initials}</AppText>
+            <AppText variant="display">{person(call.people[0] ?? 'none').initials}</AppText>
           </View>
-          <AppText size={20} weight="medium">
+          <AppText variant="h1" weight="medium">
             {person(call.people[0] ?? 'none').name}
           </AppText>
-          <AppText size={13} tone="ash">
+          <AppText variant="body" tone="ash">
             {ringing
               ? 'Ringing'
               : others.length
@@ -107,10 +107,10 @@ export function CallScreen() {
       )}
       {line && speaker ? (
         <View style={styles.caption}>
-          <AppText size={12} weight="medium" tone={person(speaker).agent ? 'azure' : 'chalk'}>
+          <AppText variant="caption" weight="medium" tone={person(speaker).agent ? 'azure' : 'chalk'}>
             {person(speaker).name}
           </AppText>
-          <AppText size={14}>{line}</AppText>
+          <AppText variant="body">{line}</AppText>
         </View>
       ) : (
         <View />
@@ -121,7 +121,7 @@ export function CallScreen() {
             <View style={[styles.button, control.danger ? styles.end : control.on && styles.buttonOn]}>
               <Icon name={control.icon} size={22} color={control.danger ? colors.white : control.on ? colors.void : colors.chalk} />
             </View>
-            <AppText size={11} tone="ash">
+            <AppText variant="micro" tone="ash">
               {control.label}
             </AppText>
           </Pressable>

@@ -36,11 +36,11 @@ function MenuRow({
         <Icon name={icon} size={19} color={tone === 'danger' ? colors.danger : colors.chalk} />
       </View>
       <View style={styles.menuMeta}>
-        <AppText size={14} weight="medium" tone={tone}>
+        <AppText variant="body" weight="medium" tone={tone}>
           {title}
         </AppText>
         {subtitle ? (
-          <AppText size={12} tone="ash" numberOfLines={1}>
+          <AppText variant="caption" tone="ash" numberOfLines={1}>
             {subtitle}
           </AppText>
         ) : null}
@@ -93,10 +93,10 @@ export function MoreScreen() {
           style={({ pressed }) => [styles.workspaceCard, pressed && styles.pressed]}>
           <View style={styles.wsTop}>
             <View style={styles.wsMeta}>
-              <AppText mono size={11} tone="ash">
+              <AppText mono variant="micro" tone="ash">
                 WORKSPACE
               </AppText>
-              <AppText size={16} weight="medium" tone="chalk" numberOfLines={1}>
+              <AppText variant="h2" weight="medium" tone="chalk" numberOfLines={1}>
                 {workspace?.name ?? 'Select workspace'}
               </AppText>
             </View>
@@ -105,26 +105,26 @@ export function MoreScreen() {
 
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
-              <AppText mono size={16} weight="medium" tone="chalk">
+              <AppText mono variant="h2" weight="medium" tone="chalk">
                 {projects.length}
               </AppText>
-              <AppText size={11} tone="ash">
+              <AppText variant="micro" tone="ash">
                 Projects
               </AppText>
             </View>
             <View style={styles.statItem}>
-              <AppText mono size={16} weight="medium" tone="chalk">
+              <AppText mono variant="h2" weight="medium" tone="chalk">
                 {agents.length}
               </AppText>
-              <AppText size={11} tone="ash">
+              <AppText variant="micro" tone="ash">
                 Agents
               </AppText>
             </View>
             <View style={styles.statItem}>
-              <AppText mono size={16} weight="medium" tone="chalk">
+              <AppText mono variant="h2" weight="medium" tone="chalk">
                 {members.length}
               </AppText>
-              <AppText size={11} tone="ash">
+              <AppText variant="micro" tone="ash">
                 Members
               </AppText>
             </View>
@@ -135,17 +135,17 @@ export function MoreScreen() {
           <View style={styles.accountCard}>
             <Avatar actor={userActor} size={40} />
             <View style={styles.accountMeta}>
-              <AppText size={14} weight="medium" tone="chalk" numberOfLines={1}>
+              <AppText variant="body" weight="medium" tone="chalk" numberOfLines={1}>
                 {userActor.name}
               </AppText>
-              <AppText size={12} tone="ash" numberOfLines={1}>
+              <AppText variant="caption" tone="ash" numberOfLines={1}>
                 {user?.email}
               </AppText>
             </View>
           </View>
         ) : null}
 
-        <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+        <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
           APP
         </AppText>
 
@@ -170,7 +170,7 @@ export function MoreScreen() {
           />
         </View>
 
-        <AppText mono size={11} weight="medium" tone="ash" style={styles.sectionLabel}>
+        <AppText mono variant="micro" weight="medium" tone="ash" style={styles.sectionLabel}>
           SESSION
         </AppText>
 

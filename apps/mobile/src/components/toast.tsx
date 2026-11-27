@@ -30,7 +30,7 @@ export function ToastHost() {
     <Animated.View pointerEvents="none" style={[styles.wrap, { bottom: insets.bottom + 72, opacity }]}>
       <View style={styles.pill}>
         <BerryMark size={16} dot={dotColor} />
-        <AppText size={13}>{toast}</AppText>
+        <AppText variant="body">{toast}</AppText>
       </View>
     </Animated.View>
   );
