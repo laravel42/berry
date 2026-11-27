@@ -63,34 +63,51 @@
    --font-weight-medium: 200;
    --font-weight-semibold: 400;
    --font-weight-bold: 600;
-   /* The body size, 16px: `body` applies `text-xs`, so this step is what the
-      interface reads at, and every step below keeps its own measure.
-      The three steps above it moved with it rather than being left where they
-      were: `sm` carries h3/h4, `base` carries h2 and `lg` carries h1, so a
-      body size raised past them would have left a heading smaller than the
-      paragraph under it. `xl` and up are unchanged, which does compress the
-      top of the ladder — `lg` to `xl` is now 20px to 22px. */
-   /* A meta line set in the mono face (when a page's numbers arrived, a
-      counter): JetBrains Mono reads larger than Inter at one size, so it
-      takes a step under the body to sit as quietly. */
-   --text-2xs: 0.875rem;
-   --text-2xs--line-height: 1.4;
-   --text-xs: 1rem;
-   --text-xs--line-height: 1.45;
-   --text-sm: 1rem;
-   --text-sm--line-height: 1.45;
-   --text-base: 1.125rem;
-   --text-base--line-height: 1.4;
-   --text-lg: 1.25rem;
-   --text-lg--line-height: 1.35;
-   --text-xl: 1.375rem;
-   --text-xl--line-height: 1.3;
-   --text-2xl: 1.375rem;
-   --text-2xl--line-height: 1.3;
-   --text-3xl: 1.75rem;
-   --text-3xl--line-height: 1.2;
-   --text-4xl: 1.75rem;
-   --text-4xl--line-height: 1.2;
+   /* --- Semantic type scale (Compact Workspace, 14px base) --------------
+      Seven clear steps with no half-pixels and no 1px increments:
+        micro   11px  (0.6875rem)  20px avatar initials, tab bar badges
+        caption 12px  (0.75rem)    captions, timestamps, card IDs, diffs, chips
+        body    14px  (0.875rem)   default UI: rows, controls, buttons, tabs, rail, prose
+        h3      15px  (0.9375rem)  subheadings, compact section headers
+        h2      16px  (1rem)       section headings, dialog titles
+        h1      20px  (1.25rem)    page titles, detail/create titles, settings titles
+        display 28px  (1.75rem)    hero / auth / editorial display titles
+
+      Tailwind's --text-* variables alias this scale so every utility and
+      base rule resolves to the same seven steps. */
+   --type-micro: 0.6875rem;
+   --type-micro--line-height: 1.25;
+   --type-caption: 0.75rem;
+   --type-caption--line-height: 1.4;
+   --type-body: 0.875rem;
+   --type-body--line-height: 1.45;
+   --type-h3: 0.9375rem;
+   --type-h3--line-height: 1.4;
+   --type-h2: 1rem;
+   --type-h2--line-height: 1.35;
+   --type-h1: 1.25rem;
+   --type-h1--line-height: 1.3;
+   --type-display: 1.75rem;
+   --type-display--line-height: 1.2;
+
+   --text-2xs: var(--type-caption);
+   --text-2xs--line-height: var(--type-caption--line-height);
+   --text-xs: var(--type-body);
+   --text-xs--line-height: var(--type-body--line-height);
+   --text-sm: var(--type-h3);
+   --text-sm--line-height: var(--type-h3--line-height);
+   --text-base: var(--type-h2);
+   --text-base--line-height: var(--type-h2--line-height);
+   --text-lg: var(--type-h1);
+   --text-lg--line-height: var(--type-h1--line-height);
+   --text-xl: var(--type-h1);
+   --text-xl--line-height: var(--type-h1--line-height);
+   --text-2xl: var(--type-h1);
+   --text-2xl--line-height: var(--type-h1--line-height);
+   --text-3xl: var(--type-display);
+   --text-3xl--line-height: var(--type-display--line-height);
+   --text-4xl: var(--type-display);
+   --text-4xl--line-height: var(--type-display--line-height);
 }
 
 :root {
@@ -602,9 +619,9 @@
       @apply inline-flex cursor-pointer items-center justify-center gap-2 font-medium whitespace-nowrap bg-button-primary text-button-primary-foreground shadow-xs outline-none transition-[color,box-shadow] hover:bg-button-primary-hover focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 h-[30px] rounded-[7px] px-3;
    }
 
-   /* Primary actions read a step larger than the 13 px interface text. */
+   /* Primary actions match the interface body size (14px). */
    .btn-primary {
-      font-size: 0.875rem;
+      font-size: var(--type-body);
    }
 
    .btn-primary svg {
@@ -671,23 +688,23 @@
       `color: var(--brand-base)`. Reading the tokens directly sidesteps the
       collision here and keeps all four rules in one shape. */
    h1 {
-      font-size: var(--text-lg);
-      line-height: var(--text-lg--line-height);
+      font-size: var(--type-h1);
+      line-height: var(--type-h1--line-height);
    }
 
    h2 {
-      font-size: var(--text-base);
-      line-height: var(--text-base--line-height);
+      font-size: var(--type-h2);
+      line-height: var(--type-h2--line-height);
    }
 
    h3 {
-      font-size: var(--text-sm);
-      line-height: var(--text-sm--line-height);
+      font-size: var(--type-h3);
+      line-height: var(--type-h3--line-height);
    }
 
    h4 {
-      font-size: var(--text-sm);
-      line-height: var(--text-sm--line-height);
+      font-size: var(--type-h3);
+      line-height: var(--type-h3--line-height);
    }
 
    /* Form fields standing in for headings: the title field of a create
@@ -695,40 +712,35 @@
       step down, but an <input> cannot be an <h1>. The attribute borrows the
       size so the scale still has one home. */
    [data-heading='h1'] {
-      font-size: var(--text-lg);
-      line-height: var(--text-lg--line-height);
+      font-size: var(--type-h1);
+      line-height: var(--type-h1--line-height);
    }
 
    [data-heading='h2'] {
-      font-size: var(--text-base);
-      line-height: var(--text-base--line-height);
+      font-size: var(--type-h2);
+      line-height: var(--type-h2--line-height);
    }
 
    [data-heading='h3'] {
-      font-size: var(--text-sm);
-      line-height: var(--text-sm--line-height);
+      font-size: var(--type-h3);
+      line-height: var(--type-h3--line-height);
    }
 
-   /* Page display titles (task title, and the rare overview emphasis). */
+   /* Page display titles (overview emphasis, hero headings). */
    [data-heading='display'] {
-      font-size: var(--text-3xl);
-      line-height: var(--text-3xl--line-height);
+      font-size: var(--type-display);
+      line-height: var(--type-display--line-height);
    }
 
-   /* Avatar initials, 14px: the one lettering the body size must not reach.
-      The fallback span fills a circle as small as 20px, so at the 16px body
-      size two capitals touch its edges — and unlike a label it cannot wrap or
-      truncate to cope. Line height is 1 for the same reason: the glyphs are
-      centred by the flex box around them, not by a leading. */
+   /* Avatar initials: caption (12px) for standard avatars, micro (11px) for
+      compact 20px actor circles. Line height is 1 so flex centres the glyphs. */
    [data-slot='avatar-fallback'] {
-      font-size: 0.875rem;
+      font-size: var(--type-caption);
       line-height: 1;
    }
 
-   /* A person's initials in ActorAvatar, 11px: that circle is 20px across,
-      so two capitals at 14px crowd its ring. */
    [data-slot='avatar-fallback'][data-actor-initials] {
-      font-size: 0.6875rem;
+      font-size: var(--type-micro);
    }
 
    /* Titles stay on the interface face. Write the words as they should read;
@@ -769,45 +781,34 @@
       font-weight: 700;
    }
 
-   /* Settings type (design_handoff_settings_redesign). The surface sets its
-      own body weight: the handoff is drawn at 400 throughout, where the page
-      boundary in MainLayout drops to 100. Section titles are plain h3s
-      (13 / 600); these cover the steps h1-h4 do not. */
+   /* Settings type — mapped onto the shared 7-step semantic scale (no half-px steps). */
    .settings-surface {
       font-weight: 400;
    }
 
    [data-settings-type='title'] {
-      font-size: 1.25rem;
-      line-height: 1.3;
+      font-size: var(--type-h1);
+      line-height: var(--type-h1--line-height);
       font-weight: 600;
       letter-spacing: -0.01em;
    }
 
-   [data-settings-type='caption'] {
-      font-size: 0.75rem;
-      line-height: 1.45;
-   }
-
-   [data-settings-type='small'] {
-      font-size: 0.71875rem;
-      line-height: 1.3;
-   }
-
+   [data-settings-type='caption'],
+   [data-settings-type='small'],
    [data-settings-type='segment'] {
-      font-size: 0.78125rem;
-      line-height: 1.3;
+      font-size: var(--type-caption);
+      line-height: var(--type-caption--line-height);
    }
 
    [data-settings-type='stat'] {
-      font-size: 1.375rem;
+      font-size: var(--type-h1);
       line-height: 1.2;
       font-weight: 600;
       letter-spacing: -0.02em;
    }
 
    [data-settings-type='stat-lg'] {
-      font-size: 1.5rem;
+      font-size: var(--type-display);
       line-height: 1.2;
       font-weight: 600;
       letter-spacing: -0.02em;
@@ -815,83 +816,66 @@
 
    /* A secondary line under a menu title, one step below the body. */
    [data-caption] {
-      font-size: 0.75rem;
-      line-height: 1rem;
+      font-size: var(--type-caption);
+      line-height: var(--type-caption--line-height);
    }
 
-   /* A task label chip. One step under the body (14px vs 16px) at a semibold
-      weight so coloured pills breathe inside their border and stay legible. */
+   /* A task label chip: caption (12px) at semibold so 26px pills breathe cleanly. */
    [data-label-chip] {
-      font-size: var(--text-2xs);
+      font-size: var(--type-caption);
       line-height: 1.125rem;
       font-weight: 600;
    }
 
-   /* Board cards: tighter title and smaller metadata so titles and dates read
-      cleanly inside 266px Kanban columns. */
+   /* Board cards: body title (14px) and caption metadata (12px). */
    [data-card-title] {
-      font-size: var(--text-2xs);
+      font-size: var(--type-body);
       line-height: 1.35;
    }
 
    [data-card-date],
    [data-board-card] [data-identifier] {
-      font-size: 0.75rem;
-      line-height: 1rem;
+      font-size: var(--type-caption);
+      line-height: var(--type-caption--line-height);
    }
 
-   /* A note riding on a field's top edge, like a legend ("Draft saved" on a
-      comment box). A step under the body, so it reads as a remark about the
-      box rather than as part of what is written in it. */
+   /* A note riding on a field's top edge, like a legend ("Draft saved"). */
    [data-field-legend] {
-      font-size: var(--text-2xs);
-      line-height: 1rem;
+      font-size: var(--type-caption);
+      line-height: var(--type-caption--line-height);
    }
 
-   /* Section labels ("Sub-tasks", "Files", "Activity", and the folds that
-      open a rail or sidebar section).
-
-      The body size, not a step under it. These were 11.5px, which was a
-      readable caption when the body was 13px and is a caption no longer at
-      16px: a label the same colour as nothing else on the surface, three
-      steps smaller than the rows it heads, stopped reading as a heading and
-      started reading as fine print. Weight and the dim tone are what separate
-      a label from its rows now. The detail column and sidebar used to carry
-      their own override of this line for exactly that reason; it is gone,
-      because the base value is the one they wanted. */
+   /* Section labels ("Sub-tasks", "Files", "Activity"): body size at 600. */
    [data-heading='label'] {
-      font-size: var(--text-xs);
-      line-height: var(--text-xs--line-height);
+      font-size: var(--type-body);
+      line-height: var(--type-body--line-height);
       font-weight: 600;
       letter-spacing: 0;
       text-transform: none;
    }
 
-   /* Reasoning in a run transcript. Body size with a loose line height fills
-      the step and cuts a long passage off; the label size keeps more of it
-      in view. */
+   /* Reasoning in a run transcript: caption size keeps more context in view. */
    [data-step-body='prose'] {
-      font-size: 0.75rem;
-      line-height: 1rem;
+      font-size: var(--type-caption);
+      line-height: var(--type-caption--line-height);
    }
 
-   /* A chat message, the agent's reply and the person's bubble alike: the body
-      size, so a reply reads as the page's own text. Replies used to share the
-      transcript's 12px `[data-step-body='prose']`, a size below the bubble
-      beside them. */
+   /* Chat messages match the body size (14px). */
    [data-chat-reply] {
-      font-size: 1rem;
-      line-height: 1.5rem;
+      font-size: var(--type-body);
+      line-height: 1.5;
    }
 
-   /* Review list rows, the run summary, and the diff pane. Identifier,
-      branch, stats, and the unified view share the label size so a
-      review reads as one sheet, not 13px chrome next to 13px code. */
-   [data-review-diff],
+   /* Review list rows and run summary match body (14px); dense code diffs use caption (12px). */
    [data-review-row],
    [data-review-summary] {
-      font-size: 0.75rem;
-      line-height: 1rem;
+      font-size: var(--type-body);
+      line-height: var(--type-body--line-height);
+   }
+
+   [data-review-diff] {
+      font-size: var(--type-caption);
+      line-height: var(--type-caption--line-height);
    }
 
    [data-review-diff] :is(h1, h2, h3, h4, h5, h6, [data-heading], pre, code),
@@ -926,10 +910,10 @@
    /* The phone tab bar's labels: a step under the body so the five fit
       under their icons without crowding. */
    [data-tab-bar] {
-      font-size: 0.75rem;
+      font-size: var(--type-caption);
    }
    [data-tab-badge] {
-      font-size: 0.6875rem;
+      font-size: var(--type-micro);
    }
 
    [data-identifier] {
@@ -978,8 +962,8 @@
    }
 
    [data-auth-title] {
-      font-size: 1.875rem;
-      line-height: 1.15;
+      font-size: var(--type-display);
+      line-height: var(--type-display--line-height);
       letter-spacing: -0.01em;
    }
 
@@ -996,46 +980,14 @@
       pointer-events: none;
    }
 
-   /* Keep the already-compacted sidebar menu on the previous type scale. */
-   [data-slot='sidebar'] {
-      --text-xs: 0.75rem;
-      --text-xs--line-height: 1rem;
-      --text-sm: 0.9375rem;
-      --text-sm--line-height: 1.625rem;
-      --text-base: 1rem;
-      --text-base--line-height: 1.5rem;
-      --text-lg: 1.125rem;
-      --text-lg--line-height: 1.75rem;
-      --text-xl: 1.25rem;
-      --text-xl--line-height: 1.75rem;
-      --text-2xl: 1.5rem;
-      --text-2xl--line-height: 2rem;
-      --text-3xl: 1.875rem;
-      --text-3xl--line-height: 2.25rem;
-      --text-4xl: 2.25rem;
-      --text-4xl--line-height: 2.5rem;
-   }
-
-   /* Rail nav items sit at `--text-base` (1.125rem) in the mobile overlay
-      drawer and step down to 1rem on the desktop column (`md` / 48rem+), where
-      1.125rem reads oversized in the 232px rail. */
+   /* Rail nav items and tab strip titles share the unified body size (14px). */
    [data-shell-nav] {
-      font-size: var(--text-base);
+      font-size: var(--type-body);
       line-height: 1.2;
    }
 
-   @media (min-width: 48rem) {
-      [data-shell-nav] {
-         font-size: 1rem;
-      }
-   }
-
-   /* Tab titles match the rail's items. The strip and the rail are one piece
-      of chrome, and a tab that read smaller than the menu beside it would
-      look like a caption rather than a place you can go back to. The strip is
-      a fixed 34px, which 14px at 1.2 still clears. */
    .tabstrip [role='tab'] {
-      font-size: var(--text-base);
+      font-size: var(--type-body);
       line-height: 1.2;
    }
 
@@ -1237,10 +1189,6 @@ input::-webkit-search-cancel-button {
    cursor: pointer;
 }
 
-input[type='search'] {
-   font-size: 16px !important;
-}
-
 @media (max-width: 767px) {
    :where(
       input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
@@ -1367,16 +1315,15 @@ input[type='search'] {
    }
 }
 
-/* Auth shell: the top-right sign-in/sign-up switch sits one step above the
-   body size so it reads with the wordmark, not as a caption. */
+/* Auth shell: top-right sign-in/sign-up switch uses body size (14px). */
 [data-auth-top] {
-   font-size: 0.9375rem;
-   line-height: 1.45;
+   font-size: var(--type-body);
+   line-height: var(--type-body--line-height);
 }
 
-/* Auth 2FA code cells: digit-sized without a text-* utility on the span. */
+/* Auth 2FA code cells: h1 size (20px) without a text-* utility on the span. */
 [data-auth-code-cell] {
-   font-size: 1.25rem;
+   font-size: var(--type-h1);
    line-height: 1;
 }
 
@@ -1529,42 +1476,26 @@ input[type='search'] {
    line-height: 1.6;
 }
 
-/* A create dialog's description (task, project) is the body of what is being
-   written, so it reads one step up from the 13 px interface text around it. */
-[data-create-description] .tiptap-ai-editor .ProseMirror {
-   font-size: var(--text-base);
-}
-
-/* A task's or project's own page is where its text is read at length, so
-   the description reads a step up from the interface and the title leads. */
+/* Create and detail descriptions share the unified body size (14px). */
+[data-create-description] .tiptap-ai-editor .ProseMirror,
 [data-detail-description] .tiptap-ai-editor .ProseMirror {
-   font-size: var(--text-xs);
+   font-size: var(--type-body);
 }
 
 [data-detail-description] .tiptap-ai-editor .ProseMirror p:empty:not(:only-child) {
    display: none;
 }
 
-[data-detail-title] {
-   font-size: var(--text-xl);
-   line-height: var(--text-xl--line-height);
+[data-detail-title],
+[data-heading][data-create-title] {
+   font-size: var(--type-h1);
+   line-height: var(--type-h1--line-height);
 }
 
-/* The detail column and the properties sidebar beside it read at the body
-   size, 16px: the sections around the description (a project's plan,
-   milestones, tasks and updates; a task's sub-tasks, comments and activity)
-   and the sidebar's own narrow rows (assignee, status, labels, milestone,
-   blocked by, details) are interface, not prose.
-
-   They used to sit one step above the body, which was a 1px lift while the
-   body was 13px. At 16px that step is 18px, large enough to truncate a name
-   in the 292px sidebar and to make a comment read as a heading. The
-   description keeps the step, below, because it is the one text here read at
-   length. A section label lands on the same size as the rows it heads, so
-   weight and the dim tone tell them apart. */
+/* The detail column, properties sidebar, comments and activity read at body (14px). */
 :is([data-detail-sidebar], [data-detail-body]) {
-   font-size: var(--text-xs);
-   line-height: var(--text-xs--line-height);
+   font-size: var(--type-body);
+   line-height: var(--type-body--line-height);
 }
 
 :is([data-detail-sidebar], [data-detail-body])
@@ -1573,23 +1504,13 @@ input[type='search'] {
 }
 
 :is([data-detail-sidebar], [data-detail-body]) [data-heading='label'] {
-   font-size: var(--text-xs);
+   font-size: var(--type-body);
 }
 
-[data-comment-card] {
-   font-size: var(--text-xs);
-   line-height: var(--text-xs--line-height);
-}
-
+[data-comment-card],
 [data-activity-event] {
-   font-size: var(--text-xs);
-   line-height: var(--text-xs--line-height);
-}
-
-/* A create dialog's title sits a step above the h1 scale, so it leads. */
-[data-heading][data-create-title] {
-   font-size: var(--text-xl);
-   line-height: var(--text-xl--line-height);
+   font-size: var(--type-body);
+   line-height: var(--type-body--line-height);
 }
 
 .tiptap-ai-editor .ProseMirror p + p {
@@ -1617,22 +1538,22 @@ input[type='search'] {
 }
 
 .tiptap-ai-editor .ProseMirror h1 {
-   font-size: 1.25rem;
+   font-size: var(--type-h1);
    margin-top: 0.75rem;
 }
 
 .tiptap-ai-editor .ProseMirror h2 {
-   font-size: 1.125rem;
+   font-size: var(--type-h2);
    margin-top: 0.75rem;
 }
 
 .tiptap-ai-editor .ProseMirror h3 {
-   font-size: 1rem;
+   font-size: var(--type-h3);
    margin-top: 0.5rem;
 }
 
 .tiptap-ai-editor .ProseMirror h4 {
-   font-size: 0.875rem;
+   font-size: var(--type-body);
    margin-top: 0.5rem;
 }
 
