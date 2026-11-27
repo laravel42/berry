@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  actorFromRef,
   deriveInitials,
   formatRelativeTime,
   mapApiPriority,
   mapApiStatus,
   mapUiStatusToApi,
+  resolveAvatarSource,
 } from './mappers';
 
 describe('mappers', () => {
@@ -46,5 +48,43 @@ describe('mappers', () => {
     expect(formatRelativeTime('2026-11-25T17:56:00.000Z', now)).toBe('4m');
     expect(formatRelativeTime('2026-11-25T15:00:00.000Z', now)).toBe('3h');
     expect(formatRelativeTime('2026-11-23T18:00:00.000Z', now)).toBe('2d');
+  });
+
+  test('actorFromRef enriches missing avatarUrl from workspace cache', () => {
+    const actor = actorFromRef(
+      { type: 'user', id: 'u-1', name: 'Edo', avatarUrl: null },
+      {
+        'u-1': {
+          id: 'u-1',
+          type: 'user',
+          name: 'Edo',
+          initials: 'ED',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/1?v=4',
+        },
+      },
+    );
+    expect(actor.avatarUrl).toBe('https://avatars.githubusercontent.com/u/1?v=4');
+  });
+
+  test('resolveAvatarSource resolves relative Berry paths with Bearer token and keeps external URLs tokenless', () => {
+    expect(
+      resolveAvatarSource('/api/v1/attachments/abc', 'https://berry.example.com/', 'berry_pat_123'),
+    ).toEqual({
+      uri: 'https://berry.example.com/api/v1/attachments/abc',
+      headers: { Authorization: 'Bearer berry_pat_123' },
+    });
+
+    expect(
+      resolveAvatarSource(
+        'https://avatars.githubusercontent.com/u/42',
+        'https://berry.example.com',
+        'berry_pat_123',
+      ),
+    ).toEqual({
+      uri: 'https://avatars.githubusercontent.com/u/42',
+    });
+
+    expect(resolveAvatarSource('javascript:alert(1)', 'https://berry.example.com', 't')).toBeNull();
+    expect(resolveAvatarSource(null, 'https://berry.example.com', 't')).toBeNull();
   });
 });

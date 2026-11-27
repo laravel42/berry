@@ -155,13 +155,69 @@ export function actorFromAgent(agent: ApiAgent): ActorView {
   };
 }
 
-export function actorFromRef(ref: ApiActorRef | null | undefined): ActorView {
+export function actorFromRef(
+  ref: ApiActorRef | null | undefined,
+  actorsById?: Record<string, ActorView>,
+): ActorView {
   if (!ref) return UNASSIGNED_ACTOR;
+  const cached = actorsById?.[ref.id];
+  const name = ref.name || cached?.name || 'Unknown';
   return {
     id: ref.id,
     type: ref.type,
-    name: ref.name,
-    initials: deriveInitials(ref.name),
-    avatarUrl: ref.avatarUrl,
+    name,
+    initials: deriveInitials(name),
+    avatarUrl: ref.avatarUrl || cached?.avatarUrl || null,
   };
+}
+
+export type AvatarImageSource = {
+  uri: string;
+  headers?: Record<string, string>;
+};
+
+export function resolveAvatarSource(
+  avatarUrl: string | null | undefined,
+  baseUrl?: string | null,
+  token?: string | null,
+): AvatarImageSource | null {
+  const trimmed = avatarUrl?.trim() ?? '';
+  if (!trimmed) return null;
+
+  if (/^data:image\//i.test(trimmed)) {
+    return { uri: trimmed };
+  }
+
+  const cleanBase = baseUrl?.trim().replace(/\/+$/, '') ?? '';
+  if (trimmed.startsWith('/')) {
+    if (!cleanBase) return null;
+    const uri = `${cleanBase}${trimmed}`;
+    if (token && trimmed.startsWith('/api/')) {
+      return { uri, headers: { Authorization: `Bearer ${token}` } };
+    }
+    return { uri };
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    return null;
+  }
+
+  if (cleanBase && token && parsed.pathname.startsWith('/api/')) {
+    try {
+      const baseOrigin = new URL(cleanBase).origin;
+      if (parsed.origin === baseOrigin) {
+        return { uri: parsed.toString(), headers: { Authorization: `Bearer ${token}` } };
+      }
+    } catch {
+      // ignore invalid baseUrl
+    }
+  }
+
+  return { uri: parsed.toString() };
 }
