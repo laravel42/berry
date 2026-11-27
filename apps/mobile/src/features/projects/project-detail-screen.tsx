@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -44,6 +44,7 @@ import {
   STATUS_ORDER_UI,
 } from '@/model/mappers';
 import { useAuthStore } from '@/store/auth-store';
+import { useEventStreamStore } from '@/store/event-stream-store';
 import { useToastStore } from '@/store/toast-store';
 import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors, fonts, radii, typeScale } from '@/theme/tokens';
@@ -116,6 +117,8 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
   const boards = useWorkspaceStore((state) => state.boards);
   const members = useWorkspaceStore((state) => state.members);
   const agents = useWorkspaceStore((state) => state.agents);
+  const projectSyncSeq = useEventStreamStore((state) => state.projectSyncSeq);
+  const lastSeenSyncSeqRef = useRef(projectSyncSeq);
 
   const [activeTab, setActiveTab] = useState<ProjectTab>('overview');
   const [issues, setIssues] = useState<ApiIssue[]>([]);
@@ -233,6 +236,23 @@ export function ProjectDetailScreen({ projectId }: { projectId: string }) {
       active = false;
     };
   }, [fetchAllData]);
+
+  useEffect(() => {
+    if (projectSyncSeq === lastSeenSyncSeqRef.current) return;
+    lastSeenSyncSeqRef.current = projectSyncSeq;
+    let active = true;
+    fetchAllData()
+      .then((result) => {
+        if (!active) return;
+        setIssues(result.issues);
+        setMilestones(result.milestones);
+        setUpdates(result.updates);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [projectSyncSeq, fetchAllData]);
 
   const summary = useMemo(() => summarizeProjectIssues(issues), [issues]);
   const progressPct = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;

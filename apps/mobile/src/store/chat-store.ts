@@ -22,7 +22,10 @@ export type ChatState = {
   refreshing: boolean;
   sending: boolean;
   error: string | null;
-  loadConversations: (client: BerryClient, options?: { silent?: boolean }) => Promise<void>;
+  loadConversations: (
+    client: BerryClient,
+    options?: { silent?: boolean; background?: boolean },
+  ) => Promise<void>;
   loadMessages: (client: BerryClient, conversationId: string) => Promise<void>;
   openWithAgent: (client: BerryClient, agentId: string) => Promise<string | null>;
   createWithAgent: (client: BerryClient, agentId: string, title?: string) => Promise<string | null>;
@@ -42,11 +45,14 @@ export function createChatStore(notify: NotifyFn = (m, t) => useToastStore.getSt
     error: null,
 
     loadConversations: async (client, options) => {
-      set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
+      if (!options?.background) {
+        set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
+      }
       try {
         const conversations = await listConversations(client);
         set({ conversations, loading: false, refreshing: false, error: null });
       } catch (caught) {
+        if (options?.background) return;
         set({
           loading: false,
           refreshing: false,

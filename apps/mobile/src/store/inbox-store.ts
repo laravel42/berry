@@ -26,7 +26,11 @@ export type InboxState = {
   endCursor: string | null;
   setView: (view: InboxStateFilter) => void;
   toggleOnlyNeeds: () => void;
-  load: (client: BerryClient, workspaceId: string, options?: { silent?: boolean }) => Promise<void>;
+  load: (
+    client: BerryClient,
+    workspaceId: string,
+    options?: { silent?: boolean; background?: boolean },
+  ) => Promise<void>;
   refreshUnread: (client: BerryClient, workspaceId: string) => Promise<void>;
   loadMore: (client: BerryClient, workspaceId: string) => Promise<void>;
   toggleRead: (client: BerryClient, workspaceId: string, itemId: string) => Promise<void>;
@@ -63,7 +67,9 @@ export function createInboxStore(notify: NotifyFn = (m, t) => useToastStore.getS
       activeSeq += 1;
       const mySeq = activeSeq;
       const view = get().view;
-      set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
+      if (!options?.background) {
+        set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
+      }
       try {
         const [page, unreadCount] = await Promise.all([
           listInbox(client, { workspaceId, state: view }),
@@ -81,6 +87,7 @@ export function createInboxStore(notify: NotifyFn = (m, t) => useToastStore.getS
         });
       } catch (caught) {
         if (mySeq !== activeSeq) return;
+        if (options?.background) return;
         set({
           loading: false,
           refreshing: false,

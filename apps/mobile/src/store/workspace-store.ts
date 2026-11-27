@@ -2,7 +2,12 @@ import { create } from 'zustand';
 
 import type { BerryClient } from '@/api/client';
 import type { ApiBoard, ApiProject, ApiWorkspace } from '@/api/types';
-import { loadWorkspaceData } from '@/api/workspace';
+import {
+  listCurrentWorkspaceAgents,
+  listWorkspaceMembers,
+  listWorkspaceProjects,
+  loadWorkspaceData,
+} from '@/api/workspace';
 import { actorFromAgent, actorFromMember, type ActorView } from '@/model/mappers';
 
 export type WorkspaceState = {
@@ -16,6 +21,7 @@ export type WorkspaceState = {
   loading: boolean;
   error: string | null;
   loadWorkspace: (client: BerryClient, workspaceId: string) => Promise<void>;
+  refreshDirectory: (client: BerryClient, workspaceId: string) => Promise<void>;
   reset: () => void;
 };
 
@@ -63,6 +69,27 @@ export function createWorkspaceStore() {
           loading: false,
           error: caught instanceof Error ? caught.message : 'Could not load workspace.',
         });
+      }
+    },
+
+    refreshDirectory: async (client, workspaceId) => {
+      const mySeq = activeSeq;
+      try {
+        const [rawMembers, rawAgents, projects] = await Promise.all([
+          listWorkspaceMembers(client, workspaceId),
+          listCurrentWorkspaceAgents(client),
+          listWorkspaceProjects(client, workspaceId),
+        ]);
+        if (mySeq !== activeSeq) return;
+        const members = rawMembers.map(actorFromMember);
+        const agents = rawAgents.map(actorFromAgent);
+        const actorsById: Record<string, ActorView> = {};
+        for (const actor of [...members, ...agents]) {
+          actorsById[actor.id] = actor;
+        }
+        set({ members, agents, projects, actorsById });
+      } catch {
+        // Silent background SSE sync.
       }
     },
 

@@ -16,7 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BerryMark } from '@/components/berry-mark';
 import { AppText } from '@/components/text';
 import { ToastHost } from '@/components/toast';
-import { useForegroundRefresh } from '@/hooks/use-foreground-refresh';
+import { useWorkspaceEventStream } from '@/hooks/use-workspace-event-stream';
 import {
   configureNotifications,
   notifyInboxItemsLocally,
@@ -25,6 +25,7 @@ import {
 import { findNewUnreadInboxItems } from '@/lib/notifications-logic';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
+import { useEventStreamStore } from '@/store/event-stream-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
 import { useNotificationsStore } from '@/store/notifications-store';
@@ -54,13 +55,14 @@ export default function RootLayout() {
   const inboxItems = useInboxStore((state) => state.items);
   const resetIssues = useIssuesStore((state) => state.reset);
   const resetChat = useChatStore((state) => state.reset);
+  const resetEventStream = useEventStreamStore((state) => state.reset);
   const inboxAlertsEnabled = useNotificationsStore((state) => state.inboxAlertsEnabled);
   const refreshNotifPermission = useNotificationsStore((state) => state.refreshPermission);
   const seenInboxIdsRef = useRef<Set<string> | null>(null);
   const router = useRouter();
   const segments = useSegments();
 
-  useForegroundRefresh();
+  useWorkspaceEventStream();
 
   useEffect(() => {
     configureNotifications();
@@ -78,14 +80,26 @@ export default function RootLayout() {
     seenInboxIdsRef.current = null;
     if (status === 'signed_in' && client && currentWorkspaceId) {
       resetIssues();
+      resetEventStream();
       void loadWorkspace(client, currentWorkspaceId);
     } else if (status === 'signed_out') {
       resetWorkspace();
       resetInbox();
       resetIssues();
       resetChat();
+      resetEventStream();
     }
-  }, [status, client, currentWorkspaceId, loadWorkspace, resetWorkspace, resetInbox, resetIssues, resetChat]);
+  }, [
+    status,
+    client,
+    currentWorkspaceId,
+    loadWorkspace,
+    resetWorkspace,
+    resetInbox,
+    resetIssues,
+    resetChat,
+    resetEventStream,
+  ]);
 
   useEffect(() => {
     if (status !== 'signed_in' || inboxItems.length === 0) return;

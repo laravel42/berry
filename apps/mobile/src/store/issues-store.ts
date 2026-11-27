@@ -63,9 +63,14 @@ type IssuesState = {
   loadIssues: (
     client: BerryClient,
     boardIds: string[],
-    options?: { silent?: boolean; userId?: string | null },
+    options?: { silent?: boolean; background?: boolean; userId?: string | null },
   ) => Promise<void>;
-  loadIssueDetail: (client: BerryClient, workspaceId: string, issueRef: string) => Promise<void>;
+  loadIssueDetail: (
+    client: BerryClient,
+    workspaceId: string,
+    issueRef: string,
+    options?: { background?: boolean },
+  ) => Promise<void>;
   loadProjectMilestones: (
     client: BerryClient,
     workspaceId: string,
@@ -133,7 +138,9 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
       set({ issues: [], loading: false, refreshing: false, error: null });
       return;
     }
-    set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
+    if (!options?.background) {
+      set(options?.silent ? { refreshing: true, error: null } : { loading: true, error: null });
+    }
     try {
       const requests = boardIds.flatMap((boardId) => {
         const calls = [listAllBoardIssues(client, boardId)];
@@ -157,6 +164,7 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
       const merged = Array.from(map.values()).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
       set({ issues: merged, loading: false, refreshing: false, error: null });
     } catch (caught) {
+      if (options?.background) return;
       set({
         loading: false,
         refreshing: false,
@@ -165,9 +173,9 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
     }
   },
 
-  loadIssueDetail: async (client, workspaceId, issueRef) => {
+  loadIssueDetail: async (client, workspaceId, issueRef, options) => {
     const existing = get().detailsById[issueRef];
-    if (existing) {
+    if (existing && !options?.background) {
       set((state) => ({
         detailsById: {
           ...state.detailsById,
