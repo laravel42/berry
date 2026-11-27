@@ -19,8 +19,11 @@ import {
   restartIssueRun,
   sendBackIssue,
   setCommentResolved,
+  setIssueLabels,
   toggleCommentReaction as toggleCommentReactionApi,
 } from '@/api/issues';
+import { listProjectMilestones, type ApiMilestone } from '@/api/projects';
+import { listWorkspaceLabels } from '@/api/settings';
 import type {
   ApiActivityItem,
   ApiApproval,
@@ -53,6 +56,8 @@ type IssuesState = {
   refreshing: boolean;
   error: string | null;
   detailsById: Record<string, IssueDetailBundle>;
+  milestonesByProjectId: Record<string, ApiMilestone[]>;
+  workspaceLabels: ApiIssueLabel[];
   busyAction: boolean;
   setMineTab: (tab: MineTab) => void;
   loadIssues: (
@@ -61,6 +66,17 @@ type IssuesState = {
     options?: { silent?: boolean; userId?: string | null },
   ) => Promise<void>;
   loadIssueDetail: (client: BerryClient, workspaceId: string, issueRef: string) => Promise<void>;
+  loadProjectMilestones: (
+    client: BerryClient,
+    workspaceId: string,
+    projectId: string,
+  ) => Promise<ApiMilestone[]>;
+  loadWorkspaceLabels: (client: BerryClient, workspaceId: string) => Promise<ApiIssueLabel[]>;
+  updateIssueLabels: (
+    client: BerryClient,
+    issueId: string,
+    labelIds: string[],
+  ) => Promise<boolean>;
   upsertIssue: (issue: ApiIssue) => void;
   updateIssue: (
     client: BerryClient,
@@ -106,6 +122,8 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
   refreshing: false,
   error: null,
   detailsById: {},
+  milestonesByProjectId: {},
+  workspaceLabels: [],
   busyAction: false,
 
   setMineTab: (mineTab) => set({ mineTab }),
@@ -190,6 +208,12 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
         loading: false,
         error: null,
       };
+      let projectMilestones: ApiMilestone[] | null = null;
+      if (issue.project?.id) {
+        projectMilestones = await listProjectMilestones(client, workspaceId, issue.project.id).catch(
+          () => null,
+        );
+      }
       set((state) => ({
         issues: state.issues.some((x) => x.id === issue.id)
           ? state.issues.map((x) => (x.id === issue.id ? issue : x))
@@ -199,6 +223,10 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
           [issueRef]: bundle,
           [issue.id]: bundle,
         },
+        milestonesByProjectId:
+          issue.project?.id && projectMilestones
+            ? { ...state.milestonesByProjectId, [issue.project.id]: projectMilestones }
+            : state.milestonesByProjectId,
       }));
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Could not load task details.';
@@ -218,6 +246,71 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
           },
         },
       }));
+    }
+  },
+
+  loadProjectMilestones: async (client, workspaceId, projectId) => {
+    try {
+      const nodes = await listProjectMilestones(client, workspaceId, projectId);
+      set((state) => ({
+        milestonesByProjectId: {
+          ...state.milestonesByProjectId,
+          [projectId]: nodes,
+        },
+      }));
+      return nodes;
+    } catch {
+      return get().milestonesByProjectId[projectId] ?? [];
+    }
+  },
+
+  loadWorkspaceLabels: async (client, workspaceId) => {
+    try {
+      const nodes = await listWorkspaceLabels(client, workspaceId);
+      const active = nodes.filter((label) => !label.archivedAt);
+      set({ workspaceLabels: active });
+      return active;
+    } catch {
+      return get().workspaceLabels;
+    }
+  },
+
+  updateIssueLabels: async (client, issueId, labelIds) => {
+    set({ busyAction: true });
+    try {
+      const nextLabels = await setIssueLabels(client, issueId, labelIds);
+      set((state) => {
+        const nextDetails = { ...state.detailsById };
+        for (const [key, bundle] of Object.entries(nextDetails)) {
+          if (key === issueId || bundle.issue?.id === issueId) {
+            nextDetails[key] = { ...bundle, labels: nextLabels };
+          }
+        }
+        return {
+          busyAction: false,
+          detailsById: nextDetails,
+        };
+      });
+      void listIssueActivity(client, issueId)
+        .then((activity) => {
+          set((state) => {
+            const nextDetails = { ...state.detailsById };
+            for (const [key, bundle] of Object.entries(nextDetails)) {
+              if (key === issueId || bundle.issue?.id === issueId) {
+                nextDetails[key] = { ...bundle, activity };
+              }
+            }
+            return { detailsById: nextDetails };
+          });
+        })
+        .catch(() => undefined);
+      return true;
+    } catch (caught) {
+      set({ busyAction: false });
+      useToastStore
+        .getState()
+        .showToast(caught instanceof Error ? caught.message : 'Could not update labels.', 'danger');
+      return false;
     }
   },
 
@@ -248,6 +341,19 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
           detailsById: nextDetails,
         };
       });
+      void listIssueActivity(client, updated.id)
+        .then((activity) => {
+          set((state) => {
+            const nextDetails = { ...state.detailsById };
+            for (const [key, bundle] of Object.entries(nextDetails)) {
+              if (key === issueId || key === updated.id || bundle.issue?.id === updated.id) {
+                nextDetails[key] = { ...bundle, activity };
+              }
+            }
+            return { detailsById: nextDetails };
+          });
+        })
+        .catch(() => undefined);
       return true;
     } catch (caught) {
       set({ busyAction: false });
@@ -457,6 +563,8 @@ export const useIssuesStore = create<IssuesState>((set, get) => ({
       refreshing: false,
       error: null,
       detailsById: {},
+      milestonesByProjectId: {},
+      workspaceLabels: [],
       busyAction: false,
     }),
 }));

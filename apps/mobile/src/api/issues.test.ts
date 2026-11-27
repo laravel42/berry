@@ -5,14 +5,19 @@ import type { ApiIssue } from '@/api/types';
 import { formatRelativeTime } from '@/model/mappers';
 
 import {
+  addDaysToDateInput,
   createIssueComment,
+  isoToDateInput,
   listAllBoardIssues,
   listBoardIssues,
   listCommentReactions,
   listIssueLabels,
+  patchIssue,
   sendBackIssue,
   setCommentResolved,
+  setIssueLabels,
   splitMyIssues,
+  toNoonUtcIso,
   toggleCommentReaction,
 } from './issues';
 
@@ -320,5 +325,76 @@ describe('issues API', () => {
         body: null,
       },
     ]);
+  });
+
+  test('setIssueLabels sends PUT /api/v1/issues/:ref/labels with labelIds', async () => {
+    let seenMethod = '';
+    let seenPath = '';
+    let seenBody: unknown = null;
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (input, init) => {
+        seenMethod = init?.method ?? '';
+        seenPath = new URL(String(input)).pathname;
+        seenBody = init?.body ? JSON.parse(String(init.body)) : null;
+        return jsonResponse({
+          nodes: [
+            { id: 'lbl-1', name: 'Bug', color: '#E0645A', description: null, archivedAt: null },
+          ],
+        });
+      },
+    });
+
+    const nodes = await setIssueLabels(client, 'issue-1', ['lbl-1']);
+    expect(seenMethod).toBe('PUT');
+    expect(seenPath).toBe('/api/v1/issues/issue-1/labels');
+    expect(seenBody).toEqual({ labelIds: ['lbl-1'] });
+    expect(nodes[0]?.name).toBe('Bug');
+  });
+
+  test('patchIssue sends assignee, projectId, milestoneId, and dates cleanly', async () => {
+    let seenMethod = '';
+    let seenBody: unknown = null;
+    const client = createBerryClient({
+      baseUrl: 'https://berry.example.com',
+      token: 'berry_pat_test',
+      fetchImpl: async (_input, init) => {
+        seenMethod = init?.method ?? '';
+        seenBody = init?.body ? JSON.parse(String(init.body)) : null;
+        return jsonResponse(
+          makeIssue({
+            assignee: { type: 'user', id: 'u-2', name: 'Mariana', avatarUrl: null },
+            project: { id: 'p-1', name: 'Billing' },
+            milestone: { id: 'm-1', title: 'Beta' },
+            dueDate: '2026-11-30T12:00:00.000Z',
+          }),
+        );
+      },
+    });
+
+    const updated = await patchIssue(client, 'issue-1', {
+      assignee: { type: 'user', id: 'u-2' },
+      projectId: 'p-1',
+      milestoneId: 'm-1',
+      dueDate: toNoonUtcIso('2026-11-30'),
+    });
+    expect(seenMethod).toBe('PATCH');
+    expect(seenBody).toEqual({
+      assignee: { type: 'user', id: 'u-2' },
+      projectId: 'p-1',
+      milestoneId: 'm-1',
+      dueDate: '2026-11-30T12:00:00.000Z',
+    });
+    expect(updated.milestone?.id).toBe('m-1');
+  });
+
+  test('date input helpers validate calendar dates and format noon UTC ISO', () => {
+    expect(toNoonUtcIso('2026-11-27')).toBe('2026-11-27T12:00:00.000Z');
+    expect(toNoonUtcIso('2026-02-30')).toBeNull();
+    expect(toNoonUtcIso('invalid')).toBeNull();
+    expect(isoToDateInput('2026-11-27T12:00:00.000Z')).toBe('2026-11-27');
+    expect(isoToDateInput(null)).toBe('');
+    expect(addDaysToDateInput(3, new Date(2026, 10, 27))).toBe('2026-11-30');
   });
 });

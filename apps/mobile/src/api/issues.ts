@@ -182,6 +182,54 @@ export async function listIssueLabels(
   return res.nodes;
 }
 
+export async function setIssueLabels(
+  client: BerryClient,
+  issueRef: string,
+  labelIds: string[],
+): Promise<ApiIssueLabel[]> {
+  const res = await client.request<{ nodes: ApiIssueLabel[] }>(
+    `/api/v1/issues/${encodeURIComponent(issueRef)}/labels`,
+    { method: 'PUT', body: { labelIds } },
+  );
+  return Array.isArray(res?.nodes) ? res.nodes : [];
+}
+
+/**
+ * Converts a YYYY-MM-DD calendar date string into an RFC 3339 noon UTC timestamp,
+ * avoiding timezone-shift bugs across UTC offsets. Returns null if invalid.
+ */
+export function toNoonUtcIso(dateInput: string): string | null {
+  const trimmed = dateInput.trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const check = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+  if (
+    check.getUTCFullYear() !== year ||
+    check.getUTCMonth() !== month - 1 ||
+    check.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return check.toISOString();
+}
+
+export function isoToDateInput(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(iso.trim());
+  if (match?.[1]) return match[1];
+  const parsed = Date.parse(iso);
+  if (Number.isNaN(parsed)) return '';
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+export function addDaysToDateInput(days: number, now: Date = new Date()): string {
+  const utc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + days, 12);
+  return new Date(utc).toISOString().slice(0, 10);
+}
+
 export async function restartIssueRun(client: BerryClient, issueRef: string): Promise<void> {
   await client.post<unknown>(
     `/api/v1/issues/${encodeURIComponent(issueRef)}/runs/restart`,

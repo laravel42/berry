@@ -14,12 +14,17 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { ApiComment, ApiIssuePriority, ApiReactionGroup } from '@/api/types';
+import type { ApiActorRef, ApiComment, ApiIssuePriority, ApiReactionGroup } from '@/api/types';
 import { Avatar } from '@/components/avatar';
 import { StatusMark } from '@/components/berry-mark';
 import { Icon } from '@/components/icon';
 import { PriorityBars } from '@/components/priority-bars';
 import { AppText } from '@/components/text';
+import { Toggle } from '@/components/toggle';
+import {
+  IssuePropertySheetModal,
+  type PropertyPickerKind,
+} from '@/features/tasks/issue-property-sheets';
 import {
   PRIORITY_META,
   STATUS_META,
@@ -36,6 +41,7 @@ import {
 import { useAuthStore } from '@/store/auth-store';
 import { useInboxStore } from '@/store/inbox-store';
 import { useIssuesStore } from '@/store/issues-store';
+import { useWorkspaceStore } from '@/store/workspace-store';
 import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
 type TimelineRow =
@@ -58,18 +64,6 @@ type TimelineRow =
 type ActivityFilter = 'all' | 'comments';
 
 const QUICK_EMOJI = ['👍', '🎉', '❤️', '👀', '🚀', '😄'] as const;
-
-const STATUS_PICKER_ORDER: IssueStatusUi[] = [
-  'backlog',
-  'todo',
-  'in_progress',
-  'in_review',
-  'blocked',
-  'done',
-  'cancelled',
-];
-
-const PRIORITY_PICKER_ORDER: ApiIssuePriority[] = ['urgent', 'high', 'medium', 'low', 'none'];
 
 const SHORT_MONTHS = [
   'Jan',
@@ -127,8 +121,13 @@ export function IssueScreen() {
   const detail = useIssuesStore((state) => (id ? state.detailsById[id] : undefined));
   const fallbackIssue = useIssuesStore((state) => state.issues.find((item) => item.id === id));
   const busyAction = useIssuesStore((state) => state.busyAction);
+  const milestonesByProjectId = useIssuesStore((state) => state.milestonesByProjectId);
+  const workspaceLabels = useIssuesStore((state) => state.workspaceLabels);
   const loadIssueDetail = useIssuesStore((state) => state.loadIssueDetail);
+  const loadProjectMilestones = useIssuesStore((state) => state.loadProjectMilestones);
+  const loadWorkspaceLabels = useIssuesStore((state) => state.loadWorkspaceLabels);
   const updateIssue = useIssuesStore((state) => state.updateIssue);
+  const updateIssueLabels = useIssuesStore((state) => state.updateIssueLabels);
   const addComment = useIssuesStore((state) => state.addComment);
   const toggleResolveComment = useIssuesStore((state) => state.toggleResolveComment);
   const toggleCommentReaction = useIssuesStore((state) => state.toggleCommentReaction);
@@ -136,6 +135,11 @@ export function IssueScreen() {
   const sendBack = useIssuesStore((state) => state.sendBack);
   const decideApproval = useIssuesStore((state) => state.decideApproval);
   const retryRun = useIssuesStore((state) => state.retryRun);
+
+  const members = useWorkspaceStore((state) => state.members);
+  const agents = useWorkspaceStore((state) => state.agents);
+  const projects = useWorkspaceStore((state) => state.projects);
+  const actorsById = useWorkspaceStore((state) => state.actorsById);
 
   const setRead = useInboxStore((state) => state.setRead);
   const archive = useInboxStore((state) => state.archive);
@@ -148,7 +152,9 @@ export function IssueScreen() {
   const [reactionTargetId, setReactionTargetId] = useState<string | null>(null);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
-  const [picker, setPicker] = useState<'status' | 'priority' | null>(null);
+  const [picker, setPicker] = useState<PropertyPickerKind | null>(null);
+  const [milestonesLoading, setMilestonesLoading] = useState(false);
+  const [labelsLoading, setLabelsLoading] = useState(false);
   const [inboxBusy, setInboxBusy] = useState(false);
 
   useEffect(() => {
@@ -268,7 +274,10 @@ export function IssueScreen() {
   const statusUi = mapApiStatus(issue.status);
   const statusMeta = STATUS_META[statusUi];
   const priorityUi = mapApiPriority(issue.priority);
-  const assigneeActor = actorFromRef(issue.assignee);
+  const assigneeActor = actorFromRef(issue.assignee, actorsById);
+  const projectMilestones = issue.project?.id
+    ? (milestonesByProjectId[issue.project.id] ?? [])
+    : [];
   const showReview = statusUi === 'in_review';
   const showApproval = Boolean(pendingApproval) && !showReview;
   const showRetry =
@@ -332,13 +341,80 @@ export function IssueScreen() {
     void updateIssue(client, issue.id, { priority: next });
   };
 
+  const handleAssigneeSelect = (next: ApiActorRef | null) => {
+    setPicker(null);
+    if (!client) return;
+    const currentKey = issue.assignee ? `${issue.assignee.type}:${issue.assignee.id}` : null;
+    const nextKey = next ? `${next.type}:${next.id}` : null;
+    if (currentKey === nextKey) return;
+    void updateIssue(client, issue.id, {
+      assignee: next ? { type: next.type, id: next.id } : null,
+    });
+  };
+
+  const handleProjectSelect = (projectId: string | null) => {
+    setPicker(null);
+    if (!client || (projectId ?? null) === (issue.project?.id ?? null)) return;
+    const patch: Record<string, unknown> = { projectId };
+    if (issue.milestone) {
+      patch.milestoneId = null;
+    }
+    void updateIssue(client, issue.id, patch);
+  };
+
+  const handleMilestoneSelect = (milestoneId: string | null) => {
+    setPicker(null);
+    if (!client || (milestoneId ?? null) === (issue.milestone?.id ?? null)) return;
+    void updateIssue(client, issue.id, { milestoneId });
+  };
+
+  const openMilestonePicker = () => {
+    if (!client || busyAction || !issue.project?.id || !workspaceId) return;
+    setPicker('milestone');
+    setMilestonesLoading(true);
+    void loadProjectMilestones(client, workspaceId, issue.project.id).finally(() => {
+      setMilestonesLoading(false);
+    });
+  };
+
+  const openLabelsPicker = () => {
+    if (!client || busyAction || !workspaceId) return;
+    setPicker('labels');
+    setLabelsLoading(true);
+    void loadWorkspaceLabels(client, workspaceId).finally(() => {
+      setLabelsLoading(false);
+    });
+  };
+
+  const handleApplyLabels = (nextLabelIds: string[]) => {
+    setPicker(null);
+    if (!client) return;
+    const currentIds = labels.map((l) => l.id).sort();
+    const sortedNext = [...nextLabelIds].sort();
+    if (
+      currentIds.length === sortedNext.length &&
+      currentIds.every((val, idx) => val === sortedNext[idx])
+    ) {
+      return;
+    }
+    void updateIssueLabels(client, issue.id, nextLabelIds);
+  };
+
+  const handleSaveDates = (startDate: string | null, dueDate: string | null) => {
+    setPicker(null);
+    if (!client) return;
+    void updateIssue(client, issue.id, { startDate, dueDate });
+  };
+
+  const canEdit = Boolean(client && !busyAction);
+
   const propertyRows: { key: string; node: ReactNode }[] = [
     {
       key: 'status',
       node: (
         <PropRow
           label="Status"
-          onPress={client && !busyAction ? () => setPicker('status') : undefined}
+          onPress={canEdit ? () => setPicker('status') : undefined}
           chevron>
           <StatusMark status={statusUi} />
           <AppText variant="body">{statusMeta.label}</AppText>
@@ -350,7 +426,7 @@ export function IssueScreen() {
       node: (
         <PropRow
           label="Priority"
-          onPress={client && !busyAction ? () => setPicker('priority') : undefined}
+          onPress={canEdit ? () => setPicker('priority') : undefined}
           chevron>
           <PriorityBars priority={priorityUi} />
           <AppText variant="body">{PRIORITY_META[priorityUi].label}</AppText>
@@ -360,9 +436,14 @@ export function IssueScreen() {
     {
       key: 'assignee',
       node: (
-        <PropRow label="Assignee">
+        <PropRow
+          label="Assignee"
+          onPress={canEdit ? () => setPicker('assignee') : undefined}
+          chevron>
           <Avatar actor={assigneeActor} size={22} />
-          <AppText variant="body">{assigneeActor.name}</AppText>
+          <AppText variant="body" tone={issue.assignee ? 'chalk' : 'slate'} numberOfLines={1}>
+            {assigneeActor.name}
+          </AppText>
           {assigneeActor.type === 'agent' ? (
             <View style={styles.metaPill}>
               <AppText mono variant="micro" weight="medium" tone="ash">
@@ -373,43 +454,46 @@ export function IssueScreen() {
         </PropRow>
       ),
     },
-  ];
-
-  if (issue.project) {
-    const project = issue.project;
-    propertyRows.push({
+    {
       key: 'project',
       node: (
         <PropRow
           label="Project"
-          onPress={() => router.push(`/project/${project.id}` as Href)}
+          onPress={canEdit ? () => setPicker('project') : undefined}
           chevron>
-          <AppText variant="body" numberOfLines={1}>
-            {project.name}
+          <AppText variant="body" tone={issue.project ? 'chalk' : 'slate'} numberOfLines={1}>
+            {issue.project?.name ?? 'No project'}
           </AppText>
         </PropRow>
       ),
-    });
-  }
+    },
+  ];
 
-  if (issue.milestone) {
+  if (issue.project) {
     propertyRows.push({
       key: 'milestone',
       node: (
-        <PropRow label="Milestone">
-          <AppText variant="body" numberOfLines={1}>
-            {issue.milestone.title}
+        <PropRow
+          label="Milestone"
+          onPress={canEdit ? openMilestonePicker : undefined}
+          chevron>
+          <AppText variant="body" tone={issue.milestone ? 'chalk' : 'slate'} numberOfLines={1}>
+            {issue.milestone?.title ?? 'No milestone'}
           </AppText>
         </PropRow>
       ),
     });
   }
 
-  if (labels.length > 0) {
-    propertyRows.push({
-      key: 'labels',
-      node: (
-        <PropRow label="Labels" alignTop>
+  propertyRows.push({
+    key: 'labels',
+    node: (
+      <PropRow
+        label="Labels"
+        alignTop={labels.length > 0}
+        onPress={canEdit ? openLabelsPicker : undefined}
+        chevron>
+        {labels.length > 0 ? (
           <View style={styles.labelsWrap}>
             {labels.map((label) => (
               <View key={label.id} style={styles.labelChip}>
@@ -420,23 +504,28 @@ export function IssueScreen() {
               </View>
             ))}
           </View>
-        </PropRow>
-      ),
-    });
-  }
-
-  if (datesText) {
-    propertyRows.push({
-      key: 'dates',
-      node: (
-        <PropRow label="Dates">
-          <AppText mono variant="caption" tone="chalk">
-            {datesText}
+        ) : (
+          <AppText variant="body" tone="slate">
+            No labels
           </AppText>
-        </PropRow>
-      ),
-    });
-  }
+        )}
+      </PropRow>
+    ),
+  });
+
+  propertyRows.push({
+    key: 'dates',
+    node: (
+      <PropRow
+        label="Dates"
+        onPress={canEdit ? () => setPicker('dates') : undefined}
+        chevron>
+        <AppText mono={Boolean(datesText)} variant={datesText ? 'caption' : 'body'} tone={datesText ? 'chalk' : 'slate'}>
+          {datesText || 'No dates'}
+        </AppText>
+      </PropRow>
+    ),
+  });
 
   if (repoName) {
     propertyRows.push({
@@ -464,16 +553,20 @@ export function IssueScreen() {
     });
   }
 
-  if (issue.autoGate) {
+  if (issue.assignee?.type === 'agent' || issue.autoGate) {
     propertyRows.push({
       key: 'autogate',
       node: (
         <PropRow label="AutoGate">
-          <View style={styles.metaPill}>
-            <AppText mono variant="micro" weight="medium" tone="ash">
-              Enabled
-            </AppText>
-          </View>
+          <Toggle
+            value={Boolean(issue.autoGate)}
+            disabled={!canEdit}
+            accessibilityLabel="AutoGate delegated release"
+            onValueChange={(next) => {
+              if (!client) return;
+              void updateIssue(client, issue.id, { autoGate: next });
+            }}
+          />
         </PropRow>
       ),
     });
@@ -1062,82 +1155,34 @@ export function IssueScreen() {
         ) : null}
       </View>
 
-      <Modal
-        visible={picker !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setPicker(null)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setPicker(null)}>
-          <Pressable
-            style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 16) }]}
-            onPress={() => undefined}>
-            <View style={styles.sheetGrabber} />
-            <View style={styles.sheetHeader}>
-              <AppText variant="h3" weight="medium" tone="chalk">
-                {picker === 'status' ? 'Set status' : 'Set priority'}
-              </AppText>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                onPress={() => setPicker(null)}
-                style={styles.sheetCloseBtn}>
-                <Icon name="close" size={18} color={colors.ash} />
-              </Pressable>
-            </View>
-            <View style={styles.sheetOptions}>
-              {picker === 'status'
-                ? STATUS_PICKER_ORDER.map((candidate) => {
-                    const active = candidate === statusUi;
-                    return (
-                      <Pressable
-                        key={candidate}
-                        accessibilityRole="button"
-                        onPress={() => handleStatusSelect(candidate)}
-                        style={({ pressed }) => [
-                          styles.sheetOption,
-                          active && styles.sheetOptionActive,
-                          pressed && styles.sheetOptionPressed,
-                        ]}>
-                        <StatusMark status={candidate} />
-                        <AppText
-                          variant="body"
-                          weight={active ? 'medium' : 'regular'}
-                          tone="chalk"
-                          style={styles.copy}>
-                          {STATUS_META[candidate].label}
-                        </AppText>
-                        {active ? <Icon name="check" size={16} color={colors.chalk} /> : null}
-                      </Pressable>
-                    );
-                  })
-                : PRIORITY_PICKER_ORDER.map((candidate) => {
-                    const active = candidate === priorityUi;
-                    return (
-                      <Pressable
-                        key={candidate}
-                        accessibilityRole="button"
-                        onPress={() => handlePrioritySelect(candidate)}
-                        style={({ pressed }) => [
-                          styles.sheetOption,
-                          active && styles.sheetOptionActive,
-                          pressed && styles.sheetOptionPressed,
-                        ]}>
-                        <PriorityBars priority={candidate} />
-                        <AppText
-                          variant="body"
-                          weight={active ? 'medium' : 'regular'}
-                          tone="chalk"
-                          style={styles.copy}>
-                          {PRIORITY_META[candidate].label}
-                        </AppText>
-                        {active ? <Icon name="check" size={16} color={colors.chalk} /> : null}
-                      </Pressable>
-                    );
-                  })}
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <IssuePropertySheetModal
+        picker={picker}
+        bottomInset={insets.bottom}
+        issue={issue}
+        statusUi={statusUi}
+        priorityUi={priorityUi}
+        members={members}
+        agents={agents}
+        projects={projects}
+        milestones={projectMilestones}
+        milestonesLoading={milestonesLoading}
+        availableLabels={workspaceLabels}
+        labelsLoading={labelsLoading}
+        issueLabels={labels}
+        busy={busyAction}
+        onClose={() => setPicker(null)}
+        onSelectStatus={handleStatusSelect}
+        onSelectPriority={handlePrioritySelect}
+        onSelectAssignee={handleAssigneeSelect}
+        onSelectProject={handleProjectSelect}
+        onOpenProject={(projectId) => {
+          setPicker(null);
+          router.push(`/project/${projectId}` as Href);
+        }}
+        onSelectMilestone={handleMilestoneSelect}
+        onApplyLabels={handleApplyLabels}
+        onSaveDates={handleSaveDates}
+      />
       <Modal
         visible={reactionTargetId !== null}
         transparent
@@ -1758,24 +1803,6 @@ const styles = StyleSheet.create({
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  sheetOptions: {
-    gap: 2,
-    paddingBottom: 6,
-  },
-  sheetOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  sheetOptionActive: {
-    backgroundColor: colors.base,
-    borderColor: colors.hair,
   },
   sheetOptionPressed: {
     opacity: 0.85,
