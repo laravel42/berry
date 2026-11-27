@@ -161,11 +161,13 @@ function ProjectPropertiesPanelCompact({ project }: { project: Project }) {
 
    return (
       <div className="flex h-full min-h-0 flex-col">
-         <div className="flex min-h-0 flex-1 flex-col gap-7 overflow-y-auto">
+         <div className="no-scrollbar -mx-2 flex min-h-0 flex-1 flex-col gap-7 overflow-x-hidden overflow-y-auto px-2">
             <SidebarSection title="Properties">
-               {/* `!`: Button's size padding is not merged with a caller's
-                   `px-0`, so only an important override reaches the edge. */}
-               <div className="flex flex-col [&_button]:pl-0!">
+               {/* Outset the row list by 6px and give each button matching left
+                   padding so avatars/rings never clip against the scroll edge
+                   and sit cleanly inside the pill on hover while staying aligned
+                   with the section heading. */}
+               <div className="-mx-1.5 flex flex-col [&_button]:pl-1.5!">
                   <div className="flex min-w-0 items-center">
                      <LeadPicker
                         lead={project.lead}
