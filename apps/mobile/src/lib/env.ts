@@ -42,3 +42,13 @@ export function normalizeServerUrl(raw: string): NormalizeServerUrlResult {
   const normalizedPath = parsed.pathname.replace(/\/+$/, '');
   return { ok: true, url: `${parsed.origin}${normalizedPath}` };
 }
+
+export function formatServerHost(url: string): string {
+  const normalized = normalizeServerUrl(url);
+  if (!normalized.ok) return url.trim();
+  try {
+    return new URL(normalized.url).host;
+  } catch {
+    return normalized.url;
+  }
+}

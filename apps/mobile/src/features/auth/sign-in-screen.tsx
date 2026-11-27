@@ -21,7 +21,7 @@ import {
 import { BerryMark } from '@/components/berry-mark';
 import { Segmented } from '@/components/segmented';
 import { AppText } from '@/components/text';
-import { defaultServerUrl, normalizeServerUrl } from '@/lib/env';
+import { defaultServerUrl, formatServerHost, normalizeServerUrl } from '@/lib/env';
 import { useAuthStore } from '@/store/auth-store';
 import { colors, fonts, radii, typeScale } from '@/theme/tokens';
 
@@ -36,6 +36,9 @@ export function SignInScreen() {
 
   const [mode, setMode] = useState<AuthMode>('email');
   const [serverUrl, setServerUrl] = useState(() => storedBaseUrl || defaultServerUrl());
+  const [editingServer, setEditingServer] = useState(
+    () => !normalizeServerUrl(storedBaseUrl || defaultServerUrl()).ok,
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -53,6 +56,7 @@ export function SignInScreen() {
     setError(null);
     const normalized = normalizeServerUrl(serverUrl);
     if (!normalized.ok) {
+      setEditingServer(true);
       setError(normalized.error);
       return;
     }
@@ -127,6 +131,7 @@ export function SignInScreen() {
     setError(null);
     const normalized = normalizeServerUrl(serverUrl);
     if (!normalized.ok) {
+      setEditingServer(true);
       setError(normalized.error);
       return;
     }
@@ -200,22 +205,37 @@ export function SignInScreen() {
           </View>
         ) : null}
 
-        <View style={styles.field}>
-          <AppText variant="caption" tone="ash">
-            Server URL
-          </AppText>
-          <TextInput
-            value={serverUrl}
-            onChangeText={setServerUrl}
-            placeholder="https://berry.example.com"
-            placeholderTextColor={colors.placeholder}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            editable={!submitting}
-            style={styles.input}
-          />
-        </View>
+        {editingServer ? (
+          <View style={styles.field}>
+            <View style={styles.labelRow}>
+              <AppText variant="caption" tone="ash">
+                Server URL
+              </AppText>
+              {normalizeServerUrl(serverUrl).ok ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Hide server URL"
+                  hitSlop={8}
+                  onPress={() => setEditingServer(false)}>
+                  <AppText variant="caption" tone="ash">
+                    Done
+                  </AppText>
+                </Pressable>
+              ) : null}
+            </View>
+            <TextInput
+              value={serverUrl}
+              onChangeText={setServerUrl}
+              placeholder="https://berry.example.com"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              editable={!submitting}
+              style={styles.input}
+            />
+          </View>
+        ) : null}
 
         <Segmented
           items={[
@@ -357,6 +377,23 @@ export function SignInScreen() {
             </AppText>
           )}
         </Pressable>
+
+        {!editingServer ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Change server"
+            hitSlop={8}
+            disabled={submitting}
+            onPress={() => setEditingServer(true)}
+            style={styles.serverFooter}>
+            <AppText mono variant="micro" tone="slate" numberOfLines={1} style={styles.serverHost}>
+              {formatServerHost(serverUrl)}
+            </AppText>
+            <AppText variant="caption" tone="ash">
+              Change server
+            </AppText>
+          </Pressable>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -405,4 +442,14 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.45 },
   primaryText: { color: colors.buttonPrimaryInk },
+  serverFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 4,
+  },
+  serverHost: {
+    maxWidth: '68%',
+  },
 });

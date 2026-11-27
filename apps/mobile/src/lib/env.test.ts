@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { normalizeServerUrl } from './env';
+import { formatServerHost, normalizeServerUrl } from './env';
 
 describe('normalizeServerUrl', () => {
   test('normalizes https URL and strips trailing slash', () => {
@@ -35,5 +35,10 @@ describe('normalizeServerUrl', () => {
     expect(normalizeServerUrl('').ok).toBe(false);
     expect(normalizeServerUrl('ftp://berry.example.com').ok).toBe(false);
     expect(normalizeServerUrl('not a url').ok).toBe(false);
+  });
+
+  test('formatServerHost extracts clean host and port', () => {
+    expect(formatServerHost('https://berry.example.com/')).toBe('berry.example.com');
+    expect(formatServerHost('http://192.168.100.6:4000')).toBe('192.168.100.6:4000');
   });
 });
