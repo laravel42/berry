@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { useTranslations } from 'next-intl';
 import { useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { RuntimeDrawer } from './runtime-drawer';
 import { RuntimeProviderBadge } from './runtime-provider-badge';
 
 const STATUS = {
@@ -89,8 +90,12 @@ export default function RuntimesList() {
    const [tokenRuntime, setTokenRuntime] = useState<AiRuntimeDefinition | null>(null);
    const [token, setToken] = useState('');
    const [serverAddress, setServerAddress] = useState(LMSTUDIO_DEFAULT_BASE_URL);
+   const [openId, setOpenId] = useState<string | null>(null);
 
    const nodes = catalog.value?.nodes ?? [];
+   // Read from the catalog each render, so a connect or disconnect made from
+   // the drawer shows in it as soon as the catalog reloads.
+   const opened = nodes.find((runtime) => runtime.id === openId) ?? null;
    const connectedCount = nodes.filter(
       (runtime) => runtime.connection?.status === 'connected'
    ).length;
@@ -184,21 +189,6 @@ export default function RuntimesList() {
       available: availableCount - connectedCount,
    };
 
-   const openRuntime = (runtime: AiRuntimeDefinition) => {
-      if (busy !== null) return;
-      const state = catalogKey(runtime);
-      if (state === 'connected') {
-         setDisconnecting(runtime);
-         return;
-      }
-      if (state === 'available') {
-         askConnect(runtime);
-         return;
-      }
-      const guide = runtime.officialSources[0];
-      if (guide) window.open(guide, '_blank', 'noopener,noreferrer');
-   };
-
    return (
       <MainLayout
          header={
@@ -250,8 +240,6 @@ export default function RuntimesList() {
                <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {shown.map((runtime) => {
                      const state = catalogKey(runtime);
-                     const guide = runtime.officialSources[0];
-                     const clickable = state !== 'unavailable' || Boolean(guide);
                      return (
                         <RuntimeCard
                            key={runtime.id}
@@ -265,13 +253,26 @@ export default function RuntimesList() {
                               )
                            }
                            unavailable={state === 'unavailable'}
-                           onOpen={clickable ? () => openRuntime(runtime) : undefined}
+                           onOpen={() => setOpenId(runtime.id)}
                         />
                      );
                   })}
                </div>
             ) : null}
          </div>
+
+         <RuntimeDrawer
+            runtime={opened}
+            state={opened ? catalogKey(opened) : null}
+            busy={opened !== null && busy === opened.id}
+            onClose={() => setOpenId(null)}
+            onConnect={(runtime) => {
+               if (busy === null) askConnect(runtime);
+            }}
+            onDisconnect={(runtime) => {
+               if (busy === null) setDisconnecting(runtime);
+            }}
+         />
 
          <Dialog open={tokenRuntime !== null} onOpenChange={(open) => !open && closeToken()}>
             <DialogContent className="sm:max-w-md">
@@ -384,7 +385,7 @@ function RuntimeCard({
 }: {
    runtime: AiRuntimeDefinition;
    status?: ReactNode;
-   onOpen?: () => void;
+   onOpen: () => void;
    unavailable?: boolean;
    busy: boolean;
 }) {
@@ -425,17 +426,14 @@ function RuntimeCard({
          )}
          aria-label={runtime.name}
       >
-         {onOpen ? (
-            <button
-               type="button"
-               onClick={onOpen}
-               className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
-            >
-               {identity}
-            </button>
-         ) : (
-            <div className="flex min-w-0 items-start gap-3 p-4">{identity}</div>
-         )}
+         <button
+            type="button"
+            onClick={onOpen}
+            aria-haspopup="dialog"
+            className="flex min-w-0 items-start gap-3 p-4 text-left transition-colors hover:bg-settings-row-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--ring)]"
+         >
+            {identity}
+         </button>
       </section>
    );
 }
